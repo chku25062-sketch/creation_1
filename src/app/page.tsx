@@ -132,7 +132,7 @@ export default function Home() {
 
       <main
         className={`mx-auto flex w-full flex-1 min-h-0 flex-col gap-2.5 px-3 py-2 sm:px-6 sm:py-2.5 ${
-          activeTab === 'timeline' ? 'max-w-7xl 2xl:max-w-[1700px]' : 'max-w-4xl'
+          activeTab === 'timeline' ? 'max-w-7xl 2xl:max-w-[1700px]' : 'max-w-5xl 2xl:max-w-6xl'
         }`}
       >
         {/* Navigation Tabs */}
