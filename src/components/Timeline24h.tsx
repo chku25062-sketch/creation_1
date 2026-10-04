@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, AlertTriangle, ShieldCheck, Flame, Filter } from 'lucide-react';
+import { Calendar, Clock, AlertTriangle, ShieldCheck, Flame } from 'lucide-react';
 import { TheoreticalBlock, TaskItem } from '@/types';
 import { minutesToTimeString, formatDuration } from '@/lib/timeUtils';
 
@@ -12,7 +12,6 @@ interface Timeline24hProps {
 
 export function Timeline24h({ blocks, unassignedTasks }: Timeline24hProps) {
   const [currentMinutes, setCurrentMinutes] = useState<number | null>(null);
-  const [filterMode, setFilterMode] = useState<'all' | 'tasks' | 'fixed'>('all');
 
   useEffect(() => {
     const updateTime = () => {
@@ -24,111 +23,23 @@ export function Timeline24h({ blocks, unassignedTasks }: Timeline24hProps) {
     return () => clearInterval(interval);
   }, []);
 
-  const filteredBlocks = blocks.filter((block) => {
-    if (filterMode === 'tasks') return !block.isFixed;
-    if (filterMode === 'fixed') return block.isFixed;
-    return true;
-  });
-
   return (
-    <div className="flex flex-col gap-6 rounded-2xl border border-slate-800 bg-slate-900/60 p-6 backdrop-blur-md">
+    <div className="flex flex-col gap-5 rounded-2xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-md">
       {/* Timeline Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <Calendar className="h-5 w-5 text-cyan-400" />
-          <h3 className="text-lg font-bold text-white">24時間 理論値タイムスケジュール</h3>
+          <h3 className="text-base font-bold text-white sm:text-lg">24時間 理論値スケジュール</h3>
         </div>
-
-        {/* Filter Tabs */}
-        <div className="flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-950/60 p-1 text-xs">
-          <button
-            onClick={() => setFilterMode('all')}
-            className={`rounded-lg px-2.5 py-1 font-medium transition ${
-              filterMode === 'all'
-                ? 'bg-slate-800 text-cyan-300 shadow-sm'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            すべて
-          </button>
-          <button
-            onClick={() => setFilterMode('tasks')}
-            className={`rounded-lg px-2.5 py-1 font-medium transition ${
-              filterMode === 'tasks'
-                ? 'bg-slate-800 text-cyan-300 shadow-sm'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            目標タスク
-          </button>
-          <button
-            onClick={() => setFilterMode('fixed')}
-            className={`rounded-lg px-2.5 py-1 font-medium transition ${
-              filterMode === 'fixed'
-                ? 'bg-slate-800 text-cyan-300 shadow-sm'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            固定枠
-          </button>
-        </div>
-      </div>
-
-      {/* Visual 24h Continuous Progress Strip */}
-      <div className="relative flex flex-col gap-1.5 rounded-xl border border-slate-800/80 bg-slate-950/70 p-3">
-        <div className="flex items-center justify-between text-[11px] text-slate-400">
-          <span className="flex items-center gap-1">
-            <Filter className="h-3 w-3 text-cyan-400" />
-            24時間タイムスパンマップ
+        <div className="flex items-center gap-3 text-xs text-slate-400">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-slate-700 border border-slate-600" />
+            生活固定枠
           </span>
-          {currentMinutes !== null && (
-            <span className="flex items-center gap-1 font-mono text-cyan-300">
-              <span className="h-1.5 w-1.5 animate-ping rounded-full bg-cyan-400" />
-              現在時刻: {minutesToTimeString(currentMinutes)}
-            </span>
-          )}
-        </div>
-
-        {/* 24-hour visual strip */}
-        <div className="relative mt-2 h-7 w-full overflow-hidden rounded-lg bg-slate-900 border border-slate-800">
-          {blocks.map((b) => {
-            const left = (b.startMinutes / 1440) * 100;
-            const width = ((b.endMinutes - b.startMinutes) / 1440) * 100;
-            return (
-              <div
-                key={`strip-${b.id}`}
-                title={`${b.title} (${minutesToTimeString(b.startMinutes)} - ${minutesToTimeString(b.endMinutes)})`}
-                style={{
-                  left: `${left}%`,
-                  width: `${width}%`,
-                  backgroundColor: b.color,
-                }}
-                className={`absolute inset-y-0 opacity-80 transition hover:opacity-100 ${
-                  b.isFixed ? 'brightness-90' : 'brightness-110 shadow-sm'
-                }`}
-              />
-            );
-          })}
-
-          {/* Current Time Pin */}
-          {currentMinutes !== null && (
-            <div
-              style={{ left: `${(currentMinutes / 1440) * 100}%` }}
-              title={`現在時刻: ${minutesToTimeString(currentMinutes)}`}
-              className="absolute inset-y-0 z-20 w-0.5 bg-rose-500 shadow-md shadow-rose-500"
-            >
-              <div className="absolute -top-1 -left-1 h-2.5 w-2.5 rounded-full bg-rose-500 shadow-sm shadow-rose-500/80 ring-2 ring-white/50" />
-            </div>
-          )}
-        </div>
-
-        {/* Time markers */}
-        <div className="mt-1 flex justify-between font-mono text-[10px] text-slate-500">
-          <span>00:00</span>
-          <span>06:00</span>
-          <span>12:00</span>
-          <span>18:00</span>
-          <span>24:00</span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-cyan-500 shadow-sm shadow-cyan-500/50" />
+            目標タスク (自動最適配置)
+          </span>
         </div>
       </div>
 
@@ -148,15 +59,15 @@ export function Timeline24h({ blocks, unassignedTasks }: Timeline24hProps) {
               ))}
             </ul>
             <p className="mt-1 text-[11px] text-amber-400">
-              固定時間の見直し、またはタスクの所要時間・優先度を調整してください。
+              「設定」タブから固定枠の時間を見直すか、タスクの所要時間を調整してください。
             </p>
           </div>
         </div>
       )}
 
       {/* Timeline Blocks List */}
-      <div className="relative flex flex-col gap-2.5">
-        {filteredBlocks.map((block) => {
+      <div className="flex flex-col gap-2.5">
+        {blocks.map((block) => {
           const duration = block.endMinutes - block.startMinutes;
           const isCurrent =
             currentMinutes !== null &&
