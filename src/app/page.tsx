@@ -130,7 +130,11 @@ export default function Home() {
         lastSavedAt={lastSavedAt}
       />
 
-      <main className="mx-auto flex w-full max-w-4xl flex-1 min-h-0 flex-col gap-2.5 px-3 py-2.5 sm:px-6 sm:py-3">
+      <main
+        className={`mx-auto flex w-full flex-1 min-h-0 flex-col gap-2.5 px-3 py-2 sm:px-6 sm:py-2.5 ${
+          activeTab === 'timeline' ? 'max-w-7xl 2xl:max-w-[1700px]' : 'max-w-4xl'
+        }`}
+      >
         {/* Navigation Tabs */}
         <div className="flex shrink-0 rounded-xl border border-slate-800 bg-slate-900/80 p-1 backdrop-blur-md">
           <button
@@ -142,7 +146,7 @@ export default function Home() {
             }`}
           >
             <Calendar className="h-3.5 w-3.5" />
-            <span>24時間スケジュール</span>
+            <span>週間スケジュール (7日間)</span>
             {schedulingResult.unassignedTasks.length > 0 && (
               <span className="rounded-full bg-amber-500/30 px-1.5 py-0.2 text-[10px] text-amber-300">
                 未配置 {schedulingResult.unassignedTasks.length}
@@ -166,7 +170,7 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Tab 1: 24h Timeline Display (Fills remaining height without outer scroll) */}
+        {/* Tab 1: Weekly 7-Day Timeline Display */}
         {activeTab === 'timeline' && (
           <div className="flex flex-1 min-h-0 flex-col">
             <Timeline24h
@@ -176,7 +180,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Tab 2: Settings & Task Management (Scrolls internally if content is tall) */}
+        {/* Tab 2: Settings & Task Management */}
         {activeTab === 'settings' && (
           <div className="flex flex-1 min-h-0 flex-col gap-4 overflow-y-auto pr-1">
             <TaskManager tasks={tasks} onChange={handleTasksChange} />
