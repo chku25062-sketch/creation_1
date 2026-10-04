@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useRef, useEffect } from 'react';
-import { Calendar, Clock, AlertTriangle, ShieldCheck, Flame, Sun, Moon } from 'lucide-react';
+import React, { useRef, useEffect, useState } from 'react';
+import { Calendar, Clock, AlertTriangle, ShieldCheck, Flame, Compass } from 'lucide-react';
 import { TheoreticalBlock, TaskItem } from '@/types';
 import { minutesToTimeString, formatDuration } from '@/lib/timeUtils';
 
@@ -16,18 +16,27 @@ const TOTAL_HEIGHT = TOTAL_HOURS * HOUR_HEIGHT; // 1344px
 
 export function Timeline24h({ blocks, unassignedTasks }: Timeline24hProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [nowTimeString, setNowTimeString] = useState<string>('');
 
-  // 初期スクロール位置を朝07:00付近に設定
+  // 現在時刻を参照して初期スクロール位置を調整（現在時刻の約45分前を画面上部に持ってくる）
   useEffect(() => {
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    setNowTimeString(minutesToTimeString(currentMinutes));
+
     if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTop = 7 * HOUR_HEIGHT - 20;
+      const targetScroll = Math.max(0, ((currentMinutes - 45) / 60) * HOUR_HEIGHT);
+      scrollContainerRef.current.scrollTop = targetScroll;
     }
   }, []);
 
-  const scrollToHour = (hour: number) => {
+  const scrollToNow = () => {
     if (scrollContainerRef.current) {
+      const now = new Date();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const targetScroll = Math.max(0, ((currentMinutes - 45) / 60) * HOUR_HEIGHT);
       scrollContainerRef.current.scrollTo({
-        top: hour * HOUR_HEIGHT - 20,
+        top: targetScroll,
         behavior: 'smooth',
       });
     }
@@ -42,7 +51,7 @@ export function Timeline24h({ blocks, unassignedTasks }: Timeline24hProps) {
           <h3 className="text-base font-bold text-white sm:text-lg">24時間 マス目スケジュール</h3>
         </div>
 
-        {/* Legend & Quick Jump */}
+        {/* Legend & Current Time Scroll Action */}
         <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1">
@@ -57,18 +66,12 @@ export function Timeline24h({ blocks, unassignedTasks }: Timeline24hProps) {
 
           <div className="flex items-center gap-1 border-l border-slate-800 pl-3">
             <button
-              onClick={() => scrollToHour(7)}
-              title="朝 07:00 にスクロール"
-              className="flex items-center gap-1 rounded bg-slate-800/80 px-2 py-0.5 text-[11px] text-slate-300 transition hover:bg-slate-700 hover:text-white"
+              onClick={scrollToNow}
+              title="現在時刻の位置へスクロール"
+              className="flex items-center gap-1 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-500/20"
             >
-              <Sun className="h-3 w-3 text-amber-400" />朝 07:00
-            </button>
-            <button
-              onClick={() => scrollToHour(19)}
-              title="夜 19:00 にスクロール"
-              className="flex items-center gap-1 rounded bg-slate-800/80 px-2 py-0.5 text-[11px] text-slate-300 transition hover:bg-slate-700 hover:text-white"
-            >
-              <Moon className="h-3 w-3 text-indigo-400" />夜 19:00
+              <Compass className="h-3.5 w-3.5 text-cyan-400 animate-spin-slow" />
+              <span>現在時刻へ ({nowTimeString || '今'})</span>
             </button>
           </div>
         </div>
