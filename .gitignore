@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# Next.js build output
+.next/
+out/
+
+# Production
+build/
+dist/
+
+# Environment variables (Never commit real secrets)
+.env*.local
+.env
+
+# Testing / Coverage
+coverage/
+
+# OS / Editor
+.DS_Store
+*.pem
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.tsbuildinfo
+AGENTS.md
+CLAUDE.md
+
