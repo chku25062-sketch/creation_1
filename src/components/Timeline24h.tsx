@@ -43,34 +43,34 @@ export function Timeline24h({ blocks, unassignedTasks }: Timeline24hProps) {
   };
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 backdrop-blur-md sm:p-5">
+    <div className="flex flex-1 min-h-0 flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-3 backdrop-blur-md sm:p-4">
       {/* Header */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
-          <Calendar className="h-5 w-5 text-cyan-400" />
-          <h3 className="text-base font-bold text-white sm:text-lg">24時間 マス目スケジュール</h3>
+          <Calendar className="h-4 w-4 text-cyan-400" />
+          <h3 className="text-sm font-bold text-white sm:text-base">24時間 マス目スケジュール</h3>
         </div>
 
         {/* Legend & Current Time Scroll Action */}
-        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+        <div className="flex flex-wrap items-center gap-2.5 text-xs text-slate-400">
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1">
-              <span className="h-2.5 w-2.5 rounded-sm bg-slate-700 border border-slate-600" />
+              <span className="h-2 w-2 rounded-sm bg-slate-700 border border-slate-600" />
               固定枠
             </span>
             <span className="flex items-center gap-1">
-              <span className="h-2.5 w-2.5 rounded-sm bg-cyan-500 shadow-sm shadow-cyan-500/50" />
+              <span className="h-2 w-2 rounded-sm bg-cyan-500 shadow-sm shadow-cyan-500/50" />
               目標タスク
             </span>
           </div>
 
-          <div className="flex items-center gap-1 border-l border-slate-800 pl-3">
+          <div className="flex items-center gap-1 border-l border-slate-800 pl-2.5">
             <button
               onClick={scrollToNow}
               title="現在時刻の位置へスクロール"
-              className="flex items-center gap-1 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-500/20"
+              className="flex items-center gap-1 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-semibold text-cyan-300 transition hover:bg-cyan-500/20"
             >
-              <Compass className="h-3.5 w-3.5 text-cyan-400 animate-spin-slow" />
+              <Compass className="h-3 w-3 text-cyan-400" />
               <span>現在時刻へ ({nowTimeString || '今'})</span>
             </button>
           </div>
@@ -79,13 +79,13 @@ export function Timeline24h({ blocks, unassignedTasks }: Timeline24hProps) {
 
       {/* Unassigned Warning Alert if any */}
       {unassignedTasks.length > 0 && (
-        <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-200">
+        <div className="flex shrink-0 items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-200">
           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
           <div>
             <span className="font-semibold text-amber-300">
               枠不足により本日未配置のタスクがあります（{unassignedTasks.length}件）:
             </span>
-            <ul className="mt-1 list-inside list-disc text-amber-200/90">
+            <ul className="mt-0.5 list-inside list-disc text-amber-200/90">
               {unassignedTasks.map((t) => (
                 <li key={t.id}>
                   {t.title} ({formatDuration(t.durationMinutes)}) - 優先度: {t.priority}
@@ -96,10 +96,10 @@ export function Timeline24h({ blocks, unassignedTasks }: Timeline24hProps) {
         </div>
       )}
 
-      {/* 24-Hour Vertical Grid Container */}
+      {/* 24-Hour Vertical Grid Container (fills remaining viewport height and scrolls internally) */}
       <div
         ref={scrollContainerRef}
-        className="relative max-h-[700px] overflow-y-auto rounded-xl border border-slate-800 bg-slate-950/70 p-2 sm:p-3"
+        className="relative flex-1 min-h-0 overflow-y-auto rounded-xl border border-slate-800 bg-slate-950/70 p-2 sm:p-3"
       >
         <div className="relative flex" style={{ height: `${TOTAL_HEIGHT}px` }}>
           {/* Left Time Axis Labels (00:00 - 24:00) */}
