@@ -4,9 +4,9 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Calendar, Settings } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { Timeline24h } from '@/components/Timeline24h';
-import { FixedSlotsManager } from '@/components/FixedSlotsManager';
 import { TaskManager } from '@/components/TaskManager';
 import { AuthModal } from '@/components/AuthModal';
+import { FileImportModal } from '@/components/FileImportModal';
 import { FixedSlot, TaskItem } from '@/types';
 import { generateTheoreticalSchedule } from '@/lib/scheduler';
 import { loadLocalData, saveLocalData, syncWithSupabase } from '@/lib/storage';
@@ -19,6 +19,7 @@ export default function Home() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -79,6 +80,27 @@ export default function Home() {
     saveData(fixedSlots, newTasks);
   };
 
+  const handleImport = (
+    newFixedSlots: FixedSlot[],
+    newTasks: TaskItem[],
+    mode: 'add' | 'replace',
+  ) => {
+    let updatedFixed: FixedSlot[];
+    let updatedTasks: TaskItem[];
+
+    if (mode === 'replace') {
+      updatedFixed = newFixedSlots;
+      updatedTasks = newTasks;
+    } else {
+      updatedFixed = [...fixedSlots, ...newFixedSlots];
+      updatedTasks = [...tasks, ...newTasks];
+    }
+
+    setFixedSlots(updatedFixed);
+    setTasks(updatedTasks);
+    saveData(updatedFixed, updatedTasks);
+  };
+
   const handleSignOut = async () => {
     if (supabase) {
       await supabase.auth.signOut();
@@ -92,6 +114,8 @@ export default function Home() {
     if (!isInitialized) {
       return {
         blocks: [],
+        allBlocks: [],
+        dayBlocks: { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] },
         unassignedTasks: [],
         metrics: {
           totalDayMinutes: 1440,
@@ -112,43 +136,46 @@ export default function Home() {
 
   if (!isInitialized) {
     return (
-      <div className="flex h-screen h-[100dvh] items-center justify-center bg-[#090d16] text-white">
+      <div className="flex h-screen h-[100dvh] items-center justify-center bg-[#f8fafc] text-slate-800">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
-          <p className="text-xs text-slate-400">理論値計画表を初期化中...</p>
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+          <p className="text-xs text-slate-500 font-medium">理論値計画表を初期化中...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen h-[100dvh] flex-col overflow-hidden bg-[#090d16] text-slate-100">
+    <div className="flex h-screen h-[100dvh] flex-col overflow-hidden bg-[#f8fafc] text-slate-800">
       <Header
         userEmail={userEmail}
         onOpenAuth={() => setIsAuthOpen(true)}
         onSignOut={handleSignOut}
+        onOpenImport={() => setIsImportOpen(true)}
         lastSavedAt={lastSavedAt}
       />
 
-      <main
-        className={`mx-auto flex w-full flex-1 min-h-0 flex-col gap-2.5 px-3 py-2 sm:px-6 sm:py-2.5 ${
-          activeTab === 'timeline' ? 'max-w-7xl 2xl:max-w-[1700px]' : 'max-w-5xl 2xl:max-w-6xl'
-        }`}
-      >
+      <main className="mx-auto flex w-full flex-1 min-h-0 flex-col gap-2.5 px-3 py-2 sm:px-6 sm:py-2.5 max-w-7xl 2xl:max-w-[1700px]">
         {/* Navigation Tabs */}
-        <div className="flex shrink-0 rounded-xl border border-slate-800 bg-slate-900/80 p-1 backdrop-blur-md">
+        <div className="flex shrink-0 rounded-xl border border-slate-200 bg-white p-1 shadow-xs">
           <button
             onClick={() => setActiveTab('timeline')}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition sm:text-sm ${
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs transition sm:text-sm ${
               activeTab === 'timeline'
-                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/20'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium'
             }`}
           >
             <Calendar className="h-3.5 w-3.5" />
             <span>週間スケジュール (7日間)</span>
             {schedulingResult.unassignedTasks.length > 0 && (
-              <span className="rounded-full bg-amber-500/30 px-1.5 py-0.2 text-[10px] text-amber-300">
+              <span
+                className={`rounded-full px-1.5 py-0.2 text-[10px] font-semibold ${
+                  activeTab === 'timeline'
+                    ? 'bg-amber-400 text-amber-950'
+                    : 'bg-amber-100 text-amber-800'
+                }`}
+              >
                 未配置 {schedulingResult.unassignedTasks.length}
               </span>
             )}
@@ -156,16 +183,22 @@ export default function Home() {
 
           <button
             onClick={() => setActiveTab('settings')}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition sm:text-sm ${
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs transition sm:text-sm ${
               activeTab === 'settings'
-                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/20'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium'
             }`}
           >
             <Settings className="h-3.5 w-3.5" />
             <span>目標・固定枠の設定</span>
-            <span className="rounded-full bg-slate-800 px-1.5 py-0.2 text-[10px] text-slate-300">
-              タスク {tasks.length}
+            <span
+              className={`rounded-full px-1.5 py-0.2 text-[10px] ${
+                activeTab === 'settings'
+                  ? 'bg-blue-700 text-blue-100'
+                  : 'bg-slate-100 text-slate-600'
+              }`}
+            >
+              タスク {tasks.length} / 固定 {fixedSlots.length}
             </span>
           </button>
         </div>
@@ -175,16 +208,21 @@ export default function Home() {
           <div className="flex flex-1 min-h-0 flex-col">
             <Timeline24h
               blocks={schedulingResult.blocks}
+              dayBlocks={schedulingResult.dayBlocks}
               unassignedTasks={schedulingResult.unassignedTasks}
             />
           </div>
         )}
 
-        {/* Tab 2: Settings & Task Management */}
+        {/* Tab 2: 3-Column Settings & Task Management (日ごと / 週ごと / 固定枠) */}
         {activeTab === 'settings' && (
-          <div className="flex flex-1 min-h-0 flex-col gap-4 overflow-y-auto pr-1">
-            <TaskManager tasks={tasks} onChange={handleTasksChange} />
-            <FixedSlotsManager slots={fixedSlots} onChange={handleFixedSlotsChange} />
+          <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
+            <TaskManager
+              tasks={tasks}
+              onChange={handleTasksChange}
+              slots={fixedSlots}
+              onSlotsChange={handleFixedSlotsChange}
+            />
           </div>
         )}
       </main>
@@ -195,6 +233,12 @@ export default function Home() {
         onAuthSuccess={(email) => {
           setUserEmail(email);
         }}
+      />
+
+      <FileImportModal
+        isOpen={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        onImport={handleImport}
       />
     </div>
   );

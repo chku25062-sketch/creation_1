@@ -5,22 +5,71 @@ import {
   FreeSlot,
   ScheduleMetrics,
   CategorySummary,
+  WeeklySchedulingResult,
 } from '@/types';
 
 const CATEGORY_COLORS: Record<string, string> = {
+  must: '#f59e0b', // Amber (やらなければいけないこと)
+  want: '#2563eb', // Royal Blue (やりたいこと)
   sleep: '#6366f1', // Indigo
-  work: '#3b82f6', // Blue
+  work: '#0284c7', // Sky
+  lecture: '#0369a1', // Deep Sky (大学講義・授業)
   routine: '#64748b', // Slate
-  meal: '#f59e0b', // Amber
-  study: '#06b6d4', // Cyan
-  workout: '#10b981', // Emerald
-  hobby: '#ec4899', // Pink
-  creative: '#8b5cf6', // Purple
-  other: '#94a3b8',
+  meal: '#ea580c', // Orange
+  study: '#4f46e5', // Indigo
+  workout: '#059669', // Emerald
+  hobby: '#db2777', // Pink
+  creative: '#7c3aed', // Purple
+  other: '#64748b',
 };
 
 export function getCategoryColor(category: string): string {
-  return CATEGORY_COLORS[category] || '#38bdf8';
+  return CATEGORY_COLORS[category] || '#2563eb';
+}
+
+/**
+ * 所要時間（小・中・大）の自動調整: 空きスロットのサイズに合わせていい感じにフィット
+ */
+export function getAdjustedDuration(task: TaskItem, availableSlotDuration: number): number {
+  if (task.durationSize === 'small') {
+    // 小: 15〜30分未満。空き枠が15〜30分なら空き枠全体を使い、それ以上なら25分
+    if (availableSlotDuration >= 15 && availableSlotDuration < 30) {
+      return availableSlotDuration;
+    }
+    return Math.min(25, availableSlotDuration);
+  }
+  if (task.durationSize === 'medium') {
+    // 中: 30分〜2時間未満。空き枠が30〜60分なら空き枠に合わせ、それ以上なら60分
+    if (availableSlotDuration >= 30 && availableSlotDuration < 60) {
+      return availableSlotDuration;
+    }
+    return Math.min(60, availableSlotDuration);
+  }
+  if (task.durationSize === 'large') {
+    // 大: 2時間以上。120分基準
+    return 120;
+  }
+  // 直接指定の場合
+  return task.durationMinutes > 0 ? task.durationMinutes : 30;
+}
+
+/**
+ * 頻度に応じた週あたりの目標配置日数
+ */
+function getTargetPlacementDays(task: TaskItem): number {
+  if (task.period === 'day' || task.frequency === 'high') {
+    return 7; // 週5回以上〜毎日
+  }
+  if (task.frequency === 'medium') {
+    return 3; // 週3〜4回
+  }
+  if (task.frequency === 'low') {
+    return 1; // 週1〜2回
+  }
+  if (task.frequency === 'custom' && task.frequencyCount) {
+    return Math.min(7, Math.max(1, task.frequencyCount));
+  }
+  return 1;
 }
 
 /**
@@ -87,80 +136,195 @@ export function calculateFreeSlots(normalizedFixedSlots: FixedSlot[]): FreeSlot[
   return freeSlots;
 }
 
-export interface SchedulingResult {
-  blocks: TheoreticalBlock[];
-  unassignedTasks: TaskItem[];
-  metrics: ScheduleMetrics;
-  categorySummaries: CategorySummary[];
+/**
+ * 特定の曜日に有効な固定枠をフィルタリング
+ */
+export function getFixedSlotsForDay(fixedSlots: FixedSlot[], dayIndex: number): FixedSlot[] {
+  return fixedSlots.filter((slot) => {
+    if (!slot.daysOfWeek || slot.daysOfWeek.length === 0) return true;
+    return slot.daysOfWeek.includes(dayIndex);
+  });
 }
 
 /**
- * 理論値自動スケジューリングのコアエンジン
+ * 1週間（7日間: 月曜=0 〜 日曜=6）の自律的理論値スケジューリングエンジン
  */
 export function generateTheoreticalSchedule(
   fixedSlots: FixedSlot[],
   tasks: TaskItem[],
-): SchedulingResult {
-  const normalizedSlots = normalizeFixedSlots(fixedSlots);
-  const freeSlots = calculateFreeSlots(normalizedSlots);
+): WeeklySchedulingResult & { blocks: TheoreticalBlock[] } {
+  const dayBlocks: Record<number, TheoreticalBlock[]> = {
+    0: [],
+    1: [],
+    2: [],
+    3: [],
+    4: [],
+    5: [],
+    6: [],
+  };
 
-  // 1. 固定枠をブロックとして登録
-  const blocks: TheoreticalBlock[] = normalizedSlots.map((slot) => ({
-    id: `block-fixed-${slot.id}`,
-    title: slot.title,
-    category: slot.category,
-    startMinutes: slot.startMinutes,
-    endMinutes: slot.endMinutes,
-    isFixed: true,
-    color: slot.color || getCategoryColor(slot.category),
-  }));
+  // 1. 各曜日の固定枠と空き時間スロットを初期化
+  const dayAvailableSlots: Record<number, FreeSlot[]> = {};
+  const dayNormalizedFixed: Record<number, FixedSlot[]> = {};
 
-  // 2. タスクを優先度順にソート (High -> Medium -> Low), 同一優先度は所要時間の長い順
+  for (let d = 0; d < 7; d++) {
+    const slotsForThisDay = getFixedSlotsForDay(fixedSlots, d);
+    const normalized = normalizeFixedSlots(slotsForThisDay);
+    dayNormalizedFixed[d] = normalized;
+    dayAvailableSlots[d] = calculateFreeSlots(normalized);
+
+    // 固定枠ブロックを追加
+    for (const slot of normalized) {
+      dayBlocks[d].push({
+        id: `block-fixed-${d}-${slot.id}`,
+        title: slot.title,
+        category: slot.category,
+        startMinutes: slot.startMinutes,
+        endMinutes: slot.endMinutes,
+        isFixed: true,
+        color: slot.color || getCategoryColor(slot.category),
+        dayIndex: d,
+      });
+    }
+  }
+
+  // 2. タスクを分類（所要時間なしToDoは時間割に配置しない）
+  const schedulableTasks = tasks.filter(
+    (t) => !t.hasNoDuration && (t.durationMinutes > 0 || t.durationSize !== undefined),
+  );
+
+  // 優先度ソート: 📌「やらなければいけないこと (Must)」を最優先、次に 🌟「やりたいこと (Want)」
   const priorityWeight = { high: 3, medium: 2, low: 1 };
-  const sortedTasks = [...tasks].sort((a, b) => {
+  const sortedTasks = [...schedulableTasks].sort((a, b) => {
+    const isMustA = a.category === 'must' || a.taskType === 'assignment';
+    const isMustB = b.category === 'must' || b.taskType === 'assignment';
+    if (isMustA && !isMustB) return -1;
+    if (!isMustA && isMustB) return 1;
+
     const diff = priorityWeight[b.priority] - priorityWeight[a.priority];
     if (diff !== 0) return diff;
-    return b.durationMinutes - a.durationMinutes;
+    return (b.durationMinutes || 0) - (a.durationMinutes || 0);
   });
 
-  const availableSlots = freeSlots.map((s) => ({ ...s }));
+  const dailyTasks = sortedTasks.filter((t) => t.period === 'day' || t.frequency === 'high');
+  const assignmentTasks = sortedTasks.filter(
+    (t) =>
+      t.period !== 'day' &&
+      t.frequency !== 'high' &&
+      (t.taskType === 'assignment' || t.deadlineDay !== undefined),
+  );
+  const generalTasks = sortedTasks.filter(
+    (t) =>
+      t.period !== 'day' &&
+      t.frequency !== 'high' &&
+      t.taskType !== 'assignment' &&
+      t.deadlineDay === undefined,
+  );
+
   const unassignedTasks: TaskItem[] = [];
   let assignedTaskCount = 0;
   let scheduledTaskMinutes = 0;
 
-  // 3. 空き時間スロットへの最適配置（ビンパッキング）
-  for (const task of sortedTasks) {
-    let placed = false;
+  // 3-A. 毎日タスク（daily / frequency: high）を各曜日の空きスロットに配置
+  for (const task of dailyTasks) {
+    let placedAtLeastOnce = false;
 
-    for (let i = 0; i < availableSlots.length; i++) {
-      const slot = availableSlots[i];
-      if (slot.durationMinutes >= task.durationMinutes) {
-        // スロットに配置
-        const taskStart = slot.startMinutes;
-        const taskEnd = taskStart + task.durationMinutes;
+    for (let d = 0; d < 7; d++) {
+      const slots = dayAvailableSlots[d];
+      for (const slot of slots) {
+        const requiredMin =
+          task.durationSize === 'small'
+            ? 15
+            : task.durationSize === 'medium'
+              ? 30
+              : task.durationMinutes || 30;
+        if (slot.durationMinutes >= requiredMin) {
+          const effectiveDuration = getAdjustedDuration(task, slot.durationMinutes);
+          const taskStart = slot.startMinutes;
+          const taskEnd = taskStart + effectiveDuration;
 
-        blocks.push({
-          id: `block-task-${task.id}`,
-          title: task.title,
-          category: task.category,
-          startMinutes: taskStart,
-          endMinutes: taskEnd,
-          isFixed: false,
-          color: getCategoryColor(task.category),
-          taskId: task.id,
-          priority: task.priority,
-        });
+          dayBlocks[d].push({
+            id: `block-task-${d}-${task.id}`,
+            title: task.title,
+            category: task.category,
+            startMinutes: taskStart,
+            endMinutes: taskEnd,
+            isFixed: false,
+            color: getCategoryColor(task.category),
+            taskId: task.id,
+            priority: task.priority,
+            taskType: task.taskType || 'task',
+            dayIndex: d,
+          });
 
-        scheduledTaskMinutes += task.durationMinutes;
-        assignedTaskCount++;
-
-        // 残余スロットを更新
-        slot.startMinutes = taskEnd;
-        slot.durationMinutes = slot.endMinutes - taskEnd;
-
-        placed = true;
-        break;
+          slot.startMinutes = taskEnd;
+          slot.durationMinutes = slot.endMinutes - taskEnd;
+          placedAtLeastOnce = true;
+          break;
+        }
       }
+    }
+
+    if (placedAtLeastOnce) {
+      assignedTaskCount++;
+      scheduledTaskMinutes += task.durationMinutes || 30;
+    } else {
+      unassignedTasks.push(task);
+    }
+  }
+
+  // 3-B. 課題タスク（assignment: 出題曜日 startDay 〜 締切曜日 deadlineDay）を最適配置
+  for (const task of assignmentTasks) {
+    const startD = task.startDay !== undefined ? task.startDay : 0;
+    const endD = task.deadlineDay !== undefined ? task.deadlineDay : 6;
+
+    const candidateDays: number[] = [];
+    if (startD <= endD) {
+      for (let d = startD; d <= endD; d++) candidateDays.push(d);
+    } else {
+      for (let d = startD; d < 7; d++) candidateDays.push(d);
+      for (let d = 0; d <= endD; d++) candidateDays.push(d);
+    }
+
+    let placed = false;
+    for (const d of candidateDays) {
+      const slots = dayAvailableSlots[d];
+      for (const slot of slots) {
+        const requiredMin =
+          task.durationSize === 'small'
+            ? 15
+            : task.durationSize === 'medium'
+              ? 30
+              : task.durationMinutes || 60;
+        if (slot.durationMinutes >= requiredMin) {
+          const effectiveDuration = getAdjustedDuration(task, slot.durationMinutes);
+          const taskStart = slot.startMinutes;
+          const taskEnd = taskStart + effectiveDuration;
+
+          dayBlocks[d].push({
+            id: `block-assign-${d}-${task.id}`,
+            title: task.title,
+            category: task.category,
+            startMinutes: taskStart,
+            endMinutes: taskEnd,
+            isFixed: false,
+            color: getCategoryColor(task.category),
+            taskId: task.id,
+            priority: task.priority,
+            taskType: 'assignment',
+            deadlineDay: task.deadlineDay,
+            dayIndex: d,
+          });
+
+          slot.startMinutes = taskEnd;
+          slot.durationMinutes = slot.endMinutes - taskEnd;
+          placed = true;
+          assignedTaskCount++;
+          scheduledTaskMinutes += effectiveDuration;
+          break;
+        }
+      }
+      if (placed) break;
     }
 
     if (!placed) {
@@ -168,31 +332,88 @@ export function generateTheoreticalSchedule(
     }
   }
 
-  // 4. 時系列順にブロックをソート
-  blocks.sort((a, b) => a.startMinutes - b.startMinutes);
+  // 3-C. 一般タスク（頻度: 低/中/カスタムに応じて適切な日数分、空き時間の多い曜日に分散配置）
+  for (const task of generalTasks) {
+    const targetDays = getTargetPlacementDays(task);
+    let placedDaysCount = 0;
 
-  // 5. メトリクス計算
-  let sleepMinutes = 0;
-  let fixedMinutes = 0;
+    // 7日間を空き時間の大きい順に探索
+    const daysSortedByFreeTime = [0, 1, 2, 3, 4, 5, 6].sort((a, b) => {
+      const freeA = dayAvailableSlots[a].reduce((s, slot) => s + slot.durationMinutes, 0);
+      const freeB = dayAvailableSlots[b].reduce((s, slot) => s + slot.durationMinutes, 0);
+      return freeB - freeA;
+    });
 
-  for (const slot of normalizedSlots) {
-    const duration = slot.endMinutes - slot.startMinutes;
-    if (slot.category === 'sleep') {
-      sleepMinutes += duration;
+    for (const d of daysSortedByFreeTime) {
+      if (placedDaysCount >= targetDays) break;
+
+      const slots = dayAvailableSlots[d];
+      for (const slot of slots) {
+        const requiredMin =
+          task.durationSize === 'small'
+            ? 15
+            : task.durationSize === 'medium'
+              ? 30
+              : task.durationMinutes || 30;
+        if (slot.durationMinutes >= requiredMin) {
+          const effectiveDuration = getAdjustedDuration(task, slot.durationMinutes);
+          const taskStart = slot.startMinutes;
+          const taskEnd = taskStart + effectiveDuration;
+
+          dayBlocks[d].push({
+            id: `block-gen-${d}-${task.id}`,
+            title: task.title,
+            category: task.category,
+            startMinutes: taskStart,
+            endMinutes: taskEnd,
+            isFixed: false,
+            color: getCategoryColor(task.category),
+            taskId: task.id,
+            priority: task.priority,
+            taskType: 'task',
+            dayIndex: d,
+          });
+
+          slot.startMinutes = taskEnd;
+          slot.durationMinutes = slot.endMinutes - taskEnd;
+          placedDaysCount++;
+          scheduledTaskMinutes += effectiveDuration;
+          break;
+        }
+      }
+    }
+
+    if (placedDaysCount > 0) {
+      assignedTaskCount++;
     } else {
-      fixedMinutes += duration;
+      unassignedTasks.push(task);
     }
   }
 
-  const freeMinutes = 1440 - (sleepMinutes + fixedMinutes);
-  const totalRequestedTaskMinutes = tasks.reduce((sum, t) => sum + t.durationMinutes, 0);
-  const unassignedTaskMinutes = unassignedTasks.reduce((sum, t) => sum + t.durationMinutes, 0);
+  // 4. 各曜日のブロックを時系列順に整頓
+  const allBlocks: TheoreticalBlock[] = [];
+  for (let d = 0; d < 7; d++) {
+    dayBlocks[d].sort((a, b) => a.startMinutes - b.startMinutes);
+    allBlocks.push(...dayBlocks[d]);
+  }
 
-  // 理論値スコア（タスク要求時間に対する消化率、タスクがない場合は100%）
+  // 5. メトリクス計算（月曜を基準日、全体を代表）
+  const totalRequestedTaskMinutes = schedulableTasks.reduce((sum, t) => sum + t.durationMinutes, 0);
+  const unassignedTaskMinutes = unassignedTasks.reduce((sum, t) => sum + t.durationMinutes, 0);
   const theoreticalScore =
     totalRequestedTaskMinutes > 0
       ? Math.round((scheduledTaskMinutes / totalRequestedTaskMinutes) * 100)
       : 100;
+
+  const mondayNormalized = dayNormalizedFixed[0];
+  let sleepMinutes = 0;
+  let fixedMinutes = 0;
+  for (const slot of mondayNormalized) {
+    const duration = slot.endMinutes - slot.startMinutes;
+    if (slot.category === 'sleep') sleepMinutes += duration;
+    else fixedMinutes += duration;
+  }
+  const freeMinutes = 1440 - (sleepMinutes + fixedMinutes);
 
   const metrics: ScheduleMetrics = {
     totalDayMinutes: 1440,
@@ -203,19 +424,22 @@ export function generateTheoreticalSchedule(
     unassignedTaskMinutes,
     theoreticalScore,
     assignedTaskCount,
-    totalTaskCount: tasks.length,
+    totalTaskCount: schedulableTasks.length,
   };
 
-  // 6. カテゴリ別サマリー（円グラフ用）
+  // 6. カテゴリ別サマリー
   const categoryMap = new Map<string, number>();
-  for (const block of blocks) {
+  for (const block of allBlocks) {
     const dur = block.endMinutes - block.startMinutes;
     categoryMap.set(block.category, (categoryMap.get(block.category) || 0) + dur);
   }
 
   const categoryNameMap: Record<string, string> = {
+    must: 'やらなければいけないこと',
+    want: 'やりたいこと',
     sleep: '睡眠',
     work: '仕事・学業',
+    lecture: '大学講義・授業',
     routine: '日課・身支度',
     meal: '食事・休憩',
     study: '学習・インプット',
@@ -230,13 +454,15 @@ export function generateTheoreticalSchedule(
       name: categoryNameMap[cat] || cat,
       category: cat,
       minutes: mins,
-      percentage: Math.round((mins / 1440) * 100),
+      percentage: Math.round((mins / (1440 * 7)) * 100),
       color: getCategoryColor(cat),
     }),
   );
 
   return {
-    blocks,
+    dayBlocks,
+    allBlocks,
+    blocks: dayBlocks[0], // 0(月曜)のブロックをデフォルト互換用として保持
     unassignedTasks,
     metrics,
     categorySummaries,

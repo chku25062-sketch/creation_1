@@ -9,6 +9,7 @@ export const INITIAL_FIXED_SLOTS: FixedSlot[] = [
     startMinutes: 23 * 60, // 23:00
     endMinutes: 7 * 60, // 07:00
     color: '#6366f1',
+    daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
   },
   {
     id: 'fixed-morning',
@@ -17,14 +18,25 @@ export const INITIAL_FIXED_SLOTS: FixedSlot[] = [
     startMinutes: 7 * 60, // 07:00
     endMinutes: 8 * 60, // 08:00
     color: '#64748b',
+    daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
   },
   {
-    id: 'fixed-work',
-    title: '本業・コアタイム',
-    category: 'work',
-    startMinutes: 9 * 60, // 09:00
-    endMinutes: 18 * 60, // 18:00
-    color: '#3b82f6',
+    id: 'fixed-lecture-mw',
+    title: '大学講義 (2限・3限)',
+    category: 'lecture',
+    startMinutes: 10 * 60 + 40, // 10:40
+    endMinutes: 14 * 60 + 40, // 14:40
+    color: '#0284c7',
+    daysOfWeek: [0, 2], // 月・水
+  },
+  {
+    id: 'fixed-lecture-tuth',
+    title: '大学講義 (3限・4限)',
+    category: 'lecture',
+    startMinutes: 13 * 60, // 13:00
+    endMinutes: 16 * 60 + 30, // 16:30
+    color: '#0284c7',
+    daysOfWeek: [1, 3], // 火・木
   },
   {
     id: 'fixed-dinner',
@@ -33,41 +45,68 @@ export const INITIAL_FIXED_SLOTS: FixedSlot[] = [
     startMinutes: 19 * 60, // 19:00
     endMinutes: 20 * 60 + 30, // 20:30
     color: '#f59e0b',
+    daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
   },
 ];
 
 export const INITIAL_TASKS: TaskItem[] = [
   {
-    id: 'task-study',
-    title: 'スキルアップ・プログラミング学習',
-    durationMinutes: 60,
+    id: 'task-assignment-1',
+    title: '大学講義 (2限・3限) レポート課題',
+    taskType: 'assignment',
+    startDay: 0, // 月曜出題 (授業日)
+    deadlineDay: 6, // 日曜締切 (授業日前日)
+    durationMinutes: 90,
+    durationSize: 'medium',
+    frequency: 'low',
     priority: 'high',
-    category: 'study',
+    category: 'must',
+    period: 'week',
+  },
+  {
+    id: 'task-study-daily',
+    title: '基本情報・資格試験対策',
+    taskType: 'task',
+    durationMinutes: 60,
+    durationSize: 'medium',
+    frequency: 'high',
+    priority: 'high',
+    category: 'must',
     period: 'day',
   },
   {
-    id: 'task-workout',
+    id: 'task-workout-daily',
     title: 'ランニング & ストレッチ',
-    durationMinutes: 45,
+    taskType: 'task',
+    durationMinutes: 25,
+    durationSize: 'small',
+    frequency: 'high',
+    priority: 'medium',
+    category: 'want',
+    period: 'day',
+  },
+  {
+    id: 'task-creative-week',
+    title: '個人プロダクト開発・実装',
+    taskType: 'task',
+    durationMinutes: 90,
+    durationSize: 'medium',
+    frequency: 'medium',
     priority: 'high',
-    category: 'workout',
-    period: 'day',
+    category: 'want',
+    period: 'week',
   },
   {
-    id: 'task-creative',
-    title: '個人開発・アイデア創出',
-    durationMinutes: 60,
+    id: 'task-todo-syllabus',
+    title: '履修登録・教科書購入',
+    taskType: 'todo',
+    hasNoDuration: true,
+    durationMinutes: 0,
+    durationSize: 'small',
+    frequency: 'low',
     priority: 'medium',
-    category: 'creative',
-    period: 'day',
-  },
-  {
-    id: 'task-reading',
-    title: 'ビジネス書・教養読書',
-    durationMinutes: 45,
-    priority: 'medium',
-    category: 'hobby',
-    period: 'day',
+    category: 'must',
+    period: 'week',
   },
 ];
 

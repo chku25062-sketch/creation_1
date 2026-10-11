@@ -62,50 +62,51 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="relative w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs">
+      <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 text-slate-400 hover:text-white"
+          className="absolute right-4 top-4 text-slate-400 hover:text-slate-700 transition"
         >
           <X className="h-5 w-5" />
         </button>
 
         <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
             <Cloud className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-white">
+            <h3 className="text-base font-bold text-slate-900">
               {isSupabaseConfigured
                 ? isSignUp
                   ? 'アカウント作成'
                   : 'クラウドログイン'
                 : 'クラウド連携設定'}
             </h3>
-            <p className="text-xs text-slate-400">複数端末での理論値同期 & クラウド保存</p>
+            <p className="text-xs text-slate-500">複数端末での計画表同期 & バックアップ保存</p>
           </div>
         </div>
 
         {!isSupabaseConfigured ? (
-          <div className="mt-5 flex flex-col gap-4 rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-            <div className="flex items-start gap-2.5 text-xs text-slate-300">
-              <Info className="h-4 w-4 shrink-0 text-cyan-400" />
+          <div className="mt-5 flex flex-col gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex items-start gap-2.5 text-xs text-slate-700">
+              <Info className="h-4 w-4 shrink-0 text-blue-600" />
               <div>
-                <p className="font-semibold text-white">現在ゲストモードで100%稼働中です</p>
-                <p className="mt-1 text-slate-400">
-                  作成した理論値計画表はブラウザ（ローカル）に自動保存されます。
+                <p className="font-semibold text-slate-900">現在ローカル保存モードで稼働中です</p>
+                <p className="mt-1 text-slate-600">
+                  作成した計画表はお使いのブラウザに自動保存されており、ログイン不要で今すぐご利用いただけます。
                 </p>
               </div>
             </div>
 
-            <div className="rounded-lg border border-slate-800/80 bg-slate-900/80 p-3 text-xs">
-              <p className="font-semibold text-slate-300">Supabase クラウド同期の有効化手順:</p>
-              <ol className="mt-1.5 list-inside list-decimal space-y-1 text-slate-400">
+            <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs">
+              <p className="font-semibold text-slate-800">Supabase クラウド同期の有効化手順:</p>
+              <ol className="mt-1.5 list-inside list-decimal space-y-1 text-slate-600">
                 <li>Supabase でプロジェクトを作成</li>
                 <li>
-                  Vercel または <code className="text-cyan-300">.env.local</code> に環境変数を設定:
-                  <div className="mt-1 rounded bg-slate-950 p-2 font-mono text-[10px] text-cyan-400">
+                  <code className="rounded bg-slate-100 px-1 py-0.5 text-blue-700">.env.local</code>{' '}
+                  に環境変数を設定:
+                  <div className="mt-1 rounded bg-slate-50 p-2 font-mono text-[10px] text-slate-700 border border-slate-200">
                     NEXT_PUBLIC_SUPABASE_URL=...
                     <br />
                     NEXT_PUBLIC_SUPABASE_ANON_KEY=...
@@ -116,45 +117,45 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
 
             <button
               onClick={onClose}
-              className="w-full rounded-xl bg-slate-800 py-2 text-xs font-semibold text-white transition hover:bg-slate-700"
+              className="w-full rounded-xl bg-blue-600 py-2 text-xs font-semibold text-white transition hover:bg-blue-700 shadow-xs"
             >
-              ゲストモードを継続して利用する
+              このまま利用を続ける
             </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-3">
             {errorMsg && (
-              <div className="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-2.5 text-xs text-rose-300">
+              <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-2.5 text-xs text-rose-700">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
             )}
             {successMsg && (
-              <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2.5 text-xs text-emerald-300">
+              <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-700">
                 <CheckCircle className="h-4 w-4 shrink-0" />
                 <span>{successMsg}</span>
               </div>
             )}
 
             <div>
-              <label className="text-xs text-slate-400">メールアドレス</label>
+              <label className="text-xs font-medium text-slate-700">メールアドレス</label>
               <div className="relative mt-1">
-                <Mail className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                <Mail className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 focus:border-cyan-500 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-xs text-slate-400">パスワード</label>
+              <label className="text-xs font-medium text-slate-700">パスワード</label>
               <div className="relative mt-1">
-                <Lock className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                <Lock className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 <input
                   type="password"
                   required
@@ -162,7 +163,7 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-9 pr-3 text-xs text-white placeholder-slate-500 focus:border-cyan-500 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none"
                 />
               </div>
             </div>
@@ -170,7 +171,7 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
             <button
               type="submit"
               disabled={loading}
-              className="mt-2 w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 py-2 text-xs font-semibold text-white shadow-lg shadow-cyan-500/20 transition hover:opacity-90 disabled:opacity-50"
+              className="mt-2 w-full rounded-xl bg-blue-600 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-blue-700 disabled:opacity-50"
             >
               {loading ? '処理中...' : isSignUp ? '新規登録' : 'ログイン'}
             </button>
@@ -179,7 +180,7 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
               <button
                 type="button"
                 onClick={() => setIsSignUp(!isSignUp)}
-                className="text-xs text-slate-400 hover:text-cyan-400"
+                className="text-xs text-slate-500 hover:text-blue-600 transition"
               >
                 {isSignUp ? 'すでにアカウントをお持ちの方はこちら' : '新規アカウント作成はこちら'}
               </button>

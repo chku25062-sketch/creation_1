@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeFixedSlots, calculateFreeSlots, generateTheoreticalSchedule } from './scheduler';
+import {
+  normalizeFixedSlots,
+  calculateFreeSlots,
+  generateTheoreticalSchedule,
+  getAdjustedDuration,
+} from './scheduler';
 import { FixedSlot, TaskItem } from '@/types';
 
 describe('Theoretical Scheduler Engine', () => {
@@ -245,6 +250,224 @@ describe('Theoretical Scheduler Engine', () => {
       const shortBlock = result.blocks.find((b) => b.title === '短いタスク');
       expect(longBlock?.startMinutes).toBe(420);
       expect(shortBlock?.startMinutes).toBe(480);
+    });
+
+    it('曜日限定の講義スロット（月・水）が該当曜日のみに配置されること', () => {
+      const fixedSlots: FixedSlot[] = [
+        {
+          id: 'lecture-mw',
+          title: '情報工学実験',
+          category: 'lecture',
+          startMinutes: 13 * 60, // 13:00
+          endMinutes: 16 * 60, // 16:00
+          color: '#0284c7',
+          daysOfWeek: [0, 2], // 月曜(0), 水曜(2)
+        },
+      ];
+
+      const result = generateTheoreticalSchedule(fixedSlots, []);
+
+      // 月曜(0)と水曜(2)には講義ブロックが存在
+      const monLecture = result.dayBlocks[0].find((b) => b.title === '情報工学実験');
+      const wedLecture = result.dayBlocks[2].find((b) => b.title === '情報工学実験');
+      // 火曜(1)には存在しない
+      const tueLecture = result.dayBlocks[1].find((b) => b.title === '情報工学実験');
+
+      expect(monLecture).toBeDefined();
+      expect(wedLecture).toBeDefined();
+      expect(tueLecture).toBeUndefined();
+    });
+
+    it('課題タスクが出題曜日〜締切曜日の候補期間内に配置され、ToDoタスクは時間割を占有しないこと', () => {
+      const fixedSlots: FixedSlot[] = [
+        {
+          id: 'sleep',
+          title: '睡眠',
+          category: 'sleep',
+          startMinutes: 0,
+          endMinutes: 420, // 07:00
+          color: '#6366f1',
+        },
+      ];
+
+      const tasks: TaskItem[] = [
+        {
+          id: 'assignment-1',
+          title: '木曜締切レポート',
+          taskType: 'assignment',
+          startDay: 1, // 火曜出題
+          deadlineDay: 3, // 木曜締切
+          durationMinutes: 120,
+          priority: 'high',
+          category: 'study',
+          period: 'week',
+        },
+        {
+          id: 'todo-1',
+          title: '履修届提出',
+          taskType: 'todo',
+          hasNoDuration: true,
+          durationMinutes: 0,
+          priority: 'medium',
+          category: 'other',
+          period: 'week',
+        },
+      ];
+
+      const result = generateTheoreticalSchedule(fixedSlots, tasks);
+
+      // 課題が火曜(1)〜木曜(3)のいずれかに配置されていること
+      const assignedDay = [1, 2, 3].find((d) =>
+        result.dayBlocks[d].some((b) => b.title === '木曜締切レポート'),
+      );
+      expect(assignedDay).toBeDefined();
+
+      // 金曜(4)〜日(6)や月曜(0)には配置されていないこと
+      const wrongDay = [0, 4, 5, 6].find((d) =>
+        result.dayBlocks[d].some((b) => b.title === '木曜締切レポート'),
+      );
+      expect(wrongDay).toBeUndefined();
+
+      // ToDoタスクはdayBlocks内のいずれの曜日にもブロックとして配置されないこと
+      for (let d = 0; d < 7; d++) {
+        const todoBlock = result.dayBlocks[d].find((b) => b.title === '履修届提出');
+        expect(todoBlock).toBeUndefined();
+      }
+
+      // ToDoは未配置エラーとして扱われず、スコアは100%
+      expect(result.unassignedTasks).toHaveLength(0);
+      expect(result.metrics.theoreticalScore).toBe(100);
+    });
+
+    it('📌 Must(やらなければいけないこと)が 🌟 Want(やりたいこと)よりも優先して空き枠に配置されること', () => {
+      // 空き枠が60分のみ (07:00〜08:00)
+      const fixedSlots: FixedSlot[] = [
+        {
+          id: 'sleep',
+          title: '睡眠',
+          category: 'sleep',
+          startMinutes: 0,
+          endMinutes: 420, // 07:00
+          color: '#6366f1',
+        },
+        {
+          id: 'work',
+          title: '勤務',
+          category: 'work',
+          startMinutes: 480, // 08:00
+          endMinutes: 1440,
+          color: '#3b82f6',
+        },
+      ];
+
+      const tasks: TaskItem[] = [
+        {
+          id: 'task-want',
+          title: 'ゲーム・趣味',
+          durationMinutes: 60,
+          priority: 'high',
+          category: 'want',
+          period: 'day',
+        },
+        {
+          id: 'task-must',
+          title: '英語小テスト対策',
+          durationMinutes: 60,
+          priority: 'medium', // 優先度設定がmediumであってもMustが優先
+          category: 'must',
+          period: 'day',
+        },
+      ];
+
+      const result = generateTheoreticalSchedule(fixedSlots, tasks);
+      // 空き枠は60分しかないので、Mustタスクのみが配置される
+      expect(result.metrics.assignedTaskCount).toBe(1);
+      const placedMust = result.blocks.find((b) => b.title === '英語小テスト対策');
+      expect(placedMust).toBeDefined();
+
+      // Wantタスクは未割り当てになる
+      expect(result.unassignedTasks.some((t) => t.title === 'ゲーム・趣味')).toBe(true);
+    });
+
+    it('頻度(frequency: medium)のタスクが複数曜日に分散配置されること', () => {
+      const fixedSlots: FixedSlot[] = [
+        {
+          id: 'sleep',
+          title: '睡眠',
+          category: 'sleep',
+          startMinutes: 0,
+          endMinutes: 420,
+          color: '#6366f1',
+        },
+      ];
+
+      const tasks: TaskItem[] = [
+        {
+          id: 'task-fitness',
+          title: '筋トレ・ランニング',
+          durationMinutes: 60,
+          priority: 'high',
+          category: 'want',
+          period: 'week',
+          frequency: 'medium', // 週3回目標
+        },
+      ];
+
+      const result = generateTheoreticalSchedule(fixedSlots, tasks);
+      const daysWithFitness = [0, 1, 2, 3, 4, 5, 6].filter((d) =>
+        result.dayBlocks[d].some((b) => b.title === '筋トレ・ランニング'),
+      );
+      expect(daysWithFitness.length).toBe(3);
+    });
+  });
+
+  describe('getAdjustedDuration', () => {
+    it('小サイズ: 空き枠が15〜30分の場合は枠長にジャストフィットし、30分以上の枠では25分になること', () => {
+      const smallTask: TaskItem = {
+        id: 's1',
+        title: '単語暗記',
+        durationMinutes: 0,
+        durationSize: 'small',
+        priority: 'medium',
+        category: 'must',
+        period: 'day',
+      };
+
+      // 20分の空き枠 -> 20分
+      expect(getAdjustedDuration(smallTask, 20)).toBe(20);
+      // 45分の空き枠 -> 25分
+      expect(getAdjustedDuration(smallTask, 45)).toBe(25);
+    });
+
+    it('中サイズ: 空き枠が30〜60分の場合は枠長にジャストフィットし、60分以上の枠では60分になること', () => {
+      const mediumTask: TaskItem = {
+        id: 'm1',
+        title: 'レポート執筆',
+        durationMinutes: 0,
+        durationSize: 'medium',
+        priority: 'medium',
+        category: 'must',
+        period: 'week',
+      };
+
+      // 40分の空き枠 -> 40分
+      expect(getAdjustedDuration(mediumTask, 40)).toBe(40);
+      // 90分の空き枠 -> 60分
+      expect(getAdjustedDuration(mediumTask, 90)).toBe(60);
+    });
+
+    it('大サイズ: 120分基準になること', () => {
+      const largeTask: TaskItem = {
+        id: 'l1',
+        title: 'プロダクト開発',
+        durationMinutes: 0,
+        durationSize: 'large',
+        priority: 'high',
+        category: 'want',
+        period: 'week',
+      };
+
+      expect(getAdjustedDuration(largeTask, 180)).toBe(120);
     });
   });
 });

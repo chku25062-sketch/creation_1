@@ -26,7 +26,7 @@ export function DonutChart({ summaries }: DonutChartProps) {
         category: 'buffer',
         minutes: freeMinutes,
         percentage: Math.round((freeMinutes / 1440) * 100),
-        color: '#334155', // Slate 700
+        color: '#cbd5e1', // Slate 300
       });
     }
 
@@ -45,9 +45,9 @@ export function DonutChart({ summaries }: DonutChartProps) {
   }, [summaries, circumference]);
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 backdrop-blur-md">
-      <div className="flex items-center gap-2 text-sm font-bold text-white">
-        <PieChart className="h-4 w-4 text-cyan-400" />
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+      <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+        <PieChart className="h-4 w-4 text-blue-600" />
         <span>理想の時間配分バランス</span>
       </div>
 
@@ -60,7 +60,7 @@ export function DonutChart({ summaries }: DonutChartProps) {
               cy="90"
               r={radius}
               fill="transparent"
-              stroke="#1e293b"
+              stroke="#f1f5f9"
               strokeWidth="20"
             />
             {chartSegments.map((item) => (
@@ -81,8 +81,8 @@ export function DonutChart({ summaries }: DonutChartProps) {
 
           {/* Center Text */}
           <div className="pointer-events-none absolute flex flex-col items-center justify-center text-center">
-            <span className="text-xl font-black text-white">24h</span>
-            <span className="text-[10px] text-slate-400">理論値構成</span>
+            <span className="text-xl font-black text-slate-900">24h</span>
+            <span className="text-[10px] font-semibold text-slate-500">理論値構成</span>
           </div>
         </div>
 
@@ -91,18 +91,18 @@ export function DonutChart({ summaries }: DonutChartProps) {
           {chartSegments.map((item) => (
             <div
               key={item.category}
-              className="flex items-center justify-between rounded-lg border border-slate-800/40 bg-slate-950/30 px-3 py-1.5 text-xs transition hover:border-slate-700"
+              className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs transition hover:border-slate-300 hover:bg-slate-100"
             >
               <div className="flex items-center gap-2">
                 <span
                   className="h-2.5 w-2.5 shrink-0 rounded-full"
                   style={{ backgroundColor: item.color }}
                 />
-                <span className="truncate font-medium text-slate-200">{item.name}</span>
+                <span className="truncate font-medium text-slate-800">{item.name}</span>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <span className="text-slate-400">{formatDuration(item.minutes)}</span>
-                <span className="w-8 text-right font-bold text-slate-300">
+                <span className="text-slate-500">{formatDuration(item.minutes)}</span>
+                <span className="w-8 text-right font-bold text-slate-900">
                   {Math.round((item.minutes / 1440) * 100)}%
                 </span>
               </div>
