@@ -268,8 +268,200 @@ export function interpolateMissingDividers(
   return result;
 }
 
+export interface DirectionalProjections {
+  vertProjection: number[];
+  horizProjection: number[];
+}
+
 /**
- * 画像から水平・垂直の罫線を射影ヒストグラムにより自動検出
+ * 水平・垂直の方向性エッジ勾配（Sobel様差分フィルター）により、
+ * 背景色や文字に左右されず、本物の罫線エッジを安定して抽出
+ */
+export function extractDirectionalEdgeProjections(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  bounds: GridAreaBounds = DEFAULT_GRID_BOUNDS,
+): DirectionalProjections {
+  const minX = Math.max(1, Math.min(width - 2, Math.round(bounds.left * width)));
+  const maxX = Math.max(2, Math.min(width - 1, Math.round(bounds.right * width)));
+  const minY = Math.max(1, Math.min(height - 2, Math.round(bounds.top * height)));
+  const maxY = Math.max(2, Math.min(height - 1, Math.round(bounds.bottom * height)));
+
+  const luminance = new Float32Array(width * height);
+  for (let y = minY - 1; y <= maxY + 1; y++) {
+    const rowOffset = y * width;
+    for (let x = minX - 1; x <= maxX + 1; x++) {
+      const idx = (rowOffset + x) * 4;
+      luminance[rowOffset + x] = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+    }
+  }
+
+  const vertProjection = new Array(width).fill(0);
+  const horizProjection = new Array(height).fill(0);
+
+  // 垂直罫線 (X軸方向): 水平輝度差分 |L(x+1) - L(x-1)|
+  for (let x = minX; x < maxX; x++) {
+    let edgeSum = 0;
+    for (let y = minY; y < maxY; y++) {
+      const rowOffset = y * width;
+      const dx = Math.abs(luminance[rowOffset + x + 1] - luminance[rowOffset + x - 1]);
+      const isDark = luminance[rowOffset + x] < 180 ? 1 : 0;
+      edgeSum += dx + isDark * 15;
+    }
+    vertProjection[x] = edgeSum;
+  }
+
+  // 水平罫線 (Y軸方向): 垂直輝度差分 |L(y+1) - L(y-1)|
+  for (let y = minY; y < maxY; y++) {
+    let edgeSum = 0;
+    const prevRow = (y - 1) * width;
+    const nextRow = (y + 1) * width;
+    const curRow = y * width;
+    for (let x = minX; x < maxX; x++) {
+      const dy = Math.abs(luminance[nextRow + x] - luminance[prevRow + x]);
+      const isDark = luminance[curRow + x] < 180 ? 1 : 0;
+      edgeSum += dy + isDark * 15;
+    }
+    horizProjection[y] = edgeSum;
+  }
+
+  const smooth = (arr: number[], radius = 2) => {
+    const res = new Array(arr.length).fill(0);
+    for (let i = 0; i < arr.length; i++) {
+      let sum = 0;
+      let count = 0;
+      for (let k = -radius; k <= radius; k++) {
+        const idx = i + k;
+        if (idx >= 0 && idx < arr.length) {
+          sum += arr[idx];
+          count++;
+        }
+      }
+      res[i] = count > 0 ? sum / count : 0;
+    }
+    return res;
+  };
+
+  return {
+    vertProjection: smooth(vertProjection),
+    horizProjection: smooth(horizProjection),
+  };
+}
+
+export interface LatticeFitResult {
+  bestCount: number;
+  dividers: number[];
+  score: number;
+}
+
+/**
+ * 表の数学的規則性（周期格子）の候補 [4, 5, 6, 7, 8] から、
+ * 実際の罫線エッジと最も高い一致率を持つ行数・列数を決定し、
+ * 各分割線を本物の罫線ピーク位置に1本ずつ高精度吸着（スナップ）
+ */
+export function fitLatticeToPeaks(
+  projection: number[],
+  minBound: number,
+  maxBound: number,
+  candidateCounts: number[] = [4, 5, 6, 7, 8],
+  searchWindowRatio = 0.05,
+): LatticeFitResult {
+  const totalLen = projection.length;
+  if (totalLen === 0) {
+    return { bestCount: 5, dividers: [], score: 0 };
+  }
+
+  const startIdx = Math.round(minBound * totalLen);
+  const endIdx = Math.round(maxBound * totalLen);
+  const span = Math.max(10, endIdx - startIdx);
+
+  // 探索範囲内の局所ピークを抽出
+  const peaks: { idx: number; val: number }[] = [];
+  const radius = Math.max(2, Math.round(totalLen * 0.015));
+
+  for (let i = startIdx + radius; i < endIdx - radius; i++) {
+    const val = projection[i];
+    let isPeak = true;
+    for (let k = -radius; k <= radius; k++) {
+      if (k !== 0 && projection[i + k] > val) {
+        isPeak = false;
+        break;
+      }
+    }
+    if (isPeak) {
+      peaks.push({ idx: i, val });
+    }
+  }
+
+  const subSlice = projection.slice(startIdx, endIdx);
+  const avgVal = subSlice.length > 0 ? subSlice.reduce((a, b) => a + b, 0) / subSlice.length : 1;
+
+  let bestCount = candidateCounts[0] || 5;
+  let bestScore = -Infinity;
+  let bestDividers: number[] = [];
+
+  for (const count of candidateCounts) {
+    const numDividers = count - 1;
+    if (numDividers <= 0) continue;
+
+    let matchCount = 0;
+    let scoreSum = 0;
+    const currentDividers: number[] = [];
+    const windowPx = Math.max(3, Math.round(span * searchWindowRatio));
+
+    for (let d = 1; d <= numDividers; d++) {
+      const idealIdx = startIdx + Math.round((d / count) * span);
+
+      // idealIdx の近傍窓で最も強い本物の罫線ピークを探索
+      let bestPeak: { idx: number; val: number } | null = null;
+
+      for (const p of peaks) {
+        if (Math.abs(p.idx - idealIdx) <= windowPx) {
+          if (!bestPeak || p.val > bestPeak.val) {
+            bestPeak = p;
+          }
+        }
+      }
+
+      if (bestPeak && bestPeak.val > avgVal * 1.05) {
+        // 本物の罫線ピークが存在する場合、その実座標を採用！
+        currentDividers.push(Math.round((bestPeak.idx / totalLen) * 1000) / 1000);
+        matchCount++;
+        const distRatio = Math.abs(bestPeak.idx - idealIdx) / windowPx;
+        scoreSum += (bestPeak.val / avgVal) * (1 - distRatio * 0.4);
+      } else {
+        // ピークが見当たらない場合は理想位置
+        currentDividers.push(Math.round((idealIdx / totalLen) * 1000) / 1000);
+        scoreSum += 0.2;
+      }
+    }
+
+    const matchRatio = matchCount / numDividers;
+    let totalScore = (scoreSum / numDividers) * Math.pow(Math.max(0.1, matchRatio), 1.5);
+
+    // 時間割の標準（5分割）に対する微小バイアス
+    if (count === 5) totalScore *= 1.1;
+    if (count === 6) totalScore *= 1.05;
+
+    if (totalScore > bestScore) {
+      bestScore = totalScore;
+      bestCount = count;
+      bestDividers = currentDividers;
+    }
+  }
+
+  bestDividers.sort((a, b) => a - b);
+
+  return {
+    bestCount,
+    dividers: bestDividers,
+    score: bestScore,
+  };
+}
+
+/**
+ * 画像から水平・垂直の罫線をエッジ格子フィッティングにより高精度検出
  */
 export async function detectGridDividers(
   imageBlob: Blob,
@@ -281,7 +473,6 @@ export async function detectGridDividers(
   const w = img.naturalWidth || 800;
   const h = img.naturalHeight || 800;
 
-  // 計算負荷軽減のため最大幅/高さ 600px 程度にリサイズして解析
   const scale = Math.min(1.0, 600 / Math.max(w, h));
   const sw = Math.round(w * scale);
   const sh = Math.round(h * scale);
@@ -292,7 +483,6 @@ export async function detectGridDividers(
   const ctx = canvas.getContext('2d');
 
   if (!ctx) {
-    // Canvas が取得できない場合は等間隔分割
     return getDefaultDividers(columns, rows, bounds);
   }
 
@@ -300,98 +490,15 @@ export async function detectGridDividers(
   const imgData = ctx.getImageData(0, 0, sw, sh);
   const data = imgData.data;
 
-  // モルフォロジー線分抽出を優先（文字ノイズ除去）
-  const morph = extractMorphologicalLineProjections(data, sw, sh, bounds);
+  const edges = extractDirectionalEdgeProjections(data, sw, sh, bounds);
 
-  let horizProjection: number[];
-  let vertProjection: number[];
-
-  if (morph.hasLines) {
-    horizProjection = morph.horizProjection;
-    vertProjection = morph.vertProjection;
-  } else {
-    // フォールバック: 全黒画素の集計
-    horizProjection = new Array(sh).fill(0);
-    vertProjection = new Array(sw).fill(0);
-
-    const minX = Math.round(bounds.left * sw);
-    const maxX = Math.round(bounds.right * sw);
-    const minY = Math.round(bounds.top * sh);
-    const maxY = Math.round(bounds.bottom * sh);
-
-    for (let y = minY; y < maxY; y++) {
-      for (let x = minX; x < maxX; x++) {
-        const idx = (y * sw + x) * 4;
-        const r = data[idx];
-        const g = data[idx + 1];
-        const b = data[idx + 2];
-        const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
-
-        if (brightness < 150) {
-          horizProjection[y]++;
-          vertProjection[x]++;
-        }
-      }
-    }
-  }
-
-  const colDividers = snapDividersToPeaks(vertProjection, columns - 1);
-  const rowDividers = snapDividersToPeaks(horizProjection, rows - 1);
-
-  // もし検出結果が枠外に出ている場合はデフォルト分割をフォールバック
-  const validCols =
-    colDividers.length === columns - 1 &&
-    colDividers.every((d) => d > bounds.left && d < bounds.right);
-  const validRows =
-    rowDividers.length === rows - 1 &&
-    rowDividers.every((d) => d > bounds.top && d < bounds.bottom);
-
-  if (!validCols || !validRows) {
-    return getDefaultDividers(columns, rows, bounds);
-  }
+  const colFit = fitLatticeToPeaks(edges.vertProjection, bounds.left, bounds.right, [columns]);
+  const rowFit = fitLatticeToPeaks(edges.horizProjection, bounds.top, bounds.bottom, [rows]);
 
   return {
-    colDividers,
-    rowDividers,
+    colDividers: colFit.dividers,
+    rowDividers: rowFit.dividers,
   };
-}
-
-/**
- * 射影ヒストグラムから顕著な局所ピーク（罫線）を探索
- */
-export function findProminentPeaks(
-  projection: number[],
-  minDistanceRatio = 0.05,
-  prominenceFactor = 1.45,
-): number[] {
-  const len = projection.length;
-  if (len === 0) return [];
-
-  const avg = projection.reduce((a, b) => a + b, 0) / len;
-  const threshold = Math.max(10, avg * prominenceFactor);
-  const minDistance = Math.max(3, Math.round(len * minDistanceRatio));
-
-  const rawPeaks: { idx: number; val: number }[] = [];
-
-  for (let i = 1; i < len - 1; i++) {
-    const val = projection[i];
-    if (val > threshold && val >= projection[i - 1] && val >= projection[i + 1]) {
-      rawPeaks.push({ idx: i, val });
-    }
-  }
-
-  rawPeaks.sort((a, b) => b.val - a.val);
-  const filteredPeaks: number[] = [];
-
-  for (const p of rawPeaks) {
-    const isClose = filteredPeaks.some((existing) => Math.abs(existing - p.idx) < minDistance);
-    if (!isClose) {
-      filteredPeaks.push(p.idx);
-    }
-  }
-
-  filteredPeaks.sort((a, b) => a - b);
-  return filteredPeaks.map((idx) => Math.round((idx / len) * 1000) / 1000);
 }
 
 export interface DetectedTableStructure {
@@ -402,7 +509,7 @@ export interface DetectedTableStructure {
 }
 
 /**
- * 画像内の罫線から、表の列数・行数・分割線を完全自動推定
+ * 画像内の罫線から、表の最適な列数・行数・分割線を完全自動推定
  */
 export async function autoDetectTableStructure(
   imageBlob: Blob,
@@ -433,84 +540,30 @@ export async function autoDetectTableStructure(
   const imgData = ctx.getImageData(0, 0, sw, sh);
   const data = imgData.data;
 
-  // モルフォロジー線分抽出を優先（文字誤認の防止）
-  const morph = extractMorphologicalLineProjections(data, sw, sh, bounds);
+  // 方向性エッジ射影プロファイルを抽出
+  const edges = extractDirectionalEdgeProjections(data, sw, sh, bounds);
 
-  let horizProjection: number[];
-  let vertProjection: number[];
+  // 最適な列数を全候補 [4, 5, 6, 7, 8] から決定し、各分割線を本物の罫線にスナップ
+  const colFit = fitLatticeToPeaks(
+    edges.vertProjection,
+    bounds.left,
+    bounds.right,
+    [4, 5, 6, 7, 8],
+  );
 
-  const minX = Math.round(bounds.left * sw);
-  const maxX = Math.round(bounds.right * sw);
-  const minY = Math.round(bounds.top * sh);
-  const maxY = Math.round(bounds.bottom * sh);
-
-  if (morph.hasLines) {
-    horizProjection = morph.horizProjection;
-    vertProjection = morph.vertProjection;
-  } else {
-    // 罫線が取れない場合は全暗色ピクセル集計にフォールバック
-    horizProjection = new Array(sh).fill(0);
-    vertProjection = new Array(sw).fill(0);
-
-    for (let y = minY; y < maxY; y++) {
-      for (let x = minX; x < maxX; x++) {
-        const idx = (y * sw + x) * 4;
-        const r = data[idx];
-        const g = data[idx + 1];
-        const b = data[idx + 2];
-        const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
-        if (brightness < 150) {
-          horizProjection[y]++;
-          vertProjection[x]++;
-        }
-      }
-    }
-  }
-
-  const subVert = vertProjection.slice(minX, maxX);
-  const subHoriz = horizProjection.slice(minY, maxY);
-
-  // より厳格な閾値とマージンで顕著な罫線ピークのみを抽出（余分な分割線の生成を防止）
-  const rawVertPeaks = findProminentPeaks(subVert, 0.05, 1.45);
-  const rawHorizPeaks = findProminentPeaks(subHoriz, 0.05, 1.45);
-
-  // 端（6%以内）の外枠罫線を除外し、bounds 内の内部区切り線を算出
-  const widthRatio = bounds.right - bounds.left;
-  const heightRatio = bounds.bottom - bounds.top;
-
-  let innerVertPeaks = rawVertPeaks
-    .filter((p) => p > 0.06 && p < 0.94)
-    .map((p) => bounds.left + p * widthRatio);
-
-  let innerHorizPeaks = rawHorizPeaks
-    .filter((p) => p > 0.06 && p < 0.94)
-    .map((p) => bounds.top + p * heightRatio);
-
-  // 欠落した罫線の等間隔補間（ハイブリッド補正: 内部セルのみ）
-  innerVertPeaks = interpolateMissingDividers(innerVertPeaks, bounds.left, bounds.right);
-  innerHorizPeaks = interpolateMissingDividers(innerHorizPeaks, bounds.top, bounds.bottom);
-
-  // 検出された区切り線が1〜12本なら採用、無ければ標準5
-  const columns =
-    innerVertPeaks.length >= 1 && innerVertPeaks.length <= 12 ? innerVertPeaks.length + 1 : 5;
-  const rows =
-    innerHorizPeaks.length >= 1 && innerHorizPeaks.length <= 15 ? innerHorizPeaks.length + 1 : 5;
-
-  let colDividers = innerVertPeaks;
-  let rowDividers = innerHorizPeaks;
-
-  if (colDividers.length !== columns - 1) {
-    colDividers = getDefaultDividers(columns, rows, bounds).colDividers;
-  }
-  if (rowDividers.length !== rows - 1) {
-    rowDividers = getDefaultDividers(columns, rows, bounds).rowDividers;
-  }
+  // 最適な行数を全候補 [4, 5, 6, 7, 8, 9] から決定し、各分割線を本物の罫線にスナップ
+  const rowFit = fitLatticeToPeaks(
+    edges.horizProjection,
+    bounds.top,
+    bounds.bottom,
+    [4, 5, 6, 7, 8, 9],
+  );
 
   return {
-    columns,
-    rows,
-    colDividers,
-    rowDividers,
+    columns: colFit.bestCount,
+    rows: rowFit.bestCount,
+    colDividers: colFit.dividers,
+    rowDividers: rowFit.dividers,
   };
 }
 
@@ -621,7 +674,7 @@ export async function extractCellCrops(
 
       ctx.drawImage(img, innerX, innerY, innerW, innerH, 0, 0, innerW, innerH);
 
-      // コントラスト強調 & 空白セル判定 (暗いピクセル比率チェック)
+      // 空白セル判定 (原本の階調・アンチエイリアスを破壊せず、暗いピクセルの比率のみをチェック)
       const imgData = ctx.getImageData(0, 0, innerW, innerH);
       const d = imgData.data;
       let darkPixelCount = 0;
@@ -631,17 +684,12 @@ export async function extractCellCrops(
         if (brightness < 160) {
           darkPixelCount++;
         }
-        // コントラスト伸長
-        const val = brightness > 140 ? 255 : brightness < 90 ? 0 : brightness;
-        d[i] = val;
-        d[i + 1] = val;
-        d[i + 2] = val;
       }
-      ctx.putImageData(imgData, 0, 0);
 
       const totalPixels = innerW * innerH;
-      // 暗いピクセルが全体の 0.6% 未満なら空白コマ（文字なし）と判定
-      const isEmpty = darkPixelCount / totalPixels < 0.006;
+      // 暗いピクセルが全体の 0.1% 未満の場合のみ空白コマ（文字なし）と安全に判定
+      // （わずかな文字でもスキップされないよう閾値を緩和）
+      const isEmpty = darkPixelCount / totalPixels < 0.001;
 
       const blob = await new Promise<Blob>((resolve) => {
         canvas.toBlob((b) => resolve(b || imageBlob), 'image/png');

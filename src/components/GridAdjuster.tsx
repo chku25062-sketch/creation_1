@@ -6,6 +6,7 @@ import {
   getDefaultDividers,
   calculateCellRects,
   autoDetectTableStructure,
+  detectGridDividers,
   GridAreaBounds,
   DEFAULT_GRID_BOUNDS,
 } from '@/lib/importers/gridDetection';
@@ -87,6 +88,26 @@ export function GridAdjuster({
     },
     [imageBlob],
   );
+
+  // 指定の行数・列数を適用し、画像内の実際の罫線ピークに精密スナップ
+  const handleApplyPreset = async (targetCols: number, targetRows: number) => {
+    setIsDetecting(true);
+    setColumns(targetCols);
+    setRows(targetRows);
+    try {
+      const snapped = await detectGridDividers(imageBlob, targetCols, targetRows, bounds);
+      setColDividers(snapped.colDividers);
+      setRowDividers(snapped.rowDividers);
+      setDetectedMessage(`${targetCols}列 × ${targetRows}行 の罫線ピークにスナップしました`);
+      setTimeout(() => setDetectedMessage(null), 3000);
+    } catch {
+      const defaults = getDefaultDividers(targetCols, targetRows, bounds);
+      setColDividers(defaults.colDividers);
+      setRowDividers(defaults.rowDividers);
+    } finally {
+      setIsDetecting(false);
+    }
+  };
 
   // 初回マウント時: 画像の表に合わせたグリッド数を完全自動検出
   useEffect(() => {
@@ -204,8 +225,39 @@ export function GridAdjuster({
   return (
     <div className="flex flex-col gap-3">
       {/* ツールバー / 設定 */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/80 p-2.5 text-xs text-slate-300">
-        <div className="flex flex-wrap items-center gap-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-slate-800 bg-slate-900/80 p-2.5 text-xs text-slate-300">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* クイックプリセット */}
+          <div className="flex items-center gap-1">
+            <span className="font-medium text-slate-400">プリセット:</span>
+            {[
+              { cols: 5, rows: 5, label: '5×5 (月-金/5限)' },
+              { cols: 5, rows: 6, label: '5×6 (月-金/6限)' },
+              { cols: 6, rows: 5, label: '6×5 (月-土/5限)' },
+              { cols: 7, rows: 5, label: '7×5 (全日/5限)' },
+            ].map((preset) => {
+              const isCurrent = columns === preset.cols && rows === preset.rows;
+              return (
+                <button
+                  key={`${preset.cols}x${preset.rows}`}
+                  type="button"
+                  disabled={isDetecting}
+                  onClick={() => handleApplyPreset(preset.cols, preset.rows)}
+                  className={`rounded-lg px-2 py-1 text-[11px] font-semibold transition ${
+                    isCurrent
+                      ? 'border border-cyan-500/60 bg-cyan-950/70 text-cyan-300 shadow-xs'
+                      : 'border border-slate-800 bg-slate-800/80 text-slate-400 hover:border-slate-700 hover:bg-slate-800 hover:text-slate-200'
+                  } disabled:opacity-50`}
+                  title={`${preset.cols}列 × ${preset.rows}行 に設定し罫線ピークへ精密吸着`}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="hidden h-4 w-px bg-slate-800 sm:block" />
+
           {/* 列数（横マス）コントロール */}
           <div className="flex items-center gap-1.5">
             <span className="font-medium text-slate-400">列数:</span>
@@ -271,7 +323,7 @@ export function GridAdjuster({
           </div>
         </div>
 
-        {/* 自動検出 & 均等割ボタン */}
+        {/* 自動検出 & スナップ & 均等割ボタン */}
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -284,8 +336,18 @@ export function GridAdjuster({
           <button
             type="button"
             disabled={isDetecting}
+            onClick={() => handleApplyPreset(columns, rows)}
+            className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-slate-300 transition hover:bg-slate-700 hover:text-white disabled:opacity-50"
+            title="現在の行数・列数を維持したまま、画像内の本物の罫線に再スナップ"
+          >
+            <Grid className="h-3 w-3 text-cyan-400" />
+            <span>罫線に再吸着</span>
+          </button>
+          <button
+            type="button"
+            disabled={isDetecting}
             onClick={() => runFullAutoDetect(bounds)}
-            className="flex items-center gap-1 rounded-lg border border-cyan-800/60 bg-gradient-to-r from-cyan-950/80 to-blue-950/80 px-2.5 py-1 font-semibold text-cyan-300 shadow transition hover:from-cyan-900/90 hover:to-blue-900/90"
+            className="flex items-center gap-1 rounded-lg border border-cyan-800/60 bg-gradient-to-r from-cyan-950/80 to-blue-950/80 px-2.5 py-1 font-semibold text-cyan-300 shadow transition hover:from-cyan-900/90 hover:to-blue-900/90 disabled:opacity-50"
             title="画像の表の罫線を解析し、行数・列数・境界線を自動判定"
           >
             {isDetecting ? (
@@ -293,7 +355,7 @@ export function GridAdjuster({
             ) : (
               <Sparkles className="h-3 w-3 text-cyan-400" />
             )}
-            <span>表から自動検出</span>
+            <span>表から全自動検出</span>
           </button>
         </div>
       </div>

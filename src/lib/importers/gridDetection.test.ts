@@ -3,7 +3,7 @@ import {
   getDefaultDividers,
   calculateCellRects,
   snapDividersToPeaks,
-  findProminentPeaks,
+  fitLatticeToPeaks,
   formatCellText,
   cleanHeaderArtifacts,
   matrixToCsv,
@@ -58,18 +58,21 @@ describe('gridDetection utility', () => {
     expect(dividers[0]).toBeLessThanOrEqual(0.55);
   });
 
-  it('findProminentPeaks detects number of lines automatically without predefined column count', () => {
-    // 100 pixels with peaks at 25, 50, 75
+  it('fitLatticeToPeaks selects best count and snaps dividers to prominent peaks', () => {
+    // 100 ピクセルのプロファイルで、5分割（理想位置: 20, 40, 60, 80）付近に強い罫線ピークがあるケース
     const projection = new Array(100).fill(5);
-    projection[25] = 80;
-    projection[50] = 90;
-    projection[75] = 85;
+    projection[21] = 80;
+    projection[39] = 90;
+    projection[61] = 85;
+    projection[80] = 95;
 
-    const peaks = findProminentPeaks(projection, 0.05, 1.3);
-    expect(peaks).toHaveLength(3);
-    expect(peaks[0]).toBeCloseTo(0.25, 1);
-    expect(peaks[1]).toBeCloseTo(0.5, 1);
-    expect(peaks[2]).toBeCloseTo(0.75, 1);
+    const res = fitLatticeToPeaks(projection, 0.0, 1.0, [4, 5, 6]);
+    expect(res.bestCount).toBe(5);
+    expect(res.dividers).toHaveLength(4);
+    expect(res.dividers[0]).toBeCloseTo(0.21, 2);
+    expect(res.dividers[1]).toBeCloseTo(0.39, 2);
+    expect(res.dividers[2]).toBeCloseTo(0.61, 2);
+    expect(res.dividers[3]).toBeCloseTo(0.8, 2);
   });
 
   describe('formatCellText', () => {
