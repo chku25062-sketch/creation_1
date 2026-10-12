@@ -63,13 +63,14 @@ export async function runCellBatchOcr(
   // 2. Tesseract Worker の初期化 (日本語 + 英語)
   const worker = await createWorker('jpn+eng', 1);
 
-  // 単一ブロック用 PSM 6 に設定
+  // 単一ブロック用 PSM 6 & 不要な文字間スペースの保持を無効化
   try {
     await worker.setParameters({
       tessedit_pageseg_mode: '6' as unknown as undefined,
+      preserve_interword_spaces: '0' as unknown as undefined,
     });
   } catch (e) {
-    console.warn('Could not set PSM', e);
+    console.warn('Could not set Tesseract parameters', e);
   }
 
   const resultGrid: GridCell[][] = [];

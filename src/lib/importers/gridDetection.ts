@@ -1028,9 +1028,64 @@ export function cleanHeaderArtifacts(text: string): string | null {
 }
 
 /**
+ * 日本語（CJK: 漢字・ひらがな・カタカナ・全角記号）の文字判定正規表現
+ */
+export const CJK_CHAR_REGEX =
+  /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF\u3000-\u303F\uFF00-\uFFEF]/;
+
+/**
+ * 日本語文字同士（漢字・かな・カナ・長音符等）の間に挟まれた不要な空白を自動除去
+ * - "プ ロ グ ラ ミ ン グ" -> "プログラミング"
+ * - "線 形 代 数" -> "線形代数"
+ * - 英文同士 "Data Structure" や英数字との区切り "302 教室" は保持
+ */
+export function removeCjkInterwordSpaces(text: string): string {
+  if (!text) return '';
+  const cjkSpacePattern =
+    /([\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF\u3000-\u303F\uFF00-\uFFEF])[\s\u3000]+(?=[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF\u3000-\u303F\uFF00-\uFFEF])/g;
+  return text.replace(cjkSpacePattern, '$1');
+}
+
+/**
+ * 同一要素内（段落内）の複数行をスマートに連結
+ * - 日本語文字同士での改行折り返し（例: "プログラミング\n演習"）はスペースなしで連結（"プログラミング演習"）
+ * - 英数字や英単語が絡む場合（例: "線形代数\n302教室"）は半角スペース（"線形代数 302教室"）で連結
+ */
+export function joinParagraphLines(lines: string[]): string {
+  if (lines.length === 0) return '';
+  if (lines.length === 1) return removeCjkInterwordSpaces(lines[0]);
+
+  let result = lines[0];
+  for (let i = 1; i < lines.length; i++) {
+    const prev = result.trimEnd();
+    const curr = lines[i].trimStart();
+
+    if (!prev) {
+      result = curr;
+      continue;
+    }
+    if (!curr) continue;
+
+    const lastChar = prev.slice(-1);
+    const firstChar = curr.slice(0, 1);
+
+    // 前行の末尾と次行の先頭が共に日本語（CJK）の場合はスペースなしで連結
+    if (CJK_CHAR_REGEX.test(lastChar) && CJK_CHAR_REGEX.test(firstChar)) {
+      result = prev + curr;
+    } else {
+      result = prev + ' ' + curr;
+    }
+  }
+
+  return removeCjkInterwordSpaces(result);
+}
+
+/**
  * セル内テキストの整形・正規化ルール:
  * - 混入した曜日名・時限名などのヘッダーを自動除去
- * - 単一改行（\n）: 同一要素内の折り返しとみなし、半角スペースで連結
+ * - 日本語文字同士（漢字・かな・カナ）の間の不要な空白を自動除去（"プ ロ グ ラ ミ ン グ" -> "プログラミング"）
+ * - 日本語同士の折り返し改行はスペースなしで連結（"プログラミング\n演習" -> "プログラミング演習"）
+ * - 英数字が絡む行折り返しは半角スペースで連結（"線形代数\n302教室" -> "線形代数 302教室"）
  * - 空行（\n\n以上）: 明確な段落・区切りとみなし、改行として保持
  * - ノイズ記号（ハイフンや縦線のみの行）は除去
  * - 空マス・文字なしの場合は null を返却
@@ -1069,7 +1124,7 @@ export function formatCellText(rawText: string): string | null {
   }
 
   const formattedParagraphs = paragraphs
-    .map((pLines) => pLines.join(' ').replace(/\s+/g, ' ').trim())
+    .map((pLines) => joinParagraphLines(pLines))
     .filter((p) => p.length > 0);
 
   if (formattedParagraphs.length === 0) {

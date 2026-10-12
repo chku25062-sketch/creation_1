@@ -8,6 +8,7 @@ import {
   extractPeaksFromProjection,
   snapToClosestGuideline,
   formatCellText,
+  removeCjkInterwordSpaces,
   cleanHeaderArtifacts,
   matrixToCsv,
   extractMorphologicalLineProjections,
@@ -79,19 +80,32 @@ describe('gridDetection utility', () => {
   });
 
   describe('formatCellText', () => {
-    it('joins single newlines with spaces', () => {
+    it('joins single newlines with spaces for alphanumeric elements', () => {
       const input = '線形代数\n302教室';
       expect(formatCellText(input)).toBe('線形代数 302教室');
+    });
+
+    it('joins Japanese wrapped lines without space while preserving paragraph breaks', () => {
+      const input = '  プログラミング\n演習  \n\n  山田先生\n401室  ';
+      expect(formatCellText(input)).toBe('プログラミング演習\n山田先生 401室');
+    });
+
+    it('removes unwanted spaces between Japanese characters while preserving English word spaces', () => {
+      expect(removeCjkInterwordSpaces('プ ロ グ ラ ミ ン グ')).toBe('プログラミング');
+      expect(removeCjkInterwordSpaces('線 形 代 数')).toBe('線形代数');
+      expect(removeCjkInterwordSpaces('情 報 ネ ッ ト ワ ー ク 論')).toBe('情報ネットワーク論');
+      expect(removeCjkInterwordSpaces('Data Structure')).toBe('Data Structure');
+      expect(formatCellText('プ ロ グ ラ ミ ン グ')).toBe('プログラミング');
+      expect(formatCellText('線 形 代 数')).toBe('線形代数');
+      expect(formatCellText('情 報 ネ ッ ト ワ ー ク 論')).toBe('情報ネットワーク論');
+      expect(formatCellText('Data Structure')).toBe('Data Structure');
+      expect(formatCellText('線形代数 302教室')).toBe('線形代数 302教室');
+      expect(formatCellText('英語 I 101教室')).toBe('英語 I 101教室');
     });
 
     it('preserves empty lines as newlines (paragraphs)', () => {
       const input = '情報システム論\n\n※レポート提出あり';
       expect(formatCellText(input)).toBe('情報システム論\n※レポート提出あり');
-    });
-
-    it('handles multiple newlines and spaces cleanly', () => {
-      const input = '  プログラミング\n演習  \n\n  山田先生\n401室  ';
-      expect(formatCellText(input)).toBe('プログラミング 演習\n山田先生 401室');
     });
 
     it('returns null for empty string or only whitespace', () => {
