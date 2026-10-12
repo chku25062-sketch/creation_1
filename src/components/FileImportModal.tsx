@@ -24,6 +24,7 @@ import { ImageCropper } from '@/components/ImageCropper';
 import { GridAdjuster } from '@/components/GridAdjuster';
 import { TimetableGridEditor } from '@/components/TimetableGridEditor';
 import { runCellBatchOcr } from '@/lib/importers/cellOcrRunner';
+import { GridAreaBounds } from '@/lib/importers/gridDetection';
 
 interface FileImportModalProps {
   isOpen: boolean;
@@ -109,6 +110,7 @@ export function FileImportModal({ isOpen, onClose, onImport }: FileImportModalPr
     rowDividers: number[],
     columns: number,
     rows: number,
+    bounds: GridAreaBounds,
   ) => {
     if (!croppedBlob) return;
 
@@ -120,7 +122,7 @@ export function FileImportModal({ isOpen, onClose, onImport }: FileImportModalPr
     });
 
     try {
-      const grid = await runCellBatchOcr(croppedBlob, colDividers, rowDividers, (p) => {
+      const grid = await runCellBatchOcr(croppedBlob, colDividers, rowDividers, bounds, (p) => {
         setProgress({ status: p.status, progress: p.progress });
       });
 

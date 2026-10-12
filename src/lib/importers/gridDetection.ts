@@ -7,6 +7,20 @@ export interface GridBoundaries {
   rowDividers: number[]; // 各行の境界線 (0.0 < divider < 1.0) 昇順。要素数 = rows - 1
 }
 
+export interface GridAreaBounds {
+  left: number; // 0.0 〜 1.0 (デフォルト 0)
+  top: number; // 0.0 〜 1.0 (デフォルト 0)
+  right: number; // 0.0 〜 1.0 (デフォルト 1.0)
+  bottom: number; // 0.0 〜 1.0 (デフォルト 1.0)
+}
+
+export const DEFAULT_GRID_BOUNDS: GridAreaBounds = {
+  left: 0,
+  top: 0,
+  right: 1.0,
+  bottom: 1.0,
+};
+
 export interface CellCropInfo {
   row: number; // 0-indexed
   col: number; // 0-indexed
@@ -88,6 +102,7 @@ export async function detectGridDividers(
   imageBlob: Blob,
   columns: number,
   rows: number,
+  bounds: GridAreaBounds = DEFAULT_GRID_BOUNDS,
 ): Promise<GridBoundaries> {
   const img = await loadImageElement(imageBlob);
   const w = img.naturalWidth || 800;
@@ -105,7 +120,7 @@ export async function detectGridDividers(
 
   if (!ctx) {
     // Canvas が取得できない場合は等間隔分割
-    return getDefaultDividers(columns, rows);
+    return getDefaultDividers(columns, rows, bounds);
   }
 
   ctx.drawImage(img, 0, 0, sw, sh);
@@ -116,8 +131,13 @@ export async function detectGridDividers(
   const horizProjection = new Array(sh).fill(0);
   const vertProjection = new Array(sw).fill(0);
 
-  for (let y = 0; y < sh; y++) {
-    for (let x = 0; x < sw; x++) {
+  const minX = Math.round(bounds.left * sw);
+  const maxX = Math.round(bounds.right * sw);
+  const minY = Math.round(bounds.top * sh);
+  const maxY = Math.round(bounds.bottom * sh);
+
+  for (let y = minY; y < maxY; y++) {
+    for (let x = minX; x < maxX; x++) {
       const idx = (y * sw + x) * 4;
       const r = data[idx];
       const g = data[idx + 1];
@@ -135,6 +155,18 @@ export async function detectGridDividers(
   const colDividers = snapDividersToPeaks(vertProjection, columns - 1);
   const rowDividers = snapDividersToPeaks(horizProjection, rows - 1);
 
+  // もし検出結果が枠外に出ている場合はデフォルト分割をフォールバック
+  const validCols =
+    colDividers.length === columns - 1 &&
+    colDividers.every((d) => d > bounds.left && d < bounds.right);
+  const validRows =
+    rowDividers.length === rows - 1 &&
+    rowDividers.every((d) => d > bounds.top && d < bounds.bottom);
+
+  if (!validCols || !validRows) {
+    return getDefaultDividers(columns, rows, bounds);
+  }
+
   return {
     colDividers,
     rowDividers,
@@ -144,15 +176,22 @@ export async function detectGridDividers(
 /**
  * 等間隔のデフォルト分割線を生成
  */
-export function getDefaultDividers(columns: number, rows: number): GridBoundaries {
+export function getDefaultDividers(
+  columns: number,
+  rows: number,
+  bounds: GridAreaBounds = DEFAULT_GRID_BOUNDS,
+): GridBoundaries {
+  const width = bounds.right - bounds.left;
+  const height = bounds.bottom - bounds.top;
+
   const colDividers: number[] = [];
   for (let i = 1; i < columns; i++) {
-    colDividers.push(i / columns);
+    colDividers.push(bounds.left + (width * i) / columns);
   }
 
   const rowDividers: number[] = [];
   for (let i = 1; i < rows; i++) {
-    rowDividers.push(i / rows);
+    rowDividers.push(bounds.top + (height * i) / rows);
   }
 
   return { colDividers, rowDividers };
@@ -164,9 +203,10 @@ export function getDefaultDividers(columns: number, rows: number): GridBoundarie
 export function calculateCellRects(
   colDividers: number[],
   rowDividers: number[],
+  bounds: GridAreaBounds = DEFAULT_GRID_BOUNDS,
 ): Array<Array<{ x: number; y: number; w: number; h: number }>> {
-  const fullCols = [0, ...colDividers, 1.0];
-  const fullRows = [0, ...rowDividers, 1.0];
+  const fullCols = [bounds.left, ...colDividers, bounds.right];
+  const fullRows = [bounds.top, ...rowDividers, bounds.bottom];
 
   const gridRects: Array<Array<{ x: number; y: number; w: number; h: number }>> = [];
 
@@ -174,12 +214,12 @@ export function calculateCellRects(
     const rowRects: Array<{ x: number; y: number; w: number; h: number }> = [];
     const top = fullRows[r];
     const bottom = fullRows[r + 1];
-    const height = bottom - top;
+    const height = Math.max(0.01, bottom - top);
 
     for (let c = 0; c < fullCols.length - 1; c++) {
       const left = fullCols[c];
       const right = fullCols[c + 1];
-      const width = right - left;
+      const width = Math.max(0.01, right - left);
 
       rowRects.push({
         x: left,
@@ -201,13 +241,14 @@ export async function extractCellCrops(
   imageBlob: Blob,
   colDividers: number[],
   rowDividers: number[],
+  bounds: GridAreaBounds = DEFAULT_GRID_BOUNDS,
   paddingRatio = 0.04, // 罫線を除去するための内側マージン (4%)
 ): Promise<CellCropInfo[][]> {
   const img = await loadImageElement(imageBlob);
   const nw = img.naturalWidth || 800;
   const nh = img.naturalHeight || 800;
 
-  const rects = calculateCellRects(colDividers, rowDividers);
+  const rects = calculateCellRects(colDividers, rowDividers, bounds);
   const rows = rects.length;
   const cols = rects[0]?.length || 0;
 
@@ -282,7 +323,66 @@ export async function extractCellCrops(
 }
 
 /**
+ * セル内テキストから混入した行名（時限番号・時刻）や列名（曜日名）のアーティファクトを除去
+ */
+export function cleanHeaderArtifacts(text: string): string | null {
+  if (!text) return null;
+
+  // 曜日表記: 月, 火, 水, 木, 金, 土, 日, 月曜, (月), Mon, Tue 等
+  const dayHeaderFullRegex =
+    /^(?:[月火水木金土日](?:曜(?:日)?)?|\([月火水木金土日]\)|mon|tue|wed|thu|fri|sat|sun)(?:[\s\u3000]+|$)/i;
+  // 時限表記: 1限, 2限, 第1限, 10:40-12:10 等
+  const periodHeaderFullRegex =
+    /^(?:第?\d{1,2}限|\d{1,2}:\d{2}\s*[-~〜]\s*\d{1,2}:\d{2})(?:[\s\u3000]+|$)/i;
+  // 単独の数字のみ（「1」や「2」が独立している行）
+  const singleDigitOnlyRegex = /^\d{1,2}$/;
+
+  const lines = text.split('\n');
+  const cleanedLines: string[] = [];
+
+  for (let line of lines) {
+    line = line.trim();
+    if (line === '') {
+      cleanedLines.push('');
+      continue;
+    }
+
+    // 1. 行全体が単なる曜日や時限・時刻ヘッダーそのものの場合 -> 行ごと除外
+    if (
+      /^(?:[月火水木金土日](?:曜(?:日)?)?|\([月火水木金土日]\)|mon|tue|wed|thu|fri|sat|sun)$/i.test(
+        line,
+      ) ||
+      /^(?:第?\d{1,2}限|\d{1,2}:\d{2}\s*[-~〜]\s*\d{1,2}:\d{2})$/i.test(line) ||
+      singleDigitOnlyRegex.test(line) ||
+      /^(?:時限|時間|曜日)$/.test(line)
+    ) {
+      continue;
+    }
+
+    // 2. 行頭に曜日ヘッダーが付着している場合（例: "月 英語I", "月曜 線形代数"） -> 先頭の曜日を除去
+    line = line.replace(dayHeaderFullRegex, '').trim();
+
+    // 3. 行頭に時限ヘッダーが付着している場合（例: "1限 英語I", "第1限 基礎数学"） -> 先頭の時限を除去
+    line = line.replace(periodHeaderFullRegex, '').trim();
+
+    // 4. 行頭に「1 英語」のように単独数字と空白が付着している場合 -> 先頭の数字を除去
+    line = line.replace(/^\d{1,2}[\s\u3000]+/, '').trim();
+
+    if (line.length > 0) {
+      cleanedLines.push(line);
+    }
+  }
+
+  if (cleanedLines.length === 0) {
+    return null;
+  }
+
+  return cleanedLines.join('\n');
+}
+
+/**
  * セル内テキストの整形・正規化ルール:
+ * - 混入した曜日名・時限名などのヘッダーを自動除去
  * - 単一改行（\n）: 同一要素内の折り返しとみなし、半角スペースで連結
  * - 空行（\n\n以上）: 明確な段落・区切りとみなし、改行として保持
  * - ノイズ記号（ハイフンや縦線のみの行）は除去
@@ -291,7 +391,11 @@ export async function extractCellCrops(
 export function formatCellText(rawText: string): string | null {
   if (!rawText) return null;
 
-  const lines = rawText
+  // 1. 混入ヘッダー（曜日・時限・時刻）のクレンジング
+  const cleaned = cleanHeaderArtifacts(rawText);
+  if (!cleaned) return null;
+
+  const lines = cleaned
     .split('\n')
     .map((l) => l.trim())
     .map((l) => (/^[-—_|•・=~+*#/\\]+$/.test(l) ? '' : l));

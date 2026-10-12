@@ -6,7 +6,13 @@
 import { createWorker } from 'tesseract.js';
 import { GridCell } from './gridOcrParser';
 import { STANDARD_PERIODS } from './timetablePresets';
-import { extractCellCrops, CellCropInfo, formatCellText } from './gridDetection';
+import {
+  extractCellCrops,
+  CellCropInfo,
+  formatCellText,
+  GridAreaBounds,
+  DEFAULT_GRID_BOUNDS,
+} from './gridDetection';
 
 export interface CellOcrProgress {
   status: string;
@@ -18,6 +24,7 @@ export async function runCellBatchOcr(
   imageBlob: Blob,
   colDividers: number[],
   rowDividers: number[],
+  bounds: GridAreaBounds = DEFAULT_GRID_BOUNDS,
   onProgress?: (progress: CellOcrProgress) => void,
 ): Promise<GridCell[][]> {
   const rows = rowDividers.length + 1;
@@ -29,8 +36,8 @@ export async function runCellBatchOcr(
     progress: 0.05,
   });
 
-  // 1. 各セルの画像を切り出し（罫線除外 + 空白判定）
-  const cellGrid = await extractCellCrops(imageBlob, colDividers, rowDividers);
+  // 1. 各セルの画像を切り出し（罫線除外 + 空白判定 + マージン除外）
+  const cellGrid = await extractCellCrops(imageBlob, colDividers, rowDividers, bounds);
 
   // 空白でないセル数をカウント
   let cellsToRecognizeCount = 0;

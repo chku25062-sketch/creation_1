@@ -4,6 +4,7 @@ import {
   calculateCellRects,
   snapDividersToPeaks,
   formatCellText,
+  cleanHeaderArtifacts,
   matrixToCsv,
 } from './gridDetection';
 
@@ -80,6 +81,55 @@ describe('gridDetection utility', () => {
       expect(formatCellText('|')).toBeNull();
       expect(formatCellText('---')).toBeNull();
       expect(formatCellText('  -  \n  |  ')).toBeNull();
+    });
+
+    it('cleanses attached row and column headers from cell contents', () => {
+      // 曜日ヘッダーの混入除去
+      expect(formatCellText('月 英語I 101教室')).toBe('英語I 101教室');
+      expect(formatCellText('月曜\n線形代数')).toBe('線形代数');
+      expect(formatCellText('(火) プログラミング')).toBe('プログラミング');
+
+      // 時限・時刻ヘッダーの混入除去
+      expect(formatCellText('1限 物理学')).toBe('物理学');
+      expect(formatCellText('1\n化学実験')).toBe('化学実験');
+      expect(formatCellText('第2限 統計学')).toBe('統計学');
+      expect(formatCellText('09:00-10:30 微積分学')).toBe('微積分学');
+
+      // ヘッダー単体のセルは null になる
+      expect(formatCellText('月')).toBeNull();
+      expect(formatCellText('火曜')).toBeNull();
+      expect(formatCellText('1限')).toBeNull();
+      expect(formatCellText('1')).toBeNull();
+      expect(formatCellText('10:40 - 12:10')).toBeNull();
+
+      // 講義名の一部（末尾のIや1など）は保持される
+      expect(formatCellText('英語I')).toBe('英語I');
+      expect(formatCellText('情報数学1')).toBe('情報数学1');
+    });
+  });
+
+  describe('cleanHeaderArtifacts', () => {
+    it('strips leading day and period names directly', () => {
+      expect(cleanHeaderArtifacts('水 経済学入門')).toBe('経済学入門');
+      expect(cleanHeaderArtifacts('3限 ドイツ語')).toBe('ドイツ語');
+      expect(cleanHeaderArtifacts('金')).toBeNull();
+    });
+  });
+
+  describe('calculateCellRects with bounds', () => {
+    it('restricts grid rects within specified boundary margins', () => {
+      // 左10%（時限列）、上8%（曜日行）を除外
+      const bounds = { left: 0.1, top: 0.08, right: 1.0, bottom: 1.0 };
+      const colDividers = [0.55]; // 2列
+      const rowDividers = [0.54]; // 2行
+
+      const rects = calculateCellRects(colDividers, rowDividers, bounds);
+      expect(rects).toHaveLength(2);
+      expect(rects[0]).toHaveLength(2);
+
+      // (0,0) セルの左端は 0.1、上端は 0.08
+      expect(rects[0][0].x).toBeCloseTo(0.1);
+      expect(rects[0][0].y).toBeCloseTo(0.08);
     });
   });
 
