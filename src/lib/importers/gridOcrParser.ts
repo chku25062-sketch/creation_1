@@ -15,10 +15,11 @@ export interface WordBBox {
 export interface GridCell {
   dayIndex: number; // 0:月, 1:火, 2:水, 3:木, 4:金, 5:土
   periodIndex: number; // 1: 1限, 2: 2限, ...
+  text: string | null; // セル内の単一要素テキスト (空コマはnull)
   rawLines: string[]; // 改行ごとのテキスト
   fullText: string; // 改行で結合されたセル内テキスト
-  title: string; // 1行目（講義名）
-  roomOrNote: string; // 2行目以降（教室・備考）
+  title: string; // 講義名（タイトル）
+  roomOrNote: string; // 教室・備考
   startMinutes: number;
   endMinutes: number;
 }
@@ -116,6 +117,7 @@ export function clusterWordsIntoGrid(words: WordBBox[], config: GridConfig): Gri
       rowCells.push({
         dayIndex: c,
         periodIndex: periodNum,
+        text: fullText.length > 0 ? fullText : null,
         rawLines: lines,
         fullText,
         title,

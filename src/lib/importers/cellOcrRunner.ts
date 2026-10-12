@@ -6,7 +6,7 @@
 import { createWorker } from 'tesseract.js';
 import { GridCell } from './gridOcrParser';
 import { STANDARD_PERIODS } from './timetablePresets';
-import { extractCellCrops, CellCropInfo } from './gridDetection';
+import { extractCellCrops, CellCropInfo, formatCellText } from './gridDetection';
 
 export interface CellOcrProgress {
   status: string;
@@ -104,21 +104,22 @@ export async function runCellBatchOcr(
           });
         }
 
-        // 改行（\n）ごとに分割し、空行や微小なノイズゴミを除去
-        const rawLines = cellText
-          .split('\n')
-          .map((line) => line.trim())
-          .filter((line) => line.length > 0 && !/^[-—_|.•]+$/.test(line));
-
-        const fullText = rawLines.join('\n');
-        const title = rawLines.length > 0 ? rawLines[0] : '';
-        const roomOrNote = rawLines.slice(1).join('\n');
+        // セルテキストの整形:
+        // - 単一改行はスペースで連結（1つのまとまった要素）
+        // - 空行（\n\n）は改行として保持
+        // - 空白・ノイズは null
+        const formatted = formatCellText(cellText);
+        const title = formatted || '';
+        const rawLines = formatted ? formatted.split('\n') : [];
+        const roomOrNote =
+          formatted && formatted.includes('\n') ? formatted.split('\n').slice(1).join('\n') : '';
 
         rowCells.push({
           dayIndex: c,
           periodIndex: periodNum,
+          text: formatted,
           rawLines,
-          fullText,
+          fullText: title,
           title,
           roomOrNote,
           startMinutes: periodDef.startMinutes,

@@ -280,3 +280,82 @@ export async function extractCellCrops(
 
   return result;
 }
+
+/**
+ * セル内テキストの整形・正規化ルール:
+ * - 単一改行（\n）: 同一要素内の折り返しとみなし、半角スペースで連結
+ * - 空行（\n\n以上）: 明確な段落・区切りとみなし、改行として保持
+ * - ノイズ記号（ハイフンや縦線のみの行）は除去
+ * - 空マス・文字なしの場合は null を返却
+ */
+export function formatCellText(rawText: string): string | null {
+  if (!rawText) return null;
+
+  const lines = rawText
+    .split('\n')
+    .map((l) => l.trim())
+    .map((l) => (/^[-—_|•・=~+*#/\\]+$/.test(l) ? '' : l));
+
+  const paragraphs: string[][] = [];
+  let currentParagraph: string[] = [];
+
+  for (const line of lines) {
+    if (line === '') {
+      if (currentParagraph.length > 0) {
+        paragraphs.push(currentParagraph);
+        currentParagraph = [];
+      }
+    } else {
+      currentParagraph.push(line);
+    }
+  }
+  if (currentParagraph.length > 0) {
+    paragraphs.push(currentParagraph);
+  }
+
+  if (paragraphs.length === 0) {
+    return null;
+  }
+
+  const formattedParagraphs = paragraphs
+    .map((pLines) => pLines.join(' ').replace(/\s+/g, ' ').trim())
+    .filter((p) => p.length > 0);
+
+  if (formattedParagraphs.length === 0) {
+    return null;
+  }
+
+  return formattedParagraphs.join('\n');
+}
+
+/**
+ * 2次元CSVマトリックス型 (行 x 列)
+ * 空白コマは null
+ */
+export type TimetableCsvMatrix = (string | null)[][];
+
+/**
+ * マトリックスをCSVテキストに変換
+ */
+export function matrixToCsv(
+  matrix: TimetableCsvMatrix,
+  headers: string[] = ['月', '火', '水', '木', '金'],
+): string {
+  const rows: string[] = [];
+  rows.push(['時限', ...headers].join(','));
+
+  matrix.forEach((row, rIdx) => {
+    const periodLabel = `${rIdx + 1}限`;
+    const escapedCells = row.map((cell) => {
+      if (cell === null) return '';
+      // カンマや改行、ダブルクォートを含む場合はダブルクォートでエスケープ
+      if (cell.includes(',') || cell.includes('\n') || cell.includes('"')) {
+        return `"${cell.replace(/"/g, '""')}"`;
+      }
+      return cell;
+    });
+    rows.push([periodLabel, ...escapedCells].join(','));
+  });
+
+  return rows.join('\n');
+}

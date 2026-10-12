@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { getDefaultDividers, calculateCellRects, snapDividersToPeaks } from './gridDetection';
+import {
+  getDefaultDividers,
+  calculateCellRects,
+  snapDividersToPeaks,
+  formatCellText,
+  matrixToCsv,
+} from './gridDetection';
 
 describe('gridDetection utility', () => {
   it('getDefaultDividers generates equal splits correctly', () => {
@@ -46,5 +52,47 @@ describe('gridDetection utility', () => {
     // Should snap close to 48 or 52 (e.g. 0.48 or 0.52)
     expect(dividers[0]).toBeGreaterThanOrEqual(0.45);
     expect(dividers[0]).toBeLessThanOrEqual(0.55);
+  });
+
+  describe('formatCellText', () => {
+    it('joins single newlines with spaces', () => {
+      const input = '線形代数\n302教室';
+      expect(formatCellText(input)).toBe('線形代数 302教室');
+    });
+
+    it('preserves empty lines as newlines (paragraphs)', () => {
+      const input = '情報システム論\n\n※レポート提出あり';
+      expect(formatCellText(input)).toBe('情報システム論\n※レポート提出あり');
+    });
+
+    it('handles multiple newlines and spaces cleanly', () => {
+      const input = '  プログラミング\n演習  \n\n  山田先生\n401室  ';
+      expect(formatCellText(input)).toBe('プログラミング 演習\n山田先生 401室');
+    });
+
+    it('returns null for empty string or only whitespace', () => {
+      expect(formatCellText('')).toBeNull();
+      expect(formatCellText('   \n  \n ')).toBeNull();
+    });
+
+    it('returns null for isolated noise symbols (like hyphens or vertical bars)', () => {
+      expect(formatCellText('-')).toBeNull();
+      expect(formatCellText('|')).toBeNull();
+      expect(formatCellText('---')).toBeNull();
+      expect(formatCellText('  -  \n  |  ')).toBeNull();
+    });
+  });
+
+  describe('matrixToCsv', () => {
+    it('converts matrix to valid CSV representation with null as empty cells', () => {
+      const matrix = [
+        ['英語I 101教室', null, '数学A', null, null],
+        [null, '物理学', null, '化学', null],
+      ];
+      const csv = matrixToCsv(matrix);
+      expect(csv).toContain('時限,月,火,水,木,金');
+      expect(csv).toContain('1限,英語I 101教室,,数学A,,');
+      expect(csv).toContain('2限,,物理学,,化学,');
+    });
   });
 });

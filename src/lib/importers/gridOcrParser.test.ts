@@ -40,6 +40,10 @@ describe('2D Grid OCR Parser', () => {
     expect(mon1.title).toBe('英語I');
     expect(mon1.roomOrNote).toBe('302教室');
     expect(mon1.fullText).toBe('英語I\n302教室');
+    expect(mon1.text).toBe('英語I\n302教室');
+
+    // 空きコマ (row 0, col 1: 月曜2限) は text が null
+    expect(grid[0][1].text).toBeNull();
 
     // 火曜 2限 (row 1, col 1)
     const tue2 = grid[1][1];
@@ -47,6 +51,7 @@ describe('2D Grid OCR Parser', () => {
     expect(tue2.periodIndex).toBe(2);
     expect(tue2.title).toBe('線形代数');
     expect(tue2.roomOrNote).toBe('');
+    expect(tue2.text).toBe('線形代数');
 
     // 金曜 5限 (row 4, col 4)
     const fri5 = grid[4][4];
@@ -54,5 +59,6 @@ describe('2D Grid OCR Parser', () => {
     expect(fri5.periodIndex).toBe(5);
     expect(fri5.title).toBe('プログラミング');
     expect(fri5.roomOrNote).toBe('情報棟\nPC演習室');
+    expect(fri5.text).toBe('プログラミング\n情報棟\nPC演習室');
   });
 });
