@@ -30,6 +30,14 @@ export interface CellCropInfo {
   height: number;
 }
 
+export interface TableBoundingBox {
+  x: number; // 0.0 〜 1.0 (left ratio)
+  y: number; // 0.0 〜 1.0 (top ratio)
+  w: number; // 0.0 〜 1.0 (width ratio)
+  h: number; // 0.0 〜 1.0 (height ratio)
+  hasDetected: boolean;
+}
+
 /**
  * 画像BlobからHTMLImageElementを非同期ロード
  */
@@ -347,6 +355,144 @@ export function extractDirectionalEdgeProjections(
     vertProjection: smooth(vertProjection),
     horizProjection: smooth(horizProjection),
   };
+}
+
+/**
+ * 垂直・水平のエッジ射影プロファイルからデータマス本体の矩形領域を算出
+ * - 見出し行（曜日）やインデックス列（時限）の存在を検知し、データマス本体のみを自動で囲む
+ */
+export function findDataTableBoundsFromProjections(
+  vertProjection: number[],
+  horizProjection: number[],
+  width: number,
+  height: number,
+): TableBoundingBox {
+  const avgV =
+    vertProjection.length > 0
+      ? vertProjection.reduce((a, b) => a + b, 0) / vertProjection.length
+      : 1;
+  const vPeaks: number[] = [];
+  const vRadius = Math.max(2, Math.round(width * 0.015));
+
+  for (let x = vRadius; x < width - vRadius; x++) {
+    if (vertProjection[x] > avgV * 1.25) {
+      let isPeak = true;
+      for (let k = -vRadius; k <= vRadius; k++) {
+        if (k !== 0 && vertProjection[x + k] > vertProjection[x]) {
+          isPeak = false;
+          break;
+        }
+      }
+      if (isPeak) {
+        vPeaks.push(x);
+      }
+    }
+  }
+
+  const avgH =
+    horizProjection.length > 0
+      ? horizProjection.reduce((a, b) => a + b, 0) / horizProjection.length
+      : 1;
+  const hPeaks: number[] = [];
+  const hRadius = Math.max(2, Math.round(height * 0.015));
+
+  for (let y = hRadius; y < height - hRadius; y++) {
+    if (horizProjection[y] > avgH * 1.25) {
+      let isPeak = true;
+      for (let k = -hRadius; k <= hRadius; k++) {
+        if (k !== 0 && horizProjection[y + k] > horizProjection[y]) {
+          isPeak = false;
+          break;
+        }
+      }
+      if (isPeak) {
+        hPeaks.push(y);
+      }
+    }
+  }
+
+  if (vPeaks.length < 3 || hPeaks.length < 3) {
+    return { x: 0.05, y: 0.05, w: 0.9, h: 0.9, hasDetected: false };
+  }
+
+  let leftPx = vPeaks[0];
+  const rightPx = vPeaks[vPeaks.length - 1];
+
+  const vIntervals: number[] = [];
+  for (let i = 0; i < vPeaks.length - 1; i++) {
+    vIntervals.push(vPeaks[i + 1] - vPeaks[i]);
+  }
+  const sortedVIntervals = [...vIntervals].sort((a, b) => a - b);
+  const medianColW = sortedVIntervals[Math.floor(sortedVIntervals.length / 2)] || 50;
+
+  // 最初の列が狭い場合はインデックス列とみなし、2本目の罫線から開始
+  if (vIntervals.length >= 3 && vIntervals[0] < medianColW * 0.65) {
+    leftPx = vPeaks[1];
+  }
+
+  let topPx = hPeaks[0];
+  const bottomPx = hPeaks[hPeaks.length - 1];
+
+  const hIntervals: number[] = [];
+  for (let i = 0; i < hPeaks.length - 1; i++) {
+    hIntervals.push(hPeaks[i + 1] - hPeaks[i]);
+  }
+  const sortedHIntervals = [...hIntervals].sort((a, b) => a - b);
+  const medianRowH = sortedHIntervals[Math.floor(sortedHIntervals.length / 2)] || 40;
+
+  // 最初の一行が低い場合は見出し行とみなし、2本目の罫線から開始
+  if (hIntervals.length >= 3 && hIntervals[0] < medianRowH * 0.7) {
+    topPx = hPeaks[1];
+  }
+
+  const normLeft = Math.max(0.01, leftPx / width);
+  const normRight = Math.min(0.99, rightPx / width);
+  const normTop = Math.max(0.01, topPx / height);
+  const normBottom = Math.min(0.99, bottomPx / height);
+
+  const normW = normRight - normLeft;
+  const normH = normBottom - normTop;
+
+  if (normW < 0.2 || normH < 0.2) {
+    return { x: 0.05, y: 0.05, w: 0.9, h: 0.9, hasDetected: false };
+  }
+
+  return {
+    x: Math.round(normLeft * 1000) / 1000,
+    y: Math.round(normTop * 1000) / 1000,
+    w: Math.round(normW * 1000) / 1000,
+    h: Math.round(normH * 1000) / 1000,
+    hasDetected: true,
+  };
+}
+
+/**
+ * 画像内の表（講義・予定が入るデータマス本体）の最外枠バウンディングボックスを完全自動検出
+ */
+export async function detectTableBoundingBox(imageBlob: Blob): Promise<TableBoundingBox> {
+  const img = await loadImageElement(imageBlob);
+  const w = img.naturalWidth || 800;
+  const h = img.naturalHeight || 800;
+
+  const scale = Math.min(1.0, 600 / Math.max(w, h));
+  const sw = Math.round(w * scale);
+  const sh = Math.round(h * scale);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = sw;
+  canvas.height = sh;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    return { x: 0.05, y: 0.05, w: 0.9, h: 0.9, hasDetected: false };
+  }
+
+  ctx.drawImage(img, 0, 0, sw, sh);
+  const imgData = ctx.getImageData(0, 0, sw, sh);
+  const data = imgData.data;
+
+  const edges = extractDirectionalEdgeProjections(data, sw, sh, DEFAULT_GRID_BOUNDS);
+  return findDataTableBoundsFromProjections(edges.vertProjection, edges.horizProjection, sw, sh);
 }
 
 export interface LatticeFitResult {

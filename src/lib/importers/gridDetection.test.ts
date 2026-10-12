@@ -4,6 +4,7 @@ import {
   calculateCellRects,
   snapDividersToPeaks,
   fitLatticeToPeaks,
+  findDataTableBoundsFromProjections,
   formatCellText,
   cleanHeaderArtifacts,
   matrixToCsv,
@@ -232,6 +233,72 @@ describe('gridDetection utility', () => {
       const input = [0.25, 0.5, 0.75];
       const result = interpolateMissingDividers(input, 0.0, 1.0);
       expect(result).toEqual([0.25, 0.5, 0.75]);
+    });
+  });
+
+  describe('findDataTableBoundsFromProjections', () => {
+    it('detects table area and skips index column and header row when intervals are narrow', () => {
+      const width = 500;
+      const height = 400;
+
+      const vert = new Array(width).fill(5);
+      // X軸罫線: 20 (表の左端), 50 (時限列の右/データ列の開始), 140, 230, 320, 410 (データ5列, 幅90px)
+      vert[20] = 80;
+      vert[50] = 90;
+      vert[140] = 85;
+      vert[230] = 85;
+      vert[320] = 85;
+      vert[410] = 90;
+
+      const horiz = new Array(height).fill(5);
+      // Y軸罫線: 15 (表の上端), 40 (曜日行の下/データ行の開始), 110, 180, 250, 320 (データ5行, 高さ70px)
+      horiz[15] = 80;
+      horiz[40] = 90;
+      horiz[110] = 85;
+      horiz[180] = 85;
+      horiz[250] = 85;
+      horiz[320] = 90;
+
+      const bounds = findDataTableBoundsFromProjections(vert, horiz, width, height);
+      expect(bounds.hasDetected).toBe(true);
+
+      // 左端は 50 / 500 = 0.10 （時限列 20-50 をスキップした位置）
+      expect(bounds.x).toBeCloseTo(0.1, 2);
+      // 幅は (410 - 50) / 500 = 0.72
+      expect(bounds.w).toBeCloseTo(0.72, 2);
+
+      // 上端は 40 / 400 = 0.10 （曜日行 15-40 をスキップした位置）
+      expect(bounds.y).toBeCloseTo(0.1, 2);
+      // 高さは (320 - 40) / 400 = 0.70
+      expect(bounds.h).toBeCloseTo(0.7, 2);
+    });
+
+    it('encloses entire grid when intervals are already uniform without separate header', () => {
+      const width = 500;
+      const height = 400;
+
+      const vert = new Array(width).fill(5);
+      // 均等5列: 50, 130, 210, 290, 370, 450 (各幅80px)
+      [50, 130, 210, 290, 370, 450].forEach((x) => {
+        vert[x] = 90;
+      });
+
+      const horiz = new Array(height).fill(5);
+      // 均等5行: 30, 95, 160, 225, 290, 355 (各高さ65px)
+      [30, 95, 160, 225, 290, 355].forEach((y) => {
+        horiz[y] = 90;
+      });
+
+      const bounds = findDataTableBoundsFromProjections(vert, horiz, width, height);
+      expect(bounds.hasDetected).toBe(true);
+      // 左端は 50 / 500 = 0.10
+      expect(bounds.x).toBeCloseTo(0.1, 2);
+      // 右端は 450、幅は (450 - 50) / 500 = 0.80
+      expect(bounds.w).toBeCloseTo(0.8, 2);
+      // 上端は 30 / 400 = 0.075
+      expect(bounds.y).toBeCloseTo(0.075, 2);
+      // 下端は 355、高さは (355 - 30) / 400 = 0.8125
+      expect(bounds.h).toBeCloseTo(0.813, 2);
     });
   });
 });

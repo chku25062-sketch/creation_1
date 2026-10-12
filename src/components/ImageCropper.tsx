@@ -1,7 +1,17 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Crop, Check, RefreshCw, Maximize2, Move, MousePointerClick } from 'lucide-react';
+import {
+  Crop,
+  Check,
+  RefreshCw,
+  Maximize2,
+  Move,
+  MousePointerClick,
+  Sparkles,
+  Loader2,
+} from 'lucide-react';
+import { detectTableBoundingBox } from '@/lib/importers/gridDetection';
 
 interface ImageCropperProps {
   imageFile: File;
@@ -30,9 +40,12 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
 
   const [activeAction, setActiveAction] = useState<DragAction>('none');
   const [isDrawModeActive, setIsDrawModeActive] = useState<boolean>(false);
+  const [isAutoDetecting, setIsAutoDetecting] = useState<boolean>(true);
+  const [detectedMessage, setDetectedMessage] = useState<string | null>(null);
 
   const imgWrapperRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const isInitialMountedRef = useRef<boolean>(false);
 
   // ドラッグ追従用のRef（Windowイベント内で最新状態を参照するため）
   const dragSessionRef = useRef<{
@@ -59,6 +72,34 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
     });
     setIsDrawModeActive(false);
   }, []);
+
+  // 表のデータマス本体の枠を完全自動検出
+  const runAutoDetect = useCallback(async () => {
+    setIsAutoDetecting(true);
+    try {
+      const box = await detectTableBoundingBox(imageFile);
+      if (box.hasDetected) {
+        setCropRect({ x: box.x, y: box.y, w: box.w, h: box.h });
+        setDetectedMessage('表のデータ領域を自動検出しました（枠の微調整も可能です）');
+        setTimeout(() => setDetectedMessage(null), 3500);
+      } else {
+        resetToDefault();
+      }
+    } catch (e) {
+      console.warn('Auto table bounds detection failed', e);
+      resetToDefault();
+    } finally {
+      setIsAutoDetecting(false);
+    }
+  }, [imageFile, resetToDefault]);
+
+  // 初回マウント時: 表領域を自動検出して初期枠として提案
+  useEffect(() => {
+    if (!isInitialMountedRef.current) {
+      isInitialMountedRef.current = true;
+      runAutoDetect();
+    }
+  }, [runAutoDetect]);
 
   // 全体選択
   const handleSelectAll = useCallback(() => {
@@ -234,24 +275,8 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
       return;
     }
 
-    // クロップ部分の描画
+    // クロップ部分の描画（原本の高解像度・階調をそのまま保持）
     ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-
-    // コントラスト伸長 (文字の輪郭強調)
-    try {
-      const imgData = ctx.getImageData(0, 0, cropW, cropH);
-      const d = imgData.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const brightness = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-        const val = brightness > 140 ? 255 : brightness < 90 ? 0 : brightness;
-        d[i] = val;
-        d[i + 1] = val;
-        d[i + 2] = val;
-      }
-      ctx.putImageData(imgData, 0, 0);
-    } catch (e) {
-      console.warn('Canvas filter skipped', e);
-    }
 
     canvas.toBlob(
       (blob) => {
@@ -273,14 +298,29 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
         <div className="flex items-center gap-1.5 font-medium text-cyan-300">
           <Crop className="h-4 w-4 shrink-0 text-cyan-400" />
           <span>
-            {isDrawModeActive
-              ? 'ドラッグして、予定・講義のマス目（本体のみ）を囲んでください'
-              : '※ 曜日や時限番号の見出しは含めず、予定が入っているマス目（本体）のみを囲むと高精度に認識されます'}
+            {detectedMessage ||
+              (isDrawModeActive
+                ? 'ドラッグして、予定・講義のマス目（本体のみ）を囲んでください'
+                : '※ 表のデータマス領域を自動検出しました。四隅のハンドルで微調整も可能です')}
           </span>
         </div>
 
         {/* 枠操作ボタン群 */}
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            disabled={isAutoDetecting}
+            onClick={runAutoDetect}
+            className="flex items-center gap-1 rounded-lg border border-cyan-800/60 bg-gradient-to-r from-cyan-950/80 to-blue-950/80 px-2.5 py-1 text-xs font-semibold text-cyan-300 shadow transition hover:from-cyan-900/90 hover:to-blue-900/90 disabled:opacity-50"
+            title="表のデータマス本体の枠を自動検出し、ピタッと合わせます"
+          >
+            {isAutoDetecting ? (
+              <Loader2 className="h-3 w-3 animate-spin text-cyan-400" />
+            ) : (
+              <Sparkles className="h-3 w-3 text-cyan-400" />
+            )}
+            <span>表枠を自動検出</span>
+          </button>
           <button
             type="button"
             onClick={handleClearForRedraw}
