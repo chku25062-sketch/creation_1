@@ -7,6 +7,8 @@ import {
   formatCellText,
   cleanHeaderArtifacts,
   matrixToCsv,
+  extractMorphologicalLineProjections,
+  interpolateMissingDividers,
 } from './gridDetection';
 
 describe('gridDetection utility', () => {
@@ -165,6 +167,68 @@ describe('gridDetection utility', () => {
       const csv = matrixToCsv(matrix, ['A', 'B'], ['午前']);
       expect(csv).toContain('行 / 列,A,B');
       expect(csv).toContain('午前,タスク1,タスク2');
+    });
+  });
+
+  describe('extractMorphologicalLineProjections', () => {
+    it('removes short character strokes and preserves continuous table grid lines', () => {
+      const width = 100;
+      const height = 100;
+      const data = new Uint8ClampedArray(width * height * 4).fill(255); // 白背景
+
+      const setPixel = (x: number, y: number, dark: boolean) => {
+        const idx = (y * width + x) * 4;
+        const val = dark ? 0 : 255;
+        data[idx] = val;
+        data[idx + 1] = val;
+        data[idx + 2] = val;
+      };
+
+      // 1. 本物の水平罫線 (y = 50 に長さ 80px の連続黒線)
+      for (let x = 10; x <= 90; x++) {
+        setPixel(x, 50, true);
+      }
+
+      // 2. 本物の垂直罫線 (x = 50 に長さ 80px の連続黒線)
+      for (let y = 10; y <= 90; y++) {
+        setPixel(50, y, true);
+      }
+
+      // 3. 文字を模した短い線分ノイズ (y = 20 に長さ 5px の横棒、x = 20 に長さ 5px の縦棒)
+      for (let x = 18; x <= 22; x++) {
+        setPixel(x, 20, true);
+      }
+      for (let y = 18; y <= 22; y++) {
+        setPixel(20, y, true);
+      }
+
+      const res = extractMorphologicalLineProjections(data, width, height);
+
+      expect(res.hasLines).toBe(true);
+      // 水平罫線の y = 50 は 80px のピークが抽出される
+      expect(res.horizProjection[50]).toBeGreaterThanOrEqual(80);
+      // 文字ノイズの y = 20 はモルフォロジー演算で消去され 0 になる
+      expect(res.horizProjection[20]).toBe(0);
+
+      // 垂直罫線の x = 50 は 80px のピークが抽出される
+      expect(res.vertProjection[50]).toBeGreaterThanOrEqual(80);
+      // 文字ノイズの x = 20 はモルフォロジー演算で消去され 0 になる
+      expect(res.vertProjection[20]).toBe(0);
+    });
+  });
+
+  describe('interpolateMissingDividers', () => {
+    it('interpolates missing divider when gap is double the median interval', () => {
+      // 0.2, 0.4, 0.8 -> 0.6 の線がかすれて抜けているケース
+      const input = [0.2, 0.4, 0.8];
+      const result = interpolateMissingDividers(input, 0.0, 1.0);
+      expect(result).toEqual([0.2, 0.4, 0.6, 0.8]);
+    });
+
+    it('leaves intact when dividers are already regular', () => {
+      const input = [0.25, 0.5, 0.75];
+      const result = interpolateMissingDividers(input, 0.0, 1.0);
+      expect(result).toEqual([0.25, 0.5, 0.75]);
     });
   });
 });

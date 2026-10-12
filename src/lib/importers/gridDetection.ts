@@ -95,6 +95,177 @@ export function snapDividersToPeaks(
   return dividers;
 }
 
+export interface MorphologicalProjections {
+  horizProjection: number[];
+  vertProjection: number[];
+  hasLines: boolean;
+}
+
+/**
+ * 形態素演算（モルフォロジー線分フィルター: Opening処理）により、
+ * 文字やノイズを除去して連続した罫線のみの射影ヒストグラムを抽出
+ */
+export function extractMorphologicalLineProjections(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+  bounds: GridAreaBounds = DEFAULT_GRID_BOUNDS,
+  brightnessThreshold = 160,
+): MorphologicalProjections {
+  const minX = Math.max(0, Math.min(width - 1, Math.round(bounds.left * width)));
+  const maxX = Math.max(0, Math.min(width, Math.round(bounds.right * width)));
+  const minY = Math.max(0, Math.min(height - 1, Math.round(bounds.top * height)));
+  const maxY = Math.max(0, Math.min(height, Math.round(bounds.bottom * height)));
+
+  const regionW = Math.max(1, maxX - minX);
+  const regionH = Math.max(1, maxY - minY);
+
+  // 二値化バッファ (1: 黒/線/文字, 0: 白/背景)
+  const binary = new Uint8Array(width * height);
+  for (let y = minY; y < maxY; y++) {
+    const rowOffset = y * width;
+    for (let x = minX; x < maxX; x++) {
+      const idx = (rowOffset + x) * 4;
+      const r = data[idx];
+      const g = data[idx + 1];
+      const b = data[idx + 2];
+      const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+      if (brightness < brightnessThreshold) {
+        binary[rowOffset + x] = 1;
+      }
+    }
+  }
+
+  // 1. 水平罫線オープニング (横長カーネルで文字横画を除去)
+  // カーネル長: 対象幅の約 3.5% (最低 10px、最大 50px)
+  const kernelH = Math.max(10, Math.min(50, Math.round(regionW * 0.035)));
+  const horizMask = new Uint8Array(width * height);
+
+  for (let y = minY; y < maxY; y++) {
+    const rowOffset = y * width;
+    let runLength = 0;
+    for (let x = minX; x < maxX; x++) {
+      if (binary[rowOffset + x] === 1) {
+        runLength++;
+        if (runLength >= kernelH) {
+          for (let k = 0; k < kernelH; k++) {
+            horizMask[rowOffset + (x - k)] = 1;
+          }
+        }
+      } else {
+        runLength = 0;
+      }
+    }
+  }
+
+  // 2. 垂直罫線オープニング (縦長カーネルで文字縦画を除去)
+  // カーネル長: 対象高さの約 3.5% (最低 10px、最大 50px)
+  const kernelV = Math.max(10, Math.min(50, Math.round(regionH * 0.035)));
+  const vertMask = new Uint8Array(width * height);
+
+  for (let x = minX; x < maxX; x++) {
+    let runLength = 0;
+    for (let y = minY; y < maxY; y++) {
+      const idx = y * width + x;
+      if (binary[idx] === 1) {
+        runLength++;
+        if (runLength >= kernelV) {
+          for (let k = 0; k < kernelV; k++) {
+            vertMask[(y - k) * width + x] = 1;
+          }
+        }
+      } else {
+        runLength = 0;
+      }
+    }
+  }
+
+  // 射影ヒストグラムの集計
+  const horizProjection = new Array(height).fill(0);
+  const vertProjection = new Array(width).fill(0);
+
+  let horizLinePixels = 0;
+  let vertLinePixels = 0;
+
+  for (let y = minY; y < maxY; y++) {
+    let count = 0;
+    const rowOffset = y * width;
+    for (let x = minX; x < maxX; x++) {
+      if (horizMask[rowOffset + x] === 1) {
+        count++;
+      }
+    }
+    horizProjection[y] = count;
+    horizLinePixels += count;
+  }
+
+  for (let x = minX; x < maxX; x++) {
+    let count = 0;
+    for (let y = minY; y < maxY; y++) {
+      if (vertMask[y * width + x] === 1) {
+        count++;
+      }
+    }
+    vertProjection[x] = count;
+    vertLinePixels += count;
+  }
+
+  // 線分が充分検出されているか判定
+  const hasLines = horizLinePixels >= kernelH * 2 && vertLinePixels >= kernelV * 2;
+
+  return {
+    horizProjection,
+    vertProjection,
+    hasLines,
+  };
+}
+
+/**
+ * 検出された罫線ピッチ（周期）を解析し、薄れや点線等で欠落した中間分割線を等間隔補間
+ */
+export function interpolateMissingDividers(
+  peaks: number[],
+  minBound = 0.0,
+  maxBound = 1.0,
+): number[] {
+  if (peaks.length === 0) return [];
+
+  const allPoints = [minBound, ...peaks, maxBound];
+  const intervals: number[] = [];
+  for (let i = 0; i < allPoints.length - 1; i++) {
+    intervals.push(allPoints[i + 1] - allPoints[i]);
+  }
+
+  const sortedIntervals = [...intervals].sort((a, b) => a - b);
+  const median = sortedIntervals[Math.floor(sortedIntervals.length / 2)];
+
+  if (median <= 0.01) return peaks;
+
+  const result: number[] = [];
+
+  for (let i = 0; i < allPoints.length - 1; i++) {
+    const start = allPoints[i];
+    const end = allPoints[i + 1];
+    const diff = end - start;
+
+    if (i > 0) {
+      result.push(start);
+    }
+
+    // 間隔が中央値の約1.7倍〜2.4倍ある場合、中間1本を補間
+    if (diff >= median * 1.7 && diff <= median * 2.4) {
+      result.push(Math.round(((start + end) / 2) * 1000) / 1000);
+    } else if (diff > median * 2.4 && diff <= median * 3.4) {
+      // 2本補間
+      result.push(Math.round((start + diff / 3) * 1000) / 1000);
+      result.push(Math.round((start + (diff * 2) / 3) * 1000) / 1000);
+    }
+  }
+
+  result.sort((a, b) => a - b);
+  return result;
+}
+
 /**
  * 画像から水平・垂直の罫線を射影ヒストグラムにより自動検出
  */
@@ -127,27 +298,37 @@ export async function detectGridDividers(
   const imgData = ctx.getImageData(0, 0, sw, sh);
   const data = imgData.data;
 
-  // 水平射影 (各行の暗いピクセル数) と 垂直射影 (各列の暗いピクセル数)
-  const horizProjection = new Array(sh).fill(0);
-  const vertProjection = new Array(sw).fill(0);
+  // モルフォロジー線分抽出を優先（文字ノイズ除去）
+  const morph = extractMorphologicalLineProjections(data, sw, sh, bounds);
 
-  const minX = Math.round(bounds.left * sw);
-  const maxX = Math.round(bounds.right * sw);
-  const minY = Math.round(bounds.top * sh);
-  const maxY = Math.round(bounds.bottom * sh);
+  let horizProjection: number[];
+  let vertProjection: number[];
 
-  for (let y = minY; y < maxY; y++) {
-    for (let x = minX; x < maxX; x++) {
-      const idx = (y * sw + x) * 4;
-      const r = data[idx];
-      const g = data[idx + 1];
-      const b = data[idx + 2];
-      const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+  if (morph.hasLines) {
+    horizProjection = morph.horizProjection;
+    vertProjection = morph.vertProjection;
+  } else {
+    // フォールバック: 全黒画素の集計
+    horizProjection = new Array(sh).fill(0);
+    vertProjection = new Array(sw).fill(0);
 
-      // 罫線や文字などの暗いピクセル（閾値 150 未満）
-      if (brightness < 150) {
-        horizProjection[y]++;
-        vertProjection[x]++;
+    const minX = Math.round(bounds.left * sw);
+    const maxX = Math.round(bounds.right * sw);
+    const minY = Math.round(bounds.top * sh);
+    const maxY = Math.round(bounds.bottom * sh);
+
+    for (let y = minY; y < maxY; y++) {
+      for (let x = minX; x < maxX; x++) {
+        const idx = (y * sw + x) * 4;
+        const r = data[idx];
+        const g = data[idx + 1];
+        const b = data[idx + 2];
+        const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+
+        if (brightness < 150) {
+          horizProjection[y]++;
+          vertProjection[x]++;
+        }
       }
     }
   }
@@ -250,24 +431,36 @@ export async function autoDetectTableStructure(
   const imgData = ctx.getImageData(0, 0, sw, sh);
   const data = imgData.data;
 
-  const horizProjection = new Array(sh).fill(0);
-  const vertProjection = new Array(sw).fill(0);
+  // モルフォロジー線分抽出を優先（文字誤認の防止）
+  const morph = extractMorphologicalLineProjections(data, sw, sh, bounds);
+
+  let horizProjection: number[];
+  let vertProjection: number[];
 
   const minX = Math.round(bounds.left * sw);
   const maxX = Math.round(bounds.right * sw);
   const minY = Math.round(bounds.top * sh);
   const maxY = Math.round(bounds.bottom * sh);
 
-  for (let y = minY; y < maxY; y++) {
-    for (let x = minX; x < maxX; x++) {
-      const idx = (y * sw + x) * 4;
-      const r = data[idx];
-      const g = data[idx + 1];
-      const b = data[idx + 2];
-      const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
-      if (brightness < 150) {
-        horizProjection[y]++;
-        vertProjection[x]++;
+  if (morph.hasLines) {
+    horizProjection = morph.horizProjection;
+    vertProjection = morph.vertProjection;
+  } else {
+    // 罫線が取れない場合は全暗色ピクセル集計にフォールバック
+    horizProjection = new Array(sh).fill(0);
+    vertProjection = new Array(sw).fill(0);
+
+    for (let y = minY; y < maxY; y++) {
+      for (let x = minX; x < maxX; x++) {
+        const idx = (y * sw + x) * 4;
+        const r = data[idx];
+        const g = data[idx + 1];
+        const b = data[idx + 2];
+        const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+        if (brightness < 150) {
+          horizProjection[y]++;
+          vertProjection[x]++;
+        }
       }
     }
   }
@@ -278,17 +471,21 @@ export async function autoDetectTableStructure(
   const rawVertPeaks = findProminentPeaks(subVert, 0.04, 1.25);
   const rawHorizPeaks = findProminentPeaks(subHoriz, 0.04, 1.25);
 
-  // 端（5%以内）の外枠罫線を除外し、bounds 内の内部区切り線を算出
+  // 端（4%以内）の外枠罫線を除外し、bounds 内の内部区切り線を算出
   const widthRatio = bounds.right - bounds.left;
   const heightRatio = bounds.bottom - bounds.top;
 
-  const innerVertPeaks = rawVertPeaks
-    .filter((p) => p > 0.05 && p < 0.95)
+  let innerVertPeaks = rawVertPeaks
+    .filter((p) => p > 0.04 && p < 0.96)
     .map((p) => bounds.left + p * widthRatio);
 
-  const innerHorizPeaks = rawHorizPeaks
-    .filter((p) => p > 0.05 && p < 0.95)
+  let innerHorizPeaks = rawHorizPeaks
+    .filter((p) => p > 0.04 && p < 0.96)
     .map((p) => bounds.top + p * heightRatio);
+
+  // 欠落した罫線の等間隔補間（ハイブリッド補正）
+  innerVertPeaks = interpolateMissingDividers(innerVertPeaks, bounds.left, bounds.right);
+  innerHorizPeaks = interpolateMissingDividers(innerHorizPeaks, bounds.top, bounds.bottom);
 
   // 検出された区切り線が1〜14本なら採用、無ければ標準5
   const columns =
