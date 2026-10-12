@@ -21,7 +21,9 @@ import { parseImageSchedule, OcrProgress } from '@/lib/importers/ocrParser';
 import { GridCell } from '@/lib/importers/gridOcrParser';
 import { minutesToTimeString, formatDuration } from '@/lib/timeUtils';
 import { ImageCropper } from '@/components/ImageCropper';
+import { GridAdjuster } from '@/components/GridAdjuster';
 import { TimetableGridEditor } from '@/components/TimetableGridEditor';
+import { runCellBatchOcr } from '@/lib/importers/cellOcrRunner';
 
 interface FileImportModalProps {
   isOpen: boolean;
@@ -29,13 +31,17 @@ interface FileImportModalProps {
   onImport: (newFixedSlots: FixedSlot[], newTasks: TaskItem[], mode: 'add' | 'replace') => void;
 }
 
-type ModalStep = 'upload' | 'crop' | 'grid_review' | 'list_review';
+type ModalStep = 'upload' | 'crop' | 'grid_adjust' | 'grid_review' | 'list_review';
 
 export function FileImportModal({ isOpen, onClose, onImport }: FileImportModalProps) {
   const [step, setStep] = useState<ModalStep>('upload');
   const [file, setFile] = useState<File | null>(null);
+  const [croppedBlob, setCroppedBlob] = useState<Blob | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState<OcrProgress>({ status: '', progress: 0 });
+  const [progress, setProgress] = useState<OcrProgress>({
+    status: '',
+    progress: 0,
+  });
   const [parsedItems, setParsedItems] = useState<ParsedScheduleItem[]>([]);
   const [gridData, setGridData] = useState<GridCell[][] | null>(null);
   const [importMode, setImportMode] = useState<'add' | 'replace'>('add');
@@ -47,6 +53,7 @@ export function FileImportModal({ isOpen, onClose, onImport }: FileImportModalPr
   const handleReset = () => {
     setStep('upload');
     setFile(null);
+    setCroppedBlob(null);
     setParsedItems([]);
     setGridData(null);
     setErrorMsg(null);
@@ -90,34 +97,65 @@ export function FileImportModal({ isOpen, onClose, onImport }: FileImportModalPr
     }
   };
 
-  const handleCropComplete = async (croppedBlob: Blob, width: number, height: number) => {
-    setStep('upload'); // プログレス表示のため一時的にアップロード画面へ
+  // クロップ完了時 -> グリッド境界線の確認・調整ステップへ
+  const handleCropComplete = (blob: Blob) => {
+    setCroppedBlob(blob);
+    setStep('grid_adjust');
+  };
+
+  // グリッド線確定時 -> セル単位バッチOCRの実行
+  const handleGridAdjustConfirm = async (
+    colDividers: number[],
+    rowDividers: number[],
+    columns: number,
+    rows: number,
+  ) => {
+    if (!croppedBlob) return;
+
+    setStep('upload'); // 進捗表示画面へ
     setIsProcessing(true);
-    setProgress({ status: '画像を解析中...', progress: 0.1 });
+    setProgress({
+      status: '区画ごとに高精度OCR解析を開始中...',
+      progress: 0.05,
+    });
 
     try {
-      const result = await parseImageSchedule(croppedBlob, (p) => setProgress(p), {
-        width,
-        height,
-        columns: 5,
-        rows: 5,
+      const grid = await runCellBatchOcr(croppedBlob, colDividers, rowDividers, (p) => {
+        setProgress({ status: p.status, progress: p.progress });
       });
 
-      if (result.grid && result.grid.some((row) => row.some((c) => c.title))) {
-        setGridData(result.grid);
+      const hasRecognizedContent = grid && grid.some((r) => r.some((c) => c.title));
+
+      if (hasRecognizedContent) {
+        setGridData(grid);
         setStep('grid_review');
-      } else if (result.items.length > 0) {
-        setParsedItems(result.items);
-        setStep('list_review');
       } else {
-        setErrorMsg(
-          '文字や表の構造を検出できませんでした。トリミング範囲や画像の鮮明さを確認してください。',
-        );
-        setStep('upload');
+        // セル個別OCRで文字が検出できなかった場合のフォールバック (全体解析)
+        setProgress({
+          status: '全体レイアウト解析にフォールバック中...',
+          progress: 0.5,
+        });
+        const fallbackRes = await parseImageSchedule(croppedBlob, (p) => setProgress(p), {
+          columns,
+          rows,
+        });
+
+        if (fallbackRes.grid && fallbackRes.grid.some((r) => r.some((c) => c.title))) {
+          setGridData(fallbackRes.grid);
+          setStep('grid_review');
+        } else if (fallbackRes.items.length > 0) {
+          setParsedItems(fallbackRes.items);
+          setStep('list_review');
+        } else {
+          setErrorMsg(
+            '文字を検出できませんでした。トリミング範囲や画像の鮮明さを確認してください。',
+          );
+          setStep('upload');
+        }
       }
     } catch (err: unknown) {
       console.error(err);
-      setErrorMsg('OCR解析中にエラーが発生しました。');
+      setErrorMsg('区画OCR解析中にエラーが発生しました。');
       setStep('upload');
     } finally {
       setIsProcessing(false);
@@ -161,10 +199,11 @@ export function FileImportModal({ isOpen, onClose, onImport }: FileImportModalPr
         tasks.push({
           id: `imported-task-${Date.now()}-${idx}`,
           title: item.title,
-          durationMinutes: item.durationMinutes || 45,
-          priority: item.priority || 'medium',
+          durationMinutes: item.durationMinutes || 60,
           category: (item.category as TaskItem['category']) || 'study',
+          priority: 'medium',
           period: 'day',
+          completed: false,
         });
       }
     });
@@ -189,8 +228,9 @@ export function FileImportModal({ isOpen, onClose, onImport }: FileImportModalPr
           return {
             ...item,
             type: nextType,
-            startMinutes: nextType === 'fixed' ? item.startMinutes || 540 : undefined,
-            endMinutes: nextType === 'fixed' ? item.endMinutes || 630 : undefined,
+            startMinutes: nextType === 'fixed' ? 540 : undefined,
+            endMinutes: nextType === 'fixed' ? 630 : undefined,
+            durationMinutes: item.durationMinutes || 60,
           };
         }
         return item;
@@ -219,14 +259,18 @@ export function FileImportModal({ isOpen, onClose, onImport }: FileImportModalPr
               <h3 className="text-base font-bold text-white">
                 {step === 'crop'
                   ? '表領域の切り取り (クロップ)'
-                  : step === 'grid_review'
-                    ? '時間割グリッドの確認・編集'
-                    : 'ファイルから一括取り込み'}
+                  : step === 'grid_adjust'
+                    ? '表の区画 (グリッド) の確認・調整'
+                    : step === 'grid_review'
+                      ? '時間割グリッドの確認・編集'
+                      : 'ファイルから一括取り込み'}
               </h3>
               <p className="text-xs text-slate-400">
                 {step === 'crop'
                   ? '時間割の表部分だけを囲むことで認識精度が大幅に向上します'
-                  : '時間割アプリのスクショ画像やテキストメモから自動解析（外部API不要）'}
+                  : step === 'grid_adjust'
+                    ? '破線をドラッグして時間割の行と列の境目に合わせてください（区画ごとに高精度解析します）'
+                    : '時間割アプリのスクショ画像やテキストメモから自動解析（外部API不要）'}
               </p>
             </div>
           </div>
@@ -274,14 +318,16 @@ export function FileImportModal({ isOpen, onClose, onImport }: FileImportModalPr
                     <div>
                       <p className="text-sm font-semibold text-white">{progress.status}</p>
                       <p className="text-xs text-slate-400">
-                        外部APIを使わず、ブラウザ内で高速にテキスト解析しています
+                        外部APIを使わず、ブラウザ内で区画ごとに高精度OCR解析しています
                       </p>
                     </div>
                     {/* Progress Bar */}
-                    <div className="mt-2 h-2 w-48 overflow-hidden rounded-full bg-slate-800">
+                    <div className="mt-2 h-2 w-56 overflow-hidden rounded-full bg-slate-800">
                       <div
-                        className="h-full bg-cyan-400 transition-all duration-300"
-                        style={{ width: `${Math.round(progress.progress * 100)}%` }}
+                        className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-300"
+                        style={{
+                          width: `${Math.round(progress.progress * 100)}%`,
+                        }}
                       />
                     </div>
                   </div>
@@ -301,10 +347,10 @@ export function FileImportModal({ isOpen, onClose, onImport }: FileImportModalPr
                       <span className="rounded bg-slate-800 px-2 py-0.5">
                         時間割アプリのスクショ
                       </span>
-                      <span className="rounded bg-slate-800 px-2 py-0.5">画像トリミング対応</span>
                       <span className="rounded bg-slate-800 px-2 py-0.5">
-                        行・列・改行の立体認識
+                        画像クロップ＆グリッド検出
                       </span>
+                      <span className="rounded bg-slate-800 px-2 py-0.5">区画・改行の立体認識</span>
                     </div>
                   </>
                 )}
@@ -319,7 +365,7 @@ export function FileImportModal({ isOpen, onClose, onImport }: FileImportModalPr
             </div>
           )}
 
-          {/* STEP 2: Crop Area */}
+          {/* STEP 2: Crop Area (トリミング) */}
           {step === 'crop' && file && (
             <ImageCropper
               imageFile={file}
@@ -328,16 +374,25 @@ export function FileImportModal({ isOpen, onClose, onImport }: FileImportModalPr
             />
           )}
 
-          {/* STEP 3: Grid Table Review (2D時間割テーブル) */}
+          {/* STEP 3: Grid Adjust (グリッド境界線の確認・調整) */}
+          {step === 'grid_adjust' && croppedBlob && (
+            <GridAdjuster
+              imageBlob={croppedBlob}
+              onConfirm={handleGridAdjustConfirm}
+              onBack={() => setStep('crop')}
+            />
+          )}
+
+          {/* STEP 4: Grid Table Review (2D時間割テーブル確認・編集) */}
           {step === 'grid_review' && gridData && (
             <TimetableGridEditor
               initialGrid={gridData}
               onApply={handleApplyGrid}
-              onCancel={() => setStep('crop')}
+              onCancel={() => setStep('grid_adjust')}
             />
           )}
 
-          {/* STEP 4: List Review (テキストファイルやフォールバック用) */}
+          {/* STEP 5: List Review (テキストファイルやフォールバック用) */}
           {step === 'list_review' && (
             <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between text-xs text-slate-400">
@@ -371,12 +426,12 @@ export function FileImportModal({ isOpen, onClose, onImport }: FileImportModalPr
                         {item.type === 'fixed' ? (
                           <>
                             <Shield className="h-3 w-3" />
-                            固定枠
+                            <span>固定枠</span>
                           </>
                         ) : (
                           <>
                             <Target className="h-3 w-3" />
-                            目標タスク
+                            <span>タスク</span>
                           </>
                         )}
                       </button>
@@ -385,88 +440,91 @@ export function FileImportModal({ isOpen, onClose, onImport }: FileImportModalPr
                         type="text"
                         value={item.title}
                         onChange={(e) => handleUpdateItem(item.id, { title: e.target.value })}
-                        className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs text-white focus:border-cyan-500 focus:outline-none"
+                        className="flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm font-medium text-white transition hover:border-slate-700 focus:border-cyan-500 focus:bg-slate-900 focus:outline-hidden"
                       />
                     </div>
 
-                    {/* Time / Duration Settings */}
-                    <div className="flex items-center justify-between gap-2 sm:justify-end">
-                      {item.type === 'fixed' ? (
-                        <div className="flex items-center gap-1 text-xs font-mono text-slate-300">
-                          <Clock className="h-3.5 w-3.5 text-slate-400" />
+                    {/* Meta Controls */}
+                    <div className="flex items-center gap-3">
+                      {item.type === 'fixed' && (
+                        <div className="flex items-center gap-1.5 text-xs text-slate-300">
+                          <Clock className="h-3.5 w-3.5 text-slate-500" />
                           <span>
                             {minutesToTimeString(item.startMinutes ?? 540)} -{' '}
                             {minutesToTimeString(item.endMinutes ?? 630)}
                           </span>
                         </div>
-                      ) : (
-                        <div className="flex items-center gap-1 text-xs text-slate-300">
-                          <Clock className="h-3.5 w-3.5 text-slate-400" />
-                          <span>{formatDuration(item.durationMinutes)}</span>
+                      )}
+
+                      {item.type === 'task' && (
+                        <div className="flex items-center gap-1.5 text-xs text-slate-300">
+                          <Clock className="h-3.5 w-3.5 text-slate-500" />
+                          <span>{formatDuration(item.durationMinutes ?? 60)}</span>
                         </div>
                       )}
 
                       <button
                         onClick={() => handleDeleteItem(item.id)}
-                        className="rounded-lg p-1.5 text-slate-500 hover:bg-rose-500/10 hover:text-rose-400"
-                        title="除外する"
+                        className="rounded-lg p-1 text-slate-500 hover:bg-rose-500/10 hover:text-rose-400"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </div>
                 ))}
               </div>
-
-              {/* Mode Select */}
-              <div className="flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3 text-xs">
-                <span className="font-semibold text-slate-300">計画表への取り込み方法:</span>
-                <div className="flex gap-4">
-                  <label className="flex cursor-pointer items-center gap-1.5 text-slate-300">
-                    <input
-                      type="radio"
-                      name="mode"
-                      value="add"
-                      checked={importMode === 'add'}
-                      onChange={() => setImportMode('add')}
-                      className="text-cyan-500 focus:ring-0"
-                    />
-                    <span>既存の予定に追加する（マージ）</span>
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-1.5 text-slate-300">
-                    <input
-                      type="radio"
-                      name="mode"
-                      value="replace"
-                      checked={importMode === 'replace'}
-                      onChange={() => setImportMode('replace')}
-                      className="text-cyan-500 focus:ring-0"
-                    />
-                    <span>現在の計画を置き換える（上書き）</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Apply Button for list */}
-              <div className="flex justify-end gap-2 border-t border-slate-800 pt-3">
-                <button
-                  onClick={handleReset}
-                  className="rounded-xl px-4 py-2 text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-white"
-                >
-                  キャンセル
-                </button>
-                <button
-                  onClick={handleApplyList}
-                  disabled={parsedItems.length === 0}
-                  className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2 text-xs font-semibold text-white shadow-lg shadow-cyan-500/20 hover:opacity-90 disabled:opacity-50"
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  <span>理論値計画表へ取り込む ({parsedItems.length}件)</span>
-                </button>
-              </div>
             </div>
           )}
         </div>
+
+        {/* Footer Actions (List Review 画面用) */}
+        {step === 'list_review' && parsedItems.length > 0 && (
+          <div className="flex flex-col gap-3 border-t border-slate-800 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            {/* Import Mode Radio */}
+            <div className="flex items-center gap-3 text-xs text-slate-300">
+              <span className="text-slate-400">反映方法:</span>
+              <label className="flex cursor-pointer items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="importMode"
+                  value="add"
+                  checked={importMode === 'add'}
+                  onChange={() => setImportMode('add')}
+                  className="accent-cyan-500"
+                />
+                <span>既存の予定に追加</span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="importMode"
+                  value="replace"
+                  checked={importMode === 'replace'}
+                  onChange={() => setImportMode('replace')}
+                  className="accent-cyan-500"
+                />
+                <span className="text-rose-300">上書き（置き換え）</span>
+              </label>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleReset}
+                className="rounded-xl border border-slate-800 px-4 py-2 text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-white"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleApplyList}
+                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2 text-xs font-semibold text-white shadow-lg shadow-cyan-500/20 hover:opacity-90"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>{parsedItems.length} 件をタイムラインに反映</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
