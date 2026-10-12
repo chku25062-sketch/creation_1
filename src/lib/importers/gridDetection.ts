@@ -450,10 +450,11 @@ export function findDataTableBoundsFromProjections(
     topPx = hPeaks[1];
   }
 
-  const normLeft = Math.max(0.01, leftPx / width);
-  const normRight = Math.min(0.99, rightPx / width);
-  const normTop = Math.max(0.01, topPx / height);
-  const normBottom = Math.min(0.99, bottomPx / height);
+  // 端近傍（幅・高さの3.5%以内）にあるピークは完全な画像の端 (0.0 または 1.0) にスナップ
+  const normLeft = leftPx <= width * 0.035 ? 0.0 : Math.max(0.0, leftPx / width);
+  const normRight = rightPx >= width * 0.965 ? 1.0 : Math.min(1.0, rightPx / width);
+  const normTop = topPx <= height * 0.035 ? 0.0 : Math.max(0.0, topPx / height);
+  const normBottom = bottomPx >= height * 0.965 ? 1.0 : Math.min(1.0, bottomPx / height);
 
   const normW = normRight - normLeft;
   const normH = normBottom - normTop;
@@ -559,8 +560,13 @@ export async function extractSnapGuidelines(imageBlob: Blob): Promise<SnapGuidel
   const data = imgData.data;
 
   const edges = extractDirectionalEdgeProjections(data, sw, sh, DEFAULT_GRID_BOUNDS);
-  const verticalLines = extractPeaksFromProjection(edges.vertProjection);
-  const horizontalLines = extractPeaksFromProjection(edges.horizProjection);
+  const rawVert = extractPeaksFromProjection(edges.vertProjection);
+  const rawHoriz = extractPeaksFromProjection(edges.horizProjection);
+
+  // 画像の最外端（0.0 と 1.0）を常にスナップ候補に含める
+  // （表の画像が画面いっぱいに広がっているケースに対応）
+  const verticalLines = Array.from(new Set([0.0, ...rawVert, 1.0])).sort((a, b) => a - b);
+  const horizontalLines = Array.from(new Set([0.0, ...rawHoriz, 1.0])).sort((a, b) => a - b);
 
   return { verticalLines, horizontalLines };
 }

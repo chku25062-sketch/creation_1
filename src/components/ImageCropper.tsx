@@ -242,22 +242,34 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
           1.0,
           Math.max(left + minSize, initialRect.x + initialRect.w + dxRatio),
         );
-        right = snapToClosestGuideline(rawRight, snapGuides.verticalLines, left + minSize, 1.0);
+        right =
+          rawRight >= 0.97
+            ? 1.0
+            : snapToClosestGuideline(rawRight, snapGuides.verticalLines, left + minSize, 1.0);
       }
       if (action.includes('w')) {
         const rawLeft = Math.max(0.0, Math.min(right - minSize, initialRect.x + dxRatio));
-        left = snapToClosestGuideline(rawLeft, snapGuides.verticalLines, 0.0, right - minSize);
+        left =
+          rawLeft <= 0.03
+            ? 0.0
+            : snapToClosestGuideline(rawLeft, snapGuides.verticalLines, 0.0, right - minSize);
       }
       if (action.includes('s')) {
         const rawBottom = Math.min(
           1.0,
           Math.max(top + minSize, initialRect.y + initialRect.h + dyRatio),
         );
-        bottom = snapToClosestGuideline(rawBottom, snapGuides.horizontalLines, top + minSize, 1.0);
+        bottom =
+          rawBottom >= 0.97
+            ? 1.0
+            : snapToClosestGuideline(rawBottom, snapGuides.horizontalLines, top + minSize, 1.0);
       }
       if (action.includes('n')) {
         const rawTop = Math.max(0.0, Math.min(bottom - minSize, initialRect.y + dyRatio));
-        top = snapToClosestGuideline(rawTop, snapGuides.horizontalLines, 0.0, bottom - minSize);
+        top =
+          rawTop <= 0.03
+            ? 0.0
+            : snapToClosestGuideline(rawTop, snapGuides.horizontalLines, 0.0, bottom - minSize);
       }
 
       setCropRect({
@@ -394,7 +406,7 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
       </div>
 
       {/* メインプレビューコンテナ */}
-      <div className="flex max-h-[52vh] min-h-[260px] w-full select-none items-center justify-center overflow-auto rounded-xl border border-slate-800 bg-slate-950 p-2">
+      <div className="flex max-h-[52vh] min-h-[260px] w-full select-none items-center justify-center overflow-auto rounded-xl border border-slate-800 bg-slate-950 p-6 sm:p-8">
         {imageSrc && (
           <div
             ref={imgWrapperRef}

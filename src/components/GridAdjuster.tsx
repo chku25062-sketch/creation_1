@@ -201,36 +201,48 @@ export function GridAdjuster({
           const next = { ...prev };
           if (activeDrag.edge === 'left') {
             const firstCol = colDividers[0] || 0.2;
-            next.left = snapToClosestGuideline(
-              rawRatioX,
-              snapGuides.verticalLines,
-              0.0,
-              firstCol - minMargin,
-            );
+            next.left =
+              rawRatioX <= 0.03
+                ? 0.0
+                : snapToClosestGuideline(
+                    rawRatioX,
+                    snapGuides.verticalLines,
+                    0.0,
+                    firstCol - minMargin,
+                  );
           } else if (activeDrag.edge === 'right') {
             const lastCol = colDividers[colDividers.length - 1] || 0.8;
-            next.right = snapToClosestGuideline(
-              rawRatioX,
-              snapGuides.verticalLines,
-              lastCol + minMargin,
-              1.0,
-            );
+            next.right =
+              rawRatioX >= 0.97
+                ? 1.0
+                : snapToClosestGuideline(
+                    rawRatioX,
+                    snapGuides.verticalLines,
+                    lastCol + minMargin,
+                    1.0,
+                  );
           } else if (activeDrag.edge === 'top') {
             const firstRow = rowDividers[0] || 0.2;
-            next.top = snapToClosestGuideline(
-              rawRatioY,
-              snapGuides.horizontalLines,
-              0.0,
-              firstRow - minMargin,
-            );
+            next.top =
+              rawRatioY <= 0.03
+                ? 0.0
+                : snapToClosestGuideline(
+                    rawRatioY,
+                    snapGuides.horizontalLines,
+                    0.0,
+                    firstRow - minMargin,
+                  );
           } else if (activeDrag.edge === 'bottom') {
             const lastRow = rowDividers[rowDividers.length - 1] || 0.8;
-            next.bottom = snapToClosestGuideline(
-              rawRatioY,
-              snapGuides.horizontalLines,
-              lastRow + minMargin,
-              1.0,
-            );
+            next.bottom =
+              rawRatioY >= 0.97
+                ? 1.0
+                : snapToClosestGuideline(
+                    rawRatioY,
+                    snapGuides.horizontalLines,
+                    lastRow + minMargin,
+                    1.0,
+                  );
           }
           return next;
         });
@@ -418,7 +430,7 @@ export function GridAdjuster({
       {/* メインプレビューコンテナ */}
       <div
         ref={containerRef}
-        className="relative flex max-h-[50vh] min-h-[280px] w-full select-none items-center justify-center overflow-auto rounded-xl border border-slate-800 bg-slate-950 p-2"
+        className="relative flex max-h-[50vh] min-h-[280px] w-full select-none items-center justify-center overflow-auto rounded-xl border border-slate-800 bg-slate-950 p-6 sm:p-8"
       >
         {imageSrc && (
           <div className="relative inline-block touch-none shadow-2xl">
@@ -453,46 +465,50 @@ export function GridAdjuster({
               }}
             />
 
-            {/* 外枠ボーダーライン (ドラッグ可能) */}
+            {/* 外枠ボーダーライン (ドラッグ可能・広いヒットエリア 24px) */}
             <div
               onPointerDown={(e) => {
                 e.preventDefault();
                 setActiveDrag({ type: 'bound', edge: 'left' });
               }}
-              className="group absolute top-0 bottom-0 -ml-2 w-4 cursor-ew-resize"
+              className="group absolute top-0 bottom-0 -ml-3 w-6 cursor-ew-resize z-20"
               style={{ left: `${bounds.left * 100}%` }}
+              title="左境界線（ドラッグで調整）"
             >
-              <div className="absolute top-0 bottom-0 left-2 w-0.5 bg-cyan-400 shadow group-hover:w-1 group-hover:bg-cyan-300" />
+              <div className="absolute top-0 bottom-0 left-3 w-0.5 bg-cyan-400 shadow group-hover:w-1 group-hover:bg-cyan-300" />
             </div>
             <div
               onPointerDown={(e) => {
                 e.preventDefault();
                 setActiveDrag({ type: 'bound', edge: 'right' });
               }}
-              className="group absolute top-0 bottom-0 -ml-2 w-4 cursor-ew-resize"
+              className="group absolute top-0 bottom-0 -ml-3 w-6 cursor-ew-resize z-20"
               style={{ left: `${bounds.right * 100}%` }}
+              title="右境界線（ドラッグで調整）"
             >
-              <div className="absolute top-0 bottom-0 left-2 w-0.5 bg-cyan-400 shadow group-hover:w-1 group-hover:bg-cyan-300" />
+              <div className="absolute top-0 bottom-0 left-3 w-0.5 bg-cyan-400 shadow group-hover:w-1 group-hover:bg-cyan-300" />
             </div>
             <div
               onPointerDown={(e) => {
                 e.preventDefault();
                 setActiveDrag({ type: 'bound', edge: 'top' });
               }}
-              className="group absolute left-0 right-0 -mt-2 h-4 cursor-ns-resize"
+              className="group absolute left-0 right-0 -mt-3 h-6 cursor-ns-resize z-20"
               style={{ top: `${bounds.top * 100}%` }}
+              title="上境界線（ドラッグで調整）"
             >
-              <div className="absolute left-0 right-0 top-2 h-0.5 bg-blue-400 shadow group-hover:h-1 group-hover:bg-blue-300" />
+              <div className="absolute left-0 right-0 top-3 h-0.5 bg-blue-400 shadow group-hover:h-1 group-hover:bg-blue-300" />
             </div>
             <div
               onPointerDown={(e) => {
                 e.preventDefault();
                 setActiveDrag({ type: 'bound', edge: 'bottom' });
               }}
-              className="group absolute left-0 right-0 -mt-2 h-4 cursor-ns-resize"
+              className="group absolute left-0 right-0 -mt-3 h-6 cursor-ns-resize z-20"
               style={{ top: `${bounds.bottom * 100}%` }}
+              title="下境界線（ドラッグで調整）"
             >
-              <div className="absolute left-0 right-0 top-2 h-0.5 bg-blue-400 shadow group-hover:h-1 group-hover:bg-blue-300" />
+              <div className="absolute left-0 right-0 top-3 h-0.5 bg-blue-400 shadow group-hover:h-1 group-hover:bg-blue-300" />
             </div>
 
             {/* 各セルのラベルウォーターマーク */}
