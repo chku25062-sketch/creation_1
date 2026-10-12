@@ -3,6 +3,7 @@ import {
   getDefaultDividers,
   calculateCellRects,
   snapDividersToPeaks,
+  findProminentPeaks,
   formatCellText,
   cleanHeaderArtifacts,
   matrixToCsv,
@@ -53,6 +54,20 @@ describe('gridDetection utility', () => {
     // Should snap close to 48 or 52 (e.g. 0.48 or 0.52)
     expect(dividers[0]).toBeGreaterThanOrEqual(0.45);
     expect(dividers[0]).toBeLessThanOrEqual(0.55);
+  });
+
+  it('findProminentPeaks detects number of lines automatically without predefined column count', () => {
+    // 100 pixels with peaks at 25, 50, 75
+    const projection = new Array(100).fill(5);
+    projection[25] = 80;
+    projection[50] = 90;
+    projection[75] = 85;
+
+    const peaks = findProminentPeaks(projection, 0.05, 1.3);
+    expect(peaks).toHaveLength(3);
+    expect(peaks[0]).toBeCloseTo(0.25, 1);
+    expect(peaks[1]).toBeCloseTo(0.5, 1);
+    expect(peaks[2]).toBeCloseTo(0.75, 1);
   });
 
   describe('formatCellText', () => {

@@ -1,29 +1,19 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Grid, Check, Sliders, Sparkles, Loader2, Columns, Rows } from 'lucide-react';
 import {
-  Grid,
-  Check,
-  Sliders,
-  Calendar,
-  Clock,
-  Sparkles,
-  Loader2,
-  Columns,
-  Rows,
-} from 'lucide-react';
-import {
-  detectGridDividers,
   getDefaultDividers,
   calculateCellRects,
+  autoDetectTableStructure,
   GridAreaBounds,
   DEFAULT_GRID_BOUNDS,
 } from '@/lib/importers/gridDetection';
 
 interface GridAdjusterProps {
   imageBlob: Blob;
-  initialColumns?: number; // 5 (月〜金) or 6 (月〜土)
-  initialRows?: number; // 4〜7
+  initialColumns?: number;
+  initialRows?: number;
   onConfirm: (
     colDividers: number[],
     rowDividers: number[],
@@ -50,6 +40,7 @@ export function GridAdjuster({
   const [rowDividers, setRowDividers] = useState<number[]>([]);
   const [imageSrc, setImageSrc] = useState<string>('');
   const [isDetecting, setIsDetecting] = useState<boolean>(true);
+  const [detectedMessage, setDetectedMessage] = useState<string | null>(null);
 
   // ヘッダー除外のクイックトグル状態
   const [excludeTopHeader, setExcludeTopHeader] = useState<boolean>(false);
@@ -64,6 +55,7 @@ export function GridAdjuster({
 
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isInitialMountRef = useRef<boolean>(true);
 
   // 画像 URL 生成
   useEffect(() => {
@@ -72,17 +64,25 @@ export function GridAdjuster({
     return () => URL.revokeObjectURL(url);
   }, [imageBlob]);
 
-  // 初回マウント時または行・列数変更時に自動検出を実行
-  const runDetection = useCallback(
-    async (targetCols: number, targetRows: number, targetBounds: GridAreaBounds) => {
+  // 画像の表から行数・列数および区切り線を完全自動推定
+  const runFullAutoDetect = useCallback(
+    async (targetBounds: GridAreaBounds) => {
       setIsDetecting(true);
       try {
-        const detected = await detectGridDividers(imageBlob, targetCols, targetRows, targetBounds);
+        const detected = await autoDetectTableStructure(imageBlob, targetBounds);
+        setColumns(detected.columns);
+        setRows(detected.rows);
         setColDividers(detected.colDividers);
         setRowDividers(detected.rowDividers);
+        setDetectedMessage(
+          `画像から ${detected.columns}列 × ${detected.rows}行 の表構造を検出しました`,
+        );
+        setTimeout(() => setDetectedMessage(null), 3000);
       } catch (err) {
-        console.warn('Grid auto-detection failed, using default', err);
-        const defaults = getDefaultDividers(targetCols, targetRows, targetBounds);
+        console.warn('Full auto-detection failed, using defaults', err);
+        const defaults = getDefaultDividers(5, 5, targetBounds);
+        setColumns(5);
+        setRows(5);
         setColDividers(defaults.colDividers);
         setRowDividers(defaults.rowDividers);
       } finally {
@@ -92,9 +92,28 @@ export function GridAdjuster({
     [imageBlob],
   );
 
+  // 初回マウント時: 画像の表に合わせたグリッド数を完全自動検出
   useEffect(() => {
-    runDetection(columns, rows, bounds);
-  }, [columns, rows, bounds, runDetection]);
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      runFullAutoDetect(bounds);
+    }
+  }, [bounds, runFullAutoDetect]);
+
+  // 行数・列数をユーザーが手動変更した際の区切り線更新
+  const handleColumnsChange = (newCols: number) => {
+    const validCols = Math.max(1, Math.min(14, newCols));
+    setColumns(validCols);
+    const defaults = getDefaultDividers(validCols, rows, bounds);
+    setColDividers(defaults.colDividers);
+  };
+
+  const handleRowsChange = (newRows: number) => {
+    const validRows = Math.max(1, Math.min(20, newRows));
+    setRows(validRows);
+    const defaults = getDefaultDividers(columns, validRows, bounds);
+    setRowDividers(defaults.rowDividers);
+  };
 
   // 均等割りリセット
   const handleResetToEqual = () => {
@@ -103,11 +122,11 @@ export function GridAdjuster({
     setRowDividers(defaults.rowDividers);
   };
 
-  // 上部曜日ヘッダー除外トグル
+  // 上部ヘッダー除外トグル
   const handleToggleTopHeader = () => {
     const nextExclude = !excludeTopHeader;
     setExcludeTopHeader(nextExclude);
-    const newTop = nextExclude ? 0.09 : 0; // 上部9%を除外
+    const newTop = nextExclude ? 0.09 : 0;
     const newBounds = { ...bounds, top: newTop };
     setBounds(newBounds);
     const defaults = getDefaultDividers(columns, rows, newBounds);
@@ -115,11 +134,11 @@ export function GridAdjuster({
     setRowDividers(defaults.rowDividers);
   };
 
-  // 左部時限ヘッダー除外トグル
+  // 左部ヘッダー除外トグル
   const handleToggleLeftHeader = () => {
     const nextExclude = !excludeLeftHeader;
     setExcludeLeftHeader(nextExclude);
-    const newLeft = nextExclude ? 0.09 : 0; // 左部9%を除外
+    const newLeft = nextExclude ? 0.09 : 0;
     const newBounds = { ...bounds, left: newLeft };
     setBounds(newBounds);
     const defaults = getDefaultDividers(columns, rows, newBounds);
@@ -136,7 +155,7 @@ export function GridAdjuster({
       const rect = imgRef.current.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
 
-      const minMargin = 0.02; // 線同士の最小間隔
+      const minMargin = 0.02;
 
       if (activeDrag.type === 'col') {
         const ratioX = (e.clientX - rect.left) / rect.width;
@@ -202,59 +221,76 @@ export function GridAdjuster({
   // セル矩形計算
   const cellRects = calculateCellRects(colDividers, rowDividers, bounds);
 
+  // 列ラベルの算出
+  const getColLabel = (cIdx: number) => {
+    if (columns <= 7 && cIdx < WEEKDAY_NAMES.length) {
+      return WEEKDAY_NAMES[cIdx];
+    }
+    return `列${cIdx + 1}`;
+  };
+
   return (
     <div className="flex flex-col gap-3">
       {/* ツールバー / 設定 */}
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900/80 p-2.5 text-xs text-slate-300">
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* 曜日数（列） */}
+          {/* 列数（横マス）コントロール */}
           <div className="flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5 text-cyan-400" />
-            <span className="font-medium text-slate-400">曜日:</span>
-            <div className="flex rounded-lg bg-slate-800 p-0.5">
-              <button
-                type="button"
-                onClick={() => setColumns(5)}
-                className={`rounded px-2 py-0.5 font-medium transition ${
-                  columns === 5
-                    ? 'bg-cyan-500 font-semibold text-black'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                月〜金 (5)
-              </button>
-              <button
-                type="button"
-                onClick={() => setColumns(6)}
-                className={`rounded px-2 py-0.5 font-medium transition ${
-                  columns === 6
-                    ? 'bg-cyan-500 font-semibold text-black'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                月〜土 (6)
-              </button>
-            </div>
-          </div>
-
-          {/* コマ数（行） */}
-          <div className="flex items-center gap-1.5">
-            <Clock className="h-3.5 w-3.5 text-cyan-400" />
-            <span className="font-medium text-slate-400">時限:</span>
+            <span className="font-medium text-slate-400">列数:</span>
             <div className="flex items-center gap-1 rounded-lg bg-slate-800 px-1 py-0.5">
               <button
                 type="button"
-                disabled={rows <= 4}
-                onClick={() => setRows((r) => Math.max(4, r - 1))}
+                disabled={columns <= 1}
+                onClick={() => handleColumnsChange(columns - 1)}
                 className="h-5 w-5 rounded font-bold text-slate-300 hover:bg-slate-700 disabled:opacity-30"
               >
                 -
               </button>
-              <span className="w-5 text-center font-bold text-white">{rows}</span>
+              <span className="min-w-6 text-center font-bold text-cyan-300">{columns}列</span>
               <button
                 type="button"
-                disabled={rows >= 7}
-                onClick={() => setRows((r) => Math.min(7, r + 1))}
+                disabled={columns >= 14}
+                onClick={() => handleColumnsChange(columns + 1)}
+                className="h-5 w-5 rounded font-bold text-slate-300 hover:bg-slate-700 disabled:opacity-30"
+              >
+                +
+              </button>
+            </div>
+            {/* スマート曜日バッジ */}
+            {columns === 5 && (
+              <span className="rounded bg-cyan-950/60 px-1.5 py-0.5 text-[10px] text-cyan-300">
+                月〜金
+              </span>
+            )}
+            {columns === 6 && (
+              <span className="rounded bg-cyan-950/60 px-1.5 py-0.5 text-[10px] text-cyan-300">
+                月〜土
+              </span>
+            )}
+            {columns === 7 && (
+              <span className="rounded bg-cyan-950/60 px-1.5 py-0.5 text-[10px] text-cyan-300">
+                月〜日
+              </span>
+            )}
+          </div>
+
+          {/* 行数（縦マス）コントロール */}
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium text-slate-400">行数:</span>
+            <div className="flex items-center gap-1 rounded-lg bg-slate-800 px-1 py-0.5">
+              <button
+                type="button"
+                disabled={rows <= 1}
+                onClick={() => handleRowsChange(rows - 1)}
+                className="h-5 w-5 rounded font-bold text-slate-300 hover:bg-slate-700 disabled:opacity-30"
+              >
+                -
+              </button>
+              <span className="min-w-6 text-center font-bold text-cyan-300">{rows}行</span>
+              <button
+                type="button"
+                disabled={rows >= 20}
+                onClick={() => handleRowsChange(rows + 1)}
                 className="h-5 w-5 rounded font-bold text-slate-300 hover:bg-slate-700 disabled:opacity-30"
               >
                 +
@@ -272,10 +308,10 @@ export function GridAdjuster({
                   ? 'border-cyan-400 bg-cyan-950 font-semibold text-cyan-300'
                   : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-600 hover:text-white'
               }`}
-              title="表の上端にある曜日ヘッダー文字（月〜金）を区画から除外"
+              title="表の上端にある曜日名ヘッダーなどを区画から除外"
             >
               <Rows className="h-3 w-3" />
-              <span>上の曜日行を除外</span>
+              <span>上の行名を除外</span>
             </button>
             <button
               type="button"
@@ -285,15 +321,15 @@ export function GridAdjuster({
                   ? 'border-cyan-400 bg-cyan-950 font-semibold text-cyan-300'
                   : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-600 hover:text-white'
               }`}
-              title="表の左端にある時限ヘッダー文字（1〜5限）を区画から除外"
+              title="表の左端にある時限番号ヘッダーなどを区画から除外"
             >
               <Columns className="h-3 w-3" />
-              <span>左の時限列を除外</span>
+              <span>左の列名を除外</span>
             </button>
           </div>
         </div>
 
-        {/* リセット & 自動検出ボタン */}
+        {/* 自動検出 & 均等割ボタン */}
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -306,29 +342,31 @@ export function GridAdjuster({
           <button
             type="button"
             disabled={isDetecting}
-            onClick={() => runDetection(columns, rows, bounds)}
-            className="flex items-center gap-1 rounded-lg border border-cyan-800/60 bg-cyan-950/40 px-2.5 py-1 font-medium text-cyan-300 transition hover:bg-cyan-900/50"
+            onClick={() => runFullAutoDetect(bounds)}
+            className="flex items-center gap-1 rounded-lg border border-cyan-800/60 bg-gradient-to-r from-cyan-950/80 to-blue-950/80 px-2.5 py-1 font-semibold text-cyan-300 shadow transition hover:from-cyan-900/90 hover:to-blue-900/90"
+            title="画像の表の罫線を解析し、行数・列数・境界線を自動判定"
           >
             {isDetecting ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
+              <Loader2 className="h-3 w-3 animate-spin text-cyan-400" />
             ) : (
               <Sparkles className="h-3 w-3 text-cyan-400" />
             )}
-            <span>再検出</span>
+            <span>表から自動検出</span>
           </button>
         </div>
       </div>
 
-      {/* ガイドメッセージ */}
+      {/* ガイドメッセージ / 検出結果アラート */}
       <div className="flex items-center justify-between text-[11px] text-slate-400">
         <span className="flex items-center gap-1 text-cyan-300">
           <Grid className="h-3.5 w-3.5 text-cyan-400" />
           <span>
-            破線や外枠をドラッグして、講義が入るマス目（データ領域）に枠を合わせてください
+            {detectedMessage ||
+              '画像の表に合わせてグリッド数を自動検出しました。破線や外枠で微調整できます'}
           </span>
         </span>
-        <span className="text-slate-400">
-          全 {columns * rows} コマ（{columns}曜 × {rows}限）
+        <span className="font-mono text-slate-400">
+          計 {columns * rows} マス（{columns}列 × {rows}行）
         </span>
       </div>
 
@@ -404,7 +442,7 @@ export function GridAdjuster({
               <div className="absolute left-0 right-0 top-2 h-0.5 bg-blue-400 shadow group-hover:h-1 group-hover:bg-blue-300" />
             </div>
 
-            {/* 各セルの曜日・時限ラベルウォーターマーク */}
+            {/* 各セルのラベルウォーターマーク */}
             {cellRects.map((rowCells, rIdx) =>
               rowCells.map((cell, cIdx) => (
                 <div
@@ -418,7 +456,7 @@ export function GridAdjuster({
                   }}
                 >
                   <span className="rounded bg-black/40 px-1 py-0.5">
-                    {WEEKDAY_NAMES[cIdx]}
+                    {getColLabel(cIdx)}
                     {rIdx + 1}
                   </span>
                 </div>
@@ -441,9 +479,7 @@ export function GridAdjuster({
                   bottom: `${(1 - bounds.bottom) * 100}%`,
                 }}
               >
-                {/* 見た目の線 */}
                 <div className="absolute top-0 bottom-0 left-2 w-0.5 border-l-2 border-dashed border-cyan-400 transition group-hover:border-solid group-hover:border-cyan-300" />
-                {/* 掴みやすい上下の丸ポッチ */}
                 <div className="absolute top-1 left-0.5 h-3 w-3 rounded-full border border-cyan-300 bg-cyan-500 shadow-md transition group-hover:scale-125" />
                 <div className="absolute bottom-1 left-0.5 h-3 w-3 rounded-full border border-cyan-300 bg-cyan-500 shadow-md transition group-hover:scale-125" />
               </div>
@@ -465,9 +501,7 @@ export function GridAdjuster({
                   right: `${(1 - bounds.right) * 100}%`,
                 }}
               >
-                {/* 見た目の線 */}
                 <div className="absolute left-0 right-0 top-2 h-0.5 border-t-2 border-dashed border-blue-400 transition group-hover:border-solid group-hover:border-blue-300" />
-                {/* 掴みやすい左右の丸ポッチ */}
                 <div className="absolute left-1 top-0.5 h-3 w-3 rounded-full border border-blue-300 bg-blue-500 shadow-md transition group-hover:scale-125" />
                 <div className="absolute right-1 top-0.5 h-3 w-3 rounded-full border border-blue-300 bg-blue-500 shadow-md transition group-hover:scale-125" />
               </div>
@@ -492,7 +526,7 @@ export function GridAdjuster({
           className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-1.5 text-xs font-semibold text-white shadow-md shadow-cyan-500/20 transition hover:opacity-95"
         >
           <Check className="h-3.5 w-3.5" />
-          <span>この区画で高精度解析を開始 ({columns * rows}コマ)</span>
+          <span>この区画で高精度解析を開始 ({columns * rows}マス)</span>
         </button>
       </div>
     </div>

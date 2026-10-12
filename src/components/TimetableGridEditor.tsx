@@ -12,7 +12,7 @@ interface TimetableGridEditorProps {
   onCancel: () => void;
 }
 
-const DAY_LABELS = ['月', '火', '水', '木', '金', '土'];
+const DAY_LABELS = ['月', '火', '水', '木', '金', '土', '日'];
 
 export function TimetableGridEditor({ initialGrid, onApply, onCancel }: TimetableGridEditorProps) {
   const [grid, setGrid] = useState<GridCell[][]>(initialGrid);
@@ -25,6 +25,13 @@ export function TimetableGridEditor({ initialGrid, onApply, onCancel }: Timetabl
 
   const numRows = grid.length;
   const numCols = grid[0]?.length || 5;
+
+  const getColumnHeaderLabel = (c: number) => {
+    if (numCols <= 7 && c < DAY_LABELS.length) {
+      return `${DAY_LABELS[c]}曜日`;
+    }
+    return `列 ${c + 1}`;
+  };
 
   const handleStartEdit = (r: number, c: number) => {
     setEditingCell({ r, c });
@@ -94,7 +101,7 @@ export function TimetableGridEditor({ initialGrid, onApply, onCancel }: Timetabl
   };
 
   const handleAddRow = () => {
-    if (numRows >= 7) return;
+    if (numRows >= 20) return;
     const nextPeriod = numRows + 1;
     const lastRow = grid[numRows - 1];
     const newStart = (lastRow ? lastRow[0]?.endMinutes : 18 * 60) + 15;
@@ -120,7 +127,7 @@ export function TimetableGridEditor({ initialGrid, onApply, onCancel }: Timetabl
     const matrix: TimetableCsvMatrix = grid.map((row) =>
       row.map((cell) => (cell.text ? cell.text : null)),
     );
-    const headers = DAY_LABELS.slice(0, numCols);
+    const headers = Array.from({ length: numCols }, (_, c) => getColumnHeaderLabel(c));
     const csvContent = matrixToCsv(matrix, headers);
 
     navigator.clipboard.writeText(csvContent);
@@ -178,7 +185,7 @@ export function TimetableGridEditor({ initialGrid, onApply, onCancel }: Timetabl
           >
             {numCols === 5 ? '＋ 土曜を追加' : '土曜を隠す'}
           </button>
-          {numRows < 7 && (
+          {numRows < 20 && (
             <button
               type="button"
               onClick={handleAddRow}
@@ -211,7 +218,7 @@ export function TimetableGridEditor({ initialGrid, onApply, onCancel }: Timetabl
                   key={c}
                   className="min-w-[110px] border border-slate-800/80 bg-slate-900/90 p-2 text-center font-semibold text-slate-200"
                 >
-                  {DAY_LABELS[c]}曜日
+                  {getColumnHeaderLabel(c)}
                 </th>
               ))}
             </tr>

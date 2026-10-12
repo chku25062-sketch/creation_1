@@ -174,6 +174,147 @@ export async function detectGridDividers(
 }
 
 /**
+ * 射影ヒストグラムから顕著な局所ピーク（罫線）を探索
+ */
+export function findProminentPeaks(
+  projection: number[],
+  minDistanceRatio = 0.04,
+  prominenceFactor = 1.25,
+): number[] {
+  const len = projection.length;
+  if (len === 0) return [];
+
+  const avg = projection.reduce((a, b) => a + b, 0) / len;
+  const threshold = Math.max(10, avg * prominenceFactor);
+  const minDistance = Math.max(3, Math.round(len * minDistanceRatio));
+
+  const rawPeaks: { idx: number; val: number }[] = [];
+
+  for (let i = 1; i < len - 1; i++) {
+    const val = projection[i];
+    if (val > threshold && val >= projection[i - 1] && val >= projection[i + 1]) {
+      rawPeaks.push({ idx: i, val });
+    }
+  }
+
+  rawPeaks.sort((a, b) => b.val - a.val);
+  const filteredPeaks: number[] = [];
+
+  for (const p of rawPeaks) {
+    const isClose = filteredPeaks.some((existing) => Math.abs(existing - p.idx) < minDistance);
+    if (!isClose) {
+      filteredPeaks.push(p.idx);
+    }
+  }
+
+  filteredPeaks.sort((a, b) => a - b);
+  return filteredPeaks.map((idx) => Math.round((idx / len) * 1000) / 1000);
+}
+
+export interface DetectedTableStructure {
+  columns: number;
+  rows: number;
+  colDividers: number[];
+  rowDividers: number[];
+}
+
+/**
+ * 画像内の罫線から、表の列数・行数・分割線を完全自動推定
+ */
+export async function autoDetectTableStructure(
+  imageBlob: Blob,
+  bounds: GridAreaBounds = DEFAULT_GRID_BOUNDS,
+): Promise<DetectedTableStructure> {
+  const img = await loadImageElement(imageBlob);
+  const w = img.naturalWidth || 800;
+  const h = img.naturalHeight || 800;
+
+  const scale = Math.min(1.0, 600 / Math.max(w, h));
+  const sw = Math.round(w * scale);
+  const sh = Math.round(h * scale);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = sw;
+  canvas.height = sh;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    return {
+      columns: 5,
+      rows: 5,
+      ...getDefaultDividers(5, 5, bounds),
+    };
+  }
+
+  ctx.drawImage(img, 0, 0, sw, sh);
+  const imgData = ctx.getImageData(0, 0, sw, sh);
+  const data = imgData.data;
+
+  const horizProjection = new Array(sh).fill(0);
+  const vertProjection = new Array(sw).fill(0);
+
+  const minX = Math.round(bounds.left * sw);
+  const maxX = Math.round(bounds.right * sw);
+  const minY = Math.round(bounds.top * sh);
+  const maxY = Math.round(bounds.bottom * sh);
+
+  for (let y = minY; y < maxY; y++) {
+    for (let x = minX; x < maxX; x++) {
+      const idx = (y * sw + x) * 4;
+      const r = data[idx];
+      const g = data[idx + 1];
+      const b = data[idx + 2];
+      const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+      if (brightness < 150) {
+        horizProjection[y]++;
+        vertProjection[x]++;
+      }
+    }
+  }
+
+  const subVert = vertProjection.slice(minX, maxX);
+  const subHoriz = horizProjection.slice(minY, maxY);
+
+  const rawVertPeaks = findProminentPeaks(subVert, 0.04, 1.25);
+  const rawHorizPeaks = findProminentPeaks(subHoriz, 0.04, 1.25);
+
+  // 端（5%以内）の外枠罫線を除外し、bounds 内の内部区切り線を算出
+  const widthRatio = bounds.right - bounds.left;
+  const heightRatio = bounds.bottom - bounds.top;
+
+  const innerVertPeaks = rawVertPeaks
+    .filter((p) => p > 0.05 && p < 0.95)
+    .map((p) => bounds.left + p * widthRatio);
+
+  const innerHorizPeaks = rawHorizPeaks
+    .filter((p) => p > 0.05 && p < 0.95)
+    .map((p) => bounds.top + p * heightRatio);
+
+  // 検出された区切り線が1〜14本なら採用、無ければ標準5
+  const columns =
+    innerVertPeaks.length >= 1 && innerVertPeaks.length <= 14 ? innerVertPeaks.length + 1 : 5;
+  const rows =
+    innerHorizPeaks.length >= 1 && innerHorizPeaks.length <= 19 ? innerHorizPeaks.length + 1 : 5;
+
+  let colDividers = innerVertPeaks;
+  let rowDividers = innerHorizPeaks;
+
+  if (colDividers.length !== columns - 1) {
+    colDividers = getDefaultDividers(columns, rows, bounds).colDividers;
+  }
+  if (rowDividers.length !== rows - 1) {
+    rowDividers = getDefaultDividers(columns, rows, bounds).rowDividers;
+  }
+
+  return {
+    columns,
+    rows,
+    colDividers,
+    rowDividers,
+  };
+}
+
+/**
  * 等間隔のデフォルト分割線を生成
  */
 export function getDefaultDividers(
