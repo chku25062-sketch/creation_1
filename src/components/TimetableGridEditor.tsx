@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { CalendarDays, Plus, Trash2, Check, Edit2, FileSpreadsheet } from 'lucide-react';
+import { CalendarDays, Plus, Trash2, Check, Edit2, FileSpreadsheet, Tag } from 'lucide-react';
 import { GridCell } from '@/lib/importers/gridOcrParser';
 import { minutesToTimeString } from '@/lib/timeUtils';
 import { formatCellText, matrixToCsv, TimetableCsvMatrix } from '@/lib/importers/gridDetection';
@@ -12,10 +12,33 @@ interface TimetableGridEditorProps {
   onCancel: () => void;
 }
 
-const DAY_LABELS = ['月', '火', '水', '木', '金', '土', '日'];
+const DEFAULT_WEEKDAY_NAMES = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'];
 
 export function TimetableGridEditor({ initialGrid, onApply, onCancel }: TimetableGridEditorProps) {
   const [grid, setGrid] = useState<GridCell[][]>(initialGrid);
+  const numRows = grid.length;
+  const numCols = grid[0]?.length || 5;
+
+  // 列名の状態管理（自由にテキスト編集可能）
+  const [colHeaders, setColHeaders] = useState<string[]>(() => {
+    return Array.from({ length: numCols }, (_, c) => {
+      if (numCols <= 7 && c < DEFAULT_WEEKDAY_NAMES.length) {
+        return DEFAULT_WEEKDAY_NAMES[c];
+      }
+      return `列 ${c + 1}`;
+    });
+  });
+
+  // 行名の状態管理（自由にテキスト編集可能）
+  const [rowHeaders, setRowHeaders] = useState<string[]>(() => {
+    return Array.from({ length: numRows }, (_, r) => `${r + 1}限`);
+  });
+
+  // ヘッダー編集中の状態
+  const [editingColIdx, setEditingColIdx] = useState<number | null>(null);
+  const [editingRowIdx, setEditingRowIdx] = useState<number | null>(null);
+
+  // セル編集中の状態
   const [editingCell, setEditingCell] = useState<{
     r: number;
     c: number;
@@ -23,16 +46,7 @@ export function TimetableGridEditor({ initialGrid, onApply, onCancel }: Timetabl
   const [editText, setEditText] = useState('');
   const [copied, setCopied] = useState(false);
 
-  const numRows = grid.length;
-  const numCols = grid[0]?.length || 5;
-
-  const getColumnHeaderLabel = (c: number) => {
-    if (numCols <= 7 && c < DAY_LABELS.length) {
-      return `${DAY_LABELS[c]}曜日`;
-    }
-    return `列 ${c + 1}`;
-  };
-
+  // セル編集の開始・保存
   const handleStartEdit = (r: number, c: number) => {
     setEditingCell({ r, c });
     setEditText(grid[r][c].text || grid[r][c].title || '');
@@ -42,7 +56,6 @@ export function TimetableGridEditor({ initialGrid, onApply, onCancel }: Timetabl
     if (!editingCell) return;
     const { r, c } = editingCell;
 
-    // 単一改行は連結、空行は改行保持、空ならnull
     const formatted = formatCellText(editText);
     const title = formatted || '';
     const lines = formatted ? formatted.split('\n') : [];
@@ -75,31 +88,35 @@ export function TimetableGridEditor({ initialGrid, onApply, onCancel }: Timetabl
     });
   };
 
-  const handleToggleSaturday = () => {
-    if (numCols === 5) {
-      // 6列(土曜)を追加
-      setGrid((prev) =>
-        prev.map((row, rIdx) => [
-          ...row,
-          {
-            dayIndex: 5,
-            periodIndex: rIdx + 1,
-            text: null,
-            rawLines: [],
-            fullText: '',
-            title: '',
-            roomOrNote: '',
-            startMinutes: row[0]?.startMinutes || 540,
-            endMinutes: row[0]?.endMinutes || 630,
-          },
-        ]),
-      );
-    } else {
-      // 5列(月〜金)に戻す
-      setGrid((prev) => prev.map((row) => row.slice(0, 5)));
-    }
+  // 列の追加
+  const handleAddCol = () => {
+    if (numCols >= 14) return;
+    const newColIdx = numCols;
+    const newHeader =
+      newColIdx < DEFAULT_WEEKDAY_NAMES.length
+        ? DEFAULT_WEEKDAY_NAMES[newColIdx]
+        : `列 ${newColIdx + 1}`;
+
+    setColHeaders((prev) => [...prev, newHeader]);
+    setGrid((prev) =>
+      prev.map((row, rIdx) => [
+        ...row,
+        {
+          dayIndex: newColIdx % 7,
+          periodIndex: rIdx + 1,
+          text: null,
+          rawLines: [],
+          fullText: '',
+          title: '',
+          roomOrNote: '',
+          startMinutes: row[0]?.startMinutes || 540,
+          endMinutes: row[0]?.endMinutes || 630,
+        },
+      ]),
+    );
   };
 
+  // 行の追加
   const handleAddRow = () => {
     if (numRows >= 20) return;
     const nextPeriod = numRows + 1;
@@ -107,8 +124,10 @@ export function TimetableGridEditor({ initialGrid, onApply, onCancel }: Timetabl
     const newStart = (lastRow ? lastRow[0]?.endMinutes : 18 * 60) + 15;
     const newEnd = newStart + 90;
 
+    setRowHeaders((prev) => [...prev, `${nextPeriod}限`]);
+
     const newRow: GridCell[] = Array.from({ length: numCols }, (_, c) => ({
-      dayIndex: c,
+      dayIndex: c % 7,
       periodIndex: nextPeriod,
       text: null,
       rawLines: [],
@@ -122,26 +141,62 @@ export function TimetableGridEditor({ initialGrid, onApply, onCancel }: Timetabl
     setGrid([...grid, newRow]);
   };
 
-  // CSV形式としてクリップボードへコピー
+  // プリセット一括適用: 曜日
+  const handleApplyWeekdayPreset = () => {
+    setColHeaders(
+      Array.from({ length: numCols }, (_, c) => {
+        if (c < DEFAULT_WEEKDAY_NAMES.length) {
+          return DEFAULT_WEEKDAY_NAMES[c];
+        }
+        return `列 ${c + 1}`;
+      }),
+    );
+  };
+
+  // プリセット一括適用: アルファベット (A, B, C...)
+  const handleApplyAlphabetPreset = () => {
+    setColHeaders(Array.from({ length: numCols }, (_, c) => String.fromCharCode(65 + (c % 26))));
+  };
+
+  // プリセット一括適用: 連番 (列 1, 列 2...)
+  const handleApplyNumberPreset = () => {
+    setColHeaders(Array.from({ length: numCols }, (_, c) => `列 ${c + 1}`));
+  };
+
+  // CSV形式としてクリップボードへコピー（カスタム列名・行名を反映）
   const handleCopyAsCsv = () => {
     const matrix: TimetableCsvMatrix = grid.map((row) =>
       row.map((cell) => (cell.text ? cell.text : null)),
     );
-    const headers = Array.from({ length: numCols }, (_, c) => getColumnHeaderLabel(c));
-    const csvContent = matrixToCsv(matrix, headers);
+    const csvContent = matrixToCsv(matrix, colHeaders, rowHeaders);
 
     navigator.clipboard.writeText(csvContent);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // 計画表への反映
   const handleExecuteApply = () => {
     const validCells: GridCell[] = [];
-    grid.forEach((row) => {
-      row.forEach((cell) => {
-        // textがnullでなく、titleが存在するコマのみ反映
+    grid.forEach((row, r) => {
+      row.forEach((cell, c) => {
         if (cell.text && cell.title.trim()) {
-          validCells.push(cell);
+          // 列名から曜日を自動判定
+          const colName = colHeaders[c] || '';
+          let resolvedDay = c % 7;
+          if (colName.includes('月')) resolvedDay = 0;
+          else if (colName.includes('火')) resolvedDay = 1;
+          else if (colName.includes('水')) resolvedDay = 2;
+          else if (colName.includes('木')) resolvedDay = 3;
+          else if (colName.includes('金')) resolvedDay = 4;
+          else if (colName.includes('土')) resolvedDay = 5;
+          else if (colName.includes('日')) resolvedDay = 6;
+
+          validCells.push({
+            ...cell,
+            dayIndex: resolvedDay,
+            periodIndex: r + 1,
+          });
         }
       });
     });
@@ -155,11 +210,38 @@ export function TimetableGridEditor({ initialGrid, onApply, onCancel }: Timetabl
         <div className="flex items-center gap-2">
           <CalendarDays className="h-4 w-4 text-cyan-400" />
           <span className="text-xs font-semibold text-white">
-            時間割テーブル確認 (CSVデータ構造)
+            表データエディタ（列名・行名も自由に編集可能）
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* プリセット変更 */}
+          <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900 px-1.5 py-0.5 text-xs text-slate-400">
+            <Tag className="h-3 w-3 text-cyan-400" />
+            <span className="text-[10px]">列名セット:</span>
+            <button
+              type="button"
+              onClick={handleApplyWeekdayPreset}
+              className="rounded px-1.5 py-0.5 text-[10px] text-slate-300 hover:bg-slate-800 hover:text-white"
+            >
+              曜日
+            </button>
+            <button
+              type="button"
+              onClick={handleApplyAlphabetPreset}
+              className="rounded px-1.5 py-0.5 text-[10px] text-slate-300 hover:bg-slate-800 hover:text-white"
+            >
+              A,B,C
+            </button>
+            <button
+              type="button"
+              onClick={handleApplyNumberPreset}
+              className="rounded px-1.5 py-0.5 text-[10px] text-slate-300 hover:bg-slate-800 hover:text-white"
+            >
+              番号
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={handleCopyAsCsv}
@@ -178,30 +260,34 @@ export function TimetableGridEditor({ initialGrid, onApply, onCancel }: Timetabl
               </>
             )}
           </button>
+
           <button
             type="button"
-            onClick={handleToggleSaturday}
-            className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-700"
+            onClick={handleAddCol}
+            disabled={numCols >= 14}
+            className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-700 disabled:opacity-30"
           >
-            {numCols === 5 ? '＋ 土曜を追加' : '土曜を隠す'}
+            <Plus className="h-3 w-3" />
+            <span>列を追加</span>
           </button>
-          {numRows < 20 && (
-            <button
-              type="button"
-              onClick={handleAddRow}
-              className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-700"
-            >
-              <Plus className="h-3 w-3" />
-              <span>{numRows + 1}限を追加</span>
-            </button>
-          )}
+
+          <button
+            type="button"
+            onClick={handleAddRow}
+            disabled={numRows >= 20}
+            className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-700 disabled:opacity-30"
+          >
+            <Plus className="h-3 w-3" />
+            <span>行を追加</span>
+          </button>
         </div>
       </div>
 
       <div className="flex items-center justify-between text-[11px] text-slate-400">
         <span>
-          空マスは<span className="font-mono text-slate-500">null</span>
-          として扱われます。セルをクリックして講義内容を直接編集できます。
+          💡 <strong className="text-slate-300">列名（見出し）</strong>や
+          <strong className="text-slate-300">行名（時限）</strong>
+          をクリックすると、自由に好きな名前にリネームできます。
         </span>
       </div>
 
@@ -210,35 +296,95 @@ export function TimetableGridEditor({ initialGrid, onApply, onCancel }: Timetabl
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr>
-              <th className="w-14 border border-slate-800/80 bg-slate-900/90 p-2 text-center font-semibold text-slate-400">
-                時限
+              <th className="w-20 border border-slate-800/80 bg-slate-900/90 p-2 text-center font-semibold text-slate-400">
+                行 \ 列
               </th>
-              {Array.from({ length: numCols }, (_, c) => (
+              {colHeaders.map((headerText, c) => (
                 <th
                   key={c}
-                  className="min-w-[110px] border border-slate-800/80 bg-slate-900/90 p-2 text-center font-semibold text-slate-200"
+                  onClick={() => setEditingColIdx(c)}
+                  className="group min-w-[110px] cursor-pointer border border-slate-800/80 bg-slate-900/90 p-2 text-center font-semibold text-slate-200 transition hover:bg-slate-800"
+                  title="クリックして列名を編集"
                 >
-                  {getColumnHeaderLabel(c)}
+                  {editingColIdx === c ? (
+                    <input
+                      type="text"
+                      defaultValue={headerText}
+                      autoFocus
+                      onBlur={(e) => {
+                        const val = e.target.value.trim() || `列 ${c + 1}`;
+                        setColHeaders((prev) => {
+                          const next = [...prev];
+                          next[c] = val;
+                          return next;
+                        });
+                        setEditingColIdx(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.currentTarget.blur();
+                        }
+                      }}
+                      className="w-full rounded border border-cyan-400 bg-slate-950 px-1 py-0.5 text-center text-xs text-white focus:outline-hidden"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center gap-1">
+                      <span>{headerText}</span>
+                      <Edit2 className="h-2.5 w-2.5 text-slate-500 opacity-0 transition group-hover:opacity-100" />
+                    </div>
+                  )}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {grid.map((row, r) => {
-              const period = r + 1;
+              const rowLabel = rowHeaders[r] || `${r + 1}行`;
               const timeStr = row[0]
                 ? `${minutesToTimeString(row[0].startMinutes)}-${minutesToTimeString(row[0].endMinutes)}`
                 : '';
 
               return (
                 <tr key={r}>
-                  {/* Period Header Column */}
-                  <td className="border border-slate-800/80 bg-slate-900/50 p-2 text-center font-medium text-slate-400">
-                    <div className="font-bold text-white">{period}限</div>
-                    <div className="font-mono text-[9px] text-slate-400">{timeStr}</div>
+                  {/* Row Header Column (行名編集可能) */}
+                  <td
+                    onClick={() => setEditingRowIdx(r)}
+                    className="group w-20 cursor-pointer border border-slate-800/80 bg-slate-900/50 p-2 text-center font-medium text-slate-400 transition hover:bg-slate-800/80"
+                    title="クリックして行名を編集"
+                  >
+                    {editingRowIdx === r ? (
+                      <input
+                        type="text"
+                        defaultValue={rowLabel}
+                        autoFocus
+                        onBlur={(e) => {
+                          const val = e.target.value.trim() || `${r + 1}行`;
+                          setRowHeaders((prev) => {
+                            const next = [...prev];
+                            next[r] = val;
+                            return next;
+                          });
+                          setEditingRowIdx(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.currentTarget.blur();
+                          }
+                        }}
+                        className="w-full rounded border border-cyan-400 bg-slate-950 px-1 py-0.5 text-center text-xs text-white focus:outline-hidden"
+                      />
+                    ) : (
+                      <div>
+                        <div className="flex items-center justify-center gap-1 font-bold text-white">
+                          <span>{rowLabel}</span>
+                          <Edit2 className="h-2.5 w-2.5 text-slate-500 opacity-0 transition group-hover:opacity-100" />
+                        </div>
+                        <div className="font-mono text-[9px] text-slate-400">{timeStr}</div>
+                      </div>
+                    )}
                   </td>
 
-                  {/* Day Cells */}
+                  {/* Data Cells */}
                   {row.map((cell, c) => {
                     const isEditing = editingCell?.r === r && editingCell?.c === c;
                     const hasContent = Boolean(cell.text && cell.text.trim());
@@ -264,7 +410,7 @@ export function TimetableGridEditor({ initialGrid, onApply, onCancel }: Timetabl
                               rows={3}
                               value={editText}
                               onChange={(e) => setEditText(e.target.value)}
-                              placeholder="講義名や教室名 (空にするとnull)"
+                              placeholder="セル内容 (空にするとnull)"
                               className="w-full resize-none rounded border border-cyan-500 bg-slate-900 p-1.5 text-xs text-white placeholder-slate-500 focus:outline-hidden"
                               autoFocus
                             />
@@ -346,7 +492,7 @@ export function TimetableGridEditor({ initialGrid, onApply, onCancel }: Timetabl
           className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2 text-xs font-semibold text-white shadow-lg shadow-cyan-500/20 hover:opacity-90"
         >
           <Check className="h-4 w-4" />
-          <span>この時間割を計画表へ取り込む</span>
+          <span>この表データを計画表へ取り込む</span>
         </button>
       </div>
     </div>

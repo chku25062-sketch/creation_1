@@ -585,12 +585,13 @@ export type TimetableCsvMatrix = (string | null)[][];
 export function matrixToCsv(
   matrix: TimetableCsvMatrix,
   headers: string[] = ['月', '火', '水', '木', '金'],
+  rowLabels?: string[],
 ): string {
   const rows: string[] = [];
-  rows.push(['時限', ...headers].join(','));
+  rows.push(['行 / 列', ...headers].join(','));
 
   matrix.forEach((row, rIdx) => {
-    const periodLabel = `${rIdx + 1}限`;
+    const periodLabel = rowLabels?.[rIdx] || `${rIdx + 1}限`;
     const escapedCells = row.map((cell) => {
       if (cell === null) return '';
       // カンマや改行、ダブルクォートを含む場合はダブルクォートでエスケープ

@@ -155,9 +155,16 @@ describe('gridDetection utility', () => {
         [null, '物理学', null, '化学', null],
       ];
       const csv = matrixToCsv(matrix);
-      expect(csv).toContain('時限,月,火,水,木,金');
+      expect(csv).toContain('行 / 列,月,火,水,木,金');
       expect(csv).toContain('1限,英語I 101教室,,数学A,,');
       expect(csv).toContain('2限,,物理学,,化学,');
+    });
+
+    it('uses custom rowLabels when provided', () => {
+      const matrix = [['タスク1', 'タスク2']];
+      const csv = matrixToCsv(matrix, ['A', 'B'], ['午前']);
+      expect(csv).toContain('行 / 列,A,B');
+      expect(csv).toContain('午前,タスク1,タスク2');
     });
   });
 });
