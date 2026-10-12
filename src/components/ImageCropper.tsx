@@ -10,8 +10,14 @@ import {
   MousePointerClick,
   Sparkles,
   Loader2,
+  Magnet,
 } from 'lucide-react';
-import { detectTableBoundingBox } from '@/lib/importers/gridDetection';
+import {
+  detectTableBoundingBox,
+  extractSnapGuidelines,
+  snapToClosestGuideline,
+  SnapGuidelines,
+} from '@/lib/importers/gridDetection';
 
 interface ImageCropperProps {
   imageFile: File;
@@ -36,6 +42,11 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
     y: 0.05,
     w: 0.9,
     h: 0.9,
+  });
+
+  const [snapGuides, setSnapGuides] = useState<SnapGuidelines>({
+    verticalLines: [],
+    horizontalLines: [],
   });
 
   const [activeAction, setActiveAction] = useState<DragAction>('none');
@@ -73,14 +84,18 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
     setIsDrawModeActive(false);
   }, []);
 
-  // 表のデータマス本体の枠を完全自動検出
+  // 表のデータマス本体の枠および全罫線吸着ガイドを完全自動検出
   const runAutoDetect = useCallback(async () => {
     setIsAutoDetecting(true);
     try {
-      const box = await detectTableBoundingBox(imageFile);
+      const [box, guides] = await Promise.all([
+        detectTableBoundingBox(imageFile),
+        extractSnapGuidelines(imageFile),
+      ]);
+      setSnapGuides(guides);
       if (box.hasDetected) {
         setCropRect({ x: box.x, y: box.y, w: box.w, h: box.h });
-        setDetectedMessage('表のデータ領域を自動検出しました（枠の微調整も可能です）');
+        setDetectedMessage('表のデータ領域を自動検出しました（枠線に強力スナップ中）');
         setTimeout(() => setDetectedMessage(null), 3500);
       } else {
         resetToDefault();
@@ -178,53 +193,79 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
         const startRatioX = (startX - imgBounds.left) / imgBounds.width;
         const startRatioY = (startY - imgBounds.top) / imgBounds.height;
 
-        const left = Math.min(startRatioX, curRatioX);
-        const top = Math.min(startRatioY, curRatioY);
-        const width = Math.abs(curRatioX - startRatioX);
-        const height = Math.abs(curRatioY - startRatioY);
+        let left = Math.min(startRatioX, curRatioX);
+        let top = Math.min(startRatioY, curRatioY);
+        let right = Math.max(startRatioX, curRatioX);
+        let bottom = Math.max(startRatioY, curRatioY);
 
-        setCropRect({ x: left, y: top, w: width, h: height });
+        left = snapToClosestGuideline(left, snapGuides.verticalLines, 0.0, right - minSize);
+        right = snapToClosestGuideline(right, snapGuides.verticalLines, left + minSize, 1.0);
+        top = snapToClosestGuideline(top, snapGuides.horizontalLines, 0.0, bottom - minSize);
+        bottom = snapToClosestGuideline(bottom, snapGuides.horizontalLines, top + minSize, 1.0);
+
+        setCropRect({
+          x: left,
+          y: top,
+          w: Math.max(minSize, right - left),
+          h: Math.max(minSize, bottom - top),
+        });
         return;
       }
 
       if (action === 'move') {
-        let newX = initialRect.x + dxRatio;
-        let newY = initialRect.y + dyRatio;
-        newX = Math.max(0, Math.min(1 - initialRect.w, newX));
-        newY = Math.max(0, Math.min(1 - initialRect.h, newY));
-        setCropRect({ x: newX, y: newY, w: initialRect.w, h: initialRect.h });
+        const rawX = Math.max(0, Math.min(1 - initialRect.w, initialRect.x + dxRatio));
+        const rawY = Math.max(0, Math.min(1 - initialRect.h, initialRect.y + dyRatio));
+        const snappedX = snapToClosestGuideline(
+          rawX,
+          snapGuides.verticalLines,
+          0.0,
+          1.0 - initialRect.w,
+        );
+        const snappedY = snapToClosestGuideline(
+          rawY,
+          snapGuides.horizontalLines,
+          0.0,
+          1.0 - initialRect.h,
+        );
+        setCropRect({ x: snappedX, y: snappedY, w: initialRect.w, h: initialRect.h });
         return;
       }
 
-      // リサイズ処理 (8方向)
-      let { x, y, w, h } = initialRect;
+      // リサイズ処理 (8方向: e, w, s, n)
+      let left = initialRect.x;
+      let top = initialRect.y;
+      let right = initialRect.x + initialRect.w;
+      let bottom = initialRect.y + initialRect.h;
 
       if (action.includes('e')) {
-        const nextW = Math.max(minSize, Math.min(1 - initialRect.x, initialRect.w + dxRatio));
-        w = nextW;
+        const rawRight = Math.min(
+          1.0,
+          Math.max(left + minSize, initialRect.x + initialRect.w + dxRatio),
+        );
+        right = snapToClosestGuideline(rawRight, snapGuides.verticalLines, left + minSize, 1.0);
       }
       if (action.includes('w')) {
-        const nextX = Math.max(
-          0,
-          Math.min(initialRect.x + initialRect.w - minSize, initialRect.x + dxRatio),
-        );
-        w = initialRect.w - (nextX - initialRect.x);
-        x = nextX;
+        const rawLeft = Math.max(0.0, Math.min(right - minSize, initialRect.x + dxRatio));
+        left = snapToClosestGuideline(rawLeft, snapGuides.verticalLines, 0.0, right - minSize);
       }
       if (action.includes('s')) {
-        const nextH = Math.max(minSize, Math.min(1 - initialRect.y, initialRect.h + dyRatio));
-        h = nextH;
+        const rawBottom = Math.min(
+          1.0,
+          Math.max(top + minSize, initialRect.y + initialRect.h + dyRatio),
+        );
+        bottom = snapToClosestGuideline(rawBottom, snapGuides.horizontalLines, top + minSize, 1.0);
       }
       if (action.includes('n')) {
-        const nextY = Math.max(
-          0,
-          Math.min(initialRect.y + initialRect.h - minSize, initialRect.y + dyRatio),
-        );
-        h = initialRect.h - (nextY - initialRect.y);
-        y = nextY;
+        const rawTop = Math.max(0.0, Math.min(bottom - minSize, initialRect.y + dyRatio));
+        top = snapToClosestGuideline(rawTop, snapGuides.horizontalLines, 0.0, bottom - minSize);
       }
 
-      setCropRect({ x, y, w, h });
+      setCropRect({
+        x: left,
+        y: top,
+        w: Math.max(minSize, right - left),
+        h: Math.max(minSize, bottom - top),
+      });
     };
 
     const onWindowPointerUp = () => {
@@ -244,7 +285,7 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
       window.removeEventListener('pointerup', onWindowPointerUp);
       window.removeEventListener('pointercancel', onWindowPointerUp);
     };
-  }, []);
+  }, [snapGuides]);
 
   // クロップ実行 & 前処理 (コントラスト強調)
   const handleExecuteCrop = () => {
@@ -402,6 +443,14 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
                   height: `${cropRect.h * 100}%`,
                 }}
               >
+                {/* 吸着中インジケーター */}
+                {activeAction !== 'none' && (
+                  <div className="absolute -top-7 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded bg-cyan-950/95 border border-cyan-400 px-2 py-0.5 text-[10px] font-bold text-cyan-200 shadow-xl pointer-events-none whitespace-nowrap z-30">
+                    <Magnet className="h-3 w-3 text-cyan-400 animate-pulse" />
+                    <span>罫線ピークに強力吸着中</span>
+                  </div>
+                )}
+
                 {/* 中央移動ヒント */}
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition pointer-events-none">
                   <span className="flex items-center gap-1 rounded bg-black/75 px-2 py-0.5 text-[10px] font-medium text-white shadow">

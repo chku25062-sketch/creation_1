@@ -5,6 +5,8 @@ import {
   snapDividersToPeaks,
   fitLatticeToPeaks,
   findDataTableBoundsFromProjections,
+  extractPeaksFromProjection,
+  snapToClosestGuideline,
   formatCellText,
   cleanHeaderArtifacts,
   matrixToCsv,
@@ -299,6 +301,33 @@ describe('gridDetection utility', () => {
       expect(bounds.y).toBeCloseTo(0.075, 2);
       // 下端は 355、高さは (355 - 30) / 400 = 0.8125
       expect(bounds.h).toBeCloseTo(0.813, 2);
+    });
+  });
+
+  describe('snapToClosestGuideline & extractPeaksFromProjection', () => {
+    it('extractPeaksFromProjection extracts prominent ratio positions', () => {
+      const projection = new Array(100).fill(10);
+      projection[20] = 100;
+      projection[50] = 100;
+      projection[80] = 100;
+
+      const peaks = extractPeaksFromProjection(projection, 1.2);
+      expect(peaks).toEqual([0.2, 0.5, 0.8]);
+    });
+
+    it('snapToClosestGuideline snaps powerfully to nearby guideline and prevents stopping mid-way', () => {
+      const guidelines = [0.2, 0.4, 0.6, 0.8];
+
+      // 0.38（0.4の近く）は 0.4 に強力吸着
+      expect(snapToClosestGuideline(0.38, guidelines)).toBe(0.4);
+      // 0.43（0.4の近く）も 0.4 に強力吸着
+      expect(snapToClosestGuideline(0.43, guidelines)).toBe(0.4);
+
+      // 0.22（0.2の近く）は 0.2 に強力吸着
+      expect(snapToClosestGuideline(0.22, guidelines)).toBe(0.2);
+
+      // 境界制約（minBound: 0.3, maxBound: 0.5）がある場合、0.2 は選ばれず 0.4 が選ばれる
+      expect(snapToClosestGuideline(0.25, guidelines, 0.3, 0.5)).toBe(0.4);
     });
   });
 });

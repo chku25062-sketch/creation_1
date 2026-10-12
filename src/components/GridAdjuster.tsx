@@ -1,12 +1,15 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Grid, Check, Sliders, Sparkles, Loader2 } from 'lucide-react';
+import { Grid, Check, Sliders, Sparkles, Loader2, Magnet } from 'lucide-react';
 import {
   getDefaultDividers,
   calculateCellRects,
   autoDetectTableStructure,
   detectGridDividers,
+  extractSnapGuidelines,
+  snapToClosestGuideline,
+  SnapGuidelines,
   GridAreaBounds,
   DEFAULT_GRID_BOUNDS,
 } from '@/lib/importers/gridDetection';
@@ -39,6 +42,10 @@ export function GridAdjuster({
   const [bounds, setBounds] = useState<GridAreaBounds>(DEFAULT_GRID_BOUNDS);
   const [colDividers, setColDividers] = useState<number[]>([]);
   const [rowDividers, setRowDividers] = useState<number[]>([]);
+  const [snapGuides, setSnapGuides] = useState<SnapGuidelines>({
+    verticalLines: [],
+    horizontalLines: [],
+  });
   const [imageSrc, setImageSrc] = useState<string>('');
   const [isDetecting, setIsDetecting] = useState<boolean>(true);
   const [detectedMessage, setDetectedMessage] = useState<string | null>(null);
@@ -66,13 +73,17 @@ export function GridAdjuster({
     async (targetBounds: GridAreaBounds) => {
       setIsDetecting(true);
       try {
-        const detected = await autoDetectTableStructure(imageBlob, targetBounds);
+        const [detected, guides] = await Promise.all([
+          autoDetectTableStructure(imageBlob, targetBounds),
+          extractSnapGuidelines(imageBlob),
+        ]);
+        setSnapGuides(guides);
         setColumns(detected.columns);
         setRows(detected.rows);
         setColDividers(detected.colDividers);
         setRowDividers(detected.rowDividers);
         setDetectedMessage(
-          `画像から ${detected.columns}列 × ${detected.rows}行 の表構造を検出しました`,
+          `画像から ${detected.columns}列 × ${detected.rows}行 の表構造を検出しました（罫線に強力スナップ）`,
         );
         setTimeout(() => setDetectedMessage(null), 3000);
       } catch (err) {
@@ -151,45 +162,75 @@ export function GridAdjuster({
       const minMargin = 0.02;
 
       if (activeDrag.type === 'col') {
-        const ratioX = (e.clientX - rect.left) / rect.width;
+        const rawRatioX = (e.clientX - rect.left) / rect.width;
         setColDividers((prev) => {
           const next = [...prev];
           const idx = activeDrag.index;
           const leftBound = idx === 0 ? bounds.left + minMargin : prev[idx - 1] + minMargin;
           const rightBound =
             idx === prev.length - 1 ? bounds.right - minMargin : prev[idx + 1] - minMargin;
-          next[idx] = Math.max(leftBound, Math.min(rightBound, ratioX));
+          next[idx] = snapToClosestGuideline(
+            rawRatioX,
+            snapGuides.verticalLines,
+            leftBound,
+            rightBound,
+          );
           return next;
         });
       } else if (activeDrag.type === 'row') {
-        const ratioY = (e.clientY - rect.top) / rect.height;
+        const rawRatioY = (e.clientY - rect.top) / rect.height;
         setRowDividers((prev) => {
           const next = [...prev];
           const idx = activeDrag.index;
           const topBound = idx === 0 ? bounds.top + minMargin : prev[idx - 1] + minMargin;
           const bottomBound =
             idx === prev.length - 1 ? bounds.bottom - minMargin : prev[idx + 1] - minMargin;
-          next[idx] = Math.max(topBound, Math.min(bottomBound, ratioY));
+          next[idx] = snapToClosestGuideline(
+            rawRatioY,
+            snapGuides.horizontalLines,
+            topBound,
+            bottomBound,
+          );
           return next;
         });
       } else if (activeDrag.type === 'bound') {
-        const ratioX = (e.clientX - rect.left) / rect.width;
-        const ratioY = (e.clientY - rect.top) / rect.height;
+        const rawRatioX = (e.clientX - rect.left) / rect.width;
+        const rawRatioY = (e.clientY - rect.top) / rect.height;
 
         setBounds((prev) => {
           const next = { ...prev };
           if (activeDrag.edge === 'left') {
             const firstCol = colDividers[0] || 0.2;
-            next.left = Math.max(0, Math.min(firstCol - minMargin, ratioX));
+            next.left = snapToClosestGuideline(
+              rawRatioX,
+              snapGuides.verticalLines,
+              0.0,
+              firstCol - minMargin,
+            );
           } else if (activeDrag.edge === 'right') {
             const lastCol = colDividers[colDividers.length - 1] || 0.8;
-            next.right = Math.min(1.0, Math.max(lastCol + minMargin, ratioX));
+            next.right = snapToClosestGuideline(
+              rawRatioX,
+              snapGuides.verticalLines,
+              lastCol + minMargin,
+              1.0,
+            );
           } else if (activeDrag.edge === 'top') {
             const firstRow = rowDividers[0] || 0.2;
-            next.top = Math.max(0, Math.min(firstRow - minMargin, ratioY));
+            next.top = snapToClosestGuideline(
+              rawRatioY,
+              snapGuides.horizontalLines,
+              0.0,
+              firstRow - minMargin,
+            );
           } else if (activeDrag.edge === 'bottom') {
             const lastRow = rowDividers[rowDividers.length - 1] || 0.8;
-            next.bottom = Math.min(1.0, Math.max(lastRow + minMargin, ratioY));
+            next.bottom = snapToClosestGuideline(
+              rawRatioY,
+              snapGuides.horizontalLines,
+              lastRow + minMargin,
+              1.0,
+            );
           }
           return next;
         });
@@ -209,7 +250,7 @@ export function GridAdjuster({
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
     };
-  }, [activeDrag, bounds, colDividers, rowDividers]);
+  }, [activeDrag, bounds, colDividers, rowDividers, snapGuides]);
 
   // セル矩形計算
   const cellRects = calculateCellRects(colDividers, rowDividers, bounds);
@@ -388,6 +429,14 @@ export function GridAdjuster({
               draggable={false}
               className="max-h-[48vh] w-auto max-w-full select-none object-contain pointer-events-none block"
             />
+
+            {/* 吸着中インジケーター */}
+            {activeDrag && (
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded bg-cyan-950/95 border border-cyan-400 px-2.5 py-0.5 text-[10px] font-bold text-cyan-200 shadow-xl pointer-events-none whitespace-nowrap z-30">
+                <Magnet className="h-3 w-3 text-cyan-400 animate-pulse" />
+                <span>罫線ピークに強力吸着中</span>
+              </div>
+            )}
 
             {/* 外枠（ヘッダー除外マスク） */}
             <div

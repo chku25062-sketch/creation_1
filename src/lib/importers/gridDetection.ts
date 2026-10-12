@@ -38,6 +38,11 @@ export interface TableBoundingBox {
   hasDetected: boolean;
 }
 
+export interface SnapGuidelines {
+  verticalLines: number[]; // 昇順の比率 (0.0 〜 1.0)
+  horizontalLines: number[]; // 昇順の比率 (0.0 〜 1.0)
+}
+
 /**
  * 画像BlobからHTMLImageElementを非同期ロード
  */
@@ -493,6 +498,107 @@ export async function detectTableBoundingBox(imageBlob: Blob): Promise<TableBoun
 
   const edges = extractDirectionalEdgeProjections(data, sw, sh, DEFAULT_GRID_BOUNDS);
   return findDataTableBoundsFromProjections(edges.vertProjection, edges.horizProjection, sw, sh);
+}
+
+/**
+ * 射影プロファイルから局所最大値となるピーク比率を抽出
+ */
+export function extractPeaksFromProjection(
+  projection: number[],
+  minThresholdRatio = 1.15,
+): number[] {
+  const totalLen = projection.length;
+  if (totalLen === 0) return [];
+
+  const avgVal = projection.reduce((a, b) => a + b, 0) / totalLen;
+  const peaks: number[] = [];
+  const radius = Math.max(2, Math.round(totalLen * 0.012));
+
+  for (let i = radius; i < totalLen - radius; i++) {
+    const val = projection[i];
+    if (val > avgVal * minThresholdRatio) {
+      let isPeak = true;
+      for (let k = -radius; k <= radius; k++) {
+        if (k !== 0 && projection[i + k] > val) {
+          isPeak = false;
+          break;
+        }
+      }
+      if (isPeak) {
+        peaks.push(Math.round((i / totalLen) * 1000) / 1000);
+      }
+    }
+  }
+
+  return peaks;
+}
+
+/**
+ * 画像から水平・垂直のすべての罫線候補ライン（吸着ガイド線）を抽出
+ */
+export async function extractSnapGuidelines(imageBlob: Blob): Promise<SnapGuidelines> {
+  const img = await loadImageElement(imageBlob);
+  const w = img.naturalWidth || 800;
+  const h = img.naturalHeight || 800;
+
+  const scale = Math.min(1.0, 600 / Math.max(w, h));
+  const sw = Math.round(w * scale);
+  const sh = Math.round(h * scale);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = sw;
+  canvas.height = sh;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    return { verticalLines: [], horizontalLines: [] };
+  }
+
+  ctx.drawImage(img, 0, 0, sw, sh);
+  const imgData = ctx.getImageData(0, 0, sw, sh);
+  const data = imgData.data;
+
+  const edges = extractDirectionalEdgeProjections(data, sw, sh, DEFAULT_GRID_BOUNDS);
+  const verticalLines = extractPeaksFromProjection(edges.vertProjection);
+  const horizontalLines = extractPeaksFromProjection(edges.horizProjection);
+
+  return { verticalLines, horizontalLines };
+}
+
+/**
+ * 指定された値（比率）に最も近い罫線ピークへ強力に吸着（スナップ）
+ * - candidateLines が空の場合はそのまま targetVal を返却
+ * - minBound, maxBound を指定した場合はその範囲内のピークのみを対象
+ * - ユーザー要望「中途半端な位置には止まらない」に基づき、範囲内の最も近い罫線ピークへ確実にスナップ
+ */
+export function snapToClosestGuideline(
+  targetVal: number,
+  candidateLines: number[],
+  minBound = 0.0,
+  maxBound = 1.0,
+): number {
+  if (!candidateLines || candidateLines.length === 0) {
+    return Math.max(minBound, Math.min(maxBound, targetVal));
+  }
+
+  const validLines = candidateLines.filter((line) => line >= minBound && line <= maxBound);
+  if (validLines.length === 0) {
+    return Math.max(minBound, Math.min(maxBound, targetVal));
+  }
+
+  let closest = validLines[0];
+  let minDiff = Math.abs(validLines[0] - targetVal);
+
+  for (let i = 1; i < validLines.length; i++) {
+    const diff = Math.abs(validLines[i] - targetVal);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = validLines[i];
+    }
+  }
+
+  // 常に最も近い罫線ピークへ強力吸着（中途半端な位置での停止を完全防止）
+  return closest;
 }
 
 export interface LatticeFitResult {
