@@ -20,6 +20,8 @@ interface GridAdjusterProps {
     columns: number,
     rows: number,
     bounds: GridAreaBounds,
+    hasHeaderRow: boolean,
+    hasHeaderCol: boolean,
   ) => void;
   onBack: () => void;
 }
@@ -42,9 +44,9 @@ export function GridAdjuster({
   const [isDetecting, setIsDetecting] = useState<boolean>(true);
   const [detectedMessage, setDetectedMessage] = useState<string | null>(null);
 
-  // ヘッダー除外のクイックトグル状態
-  const [excludeTopHeader, setExcludeTopHeader] = useState<boolean>(false);
-  const [excludeLeftHeader, setExcludeLeftHeader] = useState<boolean>(false);
+  // カラム名（1行目）およびインデックス名（1列目）のヘッダー考慮状態
+  const [hasHeaderRow, setHasHeaderRow] = useState<boolean>(true);
+  const [hasHeaderCol, setHasHeaderCol] = useState<boolean>(true);
 
   // ドラッグ操作の状態管理
   const [activeDrag, setActiveDrag] = useState<
@@ -118,30 +120,6 @@ export function GridAdjuster({
   // 均等割りリセット
   const handleResetToEqual = () => {
     const defaults = getDefaultDividers(columns, rows, bounds);
-    setColDividers(defaults.colDividers);
-    setRowDividers(defaults.rowDividers);
-  };
-
-  // 上部ヘッダー除外トグル
-  const handleToggleTopHeader = () => {
-    const nextExclude = !excludeTopHeader;
-    setExcludeTopHeader(nextExclude);
-    const newTop = nextExclude ? 0.09 : 0;
-    const newBounds = { ...bounds, top: newTop };
-    setBounds(newBounds);
-    const defaults = getDefaultDividers(columns, rows, newBounds);
-    setColDividers(defaults.colDividers);
-    setRowDividers(defaults.rowDividers);
-  };
-
-  // 左部ヘッダー除外トグル
-  const handleToggleLeftHeader = () => {
-    const nextExclude = !excludeLeftHeader;
-    setExcludeLeftHeader(nextExclude);
-    const newLeft = nextExclude ? 0.09 : 0;
-    const newBounds = { ...bounds, left: newLeft };
-    setBounds(newBounds);
-    const defaults = getDefaultDividers(columns, rows, newBounds);
     setColDividers(defaults.colDividers);
     setRowDividers(defaults.rowDividers);
   };
@@ -298,33 +276,33 @@ export function GridAdjuster({
             </div>
           </div>
 
-          {/* ヘッダー除外クイックボタン */}
-          <div className="flex items-center gap-1 border-l border-slate-700/80 pl-2">
+          {/* カラム名・インデックス名 ヘッダー考慮トグル */}
+          <div className="flex items-center gap-1.5 border-l border-slate-700/80 pl-2">
             <button
               type="button"
-              onClick={handleToggleTopHeader}
-              className={`flex items-center gap-1 rounded-lg border px-2 py-1 transition ${
-                excludeTopHeader
-                  ? 'border-cyan-400 bg-cyan-950 font-semibold text-cyan-300'
-                  : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-600 hover:text-white'
+              onClick={() => setHasHeaderRow(!hasHeaderRow)}
+              className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 transition ${
+                hasHeaderRow
+                  ? 'border-cyan-400 bg-cyan-950/80 font-semibold text-cyan-300'
+                  : 'border-slate-700 bg-slate-800 text-slate-400 hover:text-slate-200'
               }`}
-              title="表の上端にある曜日名ヘッダーなどを区画から除外"
+              title="表の最上行をカラム名（列見出し）として認識し、データセルから分離します"
             >
               <Rows className="h-3 w-3" />
-              <span>上の行名を除外</span>
+              <span>1行目＝カラム名 {hasHeaderRow ? '✓' : ''}</span>
             </button>
             <button
               type="button"
-              onClick={handleToggleLeftHeader}
-              className={`flex items-center gap-1 rounded-lg border px-2 py-1 transition ${
-                excludeLeftHeader
-                  ? 'border-cyan-400 bg-cyan-950 font-semibold text-cyan-300'
-                  : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-600 hover:text-white'
+              onClick={() => setHasHeaderCol(!hasHeaderCol)}
+              className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 transition ${
+                hasHeaderCol
+                  ? 'border-purple-400 bg-purple-950/80 font-semibold text-purple-300'
+                  : 'border-slate-700 bg-slate-800 text-slate-400 hover:text-slate-200'
               }`}
-              title="表の左端にある時限番号ヘッダーなどを区画から除外"
+              title="表の最左列をインデックス名（行見出し）として認識し、データセルから分離します"
             >
               <Columns className="h-3 w-3" />
-              <span>左の列名を除外</span>
+              <span>1列目＝インデックス名 {hasHeaderCol ? '✓' : ''}</span>
             </button>
           </div>
         </div>
@@ -442,25 +420,52 @@ export function GridAdjuster({
               <div className="absolute left-0 right-0 top-2 h-0.5 bg-blue-400 shadow group-hover:h-1 group-hover:bg-blue-300" />
             </div>
 
-            {/* 各セルのラベルウォーターマーク */}
+            {/* 各セルのラベルウォーターマーク（ヘッダーとデータ領域の色分け可視化） */}
             {cellRects.map((rowCells, rIdx) =>
-              rowCells.map((cell, cIdx) => (
-                <div
-                  key={`cell-guide-${rIdx}-${cIdx}`}
-                  className="pointer-events-none absolute flex items-center justify-center text-[10px] font-bold text-cyan-400/25"
-                  style={{
-                    left: `${cell.x * 100}%`,
-                    top: `${cell.y * 100}%`,
-                    width: `${cell.w * 100}%`,
-                    height: `${cell.h * 100}%`,
-                  }}
-                >
-                  <span className="rounded bg-black/40 px-1 py-0.5">
-                    {getColLabel(cIdx)}
-                    {rIdx + 1}
-                  </span>
-                </div>
-              )),
+              rowCells.map((cell, cIdx) => {
+                const isHeaderIntersection =
+                  rIdx === 0 && hasHeaderRow && cIdx === 0 && hasHeaderCol;
+                const isHeaderColCell = rIdx === 0 && hasHeaderRow;
+                const isHeaderRowCell = cIdx === 0 && hasHeaderCol;
+
+                let badgeBg = 'bg-black/50 text-cyan-400/70';
+                let cellOverlayBg = '';
+                let labelText: string;
+
+                if (isHeaderIntersection) {
+                  badgeBg = 'bg-slate-800/90 text-slate-300 font-bold border border-slate-600';
+                  cellOverlayBg = 'bg-slate-700/20';
+                  labelText = '見出し';
+                } else if (isHeaderColCell) {
+                  badgeBg = 'bg-cyan-950/90 text-cyan-300 font-bold border border-cyan-700/60';
+                  cellOverlayBg = 'bg-cyan-500/10';
+                  labelText = `列名:${getColLabel(hasHeaderCol ? cIdx - 1 : cIdx)}`;
+                } else if (isHeaderRowCell) {
+                  badgeBg =
+                    'bg-purple-950/90 text-purple-300 font-bold border border-purple-700/60';
+                  cellOverlayBg = 'bg-purple-500/10';
+                  labelText = `行名:${rIdx}限`;
+                } else {
+                  labelText = `${getColLabel(hasHeaderCol ? cIdx - 1 : cIdx)}${
+                    hasHeaderRow ? rIdx : rIdx + 1
+                  }`;
+                }
+
+                return (
+                  <div
+                    key={`cell-guide-${rIdx}-${cIdx}`}
+                    className={`pointer-events-none absolute flex items-center justify-center text-[10px] ${cellOverlayBg}`}
+                    style={{
+                      left: `${cell.x * 100}%`,
+                      top: `${cell.y * 100}%`,
+                      width: `${cell.w * 100}%`,
+                      height: `${cell.h * 100}%`,
+                    }}
+                  >
+                    <span className={`rounded px-1 py-0.5 shadow-xs ${badgeBg}`}>{labelText}</span>
+                  </div>
+                );
+              }),
             )}
 
             {/* 垂直分割線 (Col Dividers) */}
@@ -522,11 +527,19 @@ export function GridAdjuster({
 
         <button
           type="button"
-          onClick={() => onConfirm(colDividers, rowDividers, columns, rows, bounds)}
+          onClick={() =>
+            onConfirm(colDividers, rowDividers, columns, rows, bounds, hasHeaderRow, hasHeaderCol)
+          }
           className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-1.5 text-xs font-semibold text-white shadow-md shadow-cyan-500/20 transition hover:opacity-95"
         >
           <Check className="h-3.5 w-3.5" />
-          <span>この区画で高精度解析を開始 ({columns * rows}マス)</span>
+          <span>
+            この区画で解析を開始 (
+            {hasHeaderRow || hasHeaderCol
+              ? `データ: ${columns - (hasHeaderCol ? 1 : 0)}列 × ${rows - (hasHeaderRow ? 1 : 0)}行`
+              : `計 ${columns * rows}マス`}
+            )
+          </span>
         </button>
       </div>
     </div>

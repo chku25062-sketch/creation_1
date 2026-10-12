@@ -222,6 +222,7 @@ export function extractMorphologicalLineProjections(
 
 /**
  * 検出された罫線ピッチ（周期）を解析し、薄れや点線等で欠落した中間分割線を等間隔補間
+ * ※ 外枠との余白（端の間隔）は補間せず、内部セル間隔のみを安全に補正
  */
 export function interpolateMissingDividers(
   peaks: number[],
@@ -236,10 +237,11 @@ export function interpolateMissingDividers(
     intervals.push(allPoints[i + 1] - allPoints[i]);
   }
 
+  // 全間隔から中央値を算出
   const sortedIntervals = [...intervals].sort((a, b) => a - b);
   const median = sortedIntervals[Math.floor(sortedIntervals.length / 2)];
 
-  if (median <= 0.01) return peaks;
+  if (median <= 0.02) return peaks;
 
   const result: number[] = [];
 
@@ -252,13 +254,13 @@ export function interpolateMissingDividers(
       result.push(start);
     }
 
-    // 間隔が中央値の約1.7倍〜2.4倍ある場合、中間1本を補間
-    if (diff >= median * 1.7 && diff <= median * 2.4) {
-      result.push(Math.round(((start + end) / 2) * 1000) / 1000);
-    } else if (diff > median * 2.4 && diff <= median * 3.4) {
-      // 2本補間
-      result.push(Math.round((start + diff / 3) * 1000) / 1000);
-      result.push(Math.round((start + (diff * 2) / 3) * 1000) / 1000);
+    // 外枠（最初と最後）の間隔は余白の可能性があるため補間しない
+    const isOuterGap = i === 0 || i === allPoints.length - 2;
+    if (!isOuterGap) {
+      // 内部間隔が中央値の約1.8倍〜2.3倍ある場合のみ、中間1本を厳格に補間
+      if (diff >= median * 1.8 && diff <= median * 2.3) {
+        result.push(Math.round(((start + end) / 2) * 1000) / 1000);
+      }
     }
   }
 
@@ -359,8 +361,8 @@ export async function detectGridDividers(
  */
 export function findProminentPeaks(
   projection: number[],
-  minDistanceRatio = 0.04,
-  prominenceFactor = 1.25,
+  minDistanceRatio = 0.05,
+  prominenceFactor = 1.45,
 ): number[] {
   const len = projection.length;
   if (len === 0) return [];
@@ -468,30 +470,31 @@ export async function autoDetectTableStructure(
   const subVert = vertProjection.slice(minX, maxX);
   const subHoriz = horizProjection.slice(minY, maxY);
 
-  const rawVertPeaks = findProminentPeaks(subVert, 0.04, 1.25);
-  const rawHorizPeaks = findProminentPeaks(subHoriz, 0.04, 1.25);
+  // より厳格な閾値とマージンで顕著な罫線ピークのみを抽出（余分な分割線の生成を防止）
+  const rawVertPeaks = findProminentPeaks(subVert, 0.05, 1.45);
+  const rawHorizPeaks = findProminentPeaks(subHoriz, 0.05, 1.45);
 
-  // 端（4%以内）の外枠罫線を除外し、bounds 内の内部区切り線を算出
+  // 端（6%以内）の外枠罫線を除外し、bounds 内の内部区切り線を算出
   const widthRatio = bounds.right - bounds.left;
   const heightRatio = bounds.bottom - bounds.top;
 
   let innerVertPeaks = rawVertPeaks
-    .filter((p) => p > 0.04 && p < 0.96)
+    .filter((p) => p > 0.06 && p < 0.94)
     .map((p) => bounds.left + p * widthRatio);
 
   let innerHorizPeaks = rawHorizPeaks
-    .filter((p) => p > 0.04 && p < 0.96)
+    .filter((p) => p > 0.06 && p < 0.94)
     .map((p) => bounds.top + p * heightRatio);
 
-  // 欠落した罫線の等間隔補間（ハイブリッド補正）
+  // 欠落した罫線の等間隔補間（ハイブリッド補正: 内部セルのみ）
   innerVertPeaks = interpolateMissingDividers(innerVertPeaks, bounds.left, bounds.right);
   innerHorizPeaks = interpolateMissingDividers(innerHorizPeaks, bounds.top, bounds.bottom);
 
-  // 検出された区切り線が1〜14本なら採用、無ければ標準5
+  // 検出された区切り線が1〜12本なら採用、無ければ標準5
   const columns =
-    innerVertPeaks.length >= 1 && innerVertPeaks.length <= 14 ? innerVertPeaks.length + 1 : 5;
+    innerVertPeaks.length >= 1 && innerVertPeaks.length <= 12 ? innerVertPeaks.length + 1 : 5;
   const rows =
-    innerHorizPeaks.length >= 1 && innerHorizPeaks.length <= 19 ? innerHorizPeaks.length + 1 : 5;
+    innerHorizPeaks.length >= 1 && innerHorizPeaks.length <= 15 ? innerHorizPeaks.length + 1 : 5;
 
   let colDividers = innerVertPeaks;
   let rowDividers = innerHorizPeaks;

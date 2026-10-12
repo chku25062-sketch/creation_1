@@ -8,20 +8,34 @@ import { formatCellText, matrixToCsv, TimetableCsvMatrix } from '@/lib/importers
 
 interface TimetableGridEditorProps {
   initialGrid: GridCell[][];
+  initialColHeaders?: string[];
+  initialRowHeaders?: string[];
   onApply: (cells: GridCell[]) => void;
   onCancel: () => void;
 }
 
 const DEFAULT_WEEKDAY_NAMES = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'];
 
-export function TimetableGridEditor({ initialGrid, onApply, onCancel }: TimetableGridEditorProps) {
+export function TimetableGridEditor({
+  initialGrid,
+  initialColHeaders,
+  initialRowHeaders,
+  onApply,
+  onCancel,
+}: TimetableGridEditorProps) {
   const [grid, setGrid] = useState<GridCell[][]>(initialGrid);
   const numRows = grid.length;
   const numCols = grid[0]?.length || 5;
 
-  // 列名の状態管理（自由にテキスト編集可能）
+  // 列名の状態管理（OCR抽出されたカラム名があれば優先採用、自由にテキスト編集可能）
   const [colHeaders, setColHeaders] = useState<string[]>(() => {
+    if (initialColHeaders && initialColHeaders.length === numCols) {
+      return initialColHeaders;
+    }
     return Array.from({ length: numCols }, (_, c) => {
+      if (initialColHeaders && initialColHeaders[c]) {
+        return initialColHeaders[c];
+      }
       if (numCols <= 7 && c < DEFAULT_WEEKDAY_NAMES.length) {
         return DEFAULT_WEEKDAY_NAMES[c];
       }
@@ -29,9 +43,17 @@ export function TimetableGridEditor({ initialGrid, onApply, onCancel }: Timetabl
     });
   });
 
-  // 行名の状態管理（自由にテキスト編集可能）
+  // 行名の状態管理（OCR抽出されたインデックス名があれば優先採用、自由にテキスト編集可能）
   const [rowHeaders, setRowHeaders] = useState<string[]>(() => {
-    return Array.from({ length: numRows }, (_, r) => `${r + 1}限`);
+    if (initialRowHeaders && initialRowHeaders.length === numRows) {
+      return initialRowHeaders;
+    }
+    return Array.from({ length: numRows }, (_, r) => {
+      if (initialRowHeaders && initialRowHeaders[r]) {
+        return initialRowHeaders[r];
+      }
+      return `${r + 1}限`;
+    });
   });
 
   // ヘッダー編集中の状態
