@@ -108,15 +108,13 @@ export function FileImportModal({ isOpen, onClose, onImport }: FileImportModalPr
     setStep('grid_adjust');
   };
 
-  // グリッド線確定時 -> セル単位バッチOCRの実行 (カラム名・インデックス名の自動抽出)
+  // グリッド線確定時 -> セル単位バッチOCRの実行 (データマス目のみ)
   const handleGridAdjustConfirm = async (
     colDividers: number[],
     rowDividers: number[],
     columns: number,
     rows: number,
     bounds: GridAreaBounds,
-    hasHeaderRow: boolean,
-    hasHeaderCol: boolean,
   ) => {
     if (!croppedBlob) return;
 
@@ -133,19 +131,17 @@ export function FileImportModal({ isOpen, onClose, onImport }: FileImportModalPr
         colDividers,
         rowDividers,
         bounds,
-        { hasHeaderRow, hasHeaderCol },
         (p) => {
           setProgress({ status: p.status, progress: p.progress });
         },
       );
 
-      const hasRecognizedContent =
-        grid && (grid.some((r) => r.some((c) => c.title)) || colHeaders.length > 0);
+      const hasRecognizedContent = grid && grid.some((r) => r.some((c) => c.title));
 
       if (hasRecognizedContent) {
         setGridData(grid);
-        setDetectedColHeaders(colHeaders.length > 0 ? colHeaders : undefined);
-        setDetectedRowHeaders(rowHeaders.length > 0 ? rowHeaders : undefined);
+        setDetectedColHeaders(colHeaders);
+        setDetectedRowHeaders(rowHeaders);
         setStep('grid_review');
       } else {
         // セル個別OCRで文字が検出できなかった場合のフォールバック (全体解析)

@@ -274,8 +274,8 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
           <Crop className="h-4 w-4 shrink-0 text-cyan-400" />
           <span>
             {isDrawModeActive
-              ? '画像の上をドラッグして、時間割の講義マス目を囲んでください'
-              : '枠をドラッグで位置移動、白丸や端でサイズ調整（曜日や時限番号は次の画面で除外可能）'}
+              ? 'ドラッグして、予定・講義のマス目（本体のみ）を囲んでください'
+              : '※ 曜日や時限番号の見出しは含めず、予定が入っているマス目（本体）のみを囲むと高精度に認識されます'}
           </span>
         </div>
 

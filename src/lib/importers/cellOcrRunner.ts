@@ -20,11 +20,6 @@ export interface CellOcrProgress {
   currentCell?: { row: number; col: number; total: number; current: number };
 }
 
-export interface CellBatchOcrOptions {
-  hasHeaderRow?: boolean;
-  hasHeaderCol?: boolean;
-}
-
 export interface CellBatchOcrResult {
   grid: GridCell[][];
   colHeaders: string[];
@@ -36,10 +31,8 @@ export async function runCellBatchOcr(
   colDividers: number[],
   rowDividers: number[],
   bounds: GridAreaBounds = DEFAULT_GRID_BOUNDS,
-  options: CellBatchOcrOptions = {},
   onProgress?: (progress: CellOcrProgress) => void,
 ): Promise<CellBatchOcrResult> {
-  const { hasHeaderRow = false, hasHeaderCol = false } = options;
   const rows = rowDividers.length + 1;
   const cols = colDividers.length + 1;
   const totalCells = rows * cols;
@@ -79,15 +72,23 @@ export async function runCellBatchOcr(
     console.warn('Could not set PSM', e);
   }
 
-  const rawTextGrid: string[][] = Array.from({ length: rows }, () => new Array(cols).fill(''));
-
+  const resultGrid: GridCell[][] = [];
   let processedCount = 0;
 
   try {
     for (let r = 0; r < rows; r++) {
+      const rowCells: GridCell[] = [];
+      const periodNum = r + 1;
+      const periodDef = STANDARD_PERIODS[periodNum] || {
+        startMinutes: (9 + r * 1.5) * 60,
+        endMinutes: (10.5 + r * 1.5) * 60,
+      };
+
       for (let c = 0; c < cols; c++) {
         const cellInfo: CellCropInfo | undefined = cellGrid[r]?.[c];
         processedCount++;
+
+        let cellText = '';
 
         if (cellInfo && !cellInfo.isEmpty) {
           onProgress?.({
@@ -103,10 +104,10 @@ export async function runCellBatchOcr(
 
           try {
             const ret = await worker.recognize(cellInfo.blob);
-            rawTextGrid[r][c] = ret.data.text.trim();
+            cellText = ret.data.text.trim();
           } catch (err) {
             console.warn(`Error recognizing cell [${r}, ${c}]`, err);
-            rawTextGrid[r][c] = '';
+            cellText = '';
           }
         } else {
           onProgress?.({
@@ -114,72 +115,7 @@ export async function runCellBatchOcr(
             progress: 0.15 + (processedCount / totalCells) * 0.8,
           });
         }
-      }
-    }
 
-    // 3. カラム名（列ヘッダー）の抽出
-    const startR = hasHeaderRow && rows > 1 ? 1 : 0;
-    const startC = hasHeaderCol && cols > 1 ? 1 : 0;
-    const dataCols = cols - startC;
-
-    const colHeaders: string[] = [];
-    const WEEKDAYS = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'];
-
-    for (let c = startC; c < cols; c++) {
-      const dataColIdx = c - startC;
-      if (hasHeaderRow) {
-        const headerRaw = rawTextGrid[0][c];
-        const cleaned = formatCellText(headerRaw);
-        if (cleaned) {
-          colHeaders.push(cleaned.replace(/\s+/g, ' '));
-        } else {
-          colHeaders.push(
-            dataCols <= 7 && dataColIdx < WEEKDAYS.length
-              ? WEEKDAYS[dataColIdx]
-              : `列 ${dataColIdx + 1}`,
-          );
-        }
-      } else {
-        colHeaders.push(
-          dataCols <= 7 && dataColIdx < WEEKDAYS.length
-            ? WEEKDAYS[dataColIdx]
-            : `列 ${dataColIdx + 1}`,
-        );
-      }
-    }
-
-    // 4. インデックス名（行ヘッダー）の抽出
-    const rowHeaders: string[] = [];
-    for (let r = startR; r < rows; r++) {
-      const dataRowIdx = r - startR;
-      if (hasHeaderCol) {
-        const headerRaw = rawTextGrid[r][0];
-        const cleaned = formatCellText(headerRaw);
-        if (cleaned) {
-          rowHeaders.push(cleaned.replace(/\s+/g, ' '));
-        } else {
-          rowHeaders.push(`${dataRowIdx + 1}限`);
-        }
-      } else {
-        rowHeaders.push(`${dataRowIdx + 1}限`);
-      }
-    }
-
-    // 5. データセルグリッドの構築
-    const resultGrid: GridCell[][] = [];
-
-    for (let r = startR; r < rows; r++) {
-      const rowCells: GridCell[] = [];
-      const dataRowIdx = r - startR;
-      const periodNum = dataRowIdx + 1;
-      const periodDef = STANDARD_PERIODS[periodNum] || {
-        startMinutes: (9 + dataRowIdx * 1.5) * 60,
-        endMinutes: (10.5 + dataRowIdx * 1.5) * 60,
-      };
-
-      for (let c = startC; c < cols; c++) {
-        const dataColIdx = c - startC;
-        const cellText = rawTextGrid[r][c];
         const formatted = formatCellText(cellText);
         const title = formatted || '';
         const rawLines = formatted ? formatted.split('\n') : [];
@@ -187,7 +123,7 @@ export async function runCellBatchOcr(
           formatted && formatted.includes('\n') ? formatted.split('\n').slice(1).join('\n') : '';
 
         rowCells.push({
-          dayIndex: dataColIdx,
+          dayIndex: c,
           periodIndex: periodNum,
           text: formatted,
           rawLines,
@@ -201,6 +137,15 @@ export async function runCellBatchOcr(
 
       resultGrid.push(rowCells);
     }
+
+    // デフォルトのスマート列名（5〜7列なら月曜〜、それ以外は列1〜）
+    const WEEKDAYS = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'];
+    const colHeaders: string[] = Array.from({ length: cols }, (_, c) =>
+      cols <= 7 && c < WEEKDAYS.length ? WEEKDAYS[c] : `列 ${c + 1}`,
+    );
+
+    // デフォルトの行名（1限〜）
+    const rowHeaders: string[] = Array.from({ length: rows }, (_, r) => `${r + 1}限`);
 
     onProgress?.({
       status: '時間割グリッドの構築完了！',
