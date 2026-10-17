@@ -690,13 +690,13 @@ export function TaskManager({
             onClick={(e) => {
               if (e.target === e.currentTarget) openAddTask('want', 'high');
             }}
-            className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 h-full cursor-pointer transition hover:border-slate-300"
+            className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 min-h-0 flex-1 cursor-pointer transition hover:border-slate-300"
             title="クリックして日次タスクを追加"
           >
             {/* Column Header */}
             <div
               onClick={(e) => e.stopPropagation()}
-              className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default"
+              className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default shrink-0"
             >
               <div className="flex items-center gap-1.5">
                 <div className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-100 text-amber-700">
@@ -730,7 +730,11 @@ export function TaskManager({
               onClick={(e) => {
                 if (e.target === e.currentTarget) openAddTask('want', 'high');
               }}
-              className="flex flex-col gap-2 pt-1 flex-1 min-h-[140px]"
+              className={`pt-1 flex-1 min-h-[140px] ${
+                viewMode !== 'all'
+                  ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 items-stretch overflow-y-auto'
+                  : 'flex flex-col gap-2 overflow-y-auto'
+              }`}
             >
               {dailyTasks.length === 0 ? (
                 <div
@@ -751,7 +755,7 @@ export function TaskManager({
                         key={task.id}
                         onClick={() => openEditTask(task)}
                         title="タップして編集"
-                        className={`group relative flex items-center justify-between overflow-hidden rounded-xl border p-2.5 transition cursor-pointer ${
+                        className={`group relative flex items-center justify-between overflow-hidden rounded-xl border p-2.5 transition cursor-pointer shrink-0 min-h-[64px] ${
                           task.completed
                             ? 'border-slate-200 bg-slate-100/70 opacity-60'
                             : isMust
@@ -766,11 +770,11 @@ export function TaskManager({
                           }`}
                         />
 
-                        <div className="flex items-center gap-2 pl-1">
+                        <div className="flex items-center gap-2 pl-1 min-w-0 flex-1">
                           <button
                             onClick={(e) => handleToggleComplete(e, task.id)}
                             title={task.completed ? '未完了に戻す' : '完了にする'}
-                            className="text-slate-400 transition hover:text-blue-600"
+                            className="shrink-0 text-slate-400 transition hover:text-blue-600"
                           >
                             {task.completed ? (
                               <CheckCircle2 className="h-4 w-4 text-emerald-600" />
@@ -779,10 +783,10 @@ export function TaskManager({
                             )}
                           </button>
 
-                          <div>
-                            <div className="flex flex-wrap items-center gap-1.5">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                               <h5
-                                className={`text-xs font-semibold ${
+                                className={`text-xs font-semibold break-words leading-snug ${
                                   task.completed ? 'text-slate-400 line-through' : 'text-slate-900'
                                 }`}
                               >
@@ -790,18 +794,18 @@ export function TaskManager({
                               </h5>
 
                               {isMust ? (
-                                <span className="flex items-center gap-0.5 rounded border border-rose-200 bg-rose-50 px-1.5 py-0.2 text-[9px] font-bold text-rose-700">
+                                <span className="shrink-0 flex items-center gap-0.5 rounded border border-rose-200 bg-rose-50 px-1.5 py-0.2 text-[9px] font-bold text-rose-700">
                                   📌 やるべき
                                 </span>
                               ) : (
-                                <span className="flex items-center gap-0.5 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.2 text-[9px] font-bold text-blue-700">
+                                <span className="shrink-0 flex items-center gap-0.5 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.2 text-[9px] font-bold text-blue-700">
                                   🌟 やりたい
                                 </span>
                               )}
                             </div>
 
-                            <div className="flex items-center gap-2 text-[10px] text-slate-500 pt-0.5">
-                              <span className="flex items-center gap-0.5">
+                            <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 pt-0.5">
+                              <span className="shrink-0 flex items-center gap-0.5">
                                 <Clock className="h-2.5 w-2.5 text-slate-400" />
                                 {task.durationSize === 'small'
                                   ? '小 (15〜30m)'
@@ -809,14 +813,14 @@ export function TaskManager({
                                     ? '大 (2h+)'
                                     : '中 (30m〜2h)'}
                               </span>
-                              <span className="flex items-center gap-0.5 text-slate-500">
+                              <span className="shrink-0 flex items-center gap-0.5 text-slate-500">
                                 <Repeat className="h-2.5 w-2.5 text-slate-400" />高 (毎日)
                               </span>
                             </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 shrink-0 ml-1.5">
                           <div className="opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-slate-600 p-1">
                             <Pencil className="h-3 w-3" />
                           </div>
@@ -834,9 +838,9 @@ export function TaskManager({
 
                   <button
                     onClick={() => openAddTask('want', 'high')}
-                    className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 bg-white py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-blue-400 hover:bg-blue-50/50 hover:text-blue-700"
+                    className="shrink-0 flex items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 bg-white py-2 text-[11px] font-medium text-slate-600 transition hover:border-blue-400 hover:bg-blue-50/50 hover:text-blue-700 min-h-[40px]"
                   >
-                    <Plus className="h-3 w-3" />+ タスクを追加
+                    <Plus className="h-3.5 w-3.5" />+ タスクを追加
                   </button>
                 </>
               )}
@@ -850,13 +854,13 @@ export function TaskManager({
             onClick={(e) => {
               if (e.target === e.currentTarget) openAddTask('must', 'medium');
             }}
-            className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 h-full cursor-pointer transition hover:border-slate-300"
+            className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 min-h-0 flex-1 cursor-pointer transition hover:border-slate-300"
             title="クリックして週次タスク・課題を追加"
           >
             {/* Column Header */}
             <div
               onClick={(e) => e.stopPropagation()}
-              className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default"
+              className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default shrink-0"
             >
               <div className="flex items-center gap-1.5">
                 <div className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-100 text-purple-700">
@@ -912,7 +916,11 @@ export function TaskManager({
               onClick={(e) => {
                 if (e.target === e.currentTarget) openAddTask('must', 'medium');
               }}
-              className="flex flex-col gap-2 pt-1 flex-1 min-h-[140px]"
+              className={`pt-1 flex-1 min-h-[140px] ${
+                viewMode !== 'all'
+                  ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 items-stretch overflow-y-auto'
+                  : 'flex flex-col gap-2 overflow-y-auto'
+              }`}
             >
               {weeklyTasks.length === 0 ? (
                 <div
@@ -936,7 +944,7 @@ export function TaskManager({
                         key={task.id}
                         onClick={() => openEditTask(task)}
                         title="タップして編集"
-                        className={`group relative flex items-center justify-between overflow-hidden rounded-xl border p-2.5 transition cursor-pointer ${
+                        className={`group relative flex items-center justify-between overflow-hidden rounded-xl border p-2.5 transition cursor-pointer shrink-0 min-h-[64px] ${
                           task.completed
                             ? 'border-slate-200 bg-slate-100/70 opacity-60'
                             : isAssign
@@ -963,11 +971,11 @@ export function TaskManager({
                           }`}
                         />
 
-                        <div className="flex items-center gap-2 pl-1">
+                        <div className="flex items-center gap-2 pl-1 min-w-0 flex-1">
                           <button
                             onClick={(e) => handleToggleComplete(e, task.id)}
                             title={task.completed ? '未完了に戻す' : '完了にする'}
-                            className="text-slate-400 transition hover:text-purple-600"
+                            className="shrink-0 text-slate-400 transition hover:text-purple-600"
                           >
                             {task.completed ? (
                               <CheckCircle2 className="h-4 w-4 text-emerald-600" />
@@ -976,10 +984,10 @@ export function TaskManager({
                             )}
                           </button>
 
-                          <div>
-                            <div className="flex flex-wrap items-center gap-1.5">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                               <h5
-                                className={`text-xs font-semibold ${
+                                className={`text-xs font-semibold break-words leading-snug ${
                                   task.completed ? 'text-slate-400 line-through' : 'text-slate-900'
                                 }`}
                               >
@@ -987,7 +995,7 @@ export function TaskManager({
                               </h5>
 
                               {isAssign ? (
-                                <span className="flex items-center gap-0.5 rounded border border-purple-200 bg-purple-50 px-1.5 py-0.2 text-[9px] font-bold text-purple-700">
+                                <span className="shrink-0 flex items-center gap-0.5 rounded border border-purple-200 bg-purple-50 px-1.5 py-0.2 text-[9px] font-bold text-purple-700">
                                   <GraduationCap className="h-2.5 w-2.5" />
                                   課題 (期日:{' '}
                                   {task.deadlineDay !== undefined
@@ -996,28 +1004,28 @@ export function TaskManager({
                                   )
                                 </span>
                               ) : isTodo ? (
-                                <span className="flex items-center gap-0.5 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.2 text-[9px] font-bold text-amber-800">
+                                <span className="shrink-0 flex items-center gap-0.5 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.2 text-[9px] font-bold text-amber-800">
                                   <CheckSquare className="h-2.5 w-2.5" />
                                   ToDo
                                 </span>
                               ) : isMust ? (
-                                <span className="flex items-center gap-0.5 rounded border border-rose-200 bg-rose-50 px-1.5 py-0.2 text-[9px] font-bold text-rose-700">
+                                <span className="shrink-0 flex items-center gap-0.5 rounded border border-rose-200 bg-rose-50 px-1.5 py-0.2 text-[9px] font-bold text-rose-700">
                                   📌 やるべき
                                 </span>
                               ) : (
-                                <span className="flex items-center gap-0.5 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.2 text-[9px] font-bold text-blue-700">
+                                <span className="shrink-0 flex items-center gap-0.5 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.2 text-[9px] font-bold text-blue-700">
                                   🌟 やりたい
                                 </span>
                               )}
                             </div>
 
-                            <div className="flex items-center gap-2 text-[10px] text-slate-500 pt-0.5">
+                            <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 pt-0.5">
                               {isTodo ? (
                                 <span className="text-amber-800 font-medium">
                                   枠なし (チェックのみ)
                                 </span>
                               ) : (
-                                <span className="flex items-center gap-0.5">
+                                <span className="shrink-0 flex items-center gap-0.5">
                                   <Clock className="h-2.5 w-2.5 text-slate-400" />
                                   {task.durationSize === 'small'
                                     ? '小 (15〜30m)'
@@ -1027,7 +1035,7 @@ export function TaskManager({
                                 </span>
                               )}
 
-                              <span className="flex items-center gap-0.5 text-slate-500">
+                              <span className="shrink-0 flex items-center gap-0.5 text-slate-500">
                                 <Repeat className="h-2.5 w-2.5 text-slate-400" />
                                 {task.frequency === 'low'
                                   ? '低 (週1〜2回)'
@@ -1050,7 +1058,7 @@ export function TaskManager({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 shrink-0 ml-1.5">
                           <div className="opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-slate-600 p-1">
                             <Pencil className="h-3 w-3" />
                           </div>
@@ -1068,9 +1076,9 @@ export function TaskManager({
 
                   <button
                     onClick={() => openAddTask('must', 'medium')}
-                    className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 bg-white py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-purple-400 hover:bg-purple-50/50 hover:text-purple-700"
+                    className="shrink-0 flex items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 bg-white py-2 text-[11px] font-medium text-slate-600 transition hover:border-purple-400 hover:bg-purple-50/50 hover:text-purple-700 min-h-[40px]"
                   >
-                    <Plus className="h-3 w-3" />+ タスク・課題を追加
+                    <Plus className="h-3.5 w-3.5" />+ タスク・課題を追加
                   </button>
                 </>
               )}
@@ -1084,13 +1092,13 @@ export function TaskManager({
             onClick={(e) => {
               if (e.target === e.currentTarget) openAddSlot();
             }}
-            className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 h-full cursor-pointer transition hover:border-slate-300"
+            className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 h-full min-h-0 flex-1 cursor-pointer transition hover:border-slate-300"
             title="クリックして固定枠を追加"
           >
             {/* Column Header */}
             <div
               onClick={(e) => e.stopPropagation()}
-              className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default"
+              className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default shrink-0"
             >
               <div className="flex items-center gap-1.5">
                 <div className="flex h-6 w-6 items-center justify-center rounded-md bg-sky-100 text-sky-700">
@@ -1117,7 +1125,11 @@ export function TaskManager({
               onClick={(e) => {
                 if (e.target === e.currentTarget) openAddSlot();
               }}
-              className="flex flex-col gap-2 pt-1 flex-1 min-h-[140px]"
+              className={`pt-1 flex-1 min-h-[140px] ${
+                viewMode !== 'all'
+                  ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 items-stretch overflow-y-auto'
+                  : 'flex flex-col gap-2 overflow-y-auto'
+              }`}
             >
               {slots.length === 0 ? (
                 <div
@@ -1142,38 +1154,42 @@ export function TaskManager({
                         key={slot.id}
                         onClick={() => openEditSlot(slot)}
                         title="タップして編集"
-                        className="group relative flex items-center justify-between overflow-hidden rounded-xl border border-slate-200 bg-white p-2.5 transition cursor-pointer hover:border-sky-300 hover:shadow-xs"
+                        className="group relative flex items-center justify-between overflow-hidden rounded-xl border border-slate-200 bg-white p-2.5 transition cursor-pointer hover:border-sky-300 hover:shadow-xs shrink-0 min-h-[64px]"
                       >
                         <div
                           className="absolute inset-y-0 left-0 w-1"
                           style={{ backgroundColor: slot.color || '#0284c7' }}
                         />
 
-                        <div className="flex items-center gap-2 pl-1">
-                          <div className="rounded-md border border-slate-200 bg-slate-50 p-1 text-slate-700">
+                        <div className="flex items-center gap-2 pl-1 min-w-0 flex-1">
+                          <div className="shrink-0 rounded-md border border-slate-200 bg-slate-50 p-1 text-slate-700">
                             {getSlotCategoryIcon(slot.category)}
                           </div>
 
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <h5 className="text-xs font-semibold text-slate-900">{slot.title}</h5>
-                              <span className="rounded bg-sky-50 border border-sky-200 px-1 py-0.2 text-[9px] font-bold text-sky-700">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                              <h5 className="text-xs font-semibold text-slate-900 break-words leading-snug">
+                                {slot.title}
+                              </h5>
+                              <span className="shrink-0 rounded bg-sky-50 border border-sky-200 px-1 py-0.2 text-[9px] font-bold text-sky-700">
                                 {formatDaysString(slot.daysOfWeek)}
                               </span>
                             </div>
 
-                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-                              <Clock className="h-2.5 w-2.5 text-slate-400" />
-                              <span>
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-0.5">
+                              <Clock className="h-2.5 w-2.5 text-slate-400 shrink-0" />
+                              <span className="shrink-0">
                                 {minutesToTimeString(slot.startMinutes)} -{' '}
                                 {minutesToTimeString(slot.endMinutes)}
                               </span>
-                              <span className="text-slate-400">({formatDuration(duration)})</span>
+                              <span className="text-slate-400 shrink-0">
+                                ({formatDuration(duration)})
+                              </span>
                             </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5">
+                        <div className="shrink-0 flex items-center gap-1.5">
                           {slot.category === 'lecture' && (
                             <button
                               type="button"
@@ -1205,7 +1221,7 @@ export function TaskManager({
 
                   <button
                     onClick={openAddSlot}
-                    className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 bg-white py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-sky-400 hover:bg-sky-50/50 hover:text-sky-700"
+                    className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 bg-white py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-sky-400 hover:bg-sky-50/50 hover:text-sky-700 shrink-0 min-h-[40px]"
                   >
                     <Plus className="h-3 w-3" />+ 固定枠・講義を追加
                   </button>

@@ -15,10 +15,10 @@ import {
   FolderOpen,
   Search,
   PanelLeftClose,
-  PanelLeftOpen,
   Shield,
   Sun,
   CalendarDays,
+  ChevronRight,
 } from 'lucide-react';
 import { ImportedTableData, FixedSlot, TaskItem } from '@/types';
 import { calculatePeriodTimes, timeStringToMinutes } from '@/lib/timeUtils';
@@ -453,6 +453,7 @@ export function ImportedTablesManager({
     };
     onTablesChange([...tables, newTable]);
     setSelectedItemId(newId);
+    setIsSidebarOpen(false);
   };
 
   // テーブルの削除
@@ -472,18 +473,25 @@ export function ImportedTablesManager({
   };
 
   return (
-    <div className="flex flex-1 min-h-0 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
+    <div className="relative flex flex-1 min-h-0 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
+      {/* Sidebar Backdrop (ファイル一覧展開時、外側タップでスムーズに閉じる) */}
+      {isSidebarOpen && (
+        <div
+          onClick={() => setIsSidebarOpen(false)}
+          className="absolute inset-0 z-30 bg-slate-900/15 backdrop-blur-[1px] transition-opacity animate-in fade-in duration-200 cursor-pointer"
+          title="クリックしてファイル一覧を閉じる"
+        />
+      )}
+
       {/* ========================================================
-          Left Sidebar: Windows エクスプローラー風 データファイル一覧
+          Left Sidebar: Windows エクスプローラー風 データファイル一覧 (オーバーレイ・ドロワー)
           ======================================================== */}
       <aside
-        className={`shrink-0 flex flex-col border-slate-200 bg-slate-50/90 select-none transition-all duration-200 ease-in-out overflow-hidden ${
-          isSidebarOpen
-            ? 'w-60 sm:w-64 md:w-72 border-r opacity-100'
-            : 'w-0 border-r-0 opacity-0 pointer-events-none'
+        className={`absolute inset-y-0 left-0 z-40 flex flex-col w-72 sm:w-80 border-r border-slate-200 bg-slate-50/95 backdrop-blur-xs select-none shadow-2xl transition-transform duration-200 ease-out ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full pointer-events-none'
         }`}
       >
-        <div className="w-60 sm:w-64 md:w-72 flex flex-col h-full min-h-0">
+        <div className="flex flex-col h-full min-h-0 w-full">
           {/* Sidebar Header */}
           <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-100/70 px-3 py-2.5">
             <div className="flex items-center gap-2 min-w-0">
@@ -557,6 +565,7 @@ export function ImportedTablesManager({
                     onClick={() => {
                       setSelectedItemId('sys-slots');
                       setIsEditingName(false);
+                      setIsSidebarOpen(false);
                     }}
                     className={`group relative flex items-center justify-between rounded-lg px-2.5 py-2 text-xs cursor-pointer transition ${
                       selectedItemId === 'sys-slots'
@@ -591,6 +600,7 @@ export function ImportedTablesManager({
                     onClick={() => {
                       setSelectedItemId('sys-daily');
                       setIsEditingName(false);
+                      setIsSidebarOpen(false);
                     }}
                     className={`group relative flex items-center justify-between rounded-lg px-2.5 py-2 text-xs cursor-pointer transition ${
                       selectedItemId === 'sys-daily'
@@ -625,6 +635,7 @@ export function ImportedTablesManager({
                     onClick={() => {
                       setSelectedItemId('sys-weekly');
                       setIsEditingName(false);
+                      setIsSidebarOpen(false);
                     }}
                     className={`group relative flex items-center justify-between rounded-lg px-2.5 py-2 text-xs cursor-pointer transition ${
                       selectedItemId === 'sys-weekly'
@@ -681,6 +692,7 @@ export function ImportedTablesManager({
                         onClick={() => {
                           setSelectedItemId(t.id);
                           if (!isSelected) setIsEditingName(false);
+                          setIsSidebarOpen(false);
                         }}
                         className={`group relative flex items-center justify-between rounded-lg px-2.5 py-2 text-xs cursor-pointer transition ${
                           isSelected
@@ -790,7 +802,11 @@ export function ImportedTablesManager({
       {/* ========================================================
           Right Main Area: プレビュー & 軸・インターバル定義詳細
           ======================================================== */}
-      <main className="flex flex-1 min-w-0 flex-col overflow-y-auto bg-white p-3 sm:p-4 gap-3">
+      <main
+        className={`flex flex-1 min-w-0 w-full flex-col bg-white p-3 sm:p-4 gap-3 ${
+          isSystemFile ? 'overflow-hidden min-h-0' : 'overflow-y-auto'
+        }`}
+      >
         {/* Top Notification if any */}
         {applySuccessMsg && (
           <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-900 shadow-xs animate-in fade-in duration-200">
@@ -816,19 +832,18 @@ export function ImportedTablesManager({
             {/* サイドバー開閉トグルボタン */}
             <button
               onClick={toggleSidebar}
-              title={isSidebarOpen ? 'ファイル一覧を折りたたむ' : 'ファイル一覧を展開する'}
-              className={`flex items-center gap-1.5 rounded-md border px-2 py-1 font-medium transition shadow-2xs ${
+              title={isSidebarOpen ? 'ファイル一覧を閉じる' : 'ファイル一覧を展開する'}
+              className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold transition shadow-2xs ${
                 isSidebarOpen
-                  ? 'border-transparent text-slate-400 hover:bg-slate-100 hover:text-slate-700'
-                  : 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold'
+                  ? 'border-blue-300 bg-blue-50 text-blue-700'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-blue-600'
               }`}
             >
-              {isSidebarOpen ? (
-                <PanelLeftClose className="h-4 w-4" />
-              ) : (
-                <PanelLeftOpen className="h-4 w-4" />
-              )}
-              {!isSidebarOpen && <span>ファイル一覧</span>}
+              <Folder className="h-3.5 w-3.5 text-blue-600" />
+              <span>データファイル一覧</span>
+              <ChevronRight
+                className={`h-3 w-3 text-slate-400 transition-transform ${isSidebarOpen ? 'rotate-90' : ''}`}
+              />
             </button>
 
             <span className="text-slate-300">|</span>
