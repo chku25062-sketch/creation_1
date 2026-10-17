@@ -920,7 +920,7 @@ export async function extractCellCrops(
   colDividers: number[],
   rowDividers: number[],
   bounds: GridAreaBounds = DEFAULT_GRID_BOUNDS,
-  paddingRatio = 0.05, // 罫線を除去するための内側マージン (5%)
+  paddingRatio = 0.035, // 罫線を除去しつつ端の文字欠損を防ぐ最適マージン (3.5%)
 ): Promise<CellCropInfo[][]> {
   const img = await loadImageElement(imageBlob);
   const nw = img.naturalWidth || 800;
@@ -947,9 +947,10 @@ export async function extractCellCrops(
       const innerW = Math.max(10, Math.round((rect.w - padX * 2) * nw));
       const innerH = Math.max(10, Math.round((rect.h - padY * 2) * nh));
 
-      // セルが小さい場合は文字認識に最適な解像度へスケールアップ（最低高さ 110px）
-      const minTargetH = 110;
-      const scale = innerH < minTargetH ? Math.min(3.0, minTargetH / innerH) : 1.0;
+      // セルが小さい場合は文字認識に最適な高精細解像度へスケールアップ（最低高さ 200px）
+      // 複数行（科目名＋教室名）でも1文字あたり35px以上の推奨認識サイズを確保
+      const minTargetH = 200;
+      const scale = innerH < minTargetH ? Math.min(4.0, minTargetH / innerH) : 1.0;
       const targetW = Math.round(innerW * scale);
       const targetH = Math.round(innerH * scale);
 
@@ -1019,15 +1020,28 @@ export async function extractCellCrops(
       const coreRatio = coreTotalPixels > 0 ? coreDarkPixels / coreTotalPixels : 0;
       const isEmpty = coreRatio < 0.0035 || coreDarkPixels < 20 || lumRange < 35;
 
-      // 文字が存在するセルの場合: コントラストを強調して純黒・純白に引き締める（Tesseractの認識精度向上）
-      if (!isEmpty && lumRange > 40) {
-        const contrastScale = 255 / lumRange;
+      // 文字が存在するセルの場合: なめらかな階調保護コントラスト補正（アンチエイリアス維持）
+      // ハードなしきい値による細い線の途切れ・文字化けを完全防止しつつ、背景の濁りのみを消去
+      if (!isEmpty && lumRange > 30) {
+        const contrastScale = 1.0 / lumRange;
         for (let i = 0, p = 0; i < d.length; i += 4, p++) {
           const lum = luminances[p];
-          const stretched = Math.max(0, Math.min(255, (lum - minLum) * contrastScale));
-          // 文字部分（暗い側）をより黒く、背景（明るい側）をより純白に
-          const enhanced =
-            stretched < 140 ? Math.max(0, stretched * 0.6) : Math.min(255, stretched * 1.1 + 10);
+          const norm = Math.max(0, Math.min(1.0, (lum - minLum) * contrastScale));
+
+          // なめらかなS字トーンカーブ:
+          // 背景側 (norm > 0.65) は白飛びさせて紙面を純白に
+          // 文字側 (norm < 0.35) は適度に引き締める
+          // 中間の輪郭グレーは保持してTesseractのLSTMの認識精度を最大化
+          let enhancedNorm: number;
+          if (norm > 0.65) {
+            enhancedNorm = Math.min(1.0, 0.65 + (norm - 0.65) * 1.8);
+          } else if (norm < 0.35) {
+            enhancedNorm = norm * 0.75;
+          } else {
+            enhancedNorm = norm;
+          }
+
+          const enhanced = Math.max(0, Math.min(255, Math.round(enhancedNorm * 255)));
           d[i] = enhanced;
           d[i + 1] = enhanced;
           d[i + 2] = enhanced;

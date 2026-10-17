@@ -297,7 +297,7 @@ export function FileImportModal({
                         : 'ファイルから一括取り込み'}
                 </h3>
                 <span className="rounded bg-cyan-950/80 border border-cyan-800/80 px-1.5 py-0.5 text-[10px] font-bold text-cyan-300">
-                  区画OCR v3
+                  区画OCR v4
                 </span>
               </div>
               <p className="text-xs text-slate-400">
