@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Maximize2 } from 'lucide-react';
-import { Header, SheetTab } from '@/components/Header';
+import { SheetFooter, SheetTab } from '@/components/SheetFooter';
 import { Timeline24h } from '@/components/Timeline24h';
 import { TaskManager } from '@/components/TaskManager';
 import { ImportedTablesManager } from '@/components/ImportedTablesManager';
@@ -30,7 +29,6 @@ export default function Home() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [isHeaderHidden, setIsHeaderHidden] = useState(false);
 
   // 初期化ロード
   useEffect(() => {
@@ -171,35 +169,7 @@ export default function Home() {
 
   return (
     <div className="relative flex h-screen h-[100dvh] flex-col overflow-hidden bg-[#fbfaf5] bg-notebook-grid text-slate-800">
-      {/* Slim Integrated Header (Hidden in focus mode) */}
-      {!isHeaderHidden ? (
-        <Header
-          userEmail={userEmail}
-          onOpenAuth={() => setIsAuthOpen(true)}
-          onSignOut={handleSignOut}
-          onOpenImport={() => setIsImportOpen(true)}
-          lastSavedAt={lastSavedAt}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          unassignedCount={schedulingResult.unassignedTasks.length}
-          tablesCount={importedTables.length}
-          tasksCount={tasks.length}
-          fixedCount={fixedSlots.length}
-          onHideHeader={() => setIsHeaderHidden(true)}
-        />
-      ) : (
-        /* Floating Restore Header Button when hidden */
-        <button
-          onClick={() => setIsHeaderHidden(false)}
-          className="absolute right-3 top-2 z-50 flex items-center gap-1.5 rounded-full border border-slate-300 bg-white/95 px-3 py-1 text-xs font-semibold text-slate-700 shadow-md backdrop-blur-xs transition hover:bg-white hover:text-blue-600 hover:shadow-lg"
-          title="ヘッダーを再表示"
-        >
-          <Maximize2 className="h-3.5 w-3.5 text-blue-600" />
-          <span>ヘッダー表示</span>
-        </button>
-      )}
-
-      <main className="mx-auto flex w-full flex-1 min-h-0 flex-col px-1.5 py-1 sm:px-3 sm:py-1.5 max-w-full">
+      <main className="mx-auto flex w-full flex-1 min-h-0 flex-col px-1.5 pt-1.5 pb-1 sm:px-3 sm:pt-2 sm:pb-1.5 max-w-full">
         {/* Sheet 1: 計画表 (メインタイムライン) */}
         {activeTab === 'timeline' && (
           <div className="flex flex-1 min-h-0 flex-col">
@@ -207,6 +177,7 @@ export default function Home() {
               blocks={schedulingResult.blocks}
               dayBlocks={schedulingResult.dayBlocks}
               unassignedTasks={schedulingResult.unassignedTasks}
+              onOpenImport={() => setIsImportOpen(true)}
             />
           </div>
         )}
@@ -239,6 +210,21 @@ export default function Home() {
           </div>
         )}
       </main>
+
+      {/* Excel風 シート切り替えフッター */}
+      <SheetFooter
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        unassignedCount={schedulingResult.unassignedTasks.length}
+        tablesCount={importedTables.length}
+        tasksCount={tasks.length}
+        fixedCount={fixedSlots.length}
+        lastSavedAt={lastSavedAt}
+        userEmail={userEmail}
+        onOpenAuth={() => setIsAuthOpen(true)}
+        onSignOut={handleSignOut}
+        onOpenImport={() => setIsImportOpen(true)}
+      />
 
       <AuthModal
         isOpen={isAuthOpen}

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Calendar, Clock, AlertTriangle, Compass, BookOpen, ZoomIn } from 'lucide-react';
+import { Clock, AlertTriangle, Compass, BookOpen, ZoomIn, Target, Upload } from 'lucide-react';
 import { TheoreticalBlock, TaskItem } from '@/types';
 import { minutesToTimeString, formatDuration } from '@/lib/timeUtils';
 
@@ -9,6 +9,7 @@ interface Timeline24hProps {
   blocks: TheoreticalBlock[];
   unassignedTasks: TaskItem[];
   dayBlocks?: Record<number, TheoreticalBlock[]>;
+  onOpenImport?: () => void;
 }
 
 const TOTAL_HOURS = 24;
@@ -19,7 +20,12 @@ const HEIGHT_OPTIONS = [
   { label: '特大', value: 110 },
 ];
 
-export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hProps) {
+export function Timeline24h({
+  blocks,
+  unassignedTasks,
+  dayBlocks,
+  onOpenImport,
+}: Timeline24hProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [nowTimeString, setNowTimeString] = useState<string>('');
   const [hourHeight, setHourHeight] = useState<number>(84); // デフォルト84px（縦に大きく表示）
@@ -126,13 +132,15 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
 
   return (
     <div className="flex flex-1 min-h-0 flex-col gap-1.5 rounded-xl border border-slate-200 bg-white p-2 shadow-2xs sm:p-2.5">
-      {/* Header Bar: 1行ですっきりとまとめ、マス高さ切り替えボタンを配置 */}
+      {/* App Top Title Bar: アプリ見出し「理論値計画表」 */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-1.5">
         <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-blue-600" />
-          <h3 className="text-xs font-bold text-slate-900 sm:text-sm">
-            週間 24時間マス目スケジュール
-          </h3>
+          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-600 shadow-2xs">
+            <Target className="h-3.5 w-3.5 text-white" />
+          </div>
+          <h1 className="text-xs font-bold text-slate-900 sm:text-sm tracking-tight">
+            理論値計画表
+          </h1>
           <span className="hidden rounded-full border border-slate-200 bg-slate-50 px-2 py-0.2 text-[11px] text-slate-600 sm:inline-block font-medium">
             {weekRangeString}
           </span>
@@ -190,6 +198,18 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
             <Compass className="h-3 w-3 text-blue-600" />
             <span>現在時刻 ({nowTimeString || '今'})</span>
           </button>
+
+          {/* ファイル取込ボタン */}
+          {onOpenImport && (
+            <button
+              onClick={onOpenImport}
+              className="flex items-center gap-1 rounded-md border border-cyan-600/30 bg-cyan-50 px-2 py-1 text-[11px] font-semibold text-cyan-800 transition hover:bg-cyan-100"
+              title="時間割画像やテキストファイルから一括取り込み"
+            >
+              <Upload className="h-3 w-3 text-cyan-600" />
+              <span className="hidden sm:inline">ファイル取込</span>
+            </button>
+          )}
         </div>
       </div>
 
