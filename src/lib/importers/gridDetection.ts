@@ -64,6 +64,31 @@ export async function loadImageElement(blob: Blob): Promise<HTMLImageElement> {
 }
 
 /**
+ * DataURL (Base64) から同期的に Blob を生成
+ * iOS Safari等のWebKit環境で非同期 canvas.toBlob() が null を返したり、全体画像へ誤フォールバックする問題を完全防止
+ */
+export function dataUrlToBlob(dataUrl: string): Blob {
+  try {
+    const parts = dataUrl.split(',');
+    if (parts.length < 2) {
+      return new Blob([], { type: 'image/png' });
+    }
+    const mimeMatch = parts[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+    const bstr = atob(parts[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  } catch (err) {
+    console.error('Failed to convert dataUrl to blob', err);
+    return new Blob([], { type: 'image/png' });
+  }
+}
+
+/**
  * 射影ヒストグラムのピークを検出し、指定数の等間隔グリッド線を近傍ピークにスナップ
  */
 export function snapDividersToPeaks(
@@ -888,14 +913,14 @@ export function calculateCellRects(
 }
 
 /**
- * 指定グリッドに基づいて画像から各セルを切り出し（罫線除外パディング付き）
+ * 指定グリッドに基づいて画像から各セルを切り出し（罫線除外パディング付き & コントラスト強化）
  */
 export async function extractCellCrops(
   imageBlob: Blob,
   colDividers: number[],
   rowDividers: number[],
   bounds: GridAreaBounds = DEFAULT_GRID_BOUNDS,
-  paddingRatio = 0.04, // 罫線を除去するための内側マージン (4%)
+  paddingRatio = 0.05, // 罫線を除去するための内側マージン (5%)
 ): Promise<CellCropInfo[][]> {
   const img = await loadImageElement(imageBlob);
   const nw = img.naturalWidth || 800;
@@ -922,9 +947,9 @@ export async function extractCellCrops(
       const innerW = Math.max(10, Math.round((rect.w - padX * 2) * nw));
       const innerH = Math.max(10, Math.round((rect.h - padY * 2) * nh));
 
-      // セルが小さい場合は解像度を確保するためにスケールアップ（Tesseractの文字認識精度向上）
-      const minTargetH = 80;
-      const scale = innerH < minTargetH ? Math.min(2.5, minTargetH / innerH) : 1.0;
+      // セルが小さい場合は文字認識に最適な解像度へスケールアップ（最低高さ 110px）
+      const minTargetH = 110;
+      const scale = innerH < minTargetH ? Math.min(3.0, minTargetH / innerH) : 1.0;
       const targetW = Math.round(innerW * scale);
       const targetH = Math.round(innerH * scale);
 
@@ -934,6 +959,14 @@ export async function extractCellCrops(
       const ctx = canvas.getContext('2d');
 
       if (!ctx) {
+        rowResults.push({
+          row: r,
+          col: c,
+          blob: new Blob([], { type: 'image/png' }),
+          isEmpty: true,
+          width: targetW,
+          height: targetH,
+        });
         continue;
       }
 
@@ -942,27 +975,70 @@ export async function extractCellCrops(
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, innerX, innerY, innerW, innerH, 0, 0, targetW, targetH);
 
-      // 空白セル判定 (原本の階調・アンチエイリアスを破壊せず、暗いピクセルの比率のみをチェック)
+      // ピクセルデータの取得とコントラスト強化 & スマート空白判定
       const imgData = ctx.getImageData(0, 0, targetW, targetH);
       const d = imgData.data;
-      let darkPixelCount = 0;
 
-      for (let i = 0; i < d.length; i += 4) {
-        const brightness = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-        if (brightness < 185) {
-          darkPixelCount++;
+      let minLum = 255;
+      let maxLum = 0;
+      const totalCount = targetW * targetH;
+      const luminances = new Float32Array(totalCount);
+
+      for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+        const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        luminances[p] = lum;
+        if (lum < minLum) minLum = lum;
+        if (lum > maxLum) maxLum = lum;
+      }
+
+      const lumRange = maxLum - minLum;
+      const textThreshold = Math.min(170, maxLum - Math.max(30, lumRange * 0.3));
+
+      // セル中央コア領域（端の罫線残りカスを除外）での文字ピクセル判定
+      const marginX = Math.round(targetW * 0.08);
+      const marginY = Math.round(targetH * 0.08);
+      let coreDarkPixels = 0;
+      let coreTotalPixels = 0;
+
+      for (let y = 0; y < targetH; y++) {
+        const isCoreY = y >= marginY && y < targetH - marginY;
+        for (let x = 0; x < targetW; x++) {
+          const p = y * targetW + x;
+          const lum = luminances[p];
+          if (isCoreY && x >= marginX && x < targetW - marginX) {
+            coreTotalPixels++;
+            if (lum < textThreshold) {
+              coreDarkPixels++;
+            }
+          }
         }
       }
 
-      const totalPixels = targetW * targetH;
-      // 暗いピクセルが全体の 0.05% 未満の場合のみ空白コマ（文字なし）と安全に判定
-      const isEmpty = darkPixelCount / totalPixels < 0.0005;
+      // スマート空白判定:
+      // コア領域の文字ピクセル比率が 0.35% 未満、または文字ピクセル絶対数が 20 未満、または明暗差が極小（単色無地）の場合
+      const coreRatio = coreTotalPixels > 0 ? coreDarkPixels / coreTotalPixels : 0;
+      const isEmpty = coreRatio < 0.0035 || coreDarkPixels < 20 || lumRange < 35;
+
+      // 文字が存在するセルの場合: コントラストを強調して純黒・純白に引き締める（Tesseractの認識精度向上）
+      if (!isEmpty && lumRange > 40) {
+        const contrastScale = 255 / lumRange;
+        for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+          const lum = luminances[p];
+          const stretched = Math.max(0, Math.min(255, (lum - minLum) * contrastScale));
+          // 文字部分（暗い側）をより黒く、背景（明るい側）をより純白に
+          const enhanced =
+            stretched < 140 ? Math.max(0, stretched * 0.6) : Math.min(255, stretched * 1.1 + 10);
+          d[i] = enhanced;
+          d[i + 1] = enhanced;
+          d[i + 2] = enhanced;
+        }
+        ctx.putImageData(imgData, 0, 0);
+      }
 
       const dataUrl = canvas.toDataURL('image/png');
-
-      const blob = await new Promise<Blob>((resolve) => {
-        canvas.toBlob((b) => resolve(b || imageBlob), 'image/png');
-      });
+      // iOS Safari等のWebKit環境でcanvas.toBlob()がnullを返し画像全体へフォールバックしていた致命的バグを完全根絶
+      // 同期的に生成したセル単体の正確な画像Blobのみをセット
+      const blob = dataUrlToBlob(dataUrl);
 
       rowResults.push({
         row: r,
@@ -1109,10 +1185,25 @@ export function formatCellText(rawText: string): string | null {
   const cleaned = cleanHeaderArtifacts(rawText);
   if (!cleaned) return null;
 
+  // 2. 意味のある日本語・英数字を含んでいるかを事前検査
+  // 記号や空白、罫線カスのみで構成された文字列は直ちに排除
+  const meaningfulChars = cleaned.replace(
+    /[\s\u3000\-_—•・|~°=+'"`^*/\\.,;:!?()[\]{}<>‹›«»„“”‘’]/g,
+    '',
+  );
+  if (meaningfulChars.length === 0) {
+    return null;
+  }
+
+  // 単独の英字1文字（"l", "i", "c", "o", "v"など、罫線やノイズから誤認識されやすいもの）のみの場合は排除
+  if (meaningfulChars.length === 1 && /^[a-zA-Z]$/.test(meaningfulChars)) {
+    return null;
+  }
+
   const lines = cleaned
     .split('\n')
     .map((l) => l.trim())
-    .map((l) => (/^[-—_|•・=~+*#/\\]+$/.test(l) ? '' : l));
+    .map((l) => (/^[-—_|•・=~+*#/\\.,;:!?()[\]{}<>]+$/.test(l) ? '' : l));
 
   const paragraphs: string[][] = [];
   let currentParagraph: string[] = [];

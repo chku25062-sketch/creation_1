@@ -13,6 +13,7 @@ import {
   matrixToCsv,
   extractMorphologicalLineProjections,
   interpolateMissingDividers,
+  dataUrlToBlob,
 } from './gridDetection';
 
 describe('gridDetection utility', () => {
@@ -342,6 +343,25 @@ describe('gridDetection utility', () => {
 
       // 境界制約（minBound: 0.3, maxBound: 0.5）がある場合、0.2 は選ばれず 0.4 が選ばれる
       expect(snapToClosestGuideline(0.25, guidelines, 0.3, 0.5)).toBe(0.4);
+    });
+  });
+
+  describe('dataUrlToBlob', () => {
+    it('converts base64 dataUrl to Blob with correct type and size', () => {
+      // 1x1 transparent PNG base64
+      const pngDataUrl =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+      const blob = dataUrlToBlob(pngDataUrl);
+
+      expect(blob).toBeInstanceOf(Blob);
+      expect(blob.type).toBe('image/png');
+      expect(blob.size).toBeGreaterThan(0);
+    });
+
+    it('handles malformed data gracefully without throwing', () => {
+      const invalidBlob = dataUrlToBlob('invalid-data');
+      expect(invalidBlob).toBeInstanceOf(Blob);
+      expect(invalidBlob.size).toBe(0);
     });
   });
 });

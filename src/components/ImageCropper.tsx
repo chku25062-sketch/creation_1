@@ -17,6 +17,7 @@ import {
   extractSnapGuidelines,
   snapToClosestGuideline,
   SnapGuidelines,
+  dataUrlToBlob,
 } from '@/lib/importers/gridDetection';
 
 interface ImageCropperProps {
@@ -315,32 +316,47 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
 
     const cropX = Math.round(rect.x * natW);
     const cropY = Math.round(rect.y * natH);
-    const cropW = Math.round(rect.w * natW);
-    const cropH = Math.round(rect.h * natH);
+    const cropW = Math.max(10, Math.round(rect.w * natW));
+    const cropH = Math.max(10, Math.round(rect.h * natH));
+
+    // 最大画像解像度の安全リミット（iOS Safari WebKitのCanvasメモリ制限・クラッシュ対策）
+    // 表のOCRには長辺2048pxあれば充分すぎる高解像度。
+    const MAX_DIMENSION = 2048;
+    const maxDim = Math.max(cropW, cropH);
+    const scale = maxDim > MAX_DIMENSION ? MAX_DIMENSION / maxDim : 1.0;
+    const targetW = Math.round(cropW * scale);
+    const targetH = Math.round(cropH * scale);
 
     const canvas = document.createElement('canvas');
-    canvas.width = cropW;
-    canvas.height = cropH;
+    canvas.width = targetW;
+    canvas.height = targetH;
     const ctx = canvas.getContext('2d');
 
     if (!ctx) {
+      // 万が一コンテキスト取得失敗時
       onCropComplete(imageFile, natW, natH);
       return;
     }
 
-    // クロップ部分の描画（原本の高解像度・階調をそのまま保持）
-    ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
 
+    // iOS Safari / WebKit での toBlob 失敗（null）を完全防止する安全フォールバック
     canvas.toBlob(
       (blob) => {
         if (blob) {
-          onCropComplete(blob, cropW, cropH);
+          onCropComplete(blob, targetW, targetH);
         } else {
-          onCropComplete(imageFile, cropW, cropH);
+          // toBlob が null を返した場合は、toDataURL から同期的に Blob を生成
+          // 【超重要】絶対に元画像全体 (imageFile) にフォールバックしてはならない！
+          const dataUrl = canvas.toDataURL('image/png');
+          const safeBlob = dataUrlToBlob(dataUrl);
+          onCropComplete(safeBlob, targetW, targetH);
         }
       },
       'image/png',
-      1.0,
+      0.95,
     );
   };
 
