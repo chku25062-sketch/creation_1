@@ -404,7 +404,7 @@ export function Timeline24h({
                             top: `${top}px`,
                             height: `${height}px`,
                           }}
-                          className={`group absolute inset-x-0.5 overflow-hidden rounded-md border sticky-note transition-all hover:z-20 sm:inset-x-1 ${stickyNoteClass}`}
+                          className={`group !absolute inset-x-0.5 overflow-hidden rounded-md border sticky-note transition-all hover:z-20 sm:inset-x-1 ${stickyNoteClass}`}
                         >
                           {/* 付箋のり付けストリップ (左端) */}
                           <div
