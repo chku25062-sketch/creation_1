@@ -4,7 +4,6 @@ import React from 'react';
 import {
   Calendar,
   FileSpreadsheet,
-  Sliders,
   Plus,
   CheckCircle2,
   Cloud,
@@ -15,15 +14,13 @@ import {
 } from 'lucide-react';
 import { isSupabaseConfigured } from '@/lib/supabase';
 
-export type SheetTab = 'timeline' | 'data' | 'settings';
+export type SheetTab = 'timeline' | 'data';
 
 interface SheetFooterProps {
   activeTab: SheetTab;
   onTabChange: (tab: SheetTab) => void;
   unassignedCount?: number;
   tablesCount?: number;
-  tasksCount?: number;
-  fixedCount?: number;
   lastSavedAt?: Date | null;
   userEmail?: string | null;
   onOpenAuth?: () => void;
@@ -36,8 +33,6 @@ export function SheetFooter({
   onTabChange,
   unassignedCount = 0,
   tablesCount = 0,
-  tasksCount = 0,
-  fixedCount = 0,
   lastSavedAt,
   userEmail,
   onOpenAuth,
@@ -71,7 +66,7 @@ export function SheetFooter({
             )}
           </button>
 
-          {/* Sheet 2: データ管理 (読み込み時間割・軸定義) */}
+          {/* Sheet 2: データ管理 (日・週・固定枠・取り込み表) */}
           <button
             onClick={() => onTabChange('data')}
             className={`group flex items-center gap-1.5 rounded-t-md px-3 py-1.5 text-xs transition border-b-0 ${
@@ -91,26 +86,6 @@ export function SheetFooter({
                 {tablesCount}
               </span>
             )}
-          </button>
-
-          {/* Sheet 3: 設定 (目標タスク・固定枠) */}
-          <button
-            onClick={() => onTabChange('settings')}
-            className={`group flex items-center gap-1.5 rounded-t-md px-3 py-1.5 text-xs transition border-b-0 ${
-              activeTab === 'settings'
-                ? 'bg-white font-bold text-purple-900 shadow-2xs border-t-2 border-t-purple-600 border-x border-slate-300'
-                : 'bg-[#e2ddd0] hover:bg-[#ebe6d9] text-slate-600 border-t border-x border-transparent hover:border-slate-300'
-            }`}
-          >
-            <Sliders
-              className={`h-3.5 w-3.5 ${
-                activeTab === 'settings' ? 'text-purple-600' : 'text-slate-500'
-              }`}
-            />
-            <span>設定</span>
-            <span className="hidden rounded-full bg-slate-200/90 px-1 py-0.2 text-[9px] text-slate-600 sm:inline">
-              {tasksCount + fixedCount}
-            </span>
           </button>
 
           {/* Excel風 新規取込/追加 「+」タブ */}

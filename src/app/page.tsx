@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { SheetFooter, SheetTab } from '@/components/SheetFooter';
 import { Timeline24h } from '@/components/Timeline24h';
-import { TaskManager } from '@/components/TaskManager';
 import { ImportedTablesManager } from '@/components/ImportedTablesManager';
 import { AuthModal } from '@/components/AuthModal';
 import { FileImportModal } from '@/components/FileImportModal';
@@ -196,19 +195,6 @@ export default function Home() {
             />
           </div>
         )}
-
-        {/* Sheet 3: 設定 (日課・週次目標タスク / 生活固定枠スタック) */}
-        {activeTab === 'settings' && (
-          <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
-            <TaskManager
-              tasks={tasks}
-              onChange={handleTasksChange}
-              slots={fixedSlots}
-              onSlotsChange={handleFixedSlotsChange}
-              onNavigateToTimeline={() => setActiveTab('timeline')}
-            />
-          </div>
-        )}
       </main>
 
       {/* Excel風 シート切り替えフッター */}
@@ -217,8 +203,6 @@ export default function Home() {
         onTabChange={setActiveTab}
         unassignedCount={schedulingResult.unassignedTasks.length}
         tablesCount={importedTables.length}
-        tasksCount={tasks.length}
-        fixedCount={fixedSlots.length}
         lastSavedAt={lastSavedAt}
         userEmail={userEmail}
         onOpenAuth={() => setIsAuthOpen(true)}
