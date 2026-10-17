@@ -78,12 +78,26 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
     });
   }, []);
 
+  // 現在時刻（リアルタイム更新）
+  const [currentMinutes, setCurrentMinutes] = useState<number>(() => {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+  });
+
+  useEffect(() => {
+    const update = () => {
+      const now = new Date();
+      const mins = now.getHours() * 60 + now.getMinutes();
+      setCurrentMinutes(mins);
+      setNowTimeString(minutesToTimeString(mins));
+    };
+    update();
+    const interval = setInterval(update, 30000); // 30秒ごとに更新
+    return () => clearInterval(interval);
+  }, []);
+
   // 現在時刻を参照して初期スクロール位置を調整（現在時刻の約45分前を画面上部に持ってくる）
   useEffect(() => {
-    const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    setNowTimeString(minutesToTimeString(currentMinutes));
-
     if (scrollContainerRef.current) {
       const targetScroll = Math.max(0, ((currentMinutes - 45) / 60) * hourHeight);
       scrollContainerRef.current.scrollTop = targetScroll;
@@ -92,8 +106,6 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
 
   const scrollToNow = () => {
     if (scrollContainerRef.current) {
-      const now = new Date();
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
       const targetScroll = Math.max(0, ((currentMinutes - 45) / 60) * hourHeight);
       scrollContainerRef.current.scrollTo({
         top: targetScroll,
@@ -108,6 +120,9 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
     const end = weekDays[6];
     return `${start.month}/${start.day} (${start.dayOfWeek}) 〜 ${end.month}/${end.day} (${end.dayOfWeek})`;
   }, [weekDays]);
+
+  // 時間軸の統一幅（ヘッダーとグリッドで完全一致させる）
+  const timeAxisWidthClass = 'w-13 sm:w-15 shrink-0';
 
   return (
     <div className="flex flex-1 min-h-0 flex-col gap-1.5 rounded-xl border border-slate-200 bg-white p-2 shadow-2xs sm:p-2.5">
@@ -128,15 +143,19 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
           {/* Legend */}
           <div className="hidden items-center gap-2 font-medium md:flex text-[11px]">
             <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-xs bg-slate-300 border border-slate-400" />
-              固定枠
+              <span className="h-2 w-2 rounded-xs bg-[#f4efe6] border border-[#dfd6c5]" />
+              生活固定枠
             </span>
             <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-xs bg-blue-500 shadow-2xs" />
+              <span className="h-2 w-2 rounded-xs bg-[#e0f2fe] border border-[#7dd3fc]" />
+              講義・授業
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-xs bg-[#fef9c3] border border-[#fde047]" />
               目標タスク
             </span>
             <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-xs bg-purple-500 shadow-2xs" />
+              <span className="h-2 w-2 rounded-xs bg-[#f5eeff] border border-[#d8b4fe]" />
               課題・提出
             </span>
           </div>
@@ -194,11 +213,13 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
       )}
 
       {/* 7-Day Vertical Weekly Grid Container */}
-      <div className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white">
-        {/* Sticky Weekday Header Row */}
-        <div className="flex shrink-0 border-b border-slate-200 bg-slate-50/90 pr-2 pl-2">
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
+        {/* Sticky Weekday Header Row（スクロールバーの有無によるズレ防止のため overflow-y-scroll コンテナと左右幅完全同期） */}
+        <div className="flex shrink-0 border-b border-slate-200 bg-slate-50/95 px-1 sm:px-1.5">
           {/* Time axis header space */}
-          <div className="w-12 shrink-0 border-r border-slate-200 py-2 text-center font-mono text-[10px] font-medium text-slate-500 sm:w-14">
+          <div
+            className={`${timeAxisWidthClass} border-r border-slate-200 py-2 text-center font-mono text-[10px] font-medium text-slate-500`}
+          >
             時間
           </div>
 
@@ -209,13 +230,13 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
                 key={`weekday-header-${d.dayIndex}`}
                 className={`flex flex-col items-center justify-center border-r border-slate-200 py-1.5 transition ${
                   d.dayIndex === 6 ? 'border-r-0' : ''
-                } ${d.isToday ? 'bg-blue-50/70 font-bold' : ''}`}
+                } ${d.isToday ? 'bg-amber-100/40 font-bold' : ''}`}
               >
                 <div className="flex items-center gap-1">
                   <span
                     className={`text-xs ${
                       d.isToday
-                        ? 'text-blue-700 font-bold'
+                        ? 'text-amber-900 font-bold'
                         : d.isSaturday
                           ? 'text-blue-600 font-medium'
                           : d.isSunday
@@ -226,7 +247,7 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
                     {d.dayOfWeek}
                   </span>
                   {d.isToday && (
-                    <span className="rounded bg-blue-100 px-1 py-0.2 text-[9px] font-bold text-blue-700">
+                    <span className="rounded bg-amber-400/90 px-1 py-0.2 text-[9px] font-bold text-amber-950">
                       今日
                     </span>
                   )}
@@ -242,24 +263,68 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
         {/* Scrollable 24-Hour Grid Area (ノート調方眼罫線) */}
         <div
           ref={scrollContainerRef}
-          className="relative flex-1 min-h-0 overflow-y-auto overflow-x-auto p-1 sm:p-1.5 bg-[#fdfcf9]"
+          className="relative flex-1 min-h-0 overflow-y-auto overflow-x-auto px-1 sm:px-1.5 bg-[#fdfcf9]"
         >
           <div className="relative flex min-w-[700px]" style={{ height: `${totalHeight}px` }}>
-            {/* Left Time Axis Labels (00:00 - 24:00) */}
-            <div className="relative w-11 shrink-0 select-none border-r border-slate-200/80 bg-[#fbfaf5]/60 sm:w-14">
-              {Array.from({ length: TOTAL_HOURS + 1 }).map((_, hour) => (
+            {/* 全幅共通の水平グリッド罫線レイヤー（時間軸から全曜日の右端まで1ピクセルも狂わず貫通） */}
+            <div className="pointer-events-none absolute inset-0 z-0">
+              {Array.from({ length: TOTAL_HOURS }).map((_, hour) => (
                 <div
-                  key={`time-label-${hour}`}
-                  className="absolute right-1.5 -translate-y-1/2 font-mono text-[10px] font-medium text-slate-400 sm:right-2 sm:text-xs"
-                  style={{ top: `${hour * hourHeight}px` }}
+                  key={`h-line-${hour}`}
+                  className="absolute inset-x-0 border-b border-slate-200/70"
+                  style={{ top: `${(hour + 1) * hourHeight}px` }}
                 >
-                  {String(hour).padStart(2, '0')}:00
+                  {/* 30分ごとの破線 */}
+                  <div
+                    className="absolute inset-x-0 border-b border-dashed border-slate-200/40"
+                    style={{ top: `-${hourHeight / 2}px` }}
+                  />
                 </div>
               ))}
             </div>
 
+            {/* Left Time Axis (00:00 - 24:00) */}
+            <div
+              className={`relative ${timeAxisWidthClass} select-none border-r border-slate-200 bg-[#fbfaf5]/90 z-20`}
+            >
+              {Array.from({ length: TOTAL_HOURS + 1 }).map((_, hour) => {
+                const isFirst = hour === 0;
+                const isLast = hour === TOTAL_HOURS;
+                const topPos = hour * hourHeight;
+
+                return (
+                  <div
+                    key={`time-label-${hour}`}
+                    className="absolute inset-x-0 flex items-center justify-end pr-1 sm:pr-1.5"
+                    style={{
+                      top: isFirst ? '2px' : isLast ? `${totalHeight - 16}px` : `${topPos}px`,
+                      transform: isFirst || isLast ? 'none' : 'translateY(-50%)',
+                    }}
+                  >
+                    <span className="font-mono text-[10px] font-medium text-slate-400 sm:text-[11px]">
+                      {String(hour).padStart(2, '0')}:00
+                    </span>
+                    {/* 右端の目盛ティック（水平罫線とピタリ接続） */}
+                    {!isFirst && !isLast && (
+                      <span className="ml-1 h-px w-1 bg-slate-300 sm:w-1.5" />
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* 現在時刻の赤いピルバッジ */}
+              <div
+                className="pointer-events-none absolute right-0 z-30 -translate-y-1/2"
+                style={{ top: `${(currentMinutes / 60) * hourHeight}px` }}
+              >
+                <span className="rounded-l bg-rose-500 px-1 py-0.5 font-mono text-[9px] font-bold text-white shadow-2xs">
+                  {nowTimeString}
+                </span>
+              </div>
+            </div>
+
             {/* 7 Columns Grid */}
-            <div className="relative grid flex-1 grid-cols-7">
+            <div className="relative grid flex-1 grid-cols-7 z-10">
               {weekDays.map((d) => {
                 // その曜日に割り振られたブロック（dayBlocksがある場合はそれを使用、なければblocks）
                 const currentDayBlocks = dayBlocks ? dayBlocks[d.dayIndex] || [] : blocks;
@@ -270,26 +335,25 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
                     className={`relative border-r border-slate-200/70 ${
                       d.dayIndex === 6 ? 'border-r-0' : ''
                     } ${d.isToday ? 'bg-amber-100/15' : ''}`}
+                    style={{ height: `${totalHeight}px` }}
                   >
-                    {/* 1-hour Horizontal Grid Lines & 30-min dashed lines (ノート罫線) */}
-                    {Array.from({ length: TOTAL_HOURS }).map((_, hour) => (
+                    {/* 今日の現在時刻インジケーター（赤ライン ＆ 赤丸） */}
+                    {d.isToday && (
                       <div
-                        key={`grid-cell-${d.dayIndex}-${hour}`}
-                        className="relative border-b border-slate-200/50"
-                        style={{ height: `${hourHeight}px` }}
+                        className="pointer-events-none absolute inset-x-0 z-30 flex items-center"
+                        style={{ top: `${(currentMinutes / 60) * hourHeight}px` }}
                       >
-                        <div
-                          className="absolute inset-x-0 border-b border-dashed border-slate-200/40"
-                          style={{ top: `${hourHeight / 2}px` }}
-                        />
+                        <div className="-ml-1 h-2 w-2 rounded-full bg-rose-500 shadow-2xs ring-2 ring-white" />
+                        <div className="h-0.5 flex-1 bg-rose-500 shadow-2xs" />
                       </div>
-                    ))}
+                    )}
 
                     {/* Scheduled Blocks for this Day: 付箋（Sticky Note）風レンダリング */}
                     {currentDayBlocks.map((block) => {
-                      const top = (block.startMinutes / 60) * hourHeight;
+                      const top = Math.round((block.startMinutes / 60) * hourHeight) + 1;
                       const duration = block.endMinutes - block.startMinutes;
-                      const height = (duration / 60) * hourHeight;
+                      const rawHeight = (duration / 60) * hourHeight;
+                      const height = Math.max(22, Math.round(rawHeight) - 2);
                       const isShort = duration < 30 || height < 32;
                       const isAssignment = block.taskType === 'assignment';
                       const isLecture = block.isFixed && block.category === 'lecture';
@@ -318,7 +382,7 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
                           key={`block-${d.dayIndex}-${block.id}`}
                           style={{
                             top: `${top}px`,
-                            height: `${Math.max(22, height - 2)}px`,
+                            height: `${height}px`,
                           }}
                           className={`group absolute inset-x-0.5 overflow-hidden rounded-md border sticky-note transition-all hover:z-20 sm:inset-x-1 ${stickyNoteClass}`}
                         >
