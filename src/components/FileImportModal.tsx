@@ -286,15 +286,20 @@ export function FileImportModal({
               <Upload className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">
-                {step === 'crop'
-                  ? '表領域の切り取り (クロップ)'
-                  : step === 'grid_adjust'
-                    ? '表の区画 (グリッド) の確認・調整'
-                    : step === 'grid_review'
-                      ? '時間割グリッドの確認・編集'
-                      : 'ファイルから一括取り込み'}
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-white">
+                  {step === 'crop'
+                    ? '表領域の切り取り (クロップ)'
+                    : step === 'grid_adjust'
+                      ? '表の区画 (グリッド) の確認・調整'
+                      : step === 'grid_review'
+                        ? '時間割グリッドの確認・編集'
+                        : 'ファイルから一括取り込み'}
+                </h3>
+                <span className="rounded bg-cyan-950/80 border border-cyan-800/80 px-1.5 py-0.5 text-[10px] font-bold text-cyan-300">
+                  区画OCR v2
+                </span>
+              </div>
               <p className="text-xs text-slate-400">
                 {step === 'crop'
                   ? '時間割の表部分だけを囲むことで認識精度が大幅に向上します'
@@ -348,7 +353,7 @@ export function FileImportModal({
                     <div>
                       <p className="text-sm font-semibold text-white">{progress.status}</p>
                       <p className="text-xs text-slate-400">
-                        外部APIを使わず、ブラウザ内で区画ごとに高精度OCR解析しています
+                        【区画個別OCR】全体解析へのフォールバックを行わず、各マスを独立認識しています
                       </p>
                     </div>
                     {/* Progress Bar */}
