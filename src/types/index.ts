@@ -104,3 +104,39 @@ export interface ParsedScheduleItem {
   daysOfWeek?: number[];
   confidence?: number;
 }
+
+export interface GridCell {
+  dayIndex: number; // 0:月, 1:火, 2:水, 3:木, 4:金, 5:土, 6:日
+  periodIndex: number; // 1: 1限, 2: 2限, ...
+  text: string | null; // セル内の単一要素テキスト (空コマはnull)
+  rawLines: string[]; // 改行ごとのテキスト
+  fullText: string; // 改行で結合されたセル内テキスト
+  title: string; // 講義名（タイトル）
+  roomOrNote: string; // 教室・備考
+  startMinutes: number;
+  endMinutes: number;
+}
+
+export interface TableAxisConfig {
+  startTime: string; // "09:00"
+  periodMinutes: number; // 90
+  intervalMinutes: number; // 10
+  hasLunch: boolean; // true
+  lunchAfterPeriod: number; // 2
+  lunchMinutes: number; // 50
+  customRowTimes?: Record<number, { startMinutes: number; endMinutes: number }>;
+}
+
+export interface ImportedTableData {
+  id: string;
+  name: string; // 例: "2026年度 前期時間割"
+  createdAt: string; // ISO
+  updatedAt: string; // ISO
+  numRows: number;
+  numCols: number;
+  colHeaders: string[]; // 各列の曜日・ラベル (例: ["月曜", "火曜", "水曜", "木曜", "金曜"])
+  rowHeaders: string[]; // 各行の時限名 (例: ["1限", "2限", "3限", "4限", "5限"])
+  axisConfig: TableAxisConfig;
+  cells: GridCell[][];
+  appliedSlotIds?: string[]; // 計画表に反映した際の固定枠ID群
+}

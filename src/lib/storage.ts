@@ -112,6 +112,7 @@ export const INITIAL_TASKS: TaskItem[] = [
 
 const LOCAL_STORAGE_KEY_FIXED = 'theoretical_planner_fixed_slots_v1';
 const LOCAL_STORAGE_KEY_TASKS = 'theoretical_planner_tasks_v1';
+const LOCAL_STORAGE_KEY_IMPORTED_TABLES = 'theoretical_planner_imported_tables_v1';
 
 export function loadLocalData(): { fixedSlots: FixedSlot[]; tasks: TaskItem[] } {
   if (typeof window === 'undefined') {
@@ -140,6 +141,340 @@ export function saveLocalData(fixedSlots: FixedSlot[], tasks: TaskItem[]): void 
     localStorage.setItem(LOCAL_STORAGE_KEY_TASKS, JSON.stringify(tasks));
   } catch (err) {
     console.error('Failed to save data to localStorage', err);
+  }
+}
+
+import { ImportedTableData } from '@/types';
+
+export const INITIAL_IMPORTED_TABLE: ImportedTableData = {
+  id: 'sample-table-1',
+  name: 'サンプル時間割 (前期)',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  numRows: 5,
+  numCols: 5,
+  colHeaders: ['月曜', '火曜', '水曜', '木曜', '金曜'],
+  rowHeaders: ['1限', '2限', '3限', '4限', '5限'],
+  axisConfig: {
+    startTime: '08:50',
+    periodMinutes: 90,
+    intervalMinutes: 10,
+    hasLunch: true,
+    lunchAfterPeriod: 2,
+    lunchMinutes: 50,
+  },
+  cells: [
+    [
+      {
+        dayIndex: 0,
+        periodIndex: 1,
+        text: '線形代数学\n3号館301',
+        rawLines: ['線形代数学', '3号館301'],
+        fullText: '線形代数学\n3号館301',
+        title: '線形代数学',
+        roomOrNote: '3号館301',
+        startMinutes: 530,
+        endMinutes: 620,
+      },
+      {
+        dayIndex: 1,
+        periodIndex: 1,
+        text: null,
+        rawLines: [],
+        fullText: '',
+        title: '',
+        roomOrNote: '',
+        startMinutes: 530,
+        endMinutes: 620,
+      },
+      {
+        dayIndex: 2,
+        periodIndex: 1,
+        text: '英語コミュニケーション\nLL教室',
+        rawLines: ['英語コミュニケーション', 'LL教室'],
+        fullText: '英語コミュニケーション\nLL教室',
+        title: '英語コミュニケーション',
+        roomOrNote: 'LL教室',
+        startMinutes: 530,
+        endMinutes: 620,
+      },
+      {
+        dayIndex: 3,
+        periodIndex: 1,
+        text: null,
+        rawLines: [],
+        fullText: '',
+        title: '',
+        roomOrNote: '',
+        startMinutes: 530,
+        endMinutes: 620,
+      },
+      {
+        dayIndex: 4,
+        periodIndex: 1,
+        text: '微分積分学\n大講義室A',
+        rawLines: ['微分積分学', '大講義室A'],
+        fullText: '微分積分学\n大講義室A',
+        title: '微分積分学',
+        roomOrNote: '大講義室A',
+        startMinutes: 530,
+        endMinutes: 620,
+      },
+    ],
+    [
+      {
+        dayIndex: 0,
+        periodIndex: 2,
+        text: '情報基礎理論\n電算室1',
+        rawLines: ['情報基礎理論', '電算室1'],
+        fullText: '情報基礎理論\n電算室1',
+        title: '情報基礎理論',
+        roomOrNote: '電算室1',
+        startMinutes: 630,
+        endMinutes: 720,
+      },
+      {
+        dayIndex: 1,
+        periodIndex: 2,
+        text: '統計学入門\n5号館202',
+        rawLines: ['統計学入門', '5号館202'],
+        fullText: '統計学入門\n5号館202',
+        title: '統計学入門',
+        roomOrNote: '5号館202',
+        startMinutes: 630,
+        endMinutes: 720,
+      },
+      {
+        dayIndex: 2,
+        periodIndex: 2,
+        text: null,
+        rawLines: [],
+        fullText: '',
+        title: '',
+        roomOrNote: '',
+        startMinutes: 630,
+        endMinutes: 720,
+      },
+      {
+        dayIndex: 3,
+        periodIndex: 2,
+        text: '物理学実験\n第2実験室',
+        rawLines: ['物理学実験', '第2実験室'],
+        fullText: '物理学実験\n第2実験室',
+        title: '物理学実験',
+        roomOrNote: '第2実験室',
+        startMinutes: 630,
+        endMinutes: 720,
+      },
+      {
+        dayIndex: 4,
+        periodIndex: 2,
+        text: null,
+        rawLines: [],
+        fullText: '',
+        title: '',
+        roomOrNote: '',
+        startMinutes: 630,
+        endMinutes: 720,
+      },
+    ],
+    [
+      {
+        dayIndex: 0,
+        periodIndex: 3,
+        text: null,
+        rawLines: [],
+        fullText: '',
+        title: '',
+        roomOrNote: '',
+        startMinutes: 770,
+        endMinutes: 860,
+      },
+      {
+        dayIndex: 1,
+        periodIndex: 3,
+        text: 'アルゴリズムとデータ構造\n電算室2',
+        rawLines: ['アルゴリズムとデータ構造', '電算室2'],
+        fullText: 'アルゴリズムとデータ構造\n電算室2',
+        title: 'アルゴリズムとデータ構造',
+        roomOrNote: '電算室2',
+        startMinutes: 770,
+        endMinutes: 860,
+      },
+      {
+        dayIndex: 2,
+        periodIndex: 3,
+        text: '科学技術倫理\n中講堂',
+        rawLines: ['科学技術倫理', '中講堂'],
+        fullText: '科学技術倫理\n中講堂',
+        title: '科学技術倫理',
+        roomOrNote: '中講堂',
+        startMinutes: 770,
+        endMinutes: 860,
+      },
+      {
+        dayIndex: 3,
+        periodIndex: 3,
+        text: '物理学実験\n第2実験室',
+        rawLines: ['物理学実験', '第2実験室'],
+        fullText: '物理学実験\n第2実験室',
+        title: '物理学実験',
+        roomOrNote: '第2実験室',
+        startMinutes: 770,
+        endMinutes: 860,
+      },
+      {
+        dayIndex: 4,
+        periodIndex: 3,
+        text: '経済学概論\n1号館101',
+        rawLines: ['経済学概論', '1号館101'],
+        fullText: '経済学概論\n1号館101',
+        title: '経済学概論',
+        roomOrNote: '1号館101',
+        startMinutes: 770,
+        endMinutes: 860,
+      },
+    ],
+    [
+      {
+        dayIndex: 0,
+        periodIndex: 4,
+        text: null,
+        rawLines: [],
+        fullText: '',
+        title: '',
+        roomOrNote: '',
+        startMinutes: 870,
+        endMinutes: 960,
+      },
+      {
+        dayIndex: 1,
+        periodIndex: 4,
+        text: null,
+        rawLines: [],
+        fullText: '',
+        title: '',
+        roomOrNote: '',
+        startMinutes: 870,
+        endMinutes: 960,
+      },
+      {
+        dayIndex: 2,
+        periodIndex: 4,
+        text: null,
+        rawLines: [],
+        fullText: '',
+        title: '',
+        roomOrNote: '',
+        startMinutes: 870,
+        endMinutes: 960,
+      },
+      {
+        dayIndex: 3,
+        periodIndex: 4,
+        text: null,
+        rawLines: [],
+        fullText: '',
+        title: '',
+        roomOrNote: '',
+        startMinutes: 870,
+        endMinutes: 960,
+      },
+      {
+        dayIndex: 4,
+        periodIndex: 4,
+        text: null,
+        rawLines: [],
+        fullText: '',
+        title: '',
+        roomOrNote: '',
+        startMinutes: 870,
+        endMinutes: 960,
+      },
+    ],
+    [
+      {
+        dayIndex: 0,
+        periodIndex: 5,
+        text: null,
+        rawLines: [],
+        fullText: '',
+        title: '',
+        roomOrNote: '',
+        startMinutes: 970,
+        endMinutes: 1060,
+      },
+      {
+        dayIndex: 1,
+        periodIndex: 5,
+        text: null,
+        rawLines: [],
+        fullText: '',
+        title: '',
+        roomOrNote: '',
+        startMinutes: 970,
+        endMinutes: 1060,
+      },
+      {
+        dayIndex: 2,
+        periodIndex: 5,
+        text: null,
+        rawLines: [],
+        fullText: '',
+        title: '',
+        roomOrNote: '',
+        startMinutes: 970,
+        endMinutes: 1060,
+      },
+      {
+        dayIndex: 3,
+        periodIndex: 5,
+        text: null,
+        rawLines: [],
+        fullText: '',
+        title: '',
+        roomOrNote: '',
+        startMinutes: 970,
+        endMinutes: 1060,
+      },
+      {
+        dayIndex: 4,
+        periodIndex: 5,
+        text: null,
+        rawLines: [],
+        fullText: '',
+        title: '',
+        roomOrNote: '',
+        startMinutes: 970,
+        endMinutes: 1060,
+      },
+    ],
+  ],
+};
+
+export function loadImportedTables(): ImportedTableData[] {
+  if (typeof window === 'undefined') {
+    return [INITIAL_IMPORTED_TABLE];
+  }
+
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY_IMPORTED_TABLES);
+    if (!raw) return [INITIAL_IMPORTED_TABLE];
+    const parsed: ImportedTableData[] = JSON.parse(raw);
+    return parsed.length > 0 ? parsed : [INITIAL_IMPORTED_TABLE];
+  } catch (err) {
+    console.error('Failed to load imported tables from localStorage', err);
+    return [INITIAL_IMPORTED_TABLE];
+  }
+}
+
+export function saveImportedTables(tables: ImportedTableData[]): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    localStorage.setItem(LOCAL_STORAGE_KEY_IMPORTED_TABLES, JSON.stringify(tables));
+  } catch (err) {
+    console.error('Failed to save imported tables to localStorage', err);
   }
 }
 

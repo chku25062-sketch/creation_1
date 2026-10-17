@@ -25,6 +25,7 @@ import {
   ChevronRight,
   ChevronUp,
   ChevronDown,
+  FileSpreadsheet,
 } from 'lucide-react';
 import {
   TaskItem,
@@ -35,14 +36,19 @@ import {
   TaskFrequency,
   FixedSlot,
   FixedCategory,
+  ImportedTableData,
 } from '@/types';
 import { formatDuration, minutesToTimeString, timeStringToMinutes } from '@/lib/timeUtils';
+import { ImportedTablesManager } from '@/components/ImportedTablesManager';
 
 interface TaskManagerProps {
   tasks: TaskItem[];
   onChange: (newTasks: TaskItem[]) => void;
   slots: FixedSlot[];
   onSlotsChange: (newSlots: FixedSlot[]) => void;
+  importedTables?: ImportedTableData[];
+  onTablesChange?: (newTables: ImportedTableData[]) => void;
+  onNavigateToTimeline?: () => void;
 }
 
 const DAY_LABELS = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'];
@@ -173,7 +179,18 @@ const PRESET_FIXED_SLOTS: Omit<FixedSlot, 'id'>[] = [
   },
 ];
 
-export function TaskManager({ tasks, onChange, slots, onSlotsChange }: TaskManagerProps) {
+export function TaskManager({
+  tasks,
+  onChange,
+  slots,
+  onSlotsChange,
+  importedTables = [],
+  onTablesChange = () => {},
+  onNavigateToTimeline,
+}: TaskManagerProps) {
+  // サブタブ管理: 'stacks' (日課・週次・固定枠) | 'imported' (読み込みデータ)
+  const [subTab, setSubTab] = useState<'stacks' | 'imported'>('stacks');
+
   // モーダル管理
   type ModalType = 'task' | 'slot' | null;
   const [modalType, setModalType] = useState<ModalType>(null);
@@ -588,376 +605,199 @@ export function TaskManager({ tasks, onChange, slots, onSlotsChange }: TaskManag
   const lectureSlots = slots.filter((s) => s.category === 'lecture');
 
   return (
-    <div className="flex flex-1 min-h-0 flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs sm:p-4">
-      {/* Top Header & Presets */}
-      <div className="flex flex-col gap-2 shrink-0 border-b border-slate-200 pb-2.5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <Target className="h-4 w-4 text-blue-600" />
-          <h3 className="text-sm font-bold text-slate-900 sm:text-base">
-            日課・週次タスク・生活固定枠スタック
-          </h3>
-          <span className="hidden text-[11px] text-slate-500 sm:inline">
-            (カードタップで編集、余白タップで新規追加)
-          </span>
+    <div className="flex flex-1 min-h-0 flex-col gap-2.5 rounded-2xl border border-slate-200 bg-white p-3 shadow-xs sm:p-4">
+      {/* Top Sub Tabs: [日課・週次・固定枠スタック] vs [読み込みデータ (表の定義と反映)] */}
+      <div className="flex flex-col gap-2 shrink-0 border-b border-slate-200 pb-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
+          <button
+            onClick={() => setSubTab('stacks')}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition ${
+              subTab === 'stacks'
+                ? 'bg-white text-blue-700 shadow-2xs font-bold'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Target className="h-3.5 w-3.5" />
+            <span>日課・週次・固定枠スタック</span>
+          </button>
+          <button
+            onClick={() => setSubTab('imported')}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold transition ${
+              subTab === 'imported'
+                ? 'bg-white text-blue-700 shadow-2xs font-bold'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5 text-blue-600" />
+            <span>読み込みデータ (表の定義と反映)</span>
+            {importedTables.length > 0 && (
+              <span className="rounded-full bg-blue-100 px-1.5 py-0.2 text-[9px] font-bold text-blue-700">
+                {importedTables.length}
+              </span>
+            )}
+          </button>
         </div>
 
-        {/* Quick Presets Bar */}
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="flex items-center gap-1 text-[11px] font-medium text-slate-500">
-            <Zap className="h-3 w-3 text-amber-500" />
-            プリセット:
-          </span>
-          {PRESET_TASKS.slice(0, 3).map((preset) => (
-            <button
-              key={preset.title}
-              onClick={() => handleAddPresetTask(preset)}
-              className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
-            >
-              + {preset.title}
-            </button>
-          ))}
-          {PRESET_FIXED_SLOTS.slice(1, 3).map((preset) => (
-            <button
-              key={preset.title}
-              onClick={() => handleAddPresetSlot(preset)}
-              className="rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700 transition hover:border-sky-300 hover:bg-sky-100"
-            >
-              + {preset.title}
-            </button>
-          ))}
-        </div>
+        {/* Quick Presets Bar (Only visible in stacks tab) */}
+        {subTab === 'stacks' && (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="flex items-center gap-1 text-[11px] font-medium text-slate-500">
+              <Zap className="h-3 w-3 text-amber-500" />
+              プリセット:
+            </span>
+            {PRESET_TASKS.slice(0, 3).map((preset) => (
+              <button
+                key={preset.title}
+                onClick={() => handleAddPresetTask(preset)}
+                className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
+              >
+                + {preset.title}
+              </button>
+            ))}
+            {PRESET_FIXED_SLOTS.slice(1, 3).map((preset) => (
+              <button
+                key={preset.title}
+                onClick={() => handleAddPresetSlot(preset)}
+                className="rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700 transition hover:border-sky-300 hover:bg-sky-100"
+              >
+                + {preset.title}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* 3-Column Horizontal Stacks: [日ごと] | [週ごと] | [固定枠] */}
-      <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 lg:grid-cols-3 flex-1 min-h-0 overflow-y-auto">
-        {/* Column 1: Daily Tasks Stack (頻度: 高 / 週5回以上) */}
-        <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) openAddTask('want', 'high');
-          }}
-          className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 h-full cursor-pointer transition hover:border-slate-300"
-          title="クリックして日次タスクを追加"
-        >
-          {/* Column Header */}
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default"
-          >
-            <div className="flex items-center gap-1.5">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-100 text-amber-700">
-                <Sun className="h-3.5 w-3.5" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-slate-900">日ごと (高頻度・毎日)</h4>
-              </div>
-              <span className="rounded-full bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
-                {dailyTasks.length}件
-              </span>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-semibold text-blue-600">
-                計 {formatDuration(dailyTotalMinutes)}
-              </span>
-              <button
-                onClick={() => openAddTask('want', 'high')}
-                title="日次タスクを追加"
-                className="flex items-center gap-0.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-100 hover:border-blue-300"
-              >
-                <Plus className="h-3 w-3" />
-                追加
-              </button>
-            </div>
-          </div>
-
-          {/* Daily Blocks Stack List */}
+      {subTab === 'imported' ? (
+        <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
+          <ImportedTablesManager
+            tables={importedTables}
+            onTablesChange={onTablesChange}
+            fixedSlots={slots}
+            onSlotsChange={onSlotsChange}
+            tasks={tasks}
+            onTasksChange={onChange}
+            onNavigateToTimeline={onNavigateToTimeline}
+          />
+        </div>
+      ) : (
+        /* 3-Column Horizontal Stacks: [日ごと] | [週ごと] | [固定枠] */
+        <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 lg:grid-cols-3 flex-1 min-h-0 overflow-y-auto">
+          {/* Column 1: Daily Tasks Stack (頻度: 高 / 週5回以上) */}
           <div
             onClick={(e) => {
               if (e.target === e.currentTarget) openAddTask('want', 'high');
             }}
-            className="flex flex-col gap-2 pt-1 flex-1 min-h-[140px]"
+            className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 h-full cursor-pointer transition hover:border-slate-300"
+            title="クリックして日次タスクを追加"
           >
-            {dailyTasks.length === 0 ? (
-              <div
-                onClick={() => openAddTask('want', 'high')}
-                className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 py-8 text-center text-xs text-slate-500 hover:border-blue-300 hover:text-blue-600 transition"
-              >
-                <span>高頻度・毎日のタスクがありません</span>
-                <span className="mt-1 text-xs font-semibold text-blue-600">
-                  + タップしてタスクを追加
+            {/* Column Header */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default"
+            >
+              <div className="flex items-center gap-1.5">
+                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-100 text-amber-700">
+                  <Sun className="h-3.5 w-3.5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900">日ごと (高頻度・毎日)</h4>
+                </div>
+                <span className="rounded-full bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
+                  {dailyTasks.length}件
                 </span>
               </div>
-            ) : (
-              <>
-                {dailyTasks.map((task) => {
-                  const isMust = task.category === 'must' || task.taskType === 'assignment';
-                  return (
-                    <div
-                      key={task.id}
-                      onClick={() => openEditTask(task)}
-                      title="タップして編集"
-                      className={`group relative flex items-center justify-between overflow-hidden rounded-xl border p-2.5 transition cursor-pointer ${
-                        task.completed
-                          ? 'border-slate-200 bg-slate-100/70 opacity-60'
-                          : isMust
-                            ? 'border-rose-200/90 bg-rose-50/40 hover:border-rose-300 hover:bg-white hover:shadow-xs'
-                            : 'border-blue-200/90 bg-blue-50/40 hover:border-blue-300 hover:bg-white hover:shadow-xs'
-                      }`}
-                    >
-                      {/* Left Accent Bar */}
-                      <div
-                        className={`absolute inset-y-0 left-0 w-1 ${
-                          task.completed ? 'bg-slate-300' : isMust ? 'bg-rose-500' : 'bg-blue-500'
-                        }`}
-                      />
 
-                      <div className="flex items-center gap-2 pl-1">
-                        <button
-                          onClick={(e) => handleToggleComplete(e, task.id)}
-                          title={task.completed ? '未完了に戻す' : '完了にする'}
-                          className="text-slate-400 transition hover:text-blue-600"
-                        >
-                          {task.completed ? (
-                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                          ) : (
-                            <Circle className="h-4 w-4 text-slate-400 hover:text-slate-600" />
-                          )}
-                        </button>
-
-                        <div>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <h5
-                              className={`text-xs font-semibold ${
-                                task.completed ? 'text-slate-400 line-through' : 'text-slate-900'
-                              }`}
-                            >
-                              {task.title}
-                            </h5>
-
-                            {isMust ? (
-                              <span className="flex items-center gap-0.5 rounded border border-rose-200 bg-rose-50 px-1.5 py-0.2 text-[9px] font-bold text-rose-700">
-                                📌 やるべき
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-0.5 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.2 text-[9px] font-bold text-blue-700">
-                                🌟 やりたい
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-2 text-[10px] text-slate-500 pt-0.5">
-                            <span className="flex items-center gap-0.5">
-                              <Clock className="h-2.5 w-2.5 text-slate-400" />
-                              {task.durationSize === 'small'
-                                ? '小 (15〜30m)'
-                                : task.durationSize === 'large'
-                                  ? '大 (2h+)'
-                                  : '中 (30m〜2h)'}
-                            </span>
-                            <span className="flex items-center gap-0.5 text-slate-500">
-                              <Repeat className="h-2.5 w-2.5 text-slate-400" />高 (毎日)
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1">
-                        <div className="opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-slate-600 p-1">
-                          <Pencil className="h-3 w-3" />
-                        </div>
-                        <button
-                          onClick={(e) => handleDeleteTask(e, task.id)}
-                          title="タスクを削除"
-                          className="rounded-md p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-semibold text-blue-600">
+                  計 {formatDuration(dailyTotalMinutes)}
+                </span>
                 <button
                   onClick={() => openAddTask('want', 'high')}
-                  className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 bg-white py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-blue-400 hover:bg-blue-50/50 hover:text-blue-700"
+                  title="日次タスクを追加"
+                  className="flex items-center gap-0.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-100 hover:border-blue-300"
                 >
-                  <Plus className="h-3 w-3" />+ タスクを追加
+                  <Plus className="h-3 w-3" />
+                  追加
                 </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Column 2: Weekly Tasks Stack (頻度: 低/中、課題、ToDo) */}
-        <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) openAddTask('must', 'medium');
-          }}
-          className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 h-full cursor-pointer transition hover:border-slate-300"
-          title="クリックして週次タスク・課題を追加"
-        >
-          {/* Column Header */}
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default"
-          >
-            <div className="flex items-center gap-1.5">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-100 text-purple-700">
-                <CalendarDays className="h-3.5 w-3.5" />
               </div>
-              <div>
-                <h4 className="text-xs font-bold text-slate-900">週ごと (課題・ToDo)</h4>
-              </div>
-              <span className="rounded-full bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
-                {weeklyTasks.length}件
-              </span>
             </div>
 
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] font-semibold text-purple-700">
-                計 {formatDuration(weeklyTotalMinutes)}
-              </span>
-              <button
-                onClick={() => {
-                  openAddTask('must', 'low');
-                  setIsAssignment(true);
-                }}
-                title="課題を追加"
-                className="flex items-center gap-0.5 rounded-md border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 transition hover:bg-purple-100 hover:border-purple-300"
-              >
-                <GraduationCap className="h-2.5 w-2.5" />
-                +課題
-              </button>
-              <button
-                onClick={() => {
-                  openAddTask('must', 'low');
-                  setIsNoDurationTodo(true);
-                }}
-                title="ToDoを追加"
-                className="flex items-center gap-0.5 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 transition hover:bg-amber-100 hover:border-amber-300"
-              >
-                <CheckSquare className="h-2.5 w-2.5" />
-                +ToDo
-              </button>
-              <button
-                onClick={() => openAddTask('want', 'medium')}
-                title="タスクを追加"
-                className="flex items-center gap-0.5 rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-100 hover:border-blue-300"
-              >
-                <Plus className="h-2.5 w-2.5" />
-                +追加
-              </button>
-            </div>
-          </div>
-
-          {/* Weekly Blocks Stack List */}
-          <div
-            onClick={(e) => {
-              if (e.target === e.currentTarget) openAddTask('must', 'medium');
-            }}
-            className="flex flex-col gap-2 pt-1 flex-1 min-h-[140px]"
-          >
-            {weeklyTasks.length === 0 ? (
-              <div
-                onClick={() => openAddTask('must', 'medium')}
-                className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 py-8 text-center text-xs text-slate-500 hover:border-purple-300 hover:text-purple-700 transition"
-              >
-                <span>週単位のタスク・課題がありません</span>
-                <span className="mt-1 text-xs font-semibold text-purple-700">+ タップして追加</span>
-              </div>
-            ) : (
-              <>
-                {weeklyTasks.map((task) => {
-                  const isMust = task.category === 'must' || task.taskType === 'assignment';
-                  const isAssign = task.taskType === 'assignment';
-                  const isTodo = task.taskType === 'todo' || task.hasNoDuration;
-
-                  return (
-                    <div
-                      key={task.id}
-                      onClick={() => openEditTask(task)}
-                      title="タップして編集"
-                      className={`group relative flex items-center justify-between overflow-hidden rounded-xl border p-2.5 transition cursor-pointer ${
-                        task.completed
-                          ? 'border-slate-200 bg-slate-100/70 opacity-60'
-                          : isAssign
-                            ? 'border-purple-200/90 bg-purple-50/40 hover:border-purple-300 hover:bg-white hover:shadow-xs'
-                            : isTodo
-                              ? 'border-amber-200/90 bg-amber-50/40 hover:border-amber-300 hover:bg-white hover:shadow-xs'
-                              : isMust
-                                ? 'border-rose-200/90 bg-rose-50/40 hover:border-rose-300 hover:bg-white hover:shadow-xs'
-                                : 'border-blue-200/90 bg-blue-50/40 hover:border-blue-300 hover:bg-white hover:shadow-xs'
-                      }`}
-                    >
-                      {/* Left Accent Bar */}
+            {/* Daily Blocks Stack List */}
+            <div
+              onClick={(e) => {
+                if (e.target === e.currentTarget) openAddTask('want', 'high');
+              }}
+              className="flex flex-col gap-2 pt-1 flex-1 min-h-[140px]"
+            >
+              {dailyTasks.length === 0 ? (
+                <div
+                  onClick={() => openAddTask('want', 'high')}
+                  className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 py-8 text-center text-xs text-slate-500 hover:border-blue-300 hover:text-blue-600 transition"
+                >
+                  <span>高頻度・毎日のタスクがありません</span>
+                  <span className="mt-1 text-xs font-semibold text-blue-600">
+                    + タップしてタスクを追加
+                  </span>
+                </div>
+              ) : (
+                <>
+                  {dailyTasks.map((task) => {
+                    const isMust = task.category === 'must' || task.taskType === 'assignment';
+                    return (
                       <div
-                        className={`absolute inset-y-0 left-0 w-1 ${
+                        key={task.id}
+                        onClick={() => openEditTask(task)}
+                        title="タップして編集"
+                        className={`group relative flex items-center justify-between overflow-hidden rounded-xl border p-2.5 transition cursor-pointer ${
                           task.completed
-                            ? 'bg-slate-300'
-                            : isAssign
-                              ? 'bg-purple-500'
-                              : isTodo
-                                ? 'bg-amber-400'
-                                : isMust
-                                  ? 'bg-rose-500'
-                                  : 'bg-blue-500'
+                            ? 'border-slate-200 bg-slate-100/70 opacity-60'
+                            : isMust
+                              ? 'border-rose-200/90 bg-rose-50/40 hover:border-rose-300 hover:bg-white hover:shadow-xs'
+                              : 'border-blue-200/90 bg-blue-50/40 hover:border-blue-300 hover:bg-white hover:shadow-xs'
                         }`}
-                      />
+                      >
+                        {/* Left Accent Bar */}
+                        <div
+                          className={`absolute inset-y-0 left-0 w-1 ${
+                            task.completed ? 'bg-slate-300' : isMust ? 'bg-rose-500' : 'bg-blue-500'
+                          }`}
+                        />
 
-                      <div className="flex items-center gap-2 pl-1">
-                        <button
-                          onClick={(e) => handleToggleComplete(e, task.id)}
-                          title={task.completed ? '未完了に戻す' : '完了にする'}
-                          className="text-slate-400 transition hover:text-purple-600"
-                        >
-                          {task.completed ? (
-                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                          ) : (
-                            <Circle className="h-4 w-4 text-slate-400 hover:text-slate-600" />
-                          )}
-                        </button>
-
-                        <div>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <h5
-                              className={`text-xs font-semibold ${
-                                task.completed ? 'text-slate-400 line-through' : 'text-slate-900'
-                              }`}
-                            >
-                              {task.title}
-                            </h5>
-
-                            {isAssign ? (
-                              <span className="flex items-center gap-0.5 rounded border border-purple-200 bg-purple-50 px-1.5 py-0.2 text-[9px] font-bold text-purple-700">
-                                <GraduationCap className="h-2.5 w-2.5" />
-                                課題 (期日:{' '}
-                                {task.deadlineDay !== undefined
-                                  ? DAY_LABELS[task.deadlineDay]
-                                  : '未定'}
-                                )
-                              </span>
-                            ) : isTodo ? (
-                              <span className="flex items-center gap-0.5 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.2 text-[9px] font-bold text-amber-800">
-                                <CheckSquare className="h-2.5 w-2.5" />
-                                ToDo
-                              </span>
-                            ) : isMust ? (
-                              <span className="flex items-center gap-0.5 rounded border border-rose-200 bg-rose-50 px-1.5 py-0.2 text-[9px] font-bold text-rose-700">
-                                📌 やるべき
-                              </span>
+                        <div className="flex items-center gap-2 pl-1">
+                          <button
+                            onClick={(e) => handleToggleComplete(e, task.id)}
+                            title={task.completed ? '未完了に戻す' : '完了にする'}
+                            className="text-slate-400 transition hover:text-blue-600"
+                          >
+                            {task.completed ? (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                             ) : (
-                              <span className="flex items-center gap-0.5 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.2 text-[9px] font-bold text-blue-700">
-                                🌟 やりたい
-                              </span>
+                              <Circle className="h-4 w-4 text-slate-400 hover:text-slate-600" />
                             )}
-                          </div>
+                          </button>
 
-                          <div className="flex items-center gap-2 text-[10px] text-slate-500 pt-0.5">
-                            {isTodo ? (
-                              <span className="text-amber-800 font-medium">
-                                枠なし (チェックのみ)
-                              </span>
-                            ) : (
+                          <div>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <h5
+                                className={`text-xs font-semibold ${
+                                  task.completed ? 'text-slate-400 line-through' : 'text-slate-900'
+                                }`}
+                              >
+                                {task.title}
+                              </h5>
+
+                              {isMust ? (
+                                <span className="flex items-center gap-0.5 rounded border border-rose-200 bg-rose-50 px-1.5 py-0.2 text-[9px] font-bold text-rose-700">
+                                  📌 やるべき
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-0.5 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.2 text-[9px] font-bold text-blue-700">
+                                  🌟 やりたい
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 text-[10px] text-slate-500 pt-0.5">
                               <span className="flex items-center gap-0.5">
                                 <Clock className="h-2.5 w-2.5 text-slate-400" />
                                 {task.durationSize === 'small'
@@ -966,193 +806,408 @@ export function TaskManager({ tasks, onChange, slots, onSlotsChange }: TaskManag
                                     ? '大 (2h+)'
                                     : '中 (30m〜2h)'}
                               </span>
-                            )}
-
-                            <span className="flex items-center gap-0.5 text-slate-500">
-                              <Repeat className="h-2.5 w-2.5 text-slate-400" />
-                              {task.frequency === 'low'
-                                ? '低 (週1〜2回)'
-                                : task.frequency === 'medium'
-                                  ? '中 (週3〜4回)'
-                                  : task.frequency === 'custom'
-                                    ? `週${task.frequencyCount}回`
-                                    : '週枠'}
-                            </span>
-
-                            {isAssign &&
-                              task.startDay !== undefined &&
-                              task.deadlineDay !== undefined && (
-                                <span className="text-[9px] text-slate-500">
-                                  ({DAY_LABELS[task.startDay]}出題〜{DAY_LABELS[task.deadlineDay]}
-                                  締切)
-                                </span>
-                              )}
+                              <span className="flex items-center gap-0.5 text-slate-500">
+                                <Repeat className="h-2.5 w-2.5 text-slate-400" />高 (毎日)
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="flex items-center gap-1">
-                        <div className="opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-slate-600 p-1">
-                          <Pencil className="h-3 w-3" />
+                        <div className="flex items-center gap-1">
+                          <div className="opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-slate-600 p-1">
+                            <Pencil className="h-3 w-3" />
+                          </div>
+                          <button
+                            onClick={(e) => handleDeleteTask(e, task.id)}
+                            title="タスクを削除"
+                            className="rounded-md p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </div>
-                        <button
-                          onClick={(e) => handleDeleteTask(e, task.id)}
-                          title="タスクを削除"
-                          className="rounded-md p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
 
-                <button
-                  onClick={() => openAddTask('must', 'medium')}
-                  className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 bg-white py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-purple-400 hover:bg-purple-50/50 hover:text-purple-700"
-                >
-                  <Plus className="h-3 w-3" />+ タスク・課題を追加
-                </button>
-              </>
-            )}
+                  <button
+                    onClick={() => openAddTask('want', 'high')}
+                    className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 bg-white py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-blue-400 hover:bg-blue-50/50 hover:text-blue-700"
+                  >
+                    <Plus className="h-3 w-3" />+ タスクを追加
+                  </button>
+                </>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Column 3: Fixed Slots Stack */}
-        <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) openAddSlot();
-          }}
-          className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 h-full cursor-pointer transition hover:border-slate-300"
-          title="クリックして固定枠を追加"
-        >
-          {/* Column Header */}
+          {/* Column 2: Weekly Tasks Stack (頻度: 低/中、課題、ToDo) */}
           <div
-            onClick={(e) => e.stopPropagation()}
-            className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) openAddTask('must', 'medium');
+            }}
+            className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 h-full cursor-pointer transition hover:border-slate-300"
+            title="クリックして週次タスク・課題を追加"
           >
-            <div className="flex items-center gap-1.5">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-sky-100 text-sky-700">
-                <Shield className="h-3.5 w-3.5" />
+            {/* Column Header */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default"
+            >
+              <div className="flex items-center gap-1.5">
+                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-100 text-purple-700">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900">週ごと (課題・ToDo)</h4>
+                </div>
+                <span className="rounded-full bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
+                  {weeklyTasks.length}件
+                </span>
               </div>
-              <h4 className="text-xs font-bold text-slate-900">固定枠 (講義・睡眠)</h4>
-              <span className="rounded-full bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
-                {slots.length}件
-              </span>
+
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-semibold text-purple-700">
+                  計 {formatDuration(weeklyTotalMinutes)}
+                </span>
+                <button
+                  onClick={() => {
+                    openAddTask('must', 'low');
+                    setIsAssignment(true);
+                  }}
+                  title="課題を追加"
+                  className="flex items-center gap-0.5 rounded-md border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 transition hover:bg-purple-100 hover:border-purple-300"
+                >
+                  <GraduationCap className="h-2.5 w-2.5" />
+                  +課題
+                </button>
+                <button
+                  onClick={() => {
+                    openAddTask('must', 'low');
+                    setIsNoDurationTodo(true);
+                  }}
+                  title="ToDoを追加"
+                  className="flex items-center gap-0.5 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 transition hover:bg-amber-100 hover:border-amber-300"
+                >
+                  <CheckSquare className="h-2.5 w-2.5" />
+                  +ToDo
+                </button>
+                <button
+                  onClick={() => openAddTask('want', 'medium')}
+                  title="タスクを追加"
+                  className="flex items-center gap-0.5 rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-100 hover:border-blue-300"
+                >
+                  <Plus className="h-2.5 w-2.5" />
+                  +追加
+                </button>
+              </div>
             </div>
 
-            <button
-              onClick={openAddSlot}
-              title="固定枠・講義を追加"
-              className="flex items-center gap-0.5 rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 transition hover:bg-sky-100 hover:border-sky-300"
+            {/* Weekly Blocks Stack List */}
+            <div
+              onClick={(e) => {
+                if (e.target === e.currentTarget) openAddTask('must', 'medium');
+              }}
+              className="flex flex-col gap-2 pt-1 flex-1 min-h-[140px]"
             >
-              <Plus className="h-3 w-3" />
-              追加
-            </button>
+              {weeklyTasks.length === 0 ? (
+                <div
+                  onClick={() => openAddTask('must', 'medium')}
+                  className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 py-8 text-center text-xs text-slate-500 hover:border-purple-300 hover:text-purple-700 transition"
+                >
+                  <span>週単位のタスク・課題がありません</span>
+                  <span className="mt-1 text-xs font-semibold text-purple-700">
+                    + タップして追加
+                  </span>
+                </div>
+              ) : (
+                <>
+                  {weeklyTasks.map((task) => {
+                    const isMust = task.category === 'must' || task.taskType === 'assignment';
+                    const isAssign = task.taskType === 'assignment';
+                    const isTodo = task.taskType === 'todo' || task.hasNoDuration;
+
+                    return (
+                      <div
+                        key={task.id}
+                        onClick={() => openEditTask(task)}
+                        title="タップして編集"
+                        className={`group relative flex items-center justify-between overflow-hidden rounded-xl border p-2.5 transition cursor-pointer ${
+                          task.completed
+                            ? 'border-slate-200 bg-slate-100/70 opacity-60'
+                            : isAssign
+                              ? 'border-purple-200/90 bg-purple-50/40 hover:border-purple-300 hover:bg-white hover:shadow-xs'
+                              : isTodo
+                                ? 'border-amber-200/90 bg-amber-50/40 hover:border-amber-300 hover:bg-white hover:shadow-xs'
+                                : isMust
+                                  ? 'border-rose-200/90 bg-rose-50/40 hover:border-rose-300 hover:bg-white hover:shadow-xs'
+                                  : 'border-blue-200/90 bg-blue-50/40 hover:border-blue-300 hover:bg-white hover:shadow-xs'
+                        }`}
+                      >
+                        {/* Left Accent Bar */}
+                        <div
+                          className={`absolute inset-y-0 left-0 w-1 ${
+                            task.completed
+                              ? 'bg-slate-300'
+                              : isAssign
+                                ? 'bg-purple-500'
+                                : isTodo
+                                  ? 'bg-amber-400'
+                                  : isMust
+                                    ? 'bg-rose-500'
+                                    : 'bg-blue-500'
+                          }`}
+                        />
+
+                        <div className="flex items-center gap-2 pl-1">
+                          <button
+                            onClick={(e) => handleToggleComplete(e, task.id)}
+                            title={task.completed ? '未完了に戻す' : '完了にする'}
+                            className="text-slate-400 transition hover:text-purple-600"
+                          >
+                            {task.completed ? (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                            ) : (
+                              <Circle className="h-4 w-4 text-slate-400 hover:text-slate-600" />
+                            )}
+                          </button>
+
+                          <div>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <h5
+                                className={`text-xs font-semibold ${
+                                  task.completed ? 'text-slate-400 line-through' : 'text-slate-900'
+                                }`}
+                              >
+                                {task.title}
+                              </h5>
+
+                              {isAssign ? (
+                                <span className="flex items-center gap-0.5 rounded border border-purple-200 bg-purple-50 px-1.5 py-0.2 text-[9px] font-bold text-purple-700">
+                                  <GraduationCap className="h-2.5 w-2.5" />
+                                  課題 (期日:{' '}
+                                  {task.deadlineDay !== undefined
+                                    ? DAY_LABELS[task.deadlineDay]
+                                    : '未定'}
+                                  )
+                                </span>
+                              ) : isTodo ? (
+                                <span className="flex items-center gap-0.5 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.2 text-[9px] font-bold text-amber-800">
+                                  <CheckSquare className="h-2.5 w-2.5" />
+                                  ToDo
+                                </span>
+                              ) : isMust ? (
+                                <span className="flex items-center gap-0.5 rounded border border-rose-200 bg-rose-50 px-1.5 py-0.2 text-[9px] font-bold text-rose-700">
+                                  📌 やるべき
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-0.5 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.2 text-[9px] font-bold text-blue-700">
+                                  🌟 やりたい
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 text-[10px] text-slate-500 pt-0.5">
+                              {isTodo ? (
+                                <span className="text-amber-800 font-medium">
+                                  枠なし (チェックのみ)
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-0.5">
+                                  <Clock className="h-2.5 w-2.5 text-slate-400" />
+                                  {task.durationSize === 'small'
+                                    ? '小 (15〜30m)'
+                                    : task.durationSize === 'large'
+                                      ? '大 (2h+)'
+                                      : '中 (30m〜2h)'}
+                                </span>
+                              )}
+
+                              <span className="flex items-center gap-0.5 text-slate-500">
+                                <Repeat className="h-2.5 w-2.5 text-slate-400" />
+                                {task.frequency === 'low'
+                                  ? '低 (週1〜2回)'
+                                  : task.frequency === 'medium'
+                                    ? '中 (週3〜4回)'
+                                    : task.frequency === 'custom'
+                                      ? `週${task.frequencyCount}回`
+                                      : '週枠'}
+                              </span>
+
+                              {isAssign &&
+                                task.startDay !== undefined &&
+                                task.deadlineDay !== undefined && (
+                                  <span className="text-[9px] text-slate-500">
+                                    ({DAY_LABELS[task.startDay]}出題〜{DAY_LABELS[task.deadlineDay]}
+                                    締切)
+                                  </span>
+                                )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <div className="opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-slate-600 p-1">
+                            <Pencil className="h-3 w-3" />
+                          </div>
+                          <button
+                            onClick={(e) => handleDeleteTask(e, task.id)}
+                            title="タスクを削除"
+                            className="rounded-md p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <button
+                    onClick={() => openAddTask('must', 'medium')}
+                    className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 bg-white py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-purple-400 hover:bg-purple-50/50 hover:text-purple-700"
+                  >
+                    <Plus className="h-3 w-3" />+ タスク・課題を追加
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
-          {/* Fixed Slots List */}
+          {/* Column 3: Fixed Slots Stack */}
           <div
             onClick={(e) => {
               if (e.target === e.currentTarget) openAddSlot();
             }}
-            className="flex flex-col gap-2 pt-1 flex-1 min-h-[140px]"
+            className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 h-full cursor-pointer transition hover:border-slate-300"
+            title="クリックして固定枠を追加"
           >
-            {slots.length === 0 ? (
-              <div
-                onClick={openAddSlot}
-                className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 py-8 text-center text-xs text-slate-500 hover:border-sky-300 hover:text-sky-600 transition"
-              >
-                <span>登録された固定枠がありません</span>
-                <span className="mt-1 text-xs font-semibold text-sky-600">
-                  + タップして固定枠を追加
+            {/* Column Header */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default"
+            >
+              <div className="flex items-center gap-1.5">
+                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-sky-100 text-sky-700">
+                  <Shield className="h-3.5 w-3.5" />
+                </div>
+                <h4 className="text-xs font-bold text-slate-900">固定枠 (講義・睡眠)</h4>
+                <span className="rounded-full bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
+                  {slots.length}件
                 </span>
               </div>
-            ) : (
-              <>
-                {slots.map((slot) => {
-                  const duration =
-                    slot.endMinutes >= slot.startMinutes
-                      ? slot.endMinutes - slot.startMinutes
-                      : 1440 - slot.startMinutes + slot.endMinutes;
 
-                  return (
-                    <div
-                      key={slot.id}
-                      onClick={() => openEditSlot(slot)}
-                      title="タップして編集"
-                      className="group relative flex items-center justify-between overflow-hidden rounded-xl border border-slate-200 bg-white p-2.5 transition cursor-pointer hover:border-sky-300 hover:shadow-xs"
-                    >
-                      <div
-                        className="absolute inset-y-0 left-0 w-1"
-                        style={{ backgroundColor: slot.color || '#0284c7' }}
-                      />
+              <button
+                onClick={openAddSlot}
+                title="固定枠・講義を追加"
+                className="flex items-center gap-0.5 rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 transition hover:bg-sky-100 hover:border-sky-300"
+              >
+                <Plus className="h-3 w-3" />
+                追加
+              </button>
+            </div>
 
-                      <div className="flex items-center gap-2 pl-1">
-                        <div className="rounded-md border border-slate-200 bg-slate-50 p-1 text-slate-700">
-                          {getSlotCategoryIcon(slot.category)}
-                        </div>
-
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <h5 className="text-xs font-semibold text-slate-900">{slot.title}</h5>
-                            <span className="rounded bg-sky-50 border border-sky-200 px-1 py-0.2 text-[9px] font-bold text-sky-700">
-                              {formatDaysString(slot.daysOfWeek)}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-                            <Clock className="h-2.5 w-2.5 text-slate-400" />
-                            <span>
-                              {minutesToTimeString(slot.startMinutes)} -{' '}
-                              {minutesToTimeString(slot.endMinutes)}
-                            </span>
-                            <span className="text-slate-400">({formatDuration(duration)})</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        {slot.category === 'lecture' && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openAddAssignmentFromLecture(slot);
-                            }}
-                            title="この授業の課題タスクを作成"
-                            className="flex items-center gap-0.5 rounded-md border border-purple-200 bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-700 transition hover:bg-purple-100"
-                          >
-                            <GraduationCap className="h-3 w-3 text-purple-600" />
-                            <span>+課題</span>
-                          </button>
-                        )}
-                        <div className="opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-slate-600 p-1">
-                          <Pencil className="h-3 w-3" />
-                        </div>
-                        <button
-                          onClick={(e) => handleDeleteSlot(e, slot.id)}
-                          title="固定枠を削除"
-                          className="rounded-md p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                <button
+            {/* Fixed Slots List */}
+            <div
+              onClick={(e) => {
+                if (e.target === e.currentTarget) openAddSlot();
+              }}
+              className="flex flex-col gap-2 pt-1 flex-1 min-h-[140px]"
+            >
+              {slots.length === 0 ? (
+                <div
                   onClick={openAddSlot}
-                  className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 bg-white py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-sky-400 hover:bg-sky-50/50 hover:text-sky-700"
+                  className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 py-8 text-center text-xs text-slate-500 hover:border-sky-300 hover:text-sky-600 transition"
                 >
-                  <Plus className="h-3 w-3" />+ 固定枠・講義を追加
-                </button>
-              </>
-            )}
+                  <span>登録された固定枠がありません</span>
+                  <span className="mt-1 text-xs font-semibold text-sky-600">
+                    + タップして固定枠を追加
+                  </span>
+                </div>
+              ) : (
+                <>
+                  {slots.map((slot) => {
+                    const duration =
+                      slot.endMinutes >= slot.startMinutes
+                        ? slot.endMinutes - slot.startMinutes
+                        : 1440 - slot.startMinutes + slot.endMinutes;
+
+                    return (
+                      <div
+                        key={slot.id}
+                        onClick={() => openEditSlot(slot)}
+                        title="タップして編集"
+                        className="group relative flex items-center justify-between overflow-hidden rounded-xl border border-slate-200 bg-white p-2.5 transition cursor-pointer hover:border-sky-300 hover:shadow-xs"
+                      >
+                        <div
+                          className="absolute inset-y-0 left-0 w-1"
+                          style={{ backgroundColor: slot.color || '#0284c7' }}
+                        />
+
+                        <div className="flex items-center gap-2 pl-1">
+                          <div className="rounded-md border border-slate-200 bg-slate-50 p-1 text-slate-700">
+                            {getSlotCategoryIcon(slot.category)}
+                          </div>
+
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <h5 className="text-xs font-semibold text-slate-900">{slot.title}</h5>
+                              <span className="rounded bg-sky-50 border border-sky-200 px-1 py-0.2 text-[9px] font-bold text-sky-700">
+                                {formatDaysString(slot.daysOfWeek)}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                              <Clock className="h-2.5 w-2.5 text-slate-400" />
+                              <span>
+                                {minutesToTimeString(slot.startMinutes)} -{' '}
+                                {minutesToTimeString(slot.endMinutes)}
+                              </span>
+                              <span className="text-slate-400">({formatDuration(duration)})</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          {slot.category === 'lecture' && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openAddAssignmentFromLecture(slot);
+                              }}
+                              title="この授業の課題タスクを作成"
+                              className="flex items-center gap-0.5 rounded-md border border-purple-200 bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-700 transition hover:bg-purple-100"
+                            >
+                              <GraduationCap className="h-3 w-3 text-purple-600" />
+                              <span>+課題</span>
+                            </button>
+                          )}
+                          <div className="opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-slate-600 p-1">
+                            <Pencil className="h-3 w-3" />
+                          </div>
+                          <button
+                            onClick={(e) => handleDeleteSlot(e, slot.id)}
+                            title="固定枠を削除"
+                            className="rounded-md p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <button
+                    onClick={openAddSlot}
+                    className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 bg-white py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-sky-400 hover:bg-sky-50/50 hover:text-sky-700"
+                  >
+                    <Plus className="h-3 w-3" />+ 固定枠・講義を追加
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ===================== SIMPLIFIED TASK MODAL ===================== */}
       {modalType === 'task' && (

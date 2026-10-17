@@ -7,14 +7,21 @@ import { Timeline24h } from '@/components/Timeline24h';
 import { TaskManager } from '@/components/TaskManager';
 import { AuthModal } from '@/components/AuthModal';
 import { FileImportModal } from '@/components/FileImportModal';
-import { FixedSlot, TaskItem } from '@/types';
+import { FixedSlot, TaskItem, ImportedTableData } from '@/types';
 import { generateTheoreticalSchedule } from '@/lib/scheduler';
-import { loadLocalData, saveLocalData, syncWithSupabase } from '@/lib/storage';
+import {
+  loadLocalData,
+  saveLocalData,
+  syncWithSupabase,
+  loadImportedTables,
+  saveImportedTables,
+} from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 
 export default function Home() {
   const [fixedSlots, setFixedSlots] = useState<FixedSlot[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [importedTables, setImportedTables] = useState<ImportedTableData[]>([]);
   const [activeTab, setActiveTab] = useState<'timeline' | 'settings'>('timeline');
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -27,8 +34,10 @@ export default function Home() {
   // 初期化ロード
   useEffect(() => {
     const { fixedSlots: initialFixed, tasks: initialTasks } = loadLocalData();
+    const initialTables = loadImportedTables();
     setFixedSlots(initialFixed);
     setTasks(initialTasks);
+    setImportedTables(initialTables);
     setIsInitialized(true);
 
     // Supabase ユーザーセッション確認
@@ -100,6 +109,19 @@ export default function Home() {
     setFixedSlots(updatedFixed);
     setTasks(updatedTasks);
     saveData(updatedFixed, updatedTasks);
+  };
+
+  const handleTablesChange = (newTables: ImportedTableData[]) => {
+    setImportedTables(newTables);
+    saveImportedTables(newTables);
+  };
+
+  const handleSaveTableData = (table: ImportedTableData) => {
+    const updated = [table, ...importedTables.filter((t) => t.id !== table.id)];
+    setImportedTables(updated);
+    saveImportedTables(updated);
+    // 取り込んだ表の軸・インターバル定義を行えるよう設定タブへ遷移
+    setActiveTab('settings');
   };
 
   const handleSignOut = async () => {
@@ -187,7 +209,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Tab 2: 3-Column Settings & Task Management (日ごと / 週ごと / 固定枠) */}
+        {/* Tab 2: 3-Column Settings & Task Management (日ごと / 週ごと / 固定枠 / 読み込みデータ) */}
         {activeTab === 'settings' && (
           <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
             <TaskManager
@@ -195,6 +217,9 @@ export default function Home() {
               onChange={handleTasksChange}
               slots={fixedSlots}
               onSlotsChange={handleFixedSlotsChange}
+              importedTables={importedTables}
+              onTablesChange={handleTablesChange}
+              onNavigateToTimeline={() => setActiveTab('timeline')}
             />
           </div>
         )}
@@ -212,6 +237,7 @@ export default function Home() {
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}
         onImport={handleImport}
+        onSaveTableData={handleSaveTableData}
       />
     </div>
   );

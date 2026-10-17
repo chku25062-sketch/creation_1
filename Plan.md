@@ -1,91 +1,99 @@
-# Node.js + TypeScript 型検査基盤（ハーネス）構築計画
+# 読み込みデータ管理・軸・インターバル定義＆計画表反映 実装計画書
 
-## 1. 概要と目的
-
-本計画は、ゼロからNode.js環境を初期化し、TypeScriptによる静的型検査基盤（型チェックハーネス）を構築するための手順と設計方針を定めたものです。  
-コードの生成（トランスパイル出力）を行わず、純粋に型整合性を検証する軽量かつ強固なCI/ローカル検証環境の確立を目的とします。
+ユーザー要望：「読み込んだ表は、読み込みデータという項目に入れられ、横軸と縦軸、インターバルの定義を済ませることで、計画表に組み込まれるようにしたいです。」
 
 ---
 
-## 2. 構築手順と詳細計画
+## 1. 全体アーキテクチャとデータフロー
 
-### ステップ1: `package.json` の新規生成
+```mermaid
+flowchart TD
+    A["時間割画像 / CSV取込 (FileImportModal)"] --> B["読み込みデータとして自動保存 (ImportedTableData)"]
+    B --> C["設定画面の『読み込みデータ』セクション"]
 
-- **実行予定コマンド**:
-  ```bash
-  npm init -y
-  ```
-- **方針・目的**:
-  - プロジェクトルートにパッケージマニフェストファイル `package.json` を非対話型で生成します。
-  - 必要に応じて `"private": true` などの誤公開防止プロパティを付与します。
+    subgraph S["読み込みデータ定義画面 (ImportedTablesManager)"]
+        C1["表の切り替え・新規追加・名称変更"]
+        C2["横軸（列）定義: 各列の曜日マッピング (月〜日・除外)"]
+        C3["縦軸・インターバル定義: 始業時間 / 1コマ分数 / コマ間休憩 / 昼休み + 個別微調整"]
+        C4["グリッドプレビュー＆セルテキスト編集"]
+    end
 
----
-
-### ステップ2: 開発依存パッケージ（devDependencies）のインストール
-
-- **実行予定コマンド**:
-  ```bash
-  npm install -D typescript @types/node
-  ```
-- **導入パッケージと選定理由**:
-  1. `typescript`
-     - 型定義の解釈および型検査（`tsc`）を実行するコアパッケージ。
-  2. `@types/node`
-     - Node.jsの標準組み込みモジュール（`fs`, `path`, `process` 等）に対する型定義を提供。
+    C --> S
+    S --> D["『計画表に反映』実行"]
+    D --> E{"反映モード選択"}
+    E -->|置換| F["既存の講義固定枠をクリアして新反映"]
+    E -->|追加| G["既存固定枠を残して追加"]
+    D -.-> H["(任意) 講義レポート・課題タスクの自動起票"]
+    F & G --> I["週間スケジュール（Timeline24h）に組み込み表示"]
+```
 
 ---
 
-### ステップ3: ルート直下 `tsconfig.json` の設定方針
+## 2. 実装詳細仕様
 
-- **配置場所**: `./tsconfig.json`（プロジェクトルート直下）
-- **必須要件**:
-  - `"strict": true`: すべての厳格な型検査オプションを一括で有効化。
-  - `"noEmit": true`: `.js` や `.d.ts` 等のファイル出力を抑制し、型検査専用（ハーネス）として動作。
-- **想定設定内容**:
-  ```json
-  {
-    "compilerOptions": {
-      "target": "ES2022",
-      "module": "NodeNext",
-      "moduleResolution": "NodeNext",
-      "strict": true,
-      "noEmit": true,
-      "esModuleInterop": true,
-      "skipLibCheck": true,
-      "forceConsistentCasingInFileNames": true
-    },
-    "include": ["src/**/*"]
-  }
-  ```
-- **主要オプションの説明**:
-  - `target` / `module`: モダンなNode.js環境に合わせた仕様を指定。
-  - `esModuleInterop`: CommonJSモジュールとの互換性確保。
-  - `skipLibCheck`: 依存ライブラリ内部の型定義重複や競合による誤検知を防止し、高速化を図る。
-  - `include`: 型検査対象のディレクトリ範囲を限定（例: `src/` 配下）。
+### (1) データ型定義 (`src/types/index.ts`)
+
+- `TableAxisConfig`:
+  - `startTime: string`（始業時刻、例: `"09:00"`）
+  - `periodMinutes: number`（1コマの長さ、例: `90` 分）
+  - `intervalMinutes: number`（コマ間インターバル、例: `10` 分）
+  - `hasLunch: boolean`（昼休み有無）
+  - `lunchAfterPeriod: number`（昼休みの入る時限、例: `2` 限の後）
+  - `lunchMinutes: number`（昼休みの長さ、例: `50` 分）
+  - `customRowTimes?: Record<number, { startMinutes: number; endMinutes: number }>`（時限個別カスタム時間）
+- `ImportedTableData`:
+  - `id: string`
+  - `name: string`（例: `"2026年度 前期時間割"`）
+  - `createdAt: string`, `updatedAt: string`
+  - `numRows: number`, `numCols: number`
+  - `colHeaders: string[]`（横軸マッピング: `"月曜"`, `"火曜"` など）
+  - `rowHeaders: string[]`（時限名: `"1限"`, `"2限"` など）
+  - `axisConfig: TableAxisConfig`
+  - `cells: GridCell[][]`
+  - `appliedSlotIds?: string[]`
+
+### (2) ストレージ層 (`src/lib/storage.ts`)
+
+- `loadImportedTables(): ImportedTableData[]`
+- `saveImportedTables(tables: ImportedTableData[]): void`
+- Supabase連携同期のサポート
+
+### (3) 新規コンポーネント `src/components/ImportedTablesManager.tsx`
+
+- **左側 / 上部：表データセレクター＆メタ情報**
+  - 保存済み表の一覧（複数管理：例「2026前期」「2026後期」）
+  - タイトル変更、削除、新規インポートボタン
+- **軸・インターバル設定バー（リアルタイム計算）**:
+  - **横軸設定**: 各列の曜日（月・火・水・木・金・土・日・対象外）をワンクリックで変更・自動プリセット適用
+  - **縦軸・インターバル一括設定**:
+    - 始業時間（例: 08:50 / 09:00）
+    - 1コマの分数（例: 90分、100分、50分）
+    - コマ間インターバル（例: 10分）
+    - 昼休み設定（例: 2限と3限の間に50分）
+  - **時限個別微調整ドロワー**: 各時限の開始・終了時間を1分単位で手動微修正可能
+- **グリッドエディタ＆プレビュー**:
+  - 定義された時間・曜日がヘッダーと各セルに即座に反映
+  - セル内の文字（講義名・教室名）の直接編集・クリア機能
+- **「計画表に反映する」モーダル**:
+  - 「既存の講義枠を置換」または「既存の枠に追加」
+  - 「対応するレポート・課題タスクも自動生成する」チェックボックス（オン/オフ）
+
+### (4) 設定画面統合 (`src/components/TaskManager.tsx`)
+
+- 上部ナビゲーションタブまたはセクションに「読み込みデータ」を追加
+- 日課・週次タスク・固定枠スタックと並んでスムーズにアクセス可能に
+
+### (5) ファイル取込モーダルとの連携 (`src/components/FileImportModal.tsx`)
+
+- 画像やCSVのグリッド読み取り完了時、「読み込みデータ」として名前をつけて保存
+- そのまま「読み込みデータ設定」画面へ遷移して軸定義を行える導線を構築
 
 ---
 
-### ステップ4: `package.json` の `scripts` へのコマンド追加
+## 3. 検証・品質計画
 
-- **追加対象スクリプト**:
-  ```json
-  "scripts": {
-    "typecheck": "tsc --noEmit"
-  }
-  ```
-- **実行・運用方法**:
-  - コマンドラインから `npm run typecheck` を実行することで、プロジェクト全体の型エラー有無を即座に検証可能とします。
-
----
-
-## 3. 構築完了後の動作検証計画
-
-1. `src/index.ts` 等の仮ファイルを配置し、正常系（型エラーなし）で `npm run typecheck` がステータスコード0で終了することを確認。
-2. 意図的な型不整合（例: `const x: number = "test";`）を記述し、適切にエラーが検知されることを確認。
-3. 検証用一時ファイルを削除、または正規コードへ移行。
-
----
-
-## 4. 次のアクション
-
-本計画（`Plan.md`）について開発者の承認を得た後、ステップ1（`npm init -y`）から順次実際のファイル生成およびパッケージインストールを実施します。
+- 全単体テストの実行（`npm run test`）
+- 型チェック（`npm run typecheck`）
+- リントチェック（`npm run lint`）
+- フォーマットチェック（`npm run format`）
+- 本番ビルド検証（`npm run build`）

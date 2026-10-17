@@ -15,7 +15,7 @@ import {
   Sparkles,
   Loader2,
 } from 'lucide-react';
-import { ParsedScheduleItem, FixedSlot, TaskItem } from '@/types';
+import { ParsedScheduleItem, FixedSlot, TaskItem, ImportedTableData } from '@/types';
 import { parseTextSchedule } from '@/lib/importers/textParser';
 import { parseImageSchedule, OcrProgress } from '@/lib/importers/ocrParser';
 import { GridCell } from '@/lib/importers/gridOcrParser';
@@ -30,11 +30,17 @@ interface FileImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImport: (newFixedSlots: FixedSlot[], newTasks: TaskItem[], mode: 'add' | 'replace') => void;
+  onSaveTableData?: (table: ImportedTableData) => void;
 }
 
 type ModalStep = 'upload' | 'crop' | 'grid_adjust' | 'grid_review' | 'list_review';
 
-export function FileImportModal({ isOpen, onClose, onImport }: FileImportModalProps) {
+export function FileImportModal({
+  isOpen,
+  onClose,
+  onImport,
+  onSaveTableData,
+}: FileImportModalProps) {
   const [step, setStep] = useState<ModalStep>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [croppedBlob, setCroppedBlob] = useState<Blob | null>(null);
@@ -178,6 +184,43 @@ export function FileImportModal({ isOpen, onClose, onImport }: FileImportModalPr
 
   // グリッド表からの取り込み確定
   const handleApplyGrid = (validCells: GridCell[]) => {
+    // 読み込みデータ（ImportedTableData）として保存
+    if (onSaveTableData && gridData && gridData.length > 0) {
+      const numRows = gridData.length;
+      const numCols = gridData[0].length;
+      const defaultColHeaders = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'];
+
+      const tableData: ImportedTableData = {
+        id: `imported-table-${Date.now()}`,
+        name: file?.name
+          ? file.name.replace(/\.[^/.]+$/, '')
+          : `取り込み時間割 (${new Date().toLocaleDateString('ja-JP')})`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        numRows,
+        numCols,
+        colHeaders:
+          detectedColHeaders && detectedColHeaders.length === numCols
+            ? detectedColHeaders
+            : Array.from({ length: numCols }, (_, c) => defaultColHeaders[c] || `列 ${c + 1}`),
+        rowHeaders:
+          detectedRowHeaders && detectedRowHeaders.length === numRows
+            ? detectedRowHeaders
+            : Array.from({ length: numRows }, (_, r) => `${r + 1}限`),
+        axisConfig: {
+          startTime: '08:50',
+          periodMinutes: 90,
+          intervalMinutes: 10,
+          hasLunch: true,
+          lunchAfterPeriod: 2,
+          lunchMinutes: 50,
+        },
+        cells: gridData,
+      };
+
+      onSaveTableData(tableData);
+    }
+
     const fixedSlots: FixedSlot[] = validCells.map((cell, idx) => ({
       id: `grid-fixed-${Date.now()}-${idx}`,
       title: cell.title,

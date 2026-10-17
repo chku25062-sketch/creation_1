@@ -20,3 +20,57 @@ export function formatDuration(minutes: number): string {
   if (m === 0) return `${h}時間`;
   return `${h}時間${m}分`;
 }
+
+export interface PeriodTimeSlot {
+  periodIndex: number;
+  startMinutes: number;
+  endMinutes: number;
+  startTime: string;
+  endTime: string;
+}
+
+export function calculatePeriodTimes(
+  numRows: number,
+  config: {
+    startTime: string;
+    periodMinutes: number;
+    intervalMinutes: number;
+    hasLunch: boolean;
+    lunchAfterPeriod: number;
+    lunchMinutes: number;
+    customRowTimes?: Record<number, { startMinutes: number; endMinutes: number }>;
+  },
+): PeriodTimeSlot[] {
+  const result: PeriodTimeSlot[] = [];
+  const startBase = timeStringToMinutes(config.startTime || '09:00');
+  let currentStart = startBase;
+
+  for (let r = 0; r < numRows; r++) {
+    const periodIndex = r + 1;
+    let periodStart = currentStart;
+    let periodEnd = currentStart + (config.periodMinutes || 90);
+
+    // カスタム指定があれば上書き
+    if (config.customRowTimes && config.customRowTimes[periodIndex]) {
+      periodStart = config.customRowTimes[periodIndex].startMinutes;
+      periodEnd = config.customRowTimes[periodIndex].endMinutes;
+    }
+
+    result.push({
+      periodIndex,
+      startMinutes: periodStart,
+      endMinutes: periodEnd,
+      startTime: minutesToTimeString(periodStart),
+      endTime: minutesToTimeString(periodEnd),
+    });
+
+    // 次のコマの開始時間
+    let nextStart = periodEnd + (config.intervalMinutes || 10);
+    if (config.hasLunch && config.lunchAfterPeriod === periodIndex) {
+      nextStart = periodEnd + (config.lunchMinutes || 50);
+    }
+    currentStart = nextStart;
+  }
+
+  return result;
+}
