@@ -25,6 +25,7 @@ export interface CellCropInfo {
   row: number; // 0-indexed
   col: number; // 0-indexed
   blob: Blob;
+  dataUrl?: string;
   isEmpty: boolean; // 白ピクセルのみで文字が無い場合 true
   width: number;
   height: number;
@@ -921,33 +922,43 @@ export async function extractCellCrops(
       const innerW = Math.max(10, Math.round((rect.w - padX * 2) * nw));
       const innerH = Math.max(10, Math.round((rect.h - padY * 2) * nh));
 
+      // セルが小さい場合は解像度を確保するためにスケールアップ（Tesseractの文字認識精度向上）
+      const minTargetH = 80;
+      const scale = innerH < minTargetH ? Math.min(2.5, minTargetH / innerH) : 1.0;
+      const targetW = Math.round(innerW * scale);
+      const targetH = Math.round(innerH * scale);
+
       const canvas = document.createElement('canvas');
-      canvas.width = innerW;
-      canvas.height = innerH;
+      canvas.width = targetW;
+      canvas.height = targetH;
       const ctx = canvas.getContext('2d');
 
       if (!ctx) {
         continue;
       }
 
-      ctx.drawImage(img, innerX, innerY, innerW, innerH, 0, 0, innerW, innerH);
+      // 高品質画像スケーリングを適用
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, innerX, innerY, innerW, innerH, 0, 0, targetW, targetH);
 
       // 空白セル判定 (原本の階調・アンチエイリアスを破壊せず、暗いピクセルの比率のみをチェック)
-      const imgData = ctx.getImageData(0, 0, innerW, innerH);
+      const imgData = ctx.getImageData(0, 0, targetW, targetH);
       const d = imgData.data;
       let darkPixelCount = 0;
 
       for (let i = 0; i < d.length; i += 4) {
         const brightness = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-        if (brightness < 160) {
+        if (brightness < 185) {
           darkPixelCount++;
         }
       }
 
-      const totalPixels = innerW * innerH;
-      // 暗いピクセルが全体の 0.1% 未満の場合のみ空白コマ（文字なし）と安全に判定
-      // （わずかな文字でもスキップされないよう閾値を緩和）
-      const isEmpty = darkPixelCount / totalPixels < 0.001;
+      const totalPixels = targetW * targetH;
+      // 暗いピクセルが全体の 0.05% 未満の場合のみ空白コマ（文字なし）と安全に判定
+      const isEmpty = darkPixelCount / totalPixels < 0.0005;
+
+      const dataUrl = canvas.toDataURL('image/png');
 
       const blob = await new Promise<Blob>((resolve) => {
         canvas.toBlob((b) => resolve(b || imageBlob), 'image/png');
@@ -957,9 +968,10 @@ export async function extractCellCrops(
         row: r,
         col: c,
         blob,
+        dataUrl,
         isEmpty,
-        width: innerW,
-        height: innerH,
+        width: targetW,
+        height: targetH,
       });
     }
 

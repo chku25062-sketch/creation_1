@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { ParsedScheduleItem, FixedSlot, TaskItem, ImportedTableData } from '@/types';
 import { parseTextSchedule } from '@/lib/importers/textParser';
-import { parseImageSchedule, OcrProgress } from '@/lib/importers/ocrParser';
+import { OcrProgress } from '@/lib/importers/ocrParser';
 import { GridCell } from '@/lib/importers/gridOcrParser';
 import { minutesToTimeString, formatDuration } from '@/lib/timeUtils';
 import { ImageCropper } from '@/components/ImageCropper';
@@ -142,37 +142,10 @@ export function FileImportModal({
         },
       );
 
-      const hasRecognizedContent = grid && grid.some((r) => r.some((c) => c.title));
-
-      if (hasRecognizedContent) {
-        setGridData(grid);
-        setDetectedColHeaders(colHeaders);
-        setDetectedRowHeaders(rowHeaders);
-        setStep('grid_review');
-      } else {
-        // セル個別OCRで文字が検出できなかった場合のフォールバック (全体解析)
-        setProgress({
-          status: '全体レイアウト解析にフォールバック中...',
-          progress: 0.5,
-        });
-        const fallbackRes = await parseImageSchedule(croppedBlob, (p) => setProgress(p), {
-          columns,
-          rows,
-        });
-
-        if (fallbackRes.grid && fallbackRes.grid.some((r) => r.some((c) => c.title))) {
-          setGridData(fallbackRes.grid);
-          setStep('grid_review');
-        } else if (fallbackRes.items.length > 0) {
-          setParsedItems(fallbackRes.items);
-          setStep('list_review');
-        } else {
-          setErrorMsg(
-            '文字を検出できませんでした。トリミング範囲や画像の鮮明さを確認してください。',
-          );
-          setStep('upload');
-        }
-      }
+      setGridData(grid);
+      setDetectedColHeaders(colHeaders);
+      setDetectedRowHeaders(rowHeaders);
+      setStep('grid_review');
     } catch (err: unknown) {
       console.error(err);
       setErrorMsg('区画OCR解析中にエラーが発生しました。');

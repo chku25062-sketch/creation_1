@@ -104,11 +104,19 @@ export async function runCellBatchOcr(
           });
 
           try {
-            const ret = await worker.recognize(cellInfo.blob);
+            // iOS Safari 等で Blob 転送が不安定なケースを防ぐため、dataUrl (Base64) を優先
+            const inputSource = cellInfo.dataUrl || cellInfo.blob;
+            const ret = await worker.recognize(inputSource);
             cellText = ret.data.text.trim();
           } catch (err) {
-            console.warn(`Error recognizing cell [${r}, ${c}]`, err);
-            cellText = '';
+            console.warn(`Error recognizing cell [${r}, ${c}] with dataUrl, trying blob:`, err);
+            try {
+              const ret = await worker.recognize(cellInfo.blob);
+              cellText = ret.data.text.trim();
+            } catch (fallbackErr) {
+              console.warn(`Fallback blob also failed for cell [${r}, ${c}]:`, fallbackErr);
+              cellText = '';
+            }
           }
         } else {
           onProgress?.({
