@@ -10,10 +10,13 @@ import {
   CheckCircle2,
   Upload,
   Calendar,
-  Settings,
   Minimize2,
+  FileSpreadsheet,
+  Sliders,
 } from 'lucide-react';
 import { isSupabaseConfigured } from '@/lib/supabase';
+
+export type SheetTab = 'timeline' | 'data' | 'settings';
 
 interface HeaderProps {
   userEmail?: string | null;
@@ -21,9 +24,10 @@ interface HeaderProps {
   onSignOut: () => void;
   onOpenImport?: () => void;
   lastSavedAt?: Date | null;
-  activeTab: 'timeline' | 'settings';
-  onTabChange: (tab: 'timeline' | 'settings') => void;
+  activeTab: SheetTab;
+  onTabChange: (tab: SheetTab) => void;
   unassignedCount?: number;
+  tablesCount?: number;
   tasksCount?: number;
   fixedCount?: number;
   onHideHeader?: () => void;
@@ -38,36 +42,37 @@ export function Header({
   activeTab,
   onTabChange,
   unassignedCount = 0,
+  tablesCount = 0,
   tasksCount = 0,
   fixedCount = 0,
   onHideHeader,
 }: HeaderProps) {
   return (
-    <header className="shrink-0 border-b border-slate-200 bg-white/95 backdrop-blur-xs">
-      <div className="mx-auto flex h-11 w-full max-w-full items-center justify-between px-2.5 sm:px-4">
-        {/* Left: App Title & Logo */}
+    <header className="shrink-0 border-b border-amber-900/10 bg-[#fbfaf5]/95 backdrop-blur-xs">
+      <div className="mx-auto flex h-11 w-full max-w-full items-center justify-between px-2 sm:px-4">
+        {/* Left: App Title & Notebook Logo */}
         <div className="flex items-center gap-2">
           <div className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-600 shadow-2xs">
             <Target className="h-3.5 w-3.5 text-white" />
           </div>
-          <h1 className="text-xs font-bold tracking-tight text-slate-900 sm:text-sm">
+          <h1 className="text-xs font-bold tracking-tight text-slate-800 sm:text-sm">
             理論値計画表
           </h1>
         </div>
 
-        {/* Center: Slim Navigation Tabs */}
-        <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+        {/* Center: Excel Sheet-style Navigation Tabs (3大Sheet) */}
+        <div className="flex items-center overflow-x-auto rounded-lg border border-slate-300/80 bg-[#ede8dc] p-0.5 text-xs">
+          {/* Sheet 1: 計画表 */}
           <button
             onClick={() => onTabChange('timeline')}
-            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition ${
+            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition select-none ${
               activeTab === 'timeline'
-                ? 'bg-white font-semibold text-blue-700 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white font-bold text-blue-800 shadow-2xs border-b-2 border-blue-600'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
             }`}
           >
-            <Calendar className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">週間スケジュール</span>
-            <span className="sm:hidden">週間</span>
+            <Calendar className="h-3.5 w-3.5 text-blue-600" />
+            <span className="font-semibold">計画表</span>
             {unassignedCount > 0 && (
               <span className="rounded-full bg-amber-400 px-1 py-0.2 text-[9px] font-bold text-amber-950">
                 {unassignedCount}
@@ -75,18 +80,36 @@ export function Header({
             )}
           </button>
 
+          {/* Sheet 2: データ管理 (読み込み時間割・軸定義) */}
           <button
-            onClick={() => onTabChange('settings')}
-            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition ${
-              activeTab === 'settings'
-                ? 'bg-white font-semibold text-blue-700 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900'
+            onClick={() => onTabChange('data')}
+            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition select-none ${
+              activeTab === 'data'
+                ? 'bg-white font-bold text-emerald-800 shadow-2xs border-b-2 border-emerald-600'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
             }`}
           >
-            <Settings className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">目標・固定枠設定</span>
-            <span className="sm:hidden">設定</span>
-            <span className="hidden rounded-full bg-slate-200/80 px-1 py-0.2 text-[9px] text-slate-600 md:inline">
+            <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+            <span className="font-semibold">データ管理</span>
+            {tablesCount > 0 && (
+              <span className="hidden rounded-full bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-800 sm:inline">
+                {tablesCount}
+              </span>
+            )}
+          </button>
+
+          {/* Sheet 3: 設定 (目標タスク・固定枠・フォーカス) */}
+          <button
+            onClick={() => onTabChange('settings')}
+            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition select-none ${
+              activeTab === 'settings'
+                ? 'bg-white font-bold text-purple-800 shadow-2xs border-b-2 border-purple-600'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            }`}
+          >
+            <Sliders className="h-3.5 w-3.5 text-purple-600" />
+            <span className="font-semibold">設定</span>
+            <span className="hidden rounded-full bg-slate-200/90 px-1 py-0.2 text-[9px] text-slate-600 md:inline">
               {tasksCount + fixedCount}
             </span>
           </button>

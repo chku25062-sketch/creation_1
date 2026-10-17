@@ -239,14 +239,14 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
           </div>
         </div>
 
-        {/* Scrollable 24-Hour Grid Area */}
+        {/* Scrollable 24-Hour Grid Area (ノート調方眼罫線) */}
         <div
           ref={scrollContainerRef}
-          className="relative flex-1 min-h-0 overflow-y-auto overflow-x-auto p-1 sm:p-1.5"
+          className="relative flex-1 min-h-0 overflow-y-auto overflow-x-auto p-1 sm:p-1.5 bg-[#fdfcf9]"
         >
           <div className="relative flex min-w-[700px]" style={{ height: `${totalHeight}px` }}>
             {/* Left Time Axis Labels (00:00 - 24:00) */}
-            <div className="relative w-11 shrink-0 select-none border-r border-slate-200 sm:w-14">
+            <div className="relative w-11 shrink-0 select-none border-r border-slate-200/80 bg-[#fbfaf5]/60 sm:w-14">
               {Array.from({ length: TOTAL_HOURS + 1 }).map((_, hour) => (
                 <div
                   key={`time-label-${hour}`}
@@ -267,31 +267,51 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
                 return (
                   <div
                     key={`weekday-col-${d.dayIndex}`}
-                    className={`relative border-r border-slate-200 ${
+                    className={`relative border-r border-slate-200/70 ${
                       d.dayIndex === 6 ? 'border-r-0' : ''
-                    } ${d.isToday ? 'bg-blue-50/20' : ''}`}
+                    } ${d.isToday ? 'bg-amber-100/15' : ''}`}
                   >
-                    {/* 1-hour Horizontal Grid Lines & 30-min dashed lines */}
+                    {/* 1-hour Horizontal Grid Lines & 30-min dashed lines (ノート罫線) */}
                     {Array.from({ length: TOTAL_HOURS }).map((_, hour) => (
                       <div
                         key={`grid-cell-${d.dayIndex}-${hour}`}
-                        className="relative border-b border-slate-100"
+                        className="relative border-b border-slate-200/50"
                         style={{ height: `${hourHeight}px` }}
                       >
                         <div
-                          className="absolute inset-x-0 border-b border-dashed border-slate-100/90"
+                          className="absolute inset-x-0 border-b border-dashed border-slate-200/40"
                           style={{ top: `${hourHeight / 2}px` }}
                         />
                       </div>
                     ))}
 
-                    {/* Scheduled Blocks for this Day */}
+                    {/* Scheduled Blocks for this Day: 付箋（Sticky Note）風レンダリング */}
                     {currentDayBlocks.map((block) => {
                       const top = (block.startMinutes / 60) * hourHeight;
                       const duration = block.endMinutes - block.startMinutes;
                       const height = (duration / 60) * hourHeight;
                       const isShort = duration < 30 || height < 32;
                       const isAssignment = block.taskType === 'assignment';
+                      const isLecture = block.isFixed && block.category === 'lecture';
+                      const isRoutineOrSleep = block.isFixed && !isLecture;
+
+                      // 付箋風カラーパレットの判定
+                      const stickyNoteClass = isAssignment
+                        ? 'bg-[#f5eeff] border-[#d8b4fe] text-[#581c87]' // ラベンダー付箋（課題）
+                        : isLecture
+                          ? 'bg-[#e0f2fe] border-[#7dd3fc] text-[#0369a1]' // スカイブルー付箋（講義）
+                          : isRoutineOrSleep
+                            ? 'bg-[#f4efe6] border-[#dfd6c5] text-[#475569]' // クラフトペーパー付箋（生活固定）
+                            : 'bg-[#fef9c3] border-[#fde047] text-[#854d0e]'; // イエロー付箋（目標タスク）
+
+                      // のり付けカラーストリップ
+                      const stripColor = isAssignment
+                        ? '#9333ea'
+                        : isLecture
+                          ? '#0284c7'
+                          : isRoutineOrSleep
+                            ? '#94a3b8'
+                            : '#eab308';
 
                       return (
                         <div
@@ -300,52 +320,38 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
                             top: `${top}px`,
                             height: `${Math.max(22, height - 2)}px`,
                           }}
-                          className={`group absolute inset-x-0.5 overflow-hidden rounded-md border transition-all hover:z-20 hover:shadow-md sm:inset-x-1 ${
-                            block.isFixed
-                              ? 'border-slate-300 bg-slate-100/95 hover:border-slate-400'
-                              : isAssignment
-                                ? 'border-purple-300 bg-purple-50/95 hover:border-purple-400 shadow-2xs'
-                                : 'border-blue-300 bg-blue-50/95 hover:border-blue-400 shadow-2xs'
-                          }`}
+                          className={`group absolute inset-x-0.5 overflow-hidden rounded-md border sticky-note transition-all hover:z-20 sm:inset-x-1 ${stickyNoteClass}`}
                         >
-                          {/* Left Color Indicator */}
+                          {/* 付箋のり付けストリップ (左端) */}
                           <div
-                            className="absolute inset-y-0 left-0 w-1.5"
-                            style={{ backgroundColor: block.color }}
+                            className="absolute inset-y-0 left-0 w-1.5 opacity-90 shadow-2xs"
+                            style={{ backgroundColor: stripColor }}
                           />
 
                           {/* Block Content */}
                           <div className="flex h-full flex-col justify-between p-1 pl-2.5">
                             <div className="flex items-start justify-between gap-1 overflow-hidden">
-                              <span
-                                className={`truncate text-xs font-bold leading-tight sm:text-[13px] ${
-                                  block.isFixed
-                                    ? 'text-slate-800'
-                                    : isAssignment
-                                      ? 'text-purple-950'
-                                      : 'text-blue-950'
-                                }`}
-                              >
+                              <span className="truncate text-xs font-bold leading-tight sm:text-[13px]">
                                 {block.title}
                               </span>
                               {isAssignment && block.deadlineDay !== undefined && (
-                                <span className="shrink-0 rounded bg-rose-100 px-1 py-0.2 text-[9px] font-semibold text-rose-700">
+                                <span className="shrink-0 rounded bg-rose-200/90 px-1 py-0.2 text-[9px] font-bold text-rose-900 shadow-2xs">
                                   期日:{WEEKDAY_NAMES[block.deadlineDay]}
                                 </span>
                               )}
                               {!isShort && !isAssignment && (
-                                <span className="hidden shrink-0 rounded border border-slate-200 bg-white/80 px-1 py-0.2 font-mono text-[9px] text-slate-600 xl:inline-block">
+                                <span className="hidden shrink-0 rounded bg-white/70 px-1 py-0.2 font-mono text-[9px] text-slate-600 xl:inline-block shadow-2xs">
                                   {formatDuration(duration)}
                                 </span>
                               )}
                             </div>
 
                             {!isShort && (
-                              <div className="flex items-center gap-1 font-mono text-[10px] text-slate-500 sm:text-[11px]">
+                              <div className="flex items-center gap-1 font-mono text-[10px] opacity-80 sm:text-[11px]">
                                 {isAssignment ? (
-                                  <BookOpen className="h-2.5 w-2.5 text-purple-600" />
+                                  <BookOpen className="h-2.5 w-2.5 text-purple-700" />
                                 ) : (
-                                  <Clock className="h-2.5 w-2.5 text-slate-400" />
+                                  <Clock className="h-2.5 w-2.5 text-slate-500" />
                                 )}
                                 <span className="truncate">
                                   {minutesToTimeString(block.startMinutes)} -{' '}

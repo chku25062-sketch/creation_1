@@ -2,8 +2,8 @@
 
 @layer base {
   :root {
-    --background: #f8fafc;
-    --foreground: #0f172a;
+    --background: #fbfaf5;
+    --foreground: #1e293b;
     --card: #ffffff;
     --card-border: #e2e8f0;
     --accent: #2563eb;
@@ -23,7 +23,7 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #f1ede4;
 }
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
@@ -33,19 +33,77 @@
   background: #94a3b8;
 }
 
-/* Card & Surface helpers */
-.glass-panel {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  box-shadow:
-    0 1px 3px 0 rgb(0 0 0 / 0.04),
-    0 1px 2px -1px rgb(0 0 0 / 0.04);
+/* ========================================================
+   ノート調テクスチャ & 付箋（Sticky Note）スタイル
+   ======================================================== */
+
+/* 方眼紙風グリッド背景 */
+.bg-notebook-grid {
+  background-color: #fbfaf5;
+  background-image:
+    linear-gradient(to right, rgba(203, 213, 225, 0.3) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(203, 213, 225, 0.3) 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 
-.glass-panel-accent {
-  background: #ffffff;
-  border: 1px solid #bfdbfe;
+/* 罫線ノート風背景 */
+.bg-notebook-ruled {
+  background-color: #fbfaf5;
+  background-image: linear-gradient(to bottom, rgba(203, 213, 225, 0.35) 1px, transparent 1px);
+  background-size: 100% 28px;
+}
+
+/* 付箋（Sticky Note）の基本立体感 */
+.sticky-note {
+  position: relative;
   box-shadow:
-    0 4px 6px -1px rgb(37 99 235 / 0.06),
-    0 2px 4px -2px rgb(37 99 235 / 0.06);
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 8px -2px rgba(0, 0, 0, 0.03);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sticky-note:hover {
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.08),
+    0 2px 4px rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
+}
+
+/* 蛍光ペン（マーカー）風下線 */
+.highlighter-yellow {
+  background: linear-gradient(transparent 50%, rgba(254, 240, 138, 0.75) 50%);
+}
+
+.highlighter-pink {
+  background: linear-gradient(transparent 50%, rgba(254, 205, 211, 0.75) 50%);
+}
+
+.highlighter-blue {
+  background: linear-gradient(transparent 50%, rgba(186, 230, 253, 0.75) 50%);
+}
+
+/* Excel Sheet風タブスタイル */
+.excel-sheet-tab {
+  position: relative;
+  transition: all 0.15s ease-in-out;
+}
+
+.excel-sheet-tab-active {
+  background-color: #ffffff;
+  color: #1e3a8a;
+  border-top: 2px solid #2563eb;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.excel-sheet-tab-inactive {
+  background-color: #f1ede4;
+  color: #64748b;
+  border-top: 2px solid transparent;
+}
+
+.excel-sheet-tab-inactive:hover {
+  background-color: #f8f6f0;
+  color: #1e293b;
 }
