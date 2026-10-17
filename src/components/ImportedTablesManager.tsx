@@ -14,6 +14,8 @@ import {
   Folder,
   FolderOpen,
   Search,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { ImportedTableData, FixedSlot, TaskItem } from '@/types';
 import { calculatePeriodTimes, timeStringToMinutes } from '@/lib/timeUtils';
@@ -50,6 +52,27 @@ export function ImportedTablesManager({
 }: ImportedTablesManagerProps) {
   // 選択中のテーブル
   const [selectedTableId, setSelectedTableId] = useState<string>(tables[0]?.id || 'sample-table-1');
+
+  // ファイル一覧サイドバーの開閉状態
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('imported_tables_sidebar_open');
+      if (saved !== null) {
+        return saved === 'true';
+      }
+    }
+    return true;
+  });
+
+  const toggleSidebar = () => {
+    setIsSidebarOpen((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('imported_tables_sidebar_open', String(next));
+      }
+      return next;
+    });
+  };
 
   // 検索クエリ（エクスプローラー風ファイル検索）
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -447,109 +470,117 @@ export function ImportedTablesManager({
       {/* ========================================================
           Left Sidebar: Windows エクスプローラー風 データファイル一覧
           ======================================================== */}
-      <aside className="flex w-60 sm:w-64 md:w-72 shrink-0 flex-col border-r border-slate-200 bg-slate-50/90 select-none">
-        {/* Sidebar Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-100/70 px-3 py-2.5">
-          <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-600 shadow-2xs">
-              <Folder className="h-3.5 w-3.5 text-white" />
+      <aside
+        className={`shrink-0 flex flex-col border-slate-200 bg-slate-50/90 select-none transition-all duration-200 ease-in-out overflow-hidden ${
+          isSidebarOpen
+            ? 'w-60 sm:w-64 md:w-72 border-r opacity-100'
+            : 'w-0 border-r-0 opacity-0 pointer-events-none'
+        }`}
+      >
+        <div className="w-60 sm:w-64 md:w-72 flex flex-col h-full min-h-0">
+          {/* Sidebar Header */}
+          <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-100/70 px-3 py-2.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-blue-600 shadow-2xs">
+                <Folder className="h-3.5 w-3.5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-xs font-bold text-slate-900 leading-tight">データファイル</h2>
+                <span className="text-[10px] text-slate-500 font-medium">
+                  {tables.length}件の表データ
+                </span>
+              </div>
             </div>
-            <div>
-              <h2 className="text-xs font-bold text-slate-900 leading-tight">データファイル</h2>
-              <span className="text-[10px] text-slate-500 font-medium">
-                {tables.length}件の表データ
-              </span>
-            </div>
-          </div>
 
-          <button
-            onClick={handleAddNewTable}
-            title="新しい表を追加"
-            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-blue-600 transition"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>新規</span>
-          </button>
-        </div>
-
-        {/* Search Input (Windows Explorer Search Bar風) */}
-        <div className="shrink-0 p-2 border-b border-slate-200/80 bg-slate-50">
-          <div className="relative flex items-center">
-            <Search className="absolute left-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ファイル名で検索..."
-              className="w-full rounded-md border border-slate-200 bg-white py-1 pl-8 pr-2 text-xs placeholder:text-slate-400 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500/20"
-            />
-            {searchQuery && (
+            <div className="flex items-center gap-1 shrink-0">
               <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2 text-slate-400 hover:text-slate-600 text-xs"
+                onClick={handleAddNewTable}
+                title="新しい表を追加"
+                className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-blue-600 transition"
               >
-                ×
+                <Plus className="h-3.5 w-3.5" />
+                <span>新規</span>
               </button>
-            )}
+
+              <button
+                onClick={toggleSidebar}
+                title="ファイル一覧を閉じる"
+                className="rounded-md p-1 text-slate-400 hover:bg-slate-200/80 hover:text-slate-700 transition"
+              >
+                <PanelLeftClose className="h-4 w-4" />
+              </button>
+            </div>
           </div>
-        </div>
 
-        {/* File List (Explorer Item Rows) */}
-        <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
-          {filteredTables.length === 0 ? (
-            <div className="p-4 text-center text-xs text-slate-400">該当する表が見つかりません</div>
-          ) : (
-            filteredTables.map((t) => {
-              const isSelected = t.id === activeTable.id;
-              const dateStr = t.updatedAt
-                ? new Date(t.updatedAt).toLocaleDateString('ja-JP', {
-                    month: 'numeric',
-                    day: 'numeric',
-                  })
-                : '';
-
-              return (
-                <div
-                  key={t.id}
-                  onClick={() => {
-                    setSelectedTableId(t.id);
-                    if (!isSelected) setIsEditingName(false);
-                  }}
-                  className={`group relative flex items-center justify-between rounded-lg px-2.5 py-2 text-xs cursor-pointer transition ${
-                    isSelected
-                      ? 'bg-blue-100/70 border-l-3 border-l-blue-600 text-blue-950 font-bold shadow-2xs'
-                      : 'hover:bg-slate-200/50 text-slate-700'
-                  }`}
+          {/* Search Input (Windows Explorer Search Bar風) */}
+          <div className="shrink-0 p-2 border-b border-slate-200/80 bg-slate-50">
+            <div className="relative flex items-center">
+              <Search className="absolute left-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ファイル名で検索..."
+                className="w-full rounded-md border border-slate-200 bg-white py-1 pl-8 pr-2 text-xs placeholder:text-slate-400 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500/20"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 text-slate-400 hover:text-slate-600 text-xs"
                 >
-                  <div className="flex items-center gap-2 min-w-0 flex-1 pr-1">
-                    {/* File Icon */}
-                    <div
-                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-sm ${
-                        isSelected ? 'text-blue-700' : 'text-emerald-600'
-                      }`}
-                    >
-                      <FileSpreadsheet className="h-4 w-4" />
-                    </div>
+                  ×
+                </button>
+              )}
+            </div>
+          </div>
 
-                    {/* File Info */}
-                    <div className="min-w-0 flex-1">
-                      {isSelected && isEditingName ? (
-                        <input
-                          type="text"
-                          value={tempTableName}
-                          onChange={(e) => setTempTableName(e.target.value)}
-                          onBlur={() => {
-                            if (tempTableName.trim()) {
-                              updateActiveTable((prev) => ({
-                                ...prev,
-                                name: tempTableName.trim(),
-                                updatedAt: new Date().toISOString(),
-                              }));
-                            }
-                            setIsEditingName(false);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
+          {/* File List (Explorer Item Rows) */}
+          <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
+            {filteredTables.length === 0 ? (
+              <div className="p-4 text-center text-xs text-slate-400">
+                該当する表が見つかりません
+              </div>
+            ) : (
+              filteredTables.map((t) => {
+                const isSelected = t.id === activeTable.id;
+                const dateStr = t.updatedAt
+                  ? new Date(t.updatedAt).toLocaleDateString('ja-JP', {
+                      month: 'numeric',
+                      day: 'numeric',
+                    })
+                  : '';
+
+                return (
+                  <div
+                    key={t.id}
+                    onClick={() => {
+                      setSelectedTableId(t.id);
+                      if (!isSelected) setIsEditingName(false);
+                    }}
+                    className={`group relative flex items-center justify-between rounded-lg px-2.5 py-2 text-xs cursor-pointer transition ${
+                      isSelected
+                        ? 'bg-blue-100/70 border-l-3 border-l-blue-600 text-blue-950 font-bold shadow-2xs'
+                        : 'hover:bg-slate-200/50 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1 pr-1">
+                      {/* File Icon */}
+                      <div
+                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-sm ${
+                          isSelected ? 'text-blue-700' : 'text-emerald-600'
+                        }`}
+                      >
+                        <FileSpreadsheet className="h-4 w-4" />
+                      </div>
+
+                      {/* File Info */}
+                      <div className="min-w-0 flex-1">
+                        {isSelected && isEditingName ? (
+                          <input
+                            type="text"
+                            value={tempTableName}
+                            onChange={(e) => setTempTableName(e.target.value)}
+                            onBlur={() => {
                               if (tempTableName.trim()) {
                                 updateActiveTable((prev) => ({
                                   ...prev,
@@ -558,64 +589,76 @@ export function ImportedTablesManager({
                                 }));
                               }
                               setIsEditingName(false);
-                            }
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                          autoFocus
-                          className="w-full rounded border border-blue-400 bg-white px-1 py-0.5 text-xs text-blue-900 focus:outline-hidden"
-                        />
-                      ) : (
-                        <div className="truncate text-xs leading-tight">{t.name}</div>
-                      )}
-                      <div className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-400 font-mono font-normal">
-                        <span>
-                          {t.numRows}×{t.numCols} コマ
-                        </span>
-                        {dateStr && <span>{dateStr}</span>}
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                if (tempTableName.trim()) {
+                                  updateActiveTable((prev) => ({
+                                    ...prev,
+                                    name: tempTableName.trim(),
+                                    updatedAt: new Date().toISOString(),
+                                  }));
+                                }
+                                setIsEditingName(false);
+                              }
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            autoFocus
+                            className="w-full rounded border border-blue-400 bg-white px-1 py-0.5 text-xs text-blue-900 focus:outline-hidden"
+                          />
+                        ) : (
+                          <div className="truncate text-xs leading-tight">{t.name}</div>
+                        )}
+                        <div className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-400 font-mono font-normal">
+                          <span>
+                            {t.numRows}×{t.numCols} コマ
+                          </span>
+                          {dateStr && <span>{dateStr}</span>}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Actions on Hover */}
-                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition shrink-0">
-                    {isSelected && !isEditingName && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setTempTableName(t.name);
-                          setIsEditingName(true);
-                        }}
-                        title="名前を変更"
-                        className="rounded p-1 text-slate-400 hover:bg-slate-200/80 hover:text-blue-600"
-                      >
-                        <Edit2 className="h-3 w-3" />
-                      </button>
-                    )}
-                    {tables.length > 1 && (
-                      <button
-                        onClick={(e) => handleDeleteTable(t.id, e)}
-                        title="表を削除"
-                        className="rounded p-1 text-slate-400 hover:bg-rose-100 hover:text-rose-600"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    )}
+                    {/* Actions on Hover */}
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition shrink-0">
+                      {isSelected && !isEditingName && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setTempTableName(t.name);
+                            setIsEditingName(true);
+                          }}
+                          title="名前を変更"
+                          className="rounded p-1 text-slate-400 hover:bg-slate-200/80 hover:text-blue-600"
+                        >
+                          <Edit2 className="h-3 w-3" />
+                        </button>
+                      )}
+                      {tables.length > 1 && (
+                        <button
+                          onClick={(e) => handleDeleteTable(t.id, e)}
+                          title="表を削除"
+                          className="rounded p-1 text-slate-400 hover:bg-rose-100 hover:text-rose-600"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })
-          )}
-        </div>
+                );
+              })
+            )}
+          </div>
 
-        {/* Sidebar Footer */}
-        <div className="shrink-0 border-t border-slate-200 bg-slate-100/60 p-2 text-center">
-          <button
-            onClick={handleAddNewTable}
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-white py-1.5 text-xs font-medium text-slate-600 hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900 transition shadow-2xs"
-          >
-            <Plus className="h-3.5 w-3.5 text-slate-500" />
-            <span>新規テーブルを追加</span>
-          </button>
+          {/* Sidebar Footer */}
+          <div className="shrink-0 border-t border-slate-200 bg-slate-100/60 p-2 text-center">
+            <button
+              onClick={handleAddNewTable}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-white py-1.5 text-xs font-medium text-slate-600 hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900 transition shadow-2xs"
+            >
+              <Plus className="h-3.5 w-3.5 text-slate-500" />
+              <span>新規テーブルを追加</span>
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -643,24 +686,46 @@ export function ImportedTablesManager({
 
         {/* Explorer Path / Breadcrumb & Top Actions Bar */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
-          {/* Breadcrumb Path */}
-          <div className="flex items-center gap-1.5 text-xs text-slate-500 min-w-0">
-            <FolderOpen className="h-4 w-4 text-amber-500 shrink-0" />
-            <span className="font-medium text-slate-600">読み込みデータ</span>
-            <span className="text-slate-300">/</span>
-            <span className="font-bold text-slate-900 truncate">{activeTable.name}</span>
-            {!isEditingName && (
-              <button
-                onClick={() => {
-                  setTempTableName(activeTable.name);
-                  setIsEditingName(true);
-                }}
-                title="テーブル名を編集"
-                className="ml-1 text-slate-400 hover:text-blue-600"
-              >
-                <Edit2 className="h-3 w-3" />
-              </button>
-            )}
+          {/* Breadcrumb Path & Sidebar Toggle */}
+          <div className="flex items-center gap-2 text-xs text-slate-500 min-w-0">
+            {/* サイドバー開閉トグルボタン */}
+            <button
+              onClick={toggleSidebar}
+              title={isSidebarOpen ? 'ファイル一覧を折りたたむ' : 'ファイル一覧を展開する'}
+              className={`flex items-center gap-1.5 rounded-md border px-2 py-1 font-medium transition shadow-2xs ${
+                isSidebarOpen
+                  ? 'border-transparent text-slate-400 hover:bg-slate-100 hover:text-slate-700'
+                  : 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 font-semibold'
+              }`}
+            >
+              {isSidebarOpen ? (
+                <PanelLeftClose className="h-4 w-4" />
+              ) : (
+                <PanelLeftOpen className="h-4 w-4" />
+              )}
+              {!isSidebarOpen && <span>ファイル一覧</span>}
+            </button>
+
+            <span className="text-slate-300">|</span>
+
+            <div className="flex items-center gap-1.5 min-w-0">
+              <FolderOpen className="h-4 w-4 text-amber-500 shrink-0" />
+              <span className="font-medium text-slate-600 shrink-0">読み込みデータ</span>
+              <span className="text-slate-300">/</span>
+              <span className="font-bold text-slate-900 truncate">{activeTable.name}</span>
+              {!isEditingName && (
+                <button
+                  onClick={() => {
+                    setTempTableName(activeTable.name);
+                    setIsEditingName(true);
+                  }}
+                  title="テーブル名を編集"
+                  className="ml-1 text-slate-400 hover:text-blue-600"
+                >
+                  <Edit2 className="h-3 w-3" />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Action Buttons */}
