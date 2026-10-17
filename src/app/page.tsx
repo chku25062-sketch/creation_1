@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Calendar, Settings } from 'lucide-react';
+import { Maximize2 } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { Timeline24h } from '@/components/Timeline24h';
 import { TaskManager } from '@/components/TaskManager';
@@ -22,6 +22,7 @@ export default function Home() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isHeaderHidden, setIsHeaderHidden] = useState(false);
 
   // 初期化ロード
   useEffect(() => {
@@ -146,63 +147,35 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen h-[100dvh] flex-col overflow-hidden bg-[#f8fafc] text-slate-800">
-      <Header
-        userEmail={userEmail}
-        onOpenAuth={() => setIsAuthOpen(true)}
-        onSignOut={handleSignOut}
-        onOpenImport={() => setIsImportOpen(true)}
-        lastSavedAt={lastSavedAt}
-      />
+    <div className="relative flex h-screen h-[100dvh] flex-col overflow-hidden bg-[#f8fafc] text-slate-800">
+      {/* Slim Integrated Header (Hidden in focus mode) */}
+      {!isHeaderHidden ? (
+        <Header
+          userEmail={userEmail}
+          onOpenAuth={() => setIsAuthOpen(true)}
+          onSignOut={handleSignOut}
+          onOpenImport={() => setIsImportOpen(true)}
+          lastSavedAt={lastSavedAt}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          unassignedCount={schedulingResult.unassignedTasks.length}
+          tasksCount={tasks.length}
+          fixedCount={fixedSlots.length}
+          onHideHeader={() => setIsHeaderHidden(true)}
+        />
+      ) : (
+        /* Floating Restore Header Button when hidden */
+        <button
+          onClick={() => setIsHeaderHidden(false)}
+          className="absolute right-3 top-2 z-50 flex items-center gap-1.5 rounded-full border border-slate-300 bg-white/90 px-3 py-1 text-xs font-semibold text-slate-700 shadow-md backdrop-blur-xs transition hover:bg-white hover:text-blue-600 hover:shadow-lg"
+          title="ヘッダーを再表示"
+        >
+          <Maximize2 className="h-3.5 w-3.5 text-blue-600" />
+          <span>ヘッダー表示</span>
+        </button>
+      )}
 
-      <main className="mx-auto flex w-full flex-1 min-h-0 flex-col gap-2.5 px-3 py-2 sm:px-6 sm:py-2.5 max-w-7xl 2xl:max-w-[1700px]">
-        {/* Navigation Tabs */}
-        <div className="flex shrink-0 rounded-xl border border-slate-200 bg-white p-1 shadow-xs">
-          <button
-            onClick={() => setActiveTab('timeline')}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs transition sm:text-sm ${
-              activeTab === 'timeline'
-                ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium'
-            }`}
-          >
-            <Calendar className="h-3.5 w-3.5" />
-            <span>週間スケジュール (7日間)</span>
-            {schedulingResult.unassignedTasks.length > 0 && (
-              <span
-                className={`rounded-full px-1.5 py-0.2 text-[10px] font-semibold ${
-                  activeTab === 'timeline'
-                    ? 'bg-amber-400 text-amber-950'
-                    : 'bg-amber-100 text-amber-800'
-                }`}
-              >
-                未配置 {schedulingResult.unassignedTasks.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs transition sm:text-sm ${
-              activeTab === 'settings'
-                ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium'
-            }`}
-          >
-            <Settings className="h-3.5 w-3.5" />
-            <span>目標・固定枠の設定</span>
-            <span
-              className={`rounded-full px-1.5 py-0.2 text-[10px] ${
-                activeTab === 'settings'
-                  ? 'bg-blue-700 text-blue-100'
-                  : 'bg-slate-100 text-slate-600'
-              }`}
-            >
-              タスク {tasks.length} / 固定 {fixedSlots.length}
-            </span>
-          </button>
-        </div>
-
+      <main className="mx-auto flex w-full flex-1 min-h-0 flex-col px-1.5 py-1 sm:px-3 sm:py-1.5 max-w-full">
         {/* Tab 1: Weekly 7-Day Timeline Display */}
         {activeTab === 'timeline' && (
           <div className="flex flex-1 min-h-0 flex-col">

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Calendar, Clock, AlertTriangle, Compass, BookOpen } from 'lucide-react';
+import { Calendar, Clock, AlertTriangle, Compass, BookOpen, ZoomIn } from 'lucide-react';
 import { TheoreticalBlock, TaskItem } from '@/types';
 import { minutesToTimeString, formatDuration } from '@/lib/timeUtils';
 
@@ -11,15 +11,44 @@ interface Timeline24hProps {
   dayBlocks?: Record<number, TheoreticalBlock[]>;
 }
 
-const HOUR_HEIGHT = 56; // 1時間あたりのマス目の高さ(px)
 const TOTAL_HOURS = 24;
-const TOTAL_HEIGHT = TOTAL_HOURS * HOUR_HEIGHT; // 1344px
-
 const WEEKDAY_NAMES = ['月', '火', '水', '木', '金', '土', '日'];
+const HEIGHT_OPTIONS = [
+  { label: '標準', value: 60 },
+  { label: '拡大', value: 84 },
+  { label: '特大', value: 110 },
+];
 
 export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [nowTimeString, setNowTimeString] = useState<string>('');
+  const [hourHeight, setHourHeight] = useState<number>(84); // デフォルト84px（縦に大きく表示）
+
+  // LocalStorage から保存されたマス高さを復元
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('timeline_hour_height');
+      if (saved) {
+        const val = Number(saved);
+        if ([60, 84, 110].includes(val)) {
+          setHourHeight(val);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleHourHeightChange = (height: number) => {
+    setHourHeight(height);
+    try {
+      localStorage.setItem('timeline_hour_height', String(height));
+    } catch {
+      // ignore
+    }
+  };
+
+  const totalHeight = TOTAL_HOURS * hourHeight;
 
   // 今週（月曜〜日曜）の7日間の日付情報を算出
   const weekDays = useMemo(() => {
@@ -56,16 +85,16 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
     setNowTimeString(minutesToTimeString(currentMinutes));
 
     if (scrollContainerRef.current) {
-      const targetScroll = Math.max(0, ((currentMinutes - 45) / 60) * HOUR_HEIGHT);
+      const targetScroll = Math.max(0, ((currentMinutes - 45) / 60) * hourHeight);
       scrollContainerRef.current.scrollTop = targetScroll;
     }
-  }, []);
+  }, [hourHeight]);
 
   const scrollToNow = () => {
     if (scrollContainerRef.current) {
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
-      const targetScroll = Math.max(0, ((currentMinutes - 45) / 60) * HOUR_HEIGHT);
+      const targetScroll = Math.max(0, ((currentMinutes - 45) / 60) * hourHeight);
       scrollContainerRef.current.scrollTo({
         top: targetScroll,
         behavior: 'smooth',
@@ -81,46 +110,67 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
   }, [weekDays]);
 
   return (
-    <div className="flex flex-1 min-h-0 flex-col gap-2.5 rounded-2xl border border-slate-200 bg-white p-3 shadow-xs sm:p-4">
-      {/* Header */}
-      <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-1 min-h-0 flex-col gap-1.5 rounded-xl border border-slate-200 bg-white p-2 shadow-2xs sm:p-2.5">
+      {/* Header Bar: 1行ですっきりとまとめ、マス高さ切り替えボタンを配置 */}
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-1.5">
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-blue-600" />
-          <h3 className="text-sm font-bold text-slate-900 sm:text-base">
+          <h3 className="text-xs font-bold text-slate-900 sm:text-sm">
             週間 24時間マス目スケジュール
           </h3>
-          <span className="hidden rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-600 md:inline-block font-medium">
+          <span className="hidden rounded-full border border-slate-200 bg-slate-50 px-2 py-0.2 text-[11px] text-slate-600 sm:inline-block font-medium">
             {weekRangeString}
           </span>
         </div>
 
-        {/* Legend & Current Time Scroll Action */}
-        <div className="flex flex-wrap items-center gap-2.5 text-xs text-slate-600">
-          <div className="flex items-center gap-2 font-medium">
+        {/* Legend, Zoom height switcher, & Current Time Scroll Action */}
+        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+          {/* Legend */}
+          <div className="hidden items-center gap-2 font-medium md:flex text-[11px]">
             <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-sm bg-slate-300 border border-slate-400" />
+              <span className="h-2 w-2 rounded-xs bg-slate-300 border border-slate-400" />
               固定枠
             </span>
             <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-sm bg-blue-500 shadow-xs" />
+              <span className="h-2 w-2 rounded-xs bg-blue-500 shadow-2xs" />
               目標タスク
             </span>
             <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-sm bg-purple-500 shadow-xs" />
+              <span className="h-2 w-2 rounded-xs bg-purple-500 shadow-2xs" />
               課題・提出
             </span>
           </div>
 
-          <div className="flex items-center gap-1 border-l border-slate-200 pl-2.5">
-            <button
-              onClick={scrollToNow}
-              title="現在時刻の位置へスクロール"
-              className="flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
-            >
-              <Compass className="h-3 w-3 text-blue-600" />
-              <span>現在時刻へ ({nowTimeString || '今'})</span>
-            </button>
+          {/* マスの縦幅（ズーム）切り替えピル */}
+          <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
+            <span className="px-1.5 text-[10px] font-medium text-slate-500 flex items-center gap-0.5">
+              <ZoomIn className="h-3 w-3" />
+              <span className="hidden sm:inline">マス高さ:</span>
+            </span>
+            {HEIGHT_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => handleHourHeightChange(opt.value)}
+                className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition ${
+                  hourHeight === opt.value
+                    ? 'bg-blue-600 font-bold text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
+
+          {/* 現在時刻へスクロール */}
+          <button
+            onClick={scrollToNow}
+            title="現在時刻の位置へスクロール"
+            className="flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
+          >
+            <Compass className="h-3 w-3 text-blue-600" />
+            <span>現在時刻 ({nowTimeString || '今'})</span>
+          </button>
         </div>
       </div>
 
@@ -192,16 +242,16 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
         {/* Scrollable 24-Hour Grid Area */}
         <div
           ref={scrollContainerRef}
-          className="relative flex-1 min-h-0 overflow-y-auto overflow-x-auto p-2"
+          className="relative flex-1 min-h-0 overflow-y-auto overflow-x-auto p-1 sm:p-1.5"
         >
-          <div className="relative flex min-w-[700px]" style={{ height: `${TOTAL_HEIGHT}px` }}>
+          <div className="relative flex min-w-[700px]" style={{ height: `${totalHeight}px` }}>
             {/* Left Time Axis Labels (00:00 - 24:00) */}
-            <div className="relative w-12 shrink-0 select-none border-r border-slate-200 sm:w-14">
+            <div className="relative w-11 shrink-0 select-none border-r border-slate-200 sm:w-14">
               {Array.from({ length: TOTAL_HOURS + 1 }).map((_, hour) => (
                 <div
                   key={`time-label-${hour}`}
-                  className="absolute right-2 -translate-y-1/2 font-mono text-[10px] font-medium text-slate-400 sm:text-[11px]"
-                  style={{ top: `${hour * HOUR_HEIGHT}px` }}
+                  className="absolute right-1.5 -translate-y-1/2 font-mono text-[10px] font-medium text-slate-400 sm:right-2 sm:text-xs"
+                  style={{ top: `${hour * hourHeight}px` }}
                 >
                   {String(hour).padStart(2, '0')}:00
                 </div>
@@ -226,21 +276,21 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
                       <div
                         key={`grid-cell-${d.dayIndex}-${hour}`}
                         className="relative border-b border-slate-100"
-                        style={{ height: `${HOUR_HEIGHT}px` }}
+                        style={{ height: `${hourHeight}px` }}
                       >
                         <div
-                          className="absolute inset-x-0 border-b border-dashed border-slate-100"
-                          style={{ top: `${HOUR_HEIGHT / 2}px` }}
+                          className="absolute inset-x-0 border-b border-dashed border-slate-100/90"
+                          style={{ top: `${hourHeight / 2}px` }}
                         />
                       </div>
                     ))}
 
                     {/* Scheduled Blocks for this Day */}
                     {currentDayBlocks.map((block) => {
-                      const top = (block.startMinutes / 60) * HOUR_HEIGHT;
+                      const top = (block.startMinutes / 60) * hourHeight;
                       const duration = block.endMinutes - block.startMinutes;
-                      const height = (duration / 60) * HOUR_HEIGHT;
-                      const isShort = duration <= 30;
+                      const height = (duration / 60) * hourHeight;
+                      const isShort = duration < 30 || height < 32;
                       const isAssignment = block.taskType === 'assignment';
 
                       return (
@@ -248,27 +298,27 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
                           key={`block-${d.dayIndex}-${block.id}`}
                           style={{
                             top: `${top}px`,
-                            height: `${Math.max(20, height - 2)}px`,
+                            height: `${Math.max(22, height - 2)}px`,
                           }}
                           className={`group absolute inset-x-0.5 overflow-hidden rounded-md border transition-all hover:z-20 hover:shadow-md sm:inset-x-1 ${
                             block.isFixed
-                              ? 'border-slate-200 bg-slate-100/90 hover:border-slate-300'
+                              ? 'border-slate-300 bg-slate-100/95 hover:border-slate-400'
                               : isAssignment
-                                ? 'border-purple-200 bg-purple-50/95 hover:border-purple-300 shadow-2xs'
-                                : 'border-blue-200 bg-blue-50/95 hover:border-blue-300 shadow-2xs'
+                                ? 'border-purple-300 bg-purple-50/95 hover:border-purple-400 shadow-2xs'
+                                : 'border-blue-300 bg-blue-50/95 hover:border-blue-400 shadow-2xs'
                           }`}
                         >
                           {/* Left Color Indicator */}
                           <div
-                            className="absolute inset-y-0 left-0 w-1"
+                            className="absolute inset-y-0 left-0 w-1.5"
                             style={{ backgroundColor: block.color }}
                           />
 
                           {/* Block Content */}
-                          <div className="flex h-full flex-col justify-between p-1 pl-2">
-                            <div className="flex items-start justify-between gap-0.5 overflow-hidden">
+                          <div className="flex h-full flex-col justify-between p-1 pl-2.5">
+                            <div className="flex items-start justify-between gap-1 overflow-hidden">
                               <span
-                                className={`truncate text-[11px] font-bold leading-tight ${
+                                className={`truncate text-xs font-bold leading-tight sm:text-[13px] ${
                                   block.isFixed
                                     ? 'text-slate-800'
                                     : isAssignment
@@ -284,18 +334,18 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
                                 </span>
                               )}
                               {!isShort && !isAssignment && (
-                                <span className="hidden shrink-0 rounded border border-slate-200 bg-white/80 px-1 py-0.2 font-mono text-[9px] text-slate-600 2xl:inline-block">
+                                <span className="hidden shrink-0 rounded border border-slate-200 bg-white/80 px-1 py-0.2 font-mono text-[9px] text-slate-600 xl:inline-block">
                                   {formatDuration(duration)}
                                 </span>
                               )}
                             </div>
 
                             {!isShort && (
-                              <div className="flex items-center gap-0.5 font-mono text-[9px] text-slate-500">
+                              <div className="flex items-center gap-1 font-mono text-[10px] text-slate-500 sm:text-[11px]">
                                 {isAssignment ? (
-                                  <BookOpen className="h-2 w-2 text-purple-600" />
+                                  <BookOpen className="h-2.5 w-2.5 text-purple-600" />
                                 ) : (
-                                  <Clock className="h-2 w-2 text-slate-400" />
+                                  <Clock className="h-2.5 w-2.5 text-slate-400" />
                                 )}
                                 <span className="truncate">
                                   {minutesToTimeString(block.startMinutes)} -{' '}
