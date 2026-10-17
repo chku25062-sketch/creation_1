@@ -11,6 +11,9 @@ import {
   ChevronUp,
   Sparkles,
   Sliders,
+  Folder,
+  FolderOpen,
+  Search,
 } from 'lucide-react';
 import { ImportedTableData, FixedSlot, TaskItem } from '@/types';
 import { calculatePeriodTimes, timeStringToMinutes } from '@/lib/timeUtils';
@@ -47,6 +50,15 @@ export function ImportedTablesManager({
 }: ImportedTablesManagerProps) {
   // 選択中のテーブル
   const [selectedTableId, setSelectedTableId] = useState<string>(tables[0]?.id || 'sample-table-1');
+
+  // 検索クエリ（エクスプローラー風ファイル検索）
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const filteredTables = useMemo(() => {
+    if (!searchQuery.trim()) return tables;
+    const q = searchQuery.toLowerCase();
+    return tables.filter((t) => t.name.toLowerCase().includes(q));
+  }, [tables, searchQuery]);
 
   const activeTable = useMemo(() => {
     return tables.find((t) => t.id === selectedTableId) || tables[0];
@@ -431,37 +443,71 @@ export function ImportedTablesManager({
   };
 
   return (
-    <div className="flex flex-1 min-h-0 flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-xs sm:p-4 overflow-y-auto">
-      {/* Top Banner & Notifications */}
-      {applySuccessMsg && (
-        <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-900 shadow-xs animate-in fade-in duration-200">
+    <div className="flex flex-1 min-h-0 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
+      {/* ========================================================
+          Left Sidebar: Windows エクスプローラー風 データファイル一覧
+          ======================================================== */}
+      <aside className="flex w-60 sm:w-64 md:w-72 shrink-0 flex-col border-r border-slate-200 bg-slate-50/90 select-none">
+        {/* Sidebar Header */}
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-100/70 px-3 py-2.5">
           <div className="flex items-center gap-2">
-            <Check className="h-4 w-4 text-emerald-600" />
-            <span className="font-semibold">{applySuccessMsg}</span>
+            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-600 shadow-2xs">
+              <Folder className="h-3.5 w-3.5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xs font-bold text-slate-900 leading-tight">データファイル</h2>
+              <span className="text-[10px] text-slate-500 font-medium">
+                {tables.length}件の表データ
+              </span>
+            </div>
           </div>
-          {onNavigateToTimeline && (
-            <button
-              onClick={onNavigateToTimeline}
-              className="rounded-lg bg-emerald-600 px-3 py-1 font-bold text-white shadow-2xs transition hover:bg-emerald-700"
-            >
-              週間スケジュールで確認 →
-            </button>
-          )}
+
+          <button
+            onClick={handleAddNewTable}
+            title="新しい表を追加"
+            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-blue-600 transition"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>新規</span>
+          </button>
         </div>
-      )}
 
-      {/* Header: Table Selector Tabs & Actions */}
-      <div className="flex flex-col gap-2.5 border-b border-slate-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5 text-blue-600" />
-            <h2 className="text-sm font-bold text-slate-900 sm:text-base">読み込みデータ一覧</h2>
+        {/* Search Input (Windows Explorer Search Bar風) */}
+        <div className="shrink-0 p-2 border-b border-slate-200/80 bg-slate-50">
+          <div className="relative flex items-center">
+            <Search className="absolute left-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="ファイル名で検索..."
+              className="w-full rounded-md border border-slate-200 bg-white py-1 pl-8 pr-2 text-xs placeholder:text-slate-400 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500/20"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 text-slate-400 hover:text-slate-600 text-xs"
+              >
+                ×
+              </button>
+            )}
           </div>
+        </div>
 
-          {/* Table Tabs */}
-          <div className="flex flex-wrap items-center gap-1.5 ml-2">
-            {tables.map((t) => {
+        {/* File List (Explorer Item Rows) */}
+        <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
+          {filteredTables.length === 0 ? (
+            <div className="p-4 text-center text-xs text-slate-400">該当する表が見つかりません</div>
+          ) : (
+            filteredTables.map((t) => {
               const isSelected = t.id === activeTable.id;
+              const dateStr = t.updatedAt
+                ? new Date(t.updatedAt).toLocaleDateString('ja-JP', {
+                    month: 'numeric',
+                    day: 'numeric',
+                  })
+                : '';
+
               return (
                 <div
                   key={t.id}
@@ -469,413 +515,485 @@ export function ImportedTablesManager({
                     setSelectedTableId(t.id);
                     if (!isSelected) setIsEditingName(false);
                   }}
-                  className={`group flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs cursor-pointer transition ${
+                  className={`group relative flex items-center justify-between rounded-lg px-2.5 py-2 text-xs cursor-pointer transition ${
                     isSelected
-                      ? 'border-blue-500 bg-blue-50 font-bold text-blue-700 shadow-2xs'
-                      : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                      ? 'bg-blue-100/70 border-l-3 border-l-blue-600 text-blue-950 font-bold shadow-2xs'
+                      : 'hover:bg-slate-200/50 text-slate-700'
                   }`}
                 >
-                  {isSelected && isEditingName ? (
-                    <input
-                      type="text"
-                      value={tempTableName}
-                      onChange={(e) => setTempTableName(e.target.value)}
-                      onBlur={() => {
-                        if (tempTableName.trim()) {
-                          updateActiveTable((prev) => ({
-                            ...prev,
-                            name: tempTableName.trim(),
-                            updatedAt: new Date().toISOString(),
-                          }));
-                        }
-                        setIsEditingName(false);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          if (tempTableName.trim()) {
-                            updateActiveTable((prev) => ({
-                              ...prev,
-                              name: tempTableName.trim(),
-                              updatedAt: new Date().toISOString(),
-                            }));
-                          }
-                          setIsEditingName(false);
-                        }
-                      }}
-                      autoFocus
-                      className="rounded border border-blue-400 bg-white px-1 py-0.5 text-xs text-blue-900 focus:outline-hidden"
-                    />
-                  ) : (
-                    <span className="flex items-center gap-1">
-                      <span>{t.name}</span>
-                      {isSelected && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setTempTableName(t.name);
-                            setIsEditingName(true);
-                          }}
-                          title="名前を変更"
-                          className="text-blue-400 hover:text-blue-700 ml-0.5"
-                        >
-                          <Edit2 className="h-3 w-3" />
-                        </button>
-                      )}
-                    </span>
-                  )}
-
-                  {tables.length > 1 && (
-                    <button
-                      onClick={(e) => handleDeleteTable(t.id, e)}
-                      title="表を削除"
-                      className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-600 transition"
+                  <div className="flex items-center gap-2 min-w-0 flex-1 pr-1">
+                    {/* File Icon */}
+                    <div
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-sm ${
+                        isSelected ? 'text-blue-700' : 'text-emerald-600'
+                      }`}
                     >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  )}
+                      <FileSpreadsheet className="h-4 w-4" />
+                    </div>
+
+                    {/* File Info */}
+                    <div className="min-w-0 flex-1">
+                      {isSelected && isEditingName ? (
+                        <input
+                          type="text"
+                          value={tempTableName}
+                          onChange={(e) => setTempTableName(e.target.value)}
+                          onBlur={() => {
+                            if (tempTableName.trim()) {
+                              updateActiveTable((prev) => ({
+                                ...prev,
+                                name: tempTableName.trim(),
+                                updatedAt: new Date().toISOString(),
+                              }));
+                            }
+                            setIsEditingName(false);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              if (tempTableName.trim()) {
+                                updateActiveTable((prev) => ({
+                                  ...prev,
+                                  name: tempTableName.trim(),
+                                  updatedAt: new Date().toISOString(),
+                                }));
+                              }
+                              setIsEditingName(false);
+                            }
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          autoFocus
+                          className="w-full rounded border border-blue-400 bg-white px-1 py-0.5 text-xs text-blue-900 focus:outline-hidden"
+                        />
+                      ) : (
+                        <div className="truncate text-xs leading-tight">{t.name}</div>
+                      )}
+                      <div className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-400 font-mono font-normal">
+                        <span>
+                          {t.numRows}×{t.numCols} コマ
+                        </span>
+                        {dateStr && <span>{dateStr}</span>}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions on Hover */}
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition shrink-0">
+                    {isSelected && !isEditingName && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTempTableName(t.name);
+                          setIsEditingName(true);
+                        }}
+                        title="名前を変更"
+                        className="rounded p-1 text-slate-400 hover:bg-slate-200/80 hover:text-blue-600"
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </button>
+                    )}
+                    {tables.length > 1 && (
+                      <button
+                        onClick={(e) => handleDeleteTable(t.id, e)}
+                        title="表を削除"
+                        className="rounded p-1 text-slate-400 hover:bg-rose-100 hover:text-rose-600"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
-            })}
+            })
+          )}
+        </div>
 
+        {/* Sidebar Footer */}
+        <div className="shrink-0 border-t border-slate-200 bg-slate-100/60 p-2 text-center">
+          <button
+            onClick={handleAddNewTable}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-white py-1.5 text-xs font-medium text-slate-600 hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900 transition shadow-2xs"
+          >
+            <Plus className="h-3.5 w-3.5 text-slate-500" />
+            <span>新規テーブルを追加</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* ========================================================
+          Right Main Area: プレビュー & 軸・インターバル定義詳細
+          ======================================================== */}
+      <main className="flex flex-1 min-w-0 flex-col overflow-y-auto bg-white p-3 sm:p-4 gap-3">
+        {/* Top Notification if any */}
+        {applySuccessMsg && (
+          <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-900 shadow-xs animate-in fade-in duration-200">
+            <div className="flex items-center gap-2">
+              <Check className="h-4 w-4 text-emerald-600" />
+              <span className="font-semibold">{applySuccessMsg}</span>
+            </div>
+            {onNavigateToTimeline && (
+              <button
+                onClick={onNavigateToTimeline}
+                className="rounded-lg bg-emerald-600 px-3 py-1 font-bold text-white shadow-2xs transition hover:bg-emerald-700"
+              >
+                週間スケジュールで確認 →
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Explorer Path / Breadcrumb & Top Actions Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+          {/* Breadcrumb Path */}
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 min-w-0">
+            <FolderOpen className="h-4 w-4 text-amber-500 shrink-0" />
+            <span className="font-medium text-slate-600">読み込みデータ</span>
+            <span className="text-slate-300">/</span>
+            <span className="font-bold text-slate-900 truncate">{activeTable.name}</span>
+            {!isEditingName && (
+              <button
+                onClick={() => {
+                  setTempTableName(activeTable.name);
+                  setIsEditingName(true);
+                }}
+                title="テーブル名を編集"
+                className="ml-1 text-slate-400 hover:text-blue-600"
+              >
+                <Edit2 className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2">
             <button
-              onClick={handleAddNewTable}
-              title="新しい表枠を追加"
-              className="flex items-center gap-1 rounded-lg border border-dashed border-slate-300 px-2 py-1 text-xs text-slate-600 hover:border-slate-400 hover:bg-slate-50 transition"
+              onClick={() => setIsApplyModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-2xs transition hover:bg-blue-700 hover:shadow-xs"
             >
-              <Plus className="h-3 w-3" />
-              <span>新規</span>
+              <Sparkles className="h-4 w-4 text-amber-300" />
+              <span>計画表に反映する</span>
             </button>
           </div>
         </div>
 
-        {/* Right: Apply to Schedule Button */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsApplyModalOpen(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-blue-700 hover:shadow-md"
-          >
-            <Sparkles className="h-4 w-4 text-amber-300" />
-            <span>計画表に反映する</span>
-          </button>
-        </div>
-      </div>
+        {/* Axis & Interval Definition Panel (横軸・縦軸・インターバルの定義) */}
+        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 flex flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
+            <div className="flex items-center gap-2">
+              <Sliders className="h-4 w-4 text-blue-600" />
+              <span className="text-xs font-bold text-slate-800">
+                縦軸（時限時間）・インターバル（休憩時間）の一括定義
+              </span>
+            </div>
 
-      {/* Axis & Interval Definition Panel (横軸・縦軸・インターバルの定義) */}
-      <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
-          <div className="flex items-center gap-2">
-            <Sliders className="h-4 w-4 text-blue-600" />
-            <span className="text-xs font-bold text-slate-800">
-              縦軸（時限時間）・インターバル（休憩時間）の一括定義
-            </span>
-          </div>
-
-          <button
-            onClick={() => setShowCustomTimes(!showCustomTimes)}
-            className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800"
-          >
-            <span>時限ごとの個別微調整</span>
-            {showCustomTimes ? (
-              <ChevronUp className="h-3.5 w-3.5" />
-            ) : (
-              <ChevronDown className="h-3.5 w-3.5" />
-            )}
-          </button>
-        </div>
-
-        {/* Global Rule Controls (始業時間・1コマ分数・コマ間インターバル・昼休み) */}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-5 text-xs">
-          {/* 始業時間 */}
-          <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-white p-2">
-            <label className="text-[10px] font-semibold text-slate-500">1限 始業時間</label>
-            <input
-              type="time"
-              value={activeTable.axisConfig.startTime}
-              onChange={(e) => handleAxisConfigChange('startTime', e.target.value)}
-              className="rounded border border-slate-200 px-2 py-1 font-mono text-xs font-bold text-slate-800 focus:border-blue-500 focus:outline-hidden"
-            />
-          </div>
-
-          {/* 1コマの授業時間 */}
-          <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-white p-2">
-            <label className="text-[10px] font-semibold text-slate-500">1コマの分数</label>
-            <select
-              value={activeTable.axisConfig.periodMinutes}
-              onChange={(e) => handleAxisConfigChange('periodMinutes', Number(e.target.value))}
-              className="rounded border border-slate-200 px-2 py-1 text-xs font-bold text-slate-800 focus:border-blue-500 focus:outline-hidden"
+            <button
+              onClick={() => setShowCustomTimes(!showCustomTimes)}
+              className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800"
             >
-              <option value={90}>90分 (大学標準)</option>
-              <option value={100}>100分 (大学院・専修)</option>
-              <option value={50}>50分 (高校・短大)</option>
-              <option value={45}>45分 (小中・特別)</option>
-              <option value={60}>60分 (講習・セミナー)</option>
-            </select>
+              <span>時限ごとの個別微調整</span>
+              {showCustomTimes ? (
+                <ChevronUp className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5" />
+              )}
+            </button>
           </div>
 
-          {/* コマ間インターバル */}
-          <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-white p-2">
-            <label className="text-[10px] font-semibold text-slate-500">コマ間インターバル</label>
-            <select
-              value={activeTable.axisConfig.intervalMinutes}
-              onChange={(e) => handleAxisConfigChange('intervalMinutes', Number(e.target.value))}
-              className="rounded border border-slate-200 px-2 py-1 text-xs font-bold text-slate-800 focus:border-blue-500 focus:outline-hidden"
-            >
-              <option value={10}>10分 休憩</option>
-              <option value={15}>15分 休憩</option>
-              <option value={20}>20分 休憩</option>
-              <option value={5}>5分 休憩</option>
-              <option value={0}>0分 (連続)</option>
-            </select>
-          </div>
-
-          {/* 昼休み設定 */}
-          <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-white p-2">
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] font-semibold text-slate-500">昼休み</label>
+          {/* Global Rule Controls (始業時間・1コマ分数・コマ間インターバル・昼休み) */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-5 text-xs">
+            {/* 始業時間 */}
+            <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-white p-2">
+              <label className="text-[10px] font-semibold text-slate-500">1限 始業時間</label>
               <input
-                type="checkbox"
-                checked={activeTable.axisConfig.hasLunch}
-                onChange={(e) => handleAxisConfigChange('hasLunch', e.target.checked)}
-                className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500"
+                type="time"
+                value={activeTable.axisConfig.startTime}
+                onChange={(e) => handleAxisConfigChange('startTime', e.target.value)}
+                className="rounded border border-slate-200 px-2 py-1 font-mono text-xs font-bold text-slate-800 focus:border-blue-500 focus:outline-hidden"
               />
             </div>
-            {activeTable.axisConfig.hasLunch ? (
-              <div className="flex items-center gap-1">
-                <select
-                  value={activeTable.axisConfig.lunchAfterPeriod}
-                  onChange={(e) =>
-                    handleAxisConfigChange('lunchAfterPeriod', Number(e.target.value))
-                  }
-                  className="w-16 rounded border border-slate-200 p-1 text-[11px] font-medium"
-                >
-                  {Array.from({ length: activeTable.numRows - 1 }).map((_, idx) => (
-                    <option key={idx + 1} value={idx + 1}>
-                      {idx + 1}限後
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={activeTable.axisConfig.lunchMinutes}
-                  onChange={(e) => handleAxisConfigChange('lunchMinutes', Number(e.target.value))}
-                  className="flex-1 rounded border border-slate-200 p-1 text-[11px] font-medium"
-                >
-                  <option value={40}>40分</option>
-                  <option value={50}>50分</option>
-                  <option value={60}>60分</option>
-                  <option value={70}>70分</option>
-                </select>
+
+            {/* 1コマの授業時間 */}
+            <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-white p-2">
+              <label className="text-[10px] font-semibold text-slate-500">1コマの分数</label>
+              <select
+                value={activeTable.axisConfig.periodMinutes}
+                onChange={(e) => handleAxisConfigChange('periodMinutes', Number(e.target.value))}
+                className="rounded border border-slate-200 px-2 py-1 text-xs font-bold text-slate-800 focus:border-blue-500 focus:outline-hidden"
+              >
+                <option value={90}>90分 (大学標準)</option>
+                <option value={100}>100分 (大学院・専修)</option>
+                <option value={50}>50分 (高校・短大)</option>
+                <option value={45}>45分 (小中・特別)</option>
+                <option value={60}>60分 (講習・セミナー)</option>
+              </select>
+            </div>
+
+            {/* コマ間インターバル */}
+            <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-white p-2">
+              <label className="text-[10px] font-semibold text-slate-500">コマ間インターバル</label>
+              <select
+                value={activeTable.axisConfig.intervalMinutes}
+                onChange={(e) => handleAxisConfigChange('intervalMinutes', Number(e.target.value))}
+                className="rounded border border-slate-200 px-2 py-1 text-xs font-bold text-slate-800 focus:border-blue-500 focus:outline-hidden"
+              >
+                <option value={10}>10分 休憩</option>
+                <option value={15}>15分 休憩</option>
+                <option value={20}>20分 休憩</option>
+                <option value={5}>5分 休憩</option>
+                <option value={0}>0分 (連続)</option>
+              </select>
+            </div>
+
+            {/* 昼休み設定 */}
+            <div className="flex flex-col gap-1 rounded-lg border border-slate-200 bg-white p-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-semibold text-slate-500">昼休み</label>
+                <input
+                  type="checkbox"
+                  checked={activeTable.axisConfig.hasLunch}
+                  onChange={(e) => handleAxisConfigChange('hasLunch', e.target.checked)}
+                  className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500"
+                />
               </div>
-            ) : (
-              <span className="py-1 text-center font-mono text-[11px] text-slate-400">なし</span>
-            )}
+              {activeTable.axisConfig.hasLunch ? (
+                <div className="flex items-center gap-1">
+                  <select
+                    value={activeTable.axisConfig.lunchAfterPeriod}
+                    onChange={(e) =>
+                      handleAxisConfigChange('lunchAfterPeriod', Number(e.target.value))
+                    }
+                    className="w-16 rounded border border-slate-200 p-1 text-[11px] font-medium"
+                  >
+                    {Array.from({ length: activeTable.numRows - 1 }).map((_, idx) => (
+                      <option key={idx + 1} value={idx + 1}>
+                        {idx + 1}限後
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={activeTable.axisConfig.lunchMinutes}
+                    onChange={(e) => handleAxisConfigChange('lunchMinutes', Number(e.target.value))}
+                    className="flex-1 rounded border border-slate-200 p-1 text-[11px] font-medium"
+                  >
+                    <option value={40}>40分</option>
+                    <option value={50}>50分</option>
+                    <option value={60}>60分</option>
+                    <option value={70}>70分</option>
+                  </select>
+                </div>
+              ) : (
+                <span className="py-1 text-center font-mono text-[11px] text-slate-400">なし</span>
+              )}
+            </div>
+
+            {/* 計算サマリー表示 */}
+            <div className="col-span-2 sm:col-span-4 lg:col-span-1 flex flex-col justify-center rounded-lg border border-blue-200 bg-blue-50/70 p-2 text-blue-950">
+              <span className="text-[10px] text-blue-700 font-semibold">全体の稼働時間</span>
+              <div className="font-mono text-xs font-bold">
+                {periodTimes[0]?.startTime} 〜 {periodTimes[periodTimes.length - 1]?.endTime}
+              </div>
+              <span className="text-[10px] text-blue-600">全 {activeTable.numRows} コマ定義済</span>
+            </div>
           </div>
 
-          {/* 計算サマリー表示 */}
-          <div className="col-span-2 sm:col-span-4 lg:col-span-1 flex flex-col justify-center rounded-lg border border-blue-200 bg-blue-50/70 p-2 text-blue-950">
-            <span className="text-[10px] text-blue-700 font-semibold">全体の稼働時間</span>
-            <div className="font-mono text-xs font-bold">
-              {periodTimes[0]?.startTime} 〜 {periodTimes[periodTimes.length - 1]?.endTime}
+          {/* Optional Drawer: Individual Period Time Adjustments (コマ個別微調整) */}
+          {showCustomTimes && (
+            <div className="rounded-lg border border-slate-200 bg-white p-3 animate-in fade-in duration-150">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800">
+                  各時限の個別調整（特定時限のみ時間を手動変更したい場合）
+                </span>
+                <span className="text-[10px] text-slate-500">
+                  ※変更した時限には「個別設定済」バッジが表示されます
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                {periodTimes.map((pt) => {
+                  const isCustom = !!(
+                    activeTable.axisConfig.customRowTimes &&
+                    activeTable.axisConfig.customRowTimes[pt.periodIndex]
+                  );
+                  return (
+                    <div
+                      key={`custom-row-${pt.periodIndex}`}
+                      className={`flex flex-col gap-1.5 rounded-lg border p-2 text-xs transition ${
+                        isCustom
+                          ? 'border-amber-300 bg-amber-50/40'
+                          : 'border-slate-200 bg-slate-50/50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-800">{pt.periodIndex}限</span>
+                        {isCustom && (
+                          <button
+                            onClick={() => handleResetCustomRowTime(pt.periodIndex)}
+                            className="text-[10px] text-amber-700 hover:underline"
+                          >
+                            リセット
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="time"
+                          value={pt.startTime}
+                          onChange={(e) =>
+                            handleCustomRowTimeChange(pt.periodIndex, 'start', e.target.value)
+                          }
+                          className="w-full rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[11px]"
+                        />
+                        <span className="text-slate-400">〜</span>
+                        <input
+                          type="time"
+                          value={pt.endTime}
+                          onChange={(e) =>
+                            handleCustomRowTimeChange(pt.periodIndex, 'end', e.target.value)
+                          }
+                          className="w-full rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[11px]"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <span className="text-[10px] text-blue-600">全 {activeTable.numRows} コマ定義済</span>
-          </div>
+          )}
         </div>
 
-        {/* Optional Drawer: Individual Period Time Adjustments (コマ個別微調整) */}
-        {showCustomTimes && (
-          <div className="rounded-lg border border-slate-200 bg-white p-3 animate-in fade-in duration-150">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-800">
-                各時限の個別調整（特定時限のみ時間を手動変更したい場合）
-              </span>
-              <span className="text-[10px] text-slate-500">
-                ※変更した時限には「個別設定済」バッジが表示されます
+        {/* Grid Table Editor & Preview (横軸曜日設定 + 表グリッドプレビュー) */}
+        <div className="flex flex-1 min-h-[300px] flex-col rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+          <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-1.5 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-800">表プレビュー＆セル編集</span>
+              <span className="text-[11px] text-slate-500">
+                (各列のドロップダウンで曜日マッピングを変更できます。セルクリックで講義名を編集)
               </span>
             </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
-              {periodTimes.map((pt) => {
-                const isCustom = !!(
-                  activeTable.axisConfig.customRowTimes &&
-                  activeTable.axisConfig.customRowTimes[pt.periodIndex]
-                );
-                return (
-                  <div
-                    key={`custom-row-${pt.periodIndex}`}
-                    className={`flex flex-col gap-1.5 rounded-lg border p-2 text-xs transition ${
-                      isCustom
-                        ? 'border-amber-300 bg-amber-50/40'
-                        : 'border-slate-200 bg-slate-50/50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-800">{pt.periodIndex}限</span>
-                      {isCustom && (
-                        <button
-                          onClick={() => handleResetCustomRowTime(pt.periodIndex)}
-                          className="text-[10px] text-amber-700 hover:underline"
-                        >
-                          リセット
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="time"
-                        value={pt.startTime}
-                        onChange={(e) =>
-                          handleCustomRowTimeChange(pt.periodIndex, 'start', e.target.value)
-                        }
-                        className="w-full rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[11px]"
-                      />
-                      <span className="text-slate-400">〜</span>
-                      <input
-                        type="time"
-                        value={pt.endTime}
-                        onChange={(e) =>
-                          handleCustomRowTimeChange(pt.periodIndex, 'end', e.target.value)
-                        }
-                        className="w-full rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[11px]"
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </div>
 
-      {/* Grid Table Editor & Preview (横軸曜日設定 + 表グリッドプレビュー) */}
-      <div className="flex flex-1 min-h-[300px] flex-col rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50 px-3 py-1.5 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-800">表プレビュー＆セル編集</span>
-            <span className="text-[11px] text-slate-500">
-              (各列のドロップダウンで曜日マッピングを変更できます。セルクリックで講義名を編集)
+            <span className="font-mono text-[11px] text-slate-500">
+              {activeTable.numRows}行 × {activeTable.numCols}列
             </span>
           </div>
 
-          <span className="font-mono text-[11px] text-slate-500">
-            {activeTable.numRows}行 × {activeTable.numCols}列
-          </span>
-        </div>
+          {/* Scrollable Grid Container */}
+          <div className="flex-1 overflow-x-auto overflow-y-auto p-2">
+            <table className="w-full border-collapse text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-100/70">
+                  {/* Time Axis Header */}
+                  <th className="w-24 border-r border-slate-200 p-2 text-center font-mono text-[11px] font-bold text-slate-600">
+                    時限 / 時間
+                  </th>
 
-        {/* Scrollable Grid Container */}
-        <div className="flex-1 overflow-x-auto overflow-y-auto p-2">
-          <table className="w-full border-collapse text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-100/70">
-                {/* Time Axis Header */}
-                <th className="w-24 border-r border-slate-200 p-2 text-center font-mono text-[11px] font-bold text-slate-600">
-                  時限 / 時間
-                </th>
+                  {/* Column Headers with Weekday Selector (横軸の定義) */}
+                  {activeTable.colHeaders.map((colName, cIdx) => {
+                    const currentDayVal =
+                      WEEKDAY_OPTIONS.find((w) => w.label === colName)?.value ?? cIdx;
+                    const isExcluded = currentDayVal === -1;
 
-                {/* Column Headers with Weekday Selector (横軸の定義) */}
-                {activeTable.colHeaders.map((colName, cIdx) => {
-                  const currentDayVal =
-                    WEEKDAY_OPTIONS.find((w) => w.label === colName)?.value ?? cIdx;
-                  const isExcluded = currentDayVal === -1;
-
+                    return (
+                      <th
+                        key={`col-header-${cIdx}`}
+                        className={`border-r border-slate-200 p-2 text-center transition ${
+                          isExcluded ? 'bg-slate-200/50 text-slate-400' : 'bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex flex-col items-center gap-1">
+                          <select
+                            value={currentDayVal}
+                            onChange={(e) => handleColHeaderChange(cIdx, Number(e.target.value))}
+                            className={`rounded border px-1.5 py-0.5 text-xs font-bold focus:outline-hidden ${
+                              isExcluded
+                                ? 'border-slate-300 bg-slate-100 text-slate-400'
+                                : 'border-blue-300 bg-white text-blue-700'
+                            }`}
+                          >
+                            {WEEKDAY_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="font-mono text-[10px] text-slate-400">
+                            列 {cIdx + 1}
+                          </span>
+                        </div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {activeTable.cells.map((row, rIdx) => {
+                  const pt = periodTimes[rIdx];
                   return (
-                    <th
-                      key={`col-header-${cIdx}`}
-                      className={`border-r border-slate-200 p-2 text-center transition ${
-                        isExcluded ? 'bg-slate-200/50 text-slate-400' : 'bg-slate-50'
-                      }`}
+                    <tr
+                      key={`row-${rIdx}`}
+                      className="border-b border-slate-100 hover:bg-slate-50/50"
                     >
-                      <div className="flex flex-col items-center gap-1">
-                        <select
-                          value={currentDayVal}
-                          onChange={(e) => handleColHeaderChange(cIdx, Number(e.target.value))}
-                          className={`rounded border px-1.5 py-0.5 text-xs font-bold focus:outline-hidden ${
-                            isExcluded
-                              ? 'border-slate-300 bg-slate-100 text-slate-400'
-                              : 'border-blue-300 bg-white text-blue-700'
-                          }`}
-                        >
-                          {WEEKDAY_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                        <span className="font-mono text-[10px] text-slate-400">列 {cIdx + 1}</span>
-                      </div>
-                    </th>
+                      {/* Row Time Header (縦軸) */}
+                      <td className="border-r border-slate-200 bg-slate-50/60 p-2 text-center">
+                        <div className="font-bold text-slate-800">{rIdx + 1}限</div>
+                        <div className="font-mono text-[10px] text-slate-500">
+                          {pt?.startTime} - {pt?.endTime}
+                        </div>
+                      </td>
+
+                      {/* Cells */}
+                      {row.map((cell, cIdx) => {
+                        const isExcluded = activeTable.colHeaders[cIdx] === '除外';
+                        const hasContent = Boolean(cell.text && cell.title.trim());
+
+                        return (
+                          <td
+                            key={`cell-${rIdx}-${cIdx}`}
+                            onClick={() => !isExcluded && handleStartEditCell(rIdx, cIdx)}
+                            className={`group relative border-r border-slate-200 p-2 align-top transition cursor-pointer ${
+                              isExcluded
+                                ? 'bg-slate-100/40 opacity-50 cursor-not-allowed'
+                                : hasContent
+                                  ? 'bg-sky-50/40 hover:bg-sky-50'
+                                  : 'hover:bg-slate-100/50'
+                            }`}
+                          >
+                            {hasContent ? (
+                              <div className="flex h-full flex-col justify-between">
+                                <div>
+                                  <span className="font-bold text-sky-950 block leading-snug">
+                                    {cell.title}
+                                  </span>
+                                  {cell.roomOrNote && (
+                                    <span className="text-[10px] text-sky-700 block whitespace-pre-wrap mt-0.5">
+                                      {cell.roomOrNote}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                                  <span>{pt?.startTime}</span>
+                                  <button
+                                    onClick={(e) => handleClearCell(rIdx, cIdx, e)}
+                                    title="セルをクリア"
+                                    className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-600 transition"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex h-12 items-center justify-center text-[10px] text-slate-300">
+                                + 追加
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
                   );
                 })}
-              </tr>
-            </thead>
-            <tbody>
-              {activeTable.cells.map((row, rIdx) => {
-                const pt = periodTimes[rIdx];
-                return (
-                  <tr
-                    key={`row-${rIdx}`}
-                    className="border-b border-slate-100 hover:bg-slate-50/50"
-                  >
-                    {/* Row Time Header (縦軸) */}
-                    <td className="border-r border-slate-200 bg-slate-50/60 p-2 text-center">
-                      <div className="font-bold text-slate-800">{rIdx + 1}限</div>
-                      <div className="font-mono text-[10px] text-slate-500">
-                        {pt?.startTime} - {pt?.endTime}
-                      </div>
-                    </td>
-
-                    {/* Cells */}
-                    {row.map((cell, cIdx) => {
-                      const isExcluded = activeTable.colHeaders[cIdx] === '除外';
-                      const hasContent = Boolean(cell.text && cell.title.trim());
-
-                      return (
-                        <td
-                          key={`cell-${rIdx}-${cIdx}`}
-                          onClick={() => !isExcluded && handleStartEditCell(rIdx, cIdx)}
-                          className={`group relative border-r border-slate-200 p-2 align-top transition cursor-pointer ${
-                            isExcluded
-                              ? 'bg-slate-100/40 opacity-50 cursor-not-allowed'
-                              : hasContent
-                                ? 'bg-sky-50/40 hover:bg-sky-50'
-                                : 'hover:bg-slate-100/50'
-                          }`}
-                        >
-                          {hasContent ? (
-                            <div className="flex h-full flex-col justify-between">
-                              <div>
-                                <span className="font-bold text-sky-950 block leading-snug">
-                                  {cell.title}
-                                </span>
-                                {cell.roomOrNote && (
-                                  <span className="text-[10px] text-sky-700 block whitespace-pre-wrap mt-0.5">
-                                    {cell.roomOrNote}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                                <span>{pt?.startTime}</span>
-                                <button
-                                  onClick={(e) => handleClearCell(rIdx, cIdx, e)}
-                                  title="セルをクリア"
-                                  className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-600 transition"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex h-12 items-center justify-center text-[10px] text-slate-300">
-                              + 追加
-                            </div>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      </main>
 
       {/* Cell Edit Modal */}
       {editingCell && (
