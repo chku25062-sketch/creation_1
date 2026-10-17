@@ -60,8 +60,9 @@ export async function runCellBatchOcr(
     progress: 0.12,
   });
 
-  // 2. Tesseract Worker の初期化 (日本語 + 英語)
-  const worker = await createWorker('jpn+eng', 1);
+  // 2. Tesseract Worker の初期化 (日本語優先モデル: 英数字も内包)
+  // 'jpn+eng' は英語辞書が日本語(カタカナ・漢字)を英単語へ誤変換してしまうため 'jpn' 単体を指定
+  const worker = await createWorker('jpn', 1);
 
   // 単一ブロック用 PSM 6 & 不要な文字間スペースの保持を無効化
   try {
