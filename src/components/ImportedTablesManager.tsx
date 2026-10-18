@@ -11,7 +11,6 @@ import {
   ChevronUp,
   Sparkles,
   Sliders,
-  Folder,
   FolderOpen,
   Search,
   PanelLeftClose,
@@ -524,77 +523,25 @@ export function ImportedTablesManager({
         }`}
       >
         <div className="flex flex-col h-full min-h-0 w-full">
-          {/* Sidebar Header */}
+          {/* Top Bar: ヘッダーを廃止し、折り畳みボタンと「ファイル名で検索」を並べて配置 */}
           {isSidebarOpen ? (
-            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-100/70 px-2.5 py-2">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <button
-                  onClick={toggleSidebar}
-                  title="バーを折りたたむ"
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-200/80 hover:text-slate-800 transition"
-                >
-                  <PanelLeftClose className="h-4 w-4" />
-                </button>
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-blue-600 shadow-2xs">
-                    <Folder className="h-3 w-3 text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <h2 className="text-xs font-bold text-slate-900 leading-tight truncate">
-                      データ一覧
-                    </h2>
-                    <span className="text-[10px] text-slate-500 font-medium">
-                      基本3件 + 表{tables.length}件
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1 shrink-0">
-                {(onFileSelect || onOpenImport) && (
-                  <button
-                    onClick={handleTriggerFileSelect}
-                    title="画像やファイルから時間割を取り込む"
-                    className="flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1 text-[11px] font-semibold text-white shadow-2xs hover:bg-blue-700 transition"
-                  >
-                    <Upload className="h-3 w-3" />
-                    <span>取込</span>
-                  </button>
-                )}
-                <button
-                  onClick={handleAddNewTable}
-                  title="手動で新しい表を追加"
-                  className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-blue-600 transition"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>新規</span>
-                </button>
-              </div>
-            </div>
-          ) : (
-            /* 折りたたみ時ヘッダー: 左上に幅を広げるボタンを配置 */
-            <div className="flex shrink-0 items-center justify-center border-b border-slate-200 bg-slate-100/70 p-2">
+            <div className="shrink-0 flex items-center gap-1.5 border-b border-slate-200/80 bg-slate-100/70 p-2">
               <button
                 onClick={toggleSidebar}
-                title="ファイル一覧を展開する"
-                className="flex h-8 w-8 items-center justify-center rounded-md border border-blue-200 bg-white text-blue-600 shadow-2xs hover:bg-blue-50 hover:border-blue-400 transition"
+                title="バーを折りたたむ"
+                className="flex h-7.5 w-7.5 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition shadow-2xs"
               >
-                <PanelLeftOpen className="h-4 w-4" />
+                <PanelLeftClose className="h-4 w-4" />
               </button>
-            </div>
-          )}
 
-          {/* Search Input (展開時のみ) */}
-          {isSidebarOpen && (
-            <div className="shrink-0 p-2 border-b border-slate-200/80 bg-slate-50">
-              <div className="relative flex items-center">
+              <div className="relative flex-1 min-w-0 flex items-center">
                 <Search className="absolute left-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="ファイル名で検索..."
-                  className="w-full rounded-md border border-slate-200 bg-white py-1 pl-8 pr-2 text-xs placeholder:text-slate-400 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500/20"
+                  className="w-full rounded-md border border-slate-200 bg-white py-1 pl-8 pr-6 text-xs placeholder:text-slate-400 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500/20 shadow-2xs"
                 />
                 {searchQuery && (
                   <button
@@ -605,6 +552,17 @@ export function ImportedTablesManager({
                   </button>
                 )}
               </div>
+            </div>
+          ) : (
+            /* 折りたたみ時: 幅を広げるボタンを中央配置 */
+            <div className="shrink-0 p-2 border-b border-slate-200/80 bg-slate-100/70 flex items-center justify-center">
+              <button
+                onClick={toggleSidebar}
+                title="ファイル一覧を展開する"
+                className="flex h-7.5 w-7.5 items-center justify-center rounded-md border border-blue-200 bg-white text-blue-600 shadow-2xs hover:bg-blue-50 hover:border-blue-400 transition"
+              >
+                <PanelLeftOpen className="h-4 w-4" />
+              </button>
             </div>
           )}
 
@@ -780,6 +738,14 @@ export function ImportedTablesManager({
                 {isSidebarOpen && (
                   <div className="flex items-center gap-1.5">
                     <span className="font-mono text-slate-400">{filteredTables.length}</span>
+                    <button
+                      onClick={handleAddNewTable}
+                      title="手動で新しい表を追加"
+                      className="flex items-center gap-0.5 text-[10px] font-bold text-slate-500 hover:text-blue-600 tracking-normal"
+                    >
+                      <Plus className="h-2.5 w-2.5" />
+                      <span>新規</span>
+                    </button>
                     {(onFileSelect || onOpenImport) && (
                       <button
                         onClick={handleTriggerFileSelect}
