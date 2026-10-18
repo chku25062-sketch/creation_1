@@ -192,7 +192,7 @@ export default function Home() {
 
   if (!isInitialized) {
     return (
-      <div className="flex h-screen h-[100dvh] items-center justify-center bg-[#fbfaf5] bg-notebook-grid text-slate-800">
+      <div className="flex h-full h-[100dvh] w-full items-center justify-center bg-[#fbfaf5] bg-notebook-grid text-slate-800">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
           <p className="text-xs text-slate-500 font-medium">理論値計画表を初期化中...</p>
@@ -202,7 +202,7 @@ export default function Home() {
   }
 
   return (
-    <div className="relative flex h-screen h-[100dvh] flex-col overflow-hidden bg-[#fbfaf5] bg-notebook-grid text-slate-800">
+    <div className="relative flex h-full h-[100dvh] w-full flex-col overflow-hidden bg-[#fbfaf5] bg-notebook-grid text-slate-800">
       <main className="mx-auto flex w-full flex-1 min-h-0 flex-col px-1.5 pt-1.5 pb-1 sm:px-3 sm:pt-2 sm:pb-1.5 max-w-full">
         {/* Sheet 1: 計画表 (メインタイムライン) */}
         {activeTab === 'timeline' && (

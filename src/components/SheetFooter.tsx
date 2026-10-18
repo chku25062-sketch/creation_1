@@ -58,7 +58,7 @@ export function SheetFooter({
   }, [isMenuOpen]);
 
   return (
-    <footer className="shrink-0 border-t border-slate-300 bg-[#ede8dc] px-2 py-1 select-none shadow-xs">
+    <footer className="shrink-0 border-t border-slate-300 bg-[#ede8dc] px-2 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] select-none shadow-xs">
       <div className="mx-auto flex flex-wrap sm:flex-nowrap w-full max-w-full items-center justify-between gap-x-2 gap-y-1 sm:h-9">
         {/* Left: Excel-style Sheet Tabs */}
         <div className="flex items-center gap-1 overflow-x-auto order-1">
