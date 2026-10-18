@@ -199,12 +199,9 @@ export function Timeline24h({
                 </button>
               </div>
 
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 shrink-0">
+              <div className="flex items-center text-xs font-bold text-slate-800 shrink-0">
                 <span className="font-mono text-slate-600 text-[11px]">
                   {displayedDays[0]?.month}/{displayedDays[0]?.day} ({displayedDays[0]?.dayOfWeek})
-                </span>
-                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-blue-800">
-                  {displayedDays[0]?.isToday ? '今日のフォーカス' : '1日フォーカス'}
                 </span>
               </div>
             </div>

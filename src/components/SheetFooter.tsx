@@ -132,28 +132,41 @@ export function SheetFooter({
             </span>
           )}
 
-          {/* フォーカス切り替えアイコンボタン (メニューアイコンの隣) */}
+          {/* フォーカス切り替えコントロール（「日：」「週：」表示付き） */}
           {onToggleFocus && (
-            <button
-              onClick={onToggleFocus}
-              className={`relative flex h-7.5 w-7.5 items-center justify-center rounded-md border shadow-2xs transition active:scale-95 ${
-                focusMode === 'today'
-                  ? 'border-blue-600 bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200'
-                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-              title={
-                focusMode === 'today'
-                  ? '週間表示に切り替え (月〜日 7日間表示)'
-                  : '今日にフォーカス (1日拡大表示)'
-              }
-              aria-label={focusMode === 'today' ? '週間表示に切り替え' : '今日にフォーカス'}
-            >
-              {focusMode === 'today' ? (
-                <CalendarRange className="h-4 w-4" />
-              ) : (
-                <Crosshair className="h-4 w-4" />
-              )}
-            </button>
+            <div className="flex items-center gap-1">
+              <span
+                onClick={onToggleFocus}
+                className="cursor-pointer text-[11px] font-bold text-slate-600 select-none hover:text-blue-600 transition"
+                title={
+                  focusMode === 'today'
+                    ? '現在: 日表示（クリックで週間表示へ）'
+                    : '現在: 週表示（クリックで日表示へ）'
+                }
+              >
+                {focusMode === 'today' ? '日：' : '週：'}
+              </span>
+              <button
+                onClick={onToggleFocus}
+                className={`relative flex h-7.5 w-7.5 items-center justify-center rounded-md border shadow-2xs transition active:scale-95 ${
+                  focusMode === 'today'
+                    ? 'border-blue-600 bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200'
+                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+                title={
+                  focusMode === 'today'
+                    ? '週間表示に切り替え (月〜日 7日間表示)'
+                    : '今日にフォーカス (1日拡大表示)'
+                }
+                aria-label={focusMode === 'today' ? '週間表示に切り替え' : '今日にフォーカス'}
+              >
+                {focusMode === 'today' ? (
+                  <CalendarRange className="h-4 w-4" />
+                ) : (
+                  <Crosshair className="h-4 w-4" />
+                )}
+              </button>
+            </div>
           )}
 
           {/* Menu Icon Button (メニューアイコン) */}
