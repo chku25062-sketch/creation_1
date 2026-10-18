@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   FileSpreadsheet,
   Edit2,
@@ -120,6 +120,31 @@ export function ImportedTablesManager({
       return next;
     });
   };
+
+  // アイテム選択時（スマホではドロワーを閉じる）
+  const handleSelectItem = (id: string) => {
+    setSelectedItemId(id);
+    setIsEditingName(false);
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
+  };
+
+  // Escキーでドロワーを閉じる (スマホ展開時)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === 'Escape' &&
+        isSidebarOpen &&
+        typeof window !== 'undefined' &&
+        window.innerWidth < 768
+      ) {
+        setIsSidebarOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSidebarOpen]);
 
   // 検索クエリ（エクスプローラー風ファイル検索）
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -514,12 +539,23 @@ export function ImportedTablesManager({
 
   return (
     <div className="relative flex flex-1 min-h-0 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
+      {/* スマホ用 ドロワー背景オーバーレイ (Backdrop) */}
+      {isSidebarOpen && (
+        <div
+          onClick={() => setIsSidebarOpen(false)}
+          className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-[2px] transition-opacity md:hidden"
+          aria-hidden="true"
+        />
+      )}
+
       {/* ========================================================
-          Left Sidebar: データファイル一覧 (最小値: 見出し3文字バー / 展開: フルエクスプローラー)
+          Left Sidebar: データファイル一覧 (スマホ時はドロワー / PC時はインライン)
           ======================================================== */}
       <aside
-        className={`shrink-0 flex flex-col h-full border-r border-slate-200 bg-slate-50/95 backdrop-blur-xs select-none transition-all duration-200 ease-in-out ${
-          isSidebarOpen ? 'w-64 sm:w-72' : 'w-[76px]'
+        className={`shrink-0 flex flex-col h-full border-r border-slate-200 bg-slate-50 select-none transition-all duration-200 ease-in-out ${
+          isSidebarOpen
+            ? 'fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] shadow-2xl md:relative md:inset-auto md:z-auto md:w-64 lg:w-72 md:shadow-none'
+            : 'relative w-[56px] sm:w-[68px] md:w-[76px]'
         }`}
       >
         <div className="flex flex-col h-full min-h-0 w-full">
@@ -588,10 +624,7 @@ export function ImportedTablesManager({
                     .toLowerCase()
                     .includes(searchQuery.toLowerCase())) && (
                   <div
-                    onClick={() => {
-                      setSelectedItemId('sys-slots');
-                      setIsEditingName(false);
-                    }}
+                    onClick={() => handleSelectItem('sys-slots')}
                     title="固定枠 (生活リズム)"
                     className={`group relative flex items-center rounded-lg cursor-pointer transition ${
                       isSidebarOpen
@@ -635,10 +668,7 @@ export function ImportedTablesManager({
                     .toLowerCase()
                     .includes(searchQuery.toLowerCase())) && (
                   <div
-                    onClick={() => {
-                      setSelectedItemId('sys-daily');
-                      setIsEditingName(false);
-                    }}
+                    onClick={() => handleSelectItem('sys-daily')}
                     title="日課タスク (毎日)"
                     className={`group relative flex items-center rounded-lg cursor-pointer transition ${
                       isSidebarOpen
@@ -682,10 +712,7 @@ export function ImportedTablesManager({
                     .toLowerCase()
                     .includes(searchQuery.toLowerCase())) && (
                   <div
-                    onClick={() => {
-                      setSelectedItemId('sys-weekly');
-                      setIsEditingName(false);
-                    }}
+                    onClick={() => handleSelectItem('sys-weekly')}
                     title="週次タスク (目標・課題)"
                     className={`group relative flex items-center rounded-lg cursor-pointer transition ${
                       isSidebarOpen
@@ -778,8 +805,7 @@ export function ImportedTablesManager({
                       <div
                         key={t.id}
                         onClick={() => {
-                          setSelectedItemId(t.id);
-                          if (!isSelected) setIsEditingName(false);
+                          handleSelectItem(t.id);
                         }}
                         title={t.name}
                         className={`group relative flex items-center rounded-lg cursor-pointer transition ${
