@@ -755,135 +755,22 @@ export function ImportedTablesManager({
   };
 
   return (
-    <div className="relative flex flex-1 min-h-0 w-full flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
-      {/* ========================================================
-          Top Header: パンくずリスト & 計画表への反映トグル
-          （スマホでも常に最上部に固定され、一覧バーに覆われない）
-          ======================================================== */}
-      <header className="shrink-0 flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-2.5 py-2 sm:px-3.5 sm:py-2.5 z-20">
-        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-          {/* スマホ用: データ一覧（サイドバー）開閉トリガーボタン */}
-          <button
-            type="button"
-            onClick={toggleSidebar}
-            className="flex h-7.5 w-7.5 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 shadow-2xs hover:bg-slate-100 hover:text-blue-600 transition md:hidden active:scale-95"
-            title={isSidebarOpen ? 'データ一覧を閉じる' : 'データ一覧を開く'}
-            aria-label={isSidebarOpen ? 'データ一覧を閉じる' : 'データ一覧を開く'}
-          >
-            {isSidebarOpen ? (
-              <PanelLeftClose className="h-4 w-4" />
-            ) : (
-              <PanelLeftOpen className="h-4 w-4" />
-            )}
-          </button>
-
-          {/* Breadcrumb Path */}
-          <div className="flex items-center gap-1.5 text-xs text-slate-500 min-w-0">
-            {isSystemFile ? (
-              <div className="flex items-center gap-1.5 min-w-0">
-                <FolderOpen className="h-4 w-4 text-amber-500 shrink-0" />
-                <span className="font-medium text-slate-600 shrink-0 hidden xs:inline">基本設定</span>
-                <span className="text-slate-300 hidden xs:inline">/</span>
-                <span className="font-bold text-slate-900 truncate text-[11px] sm:text-xs">
-                  {selectedItemId === 'sys-slots'
-                    ? '固定枠 (生活リズム)'
-                    : selectedItemId === 'sys-daily'
-                      ? '日課タスク (高頻度・毎日)'
-                      : '週次タスク (目標・課題)'}
-                </span>
-              </div>
-            ) : activeTable ? (
-              <div className="flex items-center gap-1.5 min-w-0">
-                <FolderOpen className="h-4 w-4 text-amber-500 shrink-0" />
-                <span className="font-medium text-slate-600 shrink-0 hidden xs:inline">表データ</span>
-                <span className="text-slate-300 hidden xs:inline">/</span>
-                <span className="font-bold text-slate-900 truncate text-[11px] sm:text-xs">{activeTable.name}</span>
-                {!isEditingName && (
-                  <button
-                    onClick={() => {
-                      setTempTableName(activeTable.name);
-                      setIsEditingName(true);
-                    }}
-                    title="テーブル名を編集"
-                    className="ml-0.5 text-slate-400 hover:text-blue-600 shrink-0"
-                  >
-                    <Edit2 className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 min-w-0 text-slate-400">
-                <span>表が選択されていません</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 計画表への反映 ON/OFF トグル */}
-        {(isSystemFile || activeTable) && (
-          <div className="flex items-center gap-1 sm:gap-2 rounded-xl border border-slate-200 bg-slate-50/90 px-2 py-1 shadow-2xs shrink-0">
-            <span className="text-[11px] sm:text-xs font-semibold text-slate-700 select-none hidden xs:inline">
-              計画表に反映
-            </span>
-            <span className="text-[10px] font-semibold text-slate-700 select-none xs:hidden">
-              反映
-            </span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={isCurrentItemApplied}
-              onClick={handleToggleCurrentApplied}
-              title={`計画表への反映を${isCurrentItemApplied ? 'オフ' : 'オン'}にする`}
-              className={`relative inline-flex h-5 w-9 sm:h-6 sm:w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 ${
-                isCurrentItemApplied ? 'bg-emerald-500' : 'bg-slate-300'
-              }`}
-            >
-              <span
-                className={`pointer-events-none inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                  isCurrentItemApplied ? 'translate-x-4 sm:translate-x-5' : 'translate-x-0'
-                }`}
-              />
-            </button>
-            <span
-              className={`text-[10px] sm:text-xs font-bold min-w-[20px] sm:min-w-[24px] select-none ${
-                isCurrentItemApplied ? 'text-emerald-700' : 'text-slate-400'
-              }`}
-            >
-              {isCurrentItemApplied ? 'ON' : 'OFF'}
-            </span>
-            {activeTable && (
-              <button
-                type="button"
-                onClick={() => setIsApplyModalOpen(true)}
-                title="反映設定（課題タスク自動生成・反映モード）"
-                className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition"
-              >
-                <Sliders className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-        )}
-      </header>
+    <div className="relative flex flex-1 min-h-0 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
+      {/* スマホ用 ドロワー背景オーバーレイ (Backdrop) */}
+      <div
+        onClick={() => setIsSidebarOpen(false)}
+        className={`absolute inset-0 z-30 bg-slate-900/30 backdrop-blur-[2px] transition-opacity duration-200 md:hidden ${
+          isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+        aria-hidden="true"
+      />
 
       {/* ========================================================
-          Body Area: サイドバー ＋ メインコンテンツ
+          Left Sidebar: データファイル一覧
+          - スマホ: absolute 配置のドロワー（フッターまで覆わず、メイン画面の幅にも影響を与えない）
+          - PC: インライン relative 配置
           ======================================================== */}
-      <div className="relative flex flex-1 min-h-0 w-full overflow-hidden">
-        {/* スマホ用 ドロワー背景オーバーレイ (Backdrop) */}
-        <div
-          onClick={() => setIsSidebarOpen(false)}
-          className={`absolute inset-0 z-30 bg-slate-900/30 backdrop-blur-[2px] transition-opacity duration-200 md:hidden ${
-            isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-          }`}
-          aria-hidden="true"
-        />
-
-        {/* ========================================================
-            Left Sidebar: データファイル一覧
-            - スマホ: ヘッダーの下で absolute 配置のドロワー（ヘッダーを覆わず、メイン画面の幅にも影響を与えない）
-            - PC: 従来のインライン relative 配置
-            ======================================================== */}
-        <aside
+      <aside
           className={`shrink-0 flex flex-col h-full border-r border-slate-200 bg-slate-50 select-none transition-all duration-200 ease-in-out ${
             isSidebarOpen
               ? 'absolute inset-y-0 left-0 z-40 w-72 max-w-[85vw] shadow-2xl translate-x-0 opacity-100 md:relative md:inset-auto md:z-auto md:w-64 lg:w-72 md:shadow-none'
@@ -1399,7 +1286,100 @@ export function ImportedTablesManager({
           </div>
         )}
 
+        {/* Explorer Path / Breadcrumb & Top Actions Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+          {/* Breadcrumb Path & Mobile Sidebar Toggle */}
+          <div className="flex items-center gap-2 text-xs text-slate-500 min-w-0">
+            {/* スマホ用: データ一覧バーを開くボタン */}
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              title="データ一覧バーを開く"
+              aria-label="データ一覧バーを開く"
+              className="flex md:hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 shadow-2xs hover:bg-slate-100 hover:text-blue-600 transition active:scale-95"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </button>
 
+            {isSystemFile ? (
+              <div className="flex items-center gap-1.5 min-w-0">
+                <FolderOpen className="h-4 w-4 text-amber-500 shrink-0" />
+                <span className="font-medium text-slate-600 shrink-0">基本設定</span>
+                <span className="text-slate-300">/</span>
+                <span className="font-bold text-slate-900 truncate">
+                  {selectedItemId === 'sys-slots'
+                    ? '固定枠 (生活リズム)'
+                    : selectedItemId === 'sys-daily'
+                      ? '日課タスク (高頻度・毎日)'
+                      : '週次タスク (目標・課題)'}
+                </span>
+              </div>
+            ) : activeTable ? (
+              <div className="flex items-center gap-1.5 min-w-0">
+                <FolderOpen className="h-4 w-4 text-amber-500 shrink-0" />
+                <span className="font-medium text-slate-600 shrink-0">取り込み表データ</span>
+                <span className="text-slate-300">/</span>
+                <span className="font-bold text-slate-900 truncate">{activeTable.name}</span>
+                {!isEditingName && (
+                  <button
+                    onClick={() => {
+                      setTempTableName(activeTable.name);
+                      setIsEditingName(true);
+                    }}
+                    title="テーブル名を編集"
+                    className="ml-1 text-slate-400 hover:text-blue-600"
+                  >
+                    <Edit2 className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 min-w-0 text-slate-400">
+                <span>表が選択されていません</span>
+              </div>
+            )}
+          </div>
+
+          {/* 計画表への反映 ON/OFF トグル */}
+          {(isSystemFile || activeTable) && (
+            <div className="flex items-center gap-1.5 sm:gap-2.5 rounded-xl border border-slate-200 bg-slate-50/90 px-2 sm:px-3 py-1 shadow-2xs">
+              <span className="text-xs font-semibold text-slate-700 select-none">計画表に反映</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isCurrentItemApplied}
+                onClick={handleToggleCurrentApplied}
+                title={`計画表への反映を${isCurrentItemApplied ? 'オフ' : 'オン'}にする`}
+                className={`relative inline-flex h-5 w-9 sm:h-6 sm:w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 ${
+                  isCurrentItemApplied ? 'bg-emerald-500' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                    isCurrentItemApplied ? 'translate-x-4 sm:translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+              <span
+                className={`text-[11px] sm:text-xs font-bold min-w-[24px] select-none ${
+                  isCurrentItemApplied ? 'text-emerald-700' : 'text-slate-400'
+                }`}
+              >
+                {isCurrentItemApplied ? 'ON' : 'OFF'}
+              </span>
+              {activeTable && (
+                <button
+                  type="button"
+                  onClick={() => setIsApplyModalOpen(true)}
+                  title="反映設定（課題タスク自動生成・反映モード）"
+                  className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition"
+                >
+                  <Sliders className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
         {/* Content Area: システム基本ファイル or 取り込み表詳細 */}
         {isSystemFile ? (
           <div className="flex-1 min-h-0 flex flex-col">
@@ -1766,7 +1746,6 @@ export function ImportedTablesManager({
           </>
         )}
       </main>
-      </div>
 
       {/* Cell Edit Modal */}
       {editingCell && activeTable && (
