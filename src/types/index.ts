@@ -60,6 +60,8 @@ export interface TheoreticalBlock {
   taskType?: TaskType;
   deadlineDay?: number;
   dayIndex?: number; // 0:月〜6:日
+  sourceTableId?: string; // 参照元テーブルID
+  sourceTableName?: string; // 参照元テーブル名
 }
 
 export interface FreeSlot {

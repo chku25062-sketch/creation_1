@@ -1,7 +1,14 @@
 'use client';
 
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Clock, AlertTriangle, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  Clock,
+  AlertTriangle,
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  FileSpreadsheet,
+} from 'lucide-react';
 import { TheoreticalBlock, TaskItem } from '@/types';
 import { minutesToTimeString, formatDuration } from '@/lib/timeUtils';
 
@@ -371,6 +378,11 @@ export function Timeline24h({
                       return (
                         <div
                           key={`block-${d.dayIndex}-${block.id}`}
+                          title={
+                            block.sourceTableName
+                              ? `${block.title} (参照元: ${block.sourceTableName})`
+                              : block.title
+                          }
                           style={{
                             top: `${top}px`,
                             height: `${height}px`,
@@ -389,6 +401,17 @@ export function Timeline24h({
                               <span className="truncate text-xs font-bold leading-tight sm:text-[13px]">
                                 {block.title}
                               </span>
+                              {block.sourceTableName && (
+                                <span
+                                  className="shrink-0 inline-flex items-center gap-0.5 rounded bg-emerald-100/90 border border-emerald-300 px-1 py-0.2 text-[8px] font-bold text-emerald-900 shadow-2xs"
+                                  title={`参照元: ${block.sourceTableName}`}
+                                >
+                                  <FileSpreadsheet className="h-2 w-2 text-emerald-700" />
+                                  <span className="max-w-[65px] truncate hidden sm:inline">
+                                    {block.sourceTableName}
+                                  </span>
+                                </span>
+                              )}
                               {isAssignment && block.deadlineDay !== undefined && (
                                 <span className="shrink-0 rounded bg-rose-200/90 px-1 py-0.2 text-[9px] font-bold text-rose-900 shadow-2xs">
                                   期日:{WEEKDAY_NAMES[block.deadlineDay]}

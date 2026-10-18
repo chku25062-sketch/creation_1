@@ -184,6 +184,8 @@ export function generateTheoreticalSchedule(
         isFixed: true,
         color: slot.color || getCategoryColor(slot.category),
         dayIndex: d,
+        sourceTableId: slot.sourceTableId,
+        sourceTableName: slot.sourceTableName,
       });
     }
   }
@@ -255,6 +257,8 @@ export function generateTheoreticalSchedule(
             priority: task.priority,
             taskType: task.taskType || 'task',
             dayIndex: d,
+            sourceTableId: task.sourceTableId,
+            sourceTableName: task.sourceTableName,
           });
 
           slot.startMinutes = taskEnd;
@@ -314,6 +318,8 @@ export function generateTheoreticalSchedule(
             taskType: 'assignment',
             deadlineDay: task.deadlineDay,
             dayIndex: d,
+            sourceTableId: task.sourceTableId,
+            sourceTableName: task.sourceTableName,
           });
 
           slot.startMinutes = taskEnd;
@@ -372,6 +378,8 @@ export function generateTheoreticalSchedule(
             priority: task.priority,
             taskType: 'task',
             dayIndex: d,
+            sourceTableId: task.sourceTableId,
+            sourceTableName: task.sourceTableName,
           });
 
           slot.startMinutes = taskEnd;

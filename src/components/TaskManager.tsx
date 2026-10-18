@@ -220,6 +220,8 @@ export function TaskManager({
   const [slotEndTime, setSlotEndTime] = useState('12:10');
   const [slotDays, setSlotDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [autoAddAssignment, setAutoAddAssignment] = useState(true);
+  const [slotSourceTableId, setSlotSourceTableId] = useState<string | undefined>(undefined);
+  const [slotSourceTableName, setSlotSourceTableName] = useState<string | undefined>(undefined);
 
   // 固定枠のソート & 絞り込みステート
   const [slotSortKey, setSlotSortKey] = useState<
@@ -356,6 +358,8 @@ export function TaskManager({
     setSlotEndTime('12:10');
     setSlotDays([0, 2]); // 月・水
     setAutoAddAssignment(true);
+    setSlotSourceTableId(undefined);
+    setSlotSourceTableName(undefined);
     setModalType('slot');
   };
 
@@ -367,6 +371,8 @@ export function TaskManager({
     setSlotStartTime(minutesToTimeString(slot.startMinutes));
     setSlotEndTime(minutesToTimeString(slot.endMinutes));
     setSlotDays(slot.daysOfWeek ? [...slot.daysOfWeek] : [0, 1, 2, 3, 4, 5, 6]);
+    setSlotSourceTableId(slot.sourceTableId);
+    setSlotSourceTableName(slot.sourceTableName);
     setModalType('slot');
   };
 
@@ -473,6 +479,8 @@ export function TaskManager({
                 endMinutes,
                 color: categoryColors[slotCategory],
                 daysOfWeek: [...slotDays],
+                sourceTableId: slotSourceTableId,
+                sourceTableName: slotSourceTableName,
               }
             : s,
         ),
@@ -486,6 +494,8 @@ export function TaskManager({
         endMinutes,
         color: categoryColors[slotCategory],
         daysOfWeek: [...slotDays],
+        sourceTableId: slotSourceTableId,
+        sourceTableName: slotSourceTableName,
       };
       onSlotsChange([...slots, newSlot]);
 
@@ -506,6 +516,8 @@ export function TaskManager({
           priority: 'high',
           period: 'week',
           completed: false,
+          sourceTableId: slotSourceTableId,
+          sourceTableName: slotSourceTableName,
         };
         onChange([...tasks, autoAssignment]);
       }
@@ -626,6 +638,23 @@ export function TaskManager({
     // フォールバック: IDの命名規則 (task-assignment-${tableId}-...) から検索
     if (task.id.startsWith('task-assignment-') && tables) {
       const found = tables.find((t) => task.id.includes(t.id));
+      if (found) return found.name;
+    }
+    return null;
+  };
+
+  // 固定枠の表データ参照元ファイル名の取得
+  const getSlotSourceFileName = (slot: FixedSlot): string | null => {
+    if (slot.sourceTableName) {
+      return slot.sourceTableName;
+    }
+    if (slot.sourceTableId && tables) {
+      const found = tables.find((t) => t.id === slot.sourceTableId);
+      if (found) return found.name;
+    }
+    // フォールバック: IDの命名規則 (slot-table-${tableId}-... または slot-lecture-${tableId}-...) から検索
+    if ((slot.id.startsWith('slot-table-') || slot.id.startsWith('slot-lecture-')) && tables) {
+      const found = tables.find((t) => slot.id.includes(t.id));
       if (found) return found.name;
     }
     return null;
@@ -1452,6 +1481,18 @@ export function TaskManager({
                               <span className="shrink-0 rounded bg-sky-50 border border-sky-200 px-1 py-0.2 text-[9px] font-bold text-sky-700">
                                 {formatDaysString(slot.daysOfWeek)}
                               </span>
+
+                              {getSlotSourceFileName(slot) && (
+                                <span
+                                  className="shrink-0 inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.2 text-[9px] font-medium text-emerald-800"
+                                  title={`参照元表データ: ${getSlotSourceFileName(slot)}`}
+                                >
+                                  <FileSpreadsheet className="h-2.5 w-2.5 text-emerald-600" />
+                                  <span className="max-w-[120px] truncate">
+                                    {getSlotSourceFileName(slot)}
+                                  </span>
+                                </span>
+                              )}
                             </div>
 
                             <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-0.5">
@@ -1991,6 +2032,24 @@ export function TaskManager({
             </div>
 
             <form onSubmit={handleSaveSlot} className="flex flex-col gap-3.5">
+              {/* 表データ参照元バッジ表示 */}
+              {(() => {
+                const currentSlot = editingSlotId
+                  ? slots.find((s) => s.id === editingSlotId)
+                  : undefined;
+                const srcName = currentSlot
+                  ? getSlotSourceFileName(currentSlot)
+                  : slotSourceTableName;
+                if (!srcName) return null;
+                return (
+                  <div className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50/90 px-2.5 py-1.5 text-xs text-emerald-800">
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                    <span className="font-semibold text-[11px]">参照元ファイル:</span>
+                    <span className="truncate text-xs font-bold text-emerald-900">{srcName}</span>
+                  </div>
+                );
+              })()}
+
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 <div>
                   <label className="text-xs font-semibold text-slate-700">
