@@ -230,6 +230,13 @@ export function TaskManager({
   const [slotCategoryFilter, setSlotCategoryFilter] = useState<FixedCategory | 'all'>('all');
   const [slotDayFilter, setSlotDayFilter] = useState<number | 'all' | 'daily'>('all');
 
+  // タスク（日課・週次）のソート & 絞り込みステート
+  const [taskSortKey, setTaskSortKey] = useState<
+    'priority' | 'duration-asc' | 'duration-desc' | 'title-asc' | 'category'
+  >('priority');
+  const [taskCategoryFilter, setTaskCategoryFilter] = useState<string>('all');
+  const [taskDayFilter, setTaskDayFilter] = useState<number | 'all'>('all');
+
   // ESCキーでモーダルを閉じる
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -715,6 +722,118 @@ export function TaskManager({
     return result;
   }, [slots, slotCategoryFilter, slotDayFilter, slotSortKey]);
 
+  // 絞り込み & 並び替えされた日課タスク
+  const filteredAndSortedDailyTasks = useMemo(() => {
+    let result = [...dailyTasks];
+
+    // 1. カテゴリ絞り込み
+    if (taskCategoryFilter !== 'all') {
+      if (taskCategoryFilter === 'must') {
+        result = result.filter((t) => t.category === 'must' || t.taskType === 'assignment');
+      } else if (taskCategoryFilter === 'want') {
+        result = result.filter((t) => t.category === 'want' && t.taskType !== 'assignment');
+      } else if (taskCategoryFilter === 'todo') {
+        result = result.filter((t) => t.taskType === 'todo' || t.hasNoDuration);
+      }
+    }
+
+    // 2. 曜日絞り込み
+    if (taskDayFilter !== 'all') {
+      const targetDay = Number(taskDayFilter);
+      result = result.filter((t) => {
+        if (t.deadlineDay !== undefined) return t.deadlineDay === targetDay;
+        if (t.startDay !== undefined) return t.startDay === targetDay;
+        return true; // 毎日タスクはどの曜日にも該当
+      });
+    }
+
+    // 3. 並び替え
+    result.sort((a, b) => {
+      if (taskSortKey === 'priority') {
+        const isMustA = a.category === 'must' || a.taskType === 'assignment';
+        const isMustB = b.category === 'must' || b.taskType === 'assignment';
+        if (isMustA && !isMustB) return -1;
+        if (!isMustA && isMustB) return 1;
+        const pWeight = { high: 3, medium: 2, low: 1 };
+        return (pWeight[b.priority] || 2) - (pWeight[a.priority] || 2);
+      }
+      if (taskSortKey === 'duration-asc') {
+        return (a.durationMinutes || 0) - (b.durationMinutes || 0);
+      }
+      if (taskSortKey === 'duration-desc') {
+        return (b.durationMinutes || 0) - (a.durationMinutes || 0);
+      }
+      if (taskSortKey === 'title-asc') {
+        return a.title.localeCompare(b.title, 'ja');
+      }
+      if (taskSortKey === 'category') {
+        return a.category.localeCompare(b.category);
+      }
+      return 0;
+    });
+
+    return result;
+  }, [dailyTasks, taskCategoryFilter, taskDayFilter, taskSortKey]);
+
+  // 絞り込み & 並び替えされた週次タスク
+  const filteredAndSortedWeeklyTasks = useMemo(() => {
+    let result = [...weeklyTasks];
+
+    // 1. カテゴリ絞り込み
+    if (taskCategoryFilter !== 'all') {
+      if (taskCategoryFilter === 'assignment') {
+        result = result.filter((t) => t.taskType === 'assignment');
+      } else if (taskCategoryFilter === 'must') {
+        result = result.filter((t) => t.category === 'must' && t.taskType !== 'assignment');
+      } else if (taskCategoryFilter === 'want') {
+        result = result.filter((t) => t.category === 'want');
+      } else if (taskCategoryFilter === 'todo') {
+        result = result.filter((t) => t.taskType === 'todo' || t.hasNoDuration);
+      }
+    }
+
+    // 2. 曜日絞り込み（課題の締切・出題曜日）
+    if (taskDayFilter !== 'all') {
+      const targetDay = Number(taskDayFilter);
+      result = result.filter((t) => {
+        if (t.deadlineDay !== undefined && t.deadlineDay === targetDay) return true;
+        if (t.startDay !== undefined && t.startDay === targetDay) return true;
+        return false;
+      });
+    }
+
+    // 3. 並び替え
+    result.sort((a, b) => {
+      if (taskSortKey === 'priority') {
+        const isAssignA = a.taskType === 'assignment';
+        const isAssignB = b.taskType === 'assignment';
+        if (isAssignA && !isAssignB) return -1;
+        if (!isAssignA && isAssignB) return 1;
+        const isMustA = a.category === 'must';
+        const isMustB = b.category === 'must';
+        if (isMustA && !isMustB) return -1;
+        if (!isMustA && isMustB) return 1;
+        const pWeight = { high: 3, medium: 2, low: 1 };
+        return (pWeight[b.priority] || 2) - (pWeight[a.priority] || 2);
+      }
+      if (taskSortKey === 'duration-asc') {
+        return (a.durationMinutes || 0) - (b.durationMinutes || 0);
+      }
+      if (taskSortKey === 'duration-desc') {
+        return (b.durationMinutes || 0) - (a.durationMinutes || 0);
+      }
+      if (taskSortKey === 'title-asc') {
+        return a.title.localeCompare(b.title, 'ja');
+      }
+      if (taskSortKey === 'category') {
+        return a.category.localeCompare(b.category);
+      }
+      return 0;
+    });
+
+    return result;
+  }, [weeklyTasks, taskCategoryFilter, taskDayFilter, taskSortKey]);
+
   return (
     <div
       className={`flex flex-1 min-h-0 flex-col gap-2.5 ${
@@ -877,22 +996,363 @@ export function TaskManager({
             </div>
           </div>
         </div>
+      ) : viewMode === 'daily' ? (
+        /* 日課タスク (高頻度・毎日) ツールバー */
+        <div className="flex flex-col gap-2 shrink-0 rounded-xl border border-slate-200/90 bg-white/80 backdrop-blur-xs p-2.5 shadow-2xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {/* 追加ボタン & プリセット */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => openAddTask('want', 'high')}
+                className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white shadow-2xs transition hover:bg-amber-700 active:scale-98"
+                title="新しい日課タスクを追加する"
+              >
+                <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
+                <span>日課タスクを追加</span>
+              </button>
+
+              {/* プリセット候補 */}
+              <div className="hidden sm:flex items-center gap-1 text-[11px] text-slate-500 pl-1.5 border-l border-slate-200">
+                <span className="text-[10px] font-semibold text-slate-400">例:</span>
+                {PRESET_TASKS.filter((p) => p.period === 'day' || p.frequency === 'high')
+                  .slice(0, 3)
+                  .map((preset) => (
+                    <button
+                      key={preset.title}
+                      type="button"
+                      onClick={() => handleAddPresetTask(preset)}
+                      className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800"
+                    >
+                      +{preset.title}
+                    </button>
+                  ))}
+              </div>
+            </div>
+
+            {/* 並び替え & 件数 */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-0.5">
+                合計: {formatDuration(dailyTotalMinutes)}
+              </span>
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-slate-400 hidden xs:inline font-medium text-[11px]">
+                  並び替え:
+                </span>
+                <div className="relative inline-flex items-center">
+                  <ArrowUpDown className="h-3 w-3 text-slate-500 absolute left-2 pointer-events-none" />
+                  <select
+                    value={taskSortKey}
+                    onChange={(e) =>
+                      setTaskSortKey(
+                        e.target.value as
+                          | 'priority'
+                          | 'duration-asc'
+                          | 'duration-desc'
+                          | 'title-asc'
+                          | 'category',
+                      )
+                    }
+                    className="rounded-lg border border-slate-200 bg-white pl-6.5 pr-6 py-1 text-xs font-semibold text-slate-700 shadow-2xs hover:border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-amber-500 appearance-none cursor-pointer"
+                  >
+                    <option value="priority">優先度順 (高→低)</option>
+                    <option value="duration-asc">時間順 (短→長)</option>
+                    <option value="duration-desc">時間順 (長→短)</option>
+                    <option value="title-asc">名前順 (あ→ん)</option>
+                    <option value="category">カテゴリ順</option>
+                  </select>
+                  <ChevronDown className="h-3 w-3 text-slate-400 absolute right-2 pointer-events-none" />
+                </div>
+              </div>
+
+              <span className="text-[11px] font-bold text-slate-500 font-mono bg-slate-100 rounded-md px-2 py-0.5">
+                {filteredAndSortedDailyTasks.length}/{dailyTasks.length}件
+              </span>
+            </div>
+          </div>
+
+          {/* 絞り込み行: カテゴリ & 曜日 */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-100 text-xs">
+            {/* カテゴリ絞り込み */}
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="text-[10px] font-bold text-slate-400 mr-0.5">カテゴリ:</span>
+              {[
+                { id: 'all', label: 'すべて' },
+                { id: 'must', label: 'やるべき (Must)' },
+                { id: 'want', label: 'やりたい (Want)' },
+              ].map((cat) => {
+                const isActive = taskCategoryFilter === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setTaskCategoryFilter(cat.id)}
+                    className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
+                      isActive
+                        ? 'bg-amber-600 text-white shadow-2xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* 曜日絞り込み */}
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] font-bold text-slate-400 mr-0.5">曜日:</span>
+              <button
+                type="button"
+                onClick={() => setTaskDayFilter('all')}
+                className={`rounded-lg px-1.5 py-0.5 text-[11px] font-semibold transition ${
+                  taskDayFilter === 'all'
+                    ? 'bg-slate-800 text-white shadow-2xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                全
+              </button>
+              {[
+                { day: 0, label: '月' },
+                { day: 1, label: '火' },
+                { day: 2, label: '水' },
+                { day: 3, label: '木' },
+                { day: 4, label: '金' },
+                { day: 5, label: '土' },
+                { day: 6, label: '日' },
+              ].map((d) => {
+                const isActive = taskDayFilter === d.day;
+                return (
+                  <button
+                    key={d.day}
+                    type="button"
+                    onClick={() => setTaskDayFilter(isActive ? 'all' : d.day)}
+                    className={`h-5.5 w-5.5 rounded-md text-[11px] font-bold flex items-center justify-center transition ${
+                      isActive
+                        ? 'bg-amber-600 text-white shadow-2xs'
+                        : d.day === 5
+                          ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                          : d.day === 6
+                            ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                );
+              })}
+              {(taskCategoryFilter !== 'all' || taskDayFilter !== 'all') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTaskCategoryFilter('all');
+                    setTaskDayFilter('all');
+                  }}
+                  className="ml-1 text-[10px] font-medium text-slate-400 hover:text-rose-600 underline"
+                >
+                  解除
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : viewMode === 'weekly' ? (
+        /* 週次タスク・課題・ToDo ツールバー */
+        <div className="flex flex-col gap-2 shrink-0 rounded-xl border border-slate-200/90 bg-white/80 backdrop-blur-xs p-2.5 shadow-2xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {/* 追加ボタン & プリセット */}
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => openAddTask('must', 'medium')}
+                className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-bold text-white shadow-2xs transition hover:bg-purple-700 active:scale-98"
+                title="新しい週次タスクを追加する"
+              >
+                <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
+                <span>週次タスクを追加</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  openAddTask('must', 'low');
+                  setIsAssignment(true);
+                }}
+                className="hidden xs:flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2 py-1.5 text-xs font-bold text-purple-700 shadow-2xs transition hover:bg-purple-100"
+                title="課題レポートを追加"
+              >
+                <GraduationCap className="h-3.5 w-3.5" />
+                <span>+課題</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  openAddTask('must', 'low');
+                  setIsNoDurationTodo(true);
+                }}
+                className="hidden xs:flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs font-bold text-amber-800 shadow-2xs transition hover:bg-amber-100"
+                title="ToDoタスクを追加"
+              >
+                <CheckSquare className="h-3.5 w-3.5" />
+                <span>+ToDo</span>
+              </button>
+
+              {/* プリセット候補 */}
+              <div className="hidden lg:flex items-center gap-1 text-[11px] text-slate-500 pl-1.5 border-l border-slate-200">
+                <span className="text-[10px] font-semibold text-slate-400">例:</span>
+                {PRESET_TASKS.filter((p) => p.period === 'week' || p.taskType === 'assignment')
+                  .slice(0, 3)
+                  .map((preset) => (
+                    <button
+                      key={preset.title}
+                      type="button"
+                      onClick={() => handleAddPresetTask(preset)}
+                      className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600 transition hover:border-purple-300 hover:bg-purple-50 hover:text-purple-800"
+                    >
+                      +{preset.title}
+                    </button>
+                  ))}
+              </div>
+            </div>
+
+            {/* 並び替え & 件数 */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 rounded-md px-2 py-0.5">
+                合計: {formatDuration(weeklyTotalMinutes)}
+              </span>
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-slate-400 hidden xs:inline font-medium text-[11px]">
+                  並び替え:
+                </span>
+                <div className="relative inline-flex items-center">
+                  <ArrowUpDown className="h-3 w-3 text-slate-500 absolute left-2 pointer-events-none" />
+                  <select
+                    value={taskSortKey}
+                    onChange={(e) =>
+                      setTaskSortKey(
+                        e.target.value as
+                          | 'priority'
+                          | 'duration-asc'
+                          | 'duration-desc'
+                          | 'title-asc'
+                          | 'category',
+                      )
+                    }
+                    className="rounded-lg border border-slate-200 bg-white pl-6.5 pr-6 py-1 text-xs font-semibold text-slate-700 shadow-2xs hover:border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-purple-500 appearance-none cursor-pointer"
+                  >
+                    <option value="priority">優先度順 (高→低)</option>
+                    <option value="duration-asc">時間順 (短→長)</option>
+                    <option value="duration-desc">時間順 (長→短)</option>
+                    <option value="title-asc">名前順 (あ→ん)</option>
+                    <option value="category">カテゴリ順</option>
+                  </select>
+                  <ChevronDown className="h-3 w-3 text-slate-400 absolute right-2 pointer-events-none" />
+                </div>
+              </div>
+
+              <span className="text-[11px] font-bold text-slate-500 font-mono bg-slate-100 rounded-md px-2 py-0.5">
+                {filteredAndSortedWeeklyTasks.length}/{weeklyTasks.length}件
+              </span>
+            </div>
+          </div>
+
+          {/* 絞り込み行: カテゴリ & 曜日 */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-100 text-xs">
+            {/* カテゴリ絞り込み */}
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="text-[10px] font-bold text-slate-400 mr-0.5">カテゴリ:</span>
+              {[
+                { id: 'all', label: 'すべて' },
+                { id: 'assignment', label: '課題' },
+                { id: 'must', label: 'やるべき (Must)' },
+                { id: 'want', label: 'やりたい (Want)' },
+                { id: 'todo', label: 'ToDo' },
+              ].map((cat) => {
+                const isActive = taskCategoryFilter === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setTaskCategoryFilter(cat.id)}
+                    className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
+                      isActive
+                        ? 'bg-purple-600 text-white shadow-2xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* 曜日絞り込み（課題の締切・出題曜日） */}
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] font-bold text-slate-400 mr-0.5">締切曜日:</span>
+              <button
+                type="button"
+                onClick={() => setTaskDayFilter('all')}
+                className={`rounded-lg px-1.5 py-0.5 text-[11px] font-semibold transition ${
+                  taskDayFilter === 'all'
+                    ? 'bg-slate-800 text-white shadow-2xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                全
+              </button>
+              {[
+                { day: 0, label: '月' },
+                { day: 1, label: '火' },
+                { day: 2, label: '水' },
+                { day: 3, label: '木' },
+                { day: 4, label: '金' },
+                { day: 5, label: '土' },
+                { day: 6, label: '日' },
+              ].map((d) => {
+                const isActive = taskDayFilter === d.day;
+                return (
+                  <button
+                    key={d.day}
+                    type="button"
+                    onClick={() => setTaskDayFilter(isActive ? 'all' : d.day)}
+                    className={`h-5.5 w-5.5 rounded-md text-[11px] font-bold flex items-center justify-center transition ${
+                      isActive
+                        ? 'bg-purple-600 text-white shadow-2xs'
+                        : d.day === 5
+                          ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                          : d.day === 6
+                            ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                );
+              })}
+              {(taskCategoryFilter !== 'all' || taskDayFilter !== 'all') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTaskCategoryFilter('all');
+                    setTaskDayFilter('all');
+                  }}
+                  className="ml-1 text-[10px] font-medium text-slate-400 hover:text-rose-600 underline"
+                >
+                  解除
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       ) : (
+        /* viewMode === 'all' 統合ヘッダー */
         <div className="flex flex-col gap-2 shrink-0 border-b border-amber-900/10 pb-2.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
-            {viewMode === 'daily' ? (
-              <Sun className="h-4 w-4 text-amber-500" />
-            ) : viewMode === 'weekly' ? (
-              <CalendarDays className="h-4 w-4 text-purple-600" />
-            ) : (
-              <Target className="h-4 w-4 text-blue-600" />
-            )}
+            <Target className="h-4 w-4 text-blue-600" />
             <h3 className="text-sm font-bold text-slate-800 sm:text-base">
-              {viewMode === 'daily'
-                ? '日課タスク (高頻度・毎日)'
-                : viewMode === 'weekly'
-                  ? '週次タスク・課題 (今週の目標)'
-                  : '日課・週次タスク・生活固定枠スタック'}
+              日課・週次タスク・生活固定枠スタック
             </h3>
             <span className="hidden text-[11px] text-slate-500 sm:inline">
               (カードタップで編集、余白タップで新規追加)
@@ -914,23 +1374,15 @@ export function TaskManager({
               <Zap className="h-3 w-3 text-amber-500" />
               プリセット:
             </span>
-            {(viewMode === 'all' || viewMode === 'daily' || viewMode === 'weekly') &&
-              PRESET_TASKS.filter((p) => {
-                if (viewMode === 'daily') return p.period === 'day' || p.frequency === 'high';
-                if (viewMode === 'weekly')
-                  return p.period === 'week' || p.taskType === 'assignment';
-                return true;
-              })
-                .slice(0, 3)
-                .map((preset) => (
-                  <button
-                    key={preset.title}
-                    onClick={() => handleAddPresetTask(preset)}
-                    className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                  >
-                    + {preset.title}
-                  </button>
-                ))}
+            {PRESET_TASKS.slice(0, 3).map((preset) => (
+              <button
+                key={preset.title}
+                onClick={() => handleAddPresetTask(preset)}
+                className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+              >
+                + {preset.title}
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -949,40 +1401,46 @@ export function TaskManager({
             onClick={(e) => {
               if (e.target === e.currentTarget) openAddTask('want', 'high');
             }}
-            className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 min-h-0 flex-1 cursor-pointer transition hover:border-slate-300"
+            className={`flex flex-col gap-2 h-full min-h-0 flex-1 ${
+              viewMode === 'daily'
+                ? 'p-0.5'
+                : 'rounded-xl border border-slate-200 bg-slate-50/60 p-3 cursor-pointer transition hover:border-slate-300'
+            }`}
             title="クリックして日次タスクを追加"
           >
-            {/* Column Header */}
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default shrink-0"
-            >
-              <div className="flex items-center gap-1.5">
-                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-100 text-amber-700">
-                  <Sun className="h-3.5 w-3.5" />
+            {/* Column Header (viewMode === 'all' のみ表示) */}
+            {viewMode === 'all' && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default shrink-0"
+              >
+                <div className="flex items-center gap-1.5">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-100 text-amber-700">
+                    <Sun className="h-3.5 w-3.5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900">日ごと (高頻度・毎日)</h4>
+                  </div>
+                  <span className="rounded-full bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
+                    {dailyTasks.length}件
+                  </span>
                 </div>
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900">日ごと (高頻度・毎日)</h4>
-                </div>
-                <span className="rounded-full bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
-                  {dailyTasks.length}件
-                </span>
-              </div>
 
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] font-semibold text-blue-600">
-                  計 {formatDuration(dailyTotalMinutes)}
-                </span>
-                <button
-                  onClick={() => openAddTask('want', 'high')}
-                  title="日次タスクを追加"
-                  className="flex items-center gap-0.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-100 hover:border-blue-300"
-                >
-                  <Plus className="h-3 w-3" />
-                  追加
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-semibold text-blue-600">
+                    計 {formatDuration(dailyTotalMinutes)}
+                  </span>
+                  <button
+                    onClick={() => openAddTask('want', 'high')}
+                    title="日次タスクを追加"
+                    className="flex items-center gap-0.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-100 hover:border-blue-300"
+                  >
+                    <Plus className="h-3 w-3" />
+                    追加
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Daily Blocks Stack List */}
             <div
@@ -998,16 +1456,34 @@ export function TaskManager({
               {dailyTasks.length === 0 ? (
                 <div
                   onClick={() => openAddTask('want', 'high')}
-                  className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 py-8 text-center text-xs text-slate-500 hover:border-blue-300 hover:text-blue-600 transition"
+                  className="col-span-full flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-10 text-center text-xs text-slate-500 hover:border-amber-300 hover:text-amber-700 transition bg-white/40"
                 >
-                  <span>高頻度・毎日のタスクがありません</span>
-                  <span className="mt-1 text-xs font-semibold text-blue-600">
+                  <Sun className="h-8 w-8 text-amber-300 mb-2" />
+                  <span className="font-semibold text-slate-700">高頻度・毎日のタスクがありません</span>
+                  <span className="mt-1 text-xs font-bold text-amber-600">
                     + タップしてタスクを追加
                   </span>
                 </div>
+              ) : filteredAndSortedDailyTasks.length === 0 ? (
+                <div className="col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-12 text-center text-xs text-slate-500 bg-white/40">
+                  <p className="font-semibold text-slate-700">条件に一致する日課タスクがありません</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    カテゴリまたは曜日の絞り込み条件を変更してください
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTaskCategoryFilter('all');
+                      setTaskDayFilter('all');
+                    }}
+                    className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100 transition shadow-2xs"
+                  >
+                    絞り込みを解除する
+                  </button>
+                </div>
               ) : (
                 <>
-                  {dailyTasks.map((task) => {
+                  {filteredAndSortedDailyTasks.map((task) => {
                     const isMust = task.category === 'must' || task.taskType === 'assignment';
                     return (
                       <div
@@ -1125,62 +1601,68 @@ export function TaskManager({
             onClick={(e) => {
               if (e.target === e.currentTarget) openAddTask('must', 'medium');
             }}
-            className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 min-h-0 flex-1 cursor-pointer transition hover:border-slate-300"
+            className={`flex flex-col gap-2 h-full min-h-0 flex-1 ${
+              viewMode === 'weekly'
+                ? 'p-0.5'
+                : 'rounded-xl border border-slate-200 bg-slate-50/60 p-3 cursor-pointer transition hover:border-slate-300'
+            }`}
             title="クリックして週次タスク・課題を追加"
           >
-            {/* Column Header */}
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default shrink-0"
-            >
-              <div className="flex items-center gap-1.5">
-                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-100 text-purple-700">
-                  <CalendarDays className="h-3.5 w-3.5" />
+            {/* Column Header (viewMode === 'all' のみ表示) */}
+            {viewMode === 'all' && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default shrink-0"
+              >
+                <div className="flex items-center gap-1.5">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-100 text-purple-700">
+                    <CalendarDays className="h-3.5 w-3.5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900">週ごと (課題・ToDo)</h4>
+                  </div>
+                  <span className="rounded-full bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
+                    {weeklyTasks.length}件
+                  </span>
                 </div>
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900">週ごと (課題・ToDo)</h4>
-                </div>
-                <span className="rounded-full bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
-                  {weeklyTasks.length}件
-                </span>
-              </div>
 
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] font-semibold text-purple-700">
-                  計 {formatDuration(weeklyTotalMinutes)}
-                </span>
-                <button
-                  onClick={() => {
-                    openAddTask('must', 'low');
-                    setIsAssignment(true);
-                  }}
-                  title="課題を追加"
-                  className="flex items-center gap-0.5 rounded-md border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 transition hover:bg-purple-100 hover:border-purple-300"
-                >
-                  <GraduationCap className="h-2.5 w-2.5" />
-                  +課題
-                </button>
-                <button
-                  onClick={() => {
-                    openAddTask('must', 'low');
-                    setIsNoDurationTodo(true);
-                  }}
-                  title="ToDoを追加"
-                  className="flex items-center gap-0.5 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 transition hover:bg-amber-100 hover:border-amber-300"
-                >
-                  <CheckSquare className="h-2.5 w-2.5" />
-                  +ToDo
-                </button>
-                <button
-                  onClick={() => openAddTask('want', 'medium')}
-                  title="タスクを追加"
-                  className="flex items-center gap-0.5 rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-100 hover:border-blue-300"
-                >
-                  <Plus className="h-2.5 w-2.5" />
-                  +追加
-                </button>
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] font-semibold text-purple-700">
+                    計 {formatDuration(weeklyTotalMinutes)}
+                  </span>
+                  <button
+                    onClick={() => {
+                      openAddTask('must', 'low');
+                      setIsAssignment(true);
+                    }}
+                    title="課題を追加"
+                    className="flex items-center gap-0.5 rounded-md border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 transition hover:bg-purple-100 hover:border-purple-300"
+                  >
+                    <GraduationCap className="h-2.5 w-2.5" />
+                    +課題
+                  </button>
+                  <button
+                    onClick={() => {
+                      openAddTask('must', 'low');
+                      setIsNoDurationTodo(true);
+                    }}
+                    title="ToDoを追加"
+                    className="flex items-center gap-0.5 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 transition hover:bg-amber-100 hover:border-amber-300"
+                  >
+                    <CheckSquare className="h-2.5 w-2.5" />
+                    +ToDo
+                  </button>
+                  <button
+                    onClick={() => openAddTask('want', 'medium')}
+                    title="タスクを追加"
+                    className="flex items-center gap-0.5 rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-100 hover:border-blue-300"
+                  >
+                    <Plus className="h-2.5 w-2.5" />
+                    +追加
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Weekly Blocks Stack List */}
             <div
@@ -1196,16 +1678,34 @@ export function TaskManager({
               {weeklyTasks.length === 0 ? (
                 <div
                   onClick={() => openAddTask('must', 'medium')}
-                  className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 py-8 text-center text-xs text-slate-500 hover:border-purple-300 hover:text-purple-700 transition"
+                  className="col-span-full flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-10 text-center text-xs text-slate-500 hover:border-purple-300 hover:text-purple-700 transition bg-white/40"
                 >
-                  <span>週単位のタスク・課題がありません</span>
-                  <span className="mt-1 text-xs font-semibold text-purple-700">
+                  <CalendarDays className="h-8 w-8 text-purple-300 mb-2" />
+                  <span className="font-semibold text-slate-700">週単位のタスク・課題がありません</span>
+                  <span className="mt-1 text-xs font-bold text-purple-600">
                     + タップして追加
                   </span>
                 </div>
+              ) : filteredAndSortedWeeklyTasks.length === 0 ? (
+                <div className="col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-12 text-center text-xs text-slate-500 bg-white/40">
+                  <p className="font-semibold text-slate-700">条件に一致する週次タスクがありません</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    カテゴリまたは曜日の絞り込み条件を変更してください
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTaskCategoryFilter('all');
+                      setTaskDayFilter('all');
+                    }}
+                    className="mt-3 rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-800 hover:bg-purple-100 transition shadow-2xs"
+                  >
+                    絞り込みを解除する
+                  </button>
+                </div>
               ) : (
                 <>
-                  {weeklyTasks.map((task) => {
+                  {filteredAndSortedWeeklyTasks.map((task) => {
                     const isMust = task.category === 'must' || task.taskType === 'assignment';
                     const isAssign = task.taskType === 'assignment';
                     const isTodo = task.taskType === 'todo' || task.hasNoDuration;
