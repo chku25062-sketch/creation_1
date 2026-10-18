@@ -12,6 +12,8 @@ import {
   Target,
   Menu,
   X,
+  Crosshair,
+  CalendarRange,
 } from 'lucide-react';
 import { isSupabaseConfigured } from '@/lib/supabase';
 
@@ -26,6 +28,8 @@ interface SheetFooterProps {
   userEmail?: string | null;
   onOpenAuth?: () => void;
   onSignOut?: () => void;
+  focusMode?: 'week' | 'today';
+  onToggleFocus?: () => void;
 }
 
 export function SheetFooter({
@@ -37,6 +41,8 @@ export function SheetFooter({
   userEmail,
   onOpenAuth,
   onSignOut,
+  focusMode = 'today',
+  onToggleFocus,
 }: SheetFooterProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -114,7 +120,7 @@ export function SheetFooter({
         </div>
 
         {/* Right: Status and Menu Action */}
-        <div className="flex items-center gap-2 text-xs order-2 sm:order-3">
+        <div className="flex items-center gap-1.5 sm:gap-2 text-xs order-2 sm:order-3">
           {/* Autosave Status */}
           {lastSavedAt && (
             <span
@@ -126,7 +132,31 @@ export function SheetFooter({
             </span>
           )}
 
-          {/* Menu Icon Button (クラウド連携ボタンのあった場所に配置) */}
+          {/* フォーカス切り替えアイコンボタン (メニューアイコンの隣) */}
+          {onToggleFocus && (
+            <button
+              onClick={onToggleFocus}
+              className={`relative flex h-7.5 w-7.5 items-center justify-center rounded-md border shadow-2xs transition active:scale-95 ${
+                focusMode === 'today'
+                  ? 'border-blue-600 bg-blue-600 text-white hover:bg-blue-700 shadow-blue-200'
+                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+              title={
+                focusMode === 'today'
+                  ? '週間表示に切り替え (月〜日 7日間表示)'
+                  : '今日にフォーカス (1日拡大表示)'
+              }
+              aria-label={focusMode === 'today' ? '週間表示に切り替え' : '今日にフォーカス'}
+            >
+              {focusMode === 'today' ? (
+                <CalendarRange className="h-4 w-4" />
+              ) : (
+                <Crosshair className="h-4 w-4" />
+              )}
+            </button>
+          )}
+
+          {/* Menu Icon Button (メニューアイコン) */}
           <button
             onClick={() => setIsMenuOpen(true)}
             className="relative flex h-7.5 w-7.5 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 shadow-2xs transition hover:bg-slate-50 hover:text-slate-900 active:scale-95"
@@ -272,7 +302,54 @@ export function SheetFooter({
               </div>
             </div>
 
-            {/* セクション 3: シート切り替え */}
+            {/* セクション 3: 表示フォーカス切り替え */}
+            {onToggleFocus && (
+              <div className="space-y-2">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  計画表の表示フォーカス
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-2xs space-y-1">
+                  <button
+                    onClick={() => {
+                      if (focusMode !== 'today') onToggleFocus();
+                    }}
+                    className={`w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-xs transition ${
+                      focusMode === 'today'
+                        ? 'bg-blue-50 font-bold text-blue-900 border border-blue-200'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Crosshair className="h-3.5 w-3.5 text-blue-600" />
+                      今日にフォーカス（1日拡大）
+                    </span>
+                    {focusMode === 'today' && (
+                      <span className="text-[10px] font-bold text-blue-600">選択中</span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (focusMode !== 'week') onToggleFocus();
+                    }}
+                    className={`w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-xs transition ${
+                      focusMode === 'week'
+                        ? 'bg-blue-50 font-bold text-blue-900 border border-blue-200'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <CalendarRange className="h-3.5 w-3.5 text-blue-600" />
+                      週間全体表示（7日間）
+                    </span>
+                    {focusMode === 'week' && (
+                      <span className="text-[10px] font-bold text-blue-600">選択中</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* セクション 4: シート切り替え */}
             <div className="space-y-2">
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 シート切り替え

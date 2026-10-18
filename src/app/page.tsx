@@ -29,6 +29,35 @@ export default function Home() {
   const [importInitialFile, setImportInitialFile] = useState<File | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [focusMode, setFocusMode] = useState<'week' | 'today'>('today');
+
+  // フォーカスモードの復元
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('app_focus_mode');
+      if (saved === 'week' || saved === 'today') {
+        setFocusMode(saved);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleToggleFocus = () => {
+    setFocusMode((prev) => {
+      const next = prev === 'today' ? 'week' : 'today';
+      try {
+        localStorage.setItem('app_focus_mode', next);
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+    // もしデータ管理タブにいる場合は計画表タブへ切り替え
+    if (activeTab !== 'timeline') {
+      setActiveTab('timeline');
+    }
+  };
 
   const handleFileSelectFromSidebar = (file: File) => {
     setImportInitialFile(file);
@@ -182,6 +211,8 @@ export default function Home() {
               blocks={schedulingResult.blocks}
               dayBlocks={schedulingResult.dayBlocks}
               unassignedTasks={schedulingResult.unassignedTasks}
+              focusMode={focusMode}
+              onToggleFocus={handleToggleFocus}
             />
           </div>
         )}
@@ -217,6 +248,8 @@ export default function Home() {
         userEmail={userEmail}
         onOpenAuth={() => setIsAuthOpen(true)}
         onSignOut={handleSignOut}
+        focusMode={focusMode}
+        onToggleFocus={handleToggleFocus}
       />
 
       <AuthModal

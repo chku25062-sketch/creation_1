@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Clock, AlertTriangle, BookOpen } from 'lucide-react';
+import { Clock, AlertTriangle, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
 import { TheoreticalBlock, TaskItem } from '@/types';
 import { minutesToTimeString, formatDuration } from '@/lib/timeUtils';
 
@@ -9,12 +9,19 @@ interface Timeline24hProps {
   blocks: TheoreticalBlock[];
   unassignedTasks: TaskItem[];
   dayBlocks?: Record<number, TheoreticalBlock[]>;
+  focusMode?: 'week' | 'today';
+  onToggleFocus?: () => void;
 }
 
 const TOTAL_HOURS = 24;
 const WEEKDAY_NAMES = ['月', '火', '水', '木', '金', '土', '日'];
 
-export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hProps) {
+export function Timeline24h({
+  blocks,
+  unassignedTasks,
+  dayBlocks,
+  focusMode = 'today',
+}: Timeline24hProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [nowTimeString, setNowTimeString] = useState<string>('');
   const [hourHeight, setHourHeight] = useState<number>(84); // デフォルト84px（縦に大きく表示）
@@ -63,6 +70,27 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
       };
     });
   }, []);
+
+  // 今日の曜日インデックス (0=月 ... 6=日)
+  const todayIndex = useMemo(() => {
+    const now = new Date();
+    return (now.getDay() + 6) % 7;
+  }, []);
+
+  // フォーカスモードで現在選択されている曜日のインデックス
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number>(todayIndex);
+
+  // 表示する曜日配列 (todayフォーカス時は選択された1日、week時は7日間)
+  const displayedDays = useMemo(() => {
+    if (focusMode === 'today') {
+      const target =
+        weekDays.find((d) => d.dayIndex === selectedDayIndex) ||
+        weekDays.find((d) => d.dayIndex === todayIndex) ||
+        weekDays[0];
+      return target ? [target] : [weekDays[0]];
+    }
+    return weekDays;
+  }, [focusMode, weekDays, selectedDayIndex, todayIndex]);
 
   // 現在時刻（リアルタイム更新）
   const [currentMinutes, setCurrentMinutes] = useState<number>(() => {
@@ -125,41 +153,98 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
             時間
           </div>
 
-          {/* 7 Column Headers */}
-          <div className="grid flex-1 grid-cols-7">
-            {weekDays.map((d) => (
-              <div
-                key={`weekday-header-${d.dayIndex}`}
-                className={`flex flex-col items-center justify-center border-r border-slate-200 py-1.5 transition ${
-                  d.dayIndex === 6 ? 'border-r-0' : ''
-                } ${d.isToday ? 'bg-amber-100/40 font-bold' : ''}`}
-              >
-                <div className="flex items-center gap-1">
-                  <span
-                    className={`text-xs ${
-                      d.isToday
-                        ? 'text-amber-900 font-bold'
-                        : d.isSaturday
-                          ? 'text-blue-600 font-medium'
-                          : d.isSunday
-                            ? 'text-rose-600 font-medium'
-                            : 'text-slate-700 font-medium'
-                    }`}
-                  >
-                    {d.dayOfWeek}
-                  </span>
-                  {d.isToday && (
-                    <span className="rounded bg-amber-400/90 px-1 py-0.2 text-[9px] font-bold text-amber-950">
-                      今日
-                    </span>
-                  )}
+          {/* Column Headers: フォーカスモード(1日) ⇄ 週間全体(7列) */}
+          {focusMode === 'today' ? (
+            /* フォーカスモード（1日拡大）ヘッダー */
+            <div className="flex flex-1 items-center justify-between px-1.5 sm:px-2 py-1 bg-amber-50/40">
+              <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto">
+                <button
+                  onClick={() => setSelectedDayIndex((prev) => (prev + 6) % 7)}
+                  className="rounded p-1 text-slate-500 hover:bg-slate-200/80 hover:text-slate-800 transition"
+                  title="前の曜日へ"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+
+                {/* 曜日セレクターピル (月〜日) */}
+                <div className="flex items-center gap-0.5 sm:gap-1">
+                  {weekDays.map((d) => (
+                    <button
+                      key={`day-pill-${d.dayIndex}`}
+                      onClick={() => setSelectedDayIndex(d.dayIndex)}
+                      className={`rounded px-1.5 py-0.5 text-xs font-semibold transition ${
+                        d.dayIndex === selectedDayIndex
+                          ? 'bg-blue-600 text-white shadow-2xs'
+                          : d.isToday
+                            ? 'bg-amber-200 text-amber-950 font-bold'
+                            : 'text-slate-600 hover:bg-slate-200/60'
+                      }`}
+                    >
+                      {d.dayOfWeek}
+                      {d.isToday && (
+                        <span className="hidden sm:inline text-[9px] ml-0.5 opacity-90">
+                          (今日)
+                        </span>
+                      )}
+                    </button>
+                  ))}
                 </div>
-                <span className="font-mono text-[10px] text-slate-500">
-                  {d.month}/{d.day}
+
+                <button
+                  onClick={() => setSelectedDayIndex((prev) => (prev + 1) % 7)}
+                  className="rounded p-1 text-slate-500 hover:bg-slate-200/80 hover:text-slate-800 transition"
+                  title="次の曜日へ"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 shrink-0">
+                <span className="font-mono text-slate-600 text-[11px]">
+                  {displayedDays[0]?.month}/{displayedDays[0]?.day} ({displayedDays[0]?.dayOfWeek})
+                </span>
+                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-blue-800">
+                  {displayedDays[0]?.isToday ? '今日のフォーカス' : '1日フォーカス'}
                 </span>
               </div>
-            ))}
-          </div>
+            </div>
+          ) : (
+            /* 週間全体（7列）ヘッダー */
+            <div className="grid flex-1 grid-cols-7">
+              {weekDays.map((d) => (
+                <div
+                  key={`weekday-header-${d.dayIndex}`}
+                  className={`flex flex-col items-center justify-center border-r border-slate-200 py-1.5 transition ${
+                    d.dayIndex === 6 ? 'border-r-0' : ''
+                  } ${d.isToday ? 'bg-amber-100/40 font-bold' : ''}`}
+                >
+                  <div className="flex items-center gap-1">
+                    <span
+                      className={`text-xs ${
+                        d.isToday
+                          ? 'text-amber-900 font-bold'
+                          : d.isSaturday
+                            ? 'text-blue-600 font-medium'
+                            : d.isSunday
+                              ? 'text-rose-600 font-medium'
+                              : 'text-slate-700 font-medium'
+                      }`}
+                    >
+                      {d.dayOfWeek}
+                    </span>
+                    {d.isToday && (
+                      <span className="rounded bg-amber-400/90 px-1 py-0.2 text-[9px] font-bold text-amber-950">
+                        今日
+                      </span>
+                    )}
+                  </div>
+                  <span className="font-mono text-[10px] text-slate-500">
+                    {d.month}/{d.day}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Scrollable 24-Hour Grid Area (ノート調方眼罫線) */}
@@ -167,7 +252,10 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
           ref={scrollContainerRef}
           className="relative flex-1 min-h-0 overflow-y-auto overflow-x-auto px-1 sm:px-1.5 bg-[#fdfcf9]"
         >
-          <div className="relative flex min-w-[700px]" style={{ height: `${totalHeight}px` }}>
+          <div
+            className={`relative flex ${focusMode === 'today' ? 'w-full min-w-0' : 'min-w-[700px]'}`}
+            style={{ height: `${totalHeight}px` }}
+          >
             {/* 全幅共通の水平グリッド罫線レイヤー（時間軸から全曜日の右端まで1ピクセルも狂わず貫通） */}
             <div className="pointer-events-none absolute inset-0 z-0">
               {Array.from({ length: TOTAL_HOURS }).map((_, hour) => (
@@ -225,9 +313,13 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
               </div>
             </div>
 
-            {/* 7 Columns Grid */}
-            <div className="relative grid flex-1 grid-cols-7 z-10">
-              {weekDays.map((d) => {
+            {/* Columns Grid: フォーカスモード(1列全幅) ⇄ 週間全体(7列) */}
+            <div
+              className={`relative grid flex-1 ${
+                focusMode === 'today' ? 'grid-cols-1' : 'grid-cols-7'
+              } z-10`}
+            >
+              {displayedDays.map((d, colIndex) => {
                 // その曜日に割り振られたブロック（dayBlocksがある場合はそれを使用、なければblocks）
                 const currentDayBlocks = dayBlocks ? dayBlocks[d.dayIndex] || [] : blocks;
 
@@ -235,7 +327,7 @@ export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hP
                   <div
                     key={`weekday-col-${d.dayIndex}`}
                     className={`relative border-r border-slate-200/70 ${
-                      d.dayIndex === 6 ? 'border-r-0' : ''
+                      colIndex === displayedDays.length - 1 ? 'border-r-0' : ''
                     } ${d.isToday ? 'bg-amber-100/15' : ''}`}
                     style={{ height: `${totalHeight}px` }}
                   >
