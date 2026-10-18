@@ -1,4 +1,5 @@
 import { FixedSlot, TaskItem, ScheduleInclusionSettings } from '@/types';
+import { calculatePeriodTimes } from './timeUtils';
 import { supabase, isSupabaseConfigured } from './supabase';
 
 export const LOCAL_STORAGE_KEY_INCLUSION_SETTINGS = 'schedule_inclusion_settings';
@@ -542,4 +543,95 @@ export async function syncWithSupabase(
     const errorMessage = err instanceof Error ? err.message : 'Unknown sync error';
     return { success: false, error: errorMessage };
   }
+}
+
+/**
+ * 時間割テーブルのコマから FixedSlot を生成
+ */
+export function generateSlotsForTable(table: ImportedTableData): FixedSlot[] {
+  const tablePeriodTimes = calculatePeriodTimes(table.numRows, table.axisConfig);
+  const slots: FixedSlot[] = [];
+
+  table.cells.forEach((row, r) => {
+    const timeSlot = tablePeriodTimes[r];
+    if (!timeSlot) return;
+
+    row.forEach((cell, c) => {
+      const colHeader = table.colHeaders[c] || '';
+      let dayIdx = cell.dayIndex;
+      if (colHeader.includes('月')) dayIdx = 0;
+      else if (colHeader.includes('火')) dayIdx = 1;
+      else if (colHeader.includes('水')) dayIdx = 2;
+      else if (colHeader.includes('木')) dayIdx = 3;
+      else if (colHeader.includes('金')) dayIdx = 4;
+      else if (colHeader.includes('土')) dayIdx = 5;
+      else if (colHeader.includes('日')) dayIdx = 6;
+      else if (colHeader === '除外') dayIdx = -1;
+
+      if (dayIdx >= 0 && cell.title.trim()) {
+        const slotId = `slot-table-${table.id}-${r}-${c}`;
+        const fullTitle = cell.roomOrNote
+          ? `${cell.title} (${cell.roomOrNote.replace(/\n/g, ' ')})`
+          : cell.title;
+
+        slots.push({
+          id: slotId,
+          title: fullTitle,
+          category: 'lecture',
+          startMinutes: timeSlot.startMinutes,
+          endMinutes: timeSlot.endMinutes,
+          color: '#0284c7', // 講義カラー
+          daysOfWeek: [dayIdx],
+          sourceTableId: table.id,
+          sourceTableName: table.name,
+        });
+      }
+    });
+  });
+
+  return slots;
+}
+
+/**
+ * 時間割テーブルから自動課題タスクを生成
+ */
+export function generateAssignmentsForTable(table: ImportedTableData): TaskItem[] {
+  const assignments: TaskItem[] = [];
+
+  table.cells.forEach((row, r) => {
+    row.forEach((cell, c) => {
+      const colHeader = table.colHeaders[c] || '';
+      let dayIdx = cell.dayIndex;
+      if (colHeader.includes('月')) dayIdx = 0;
+      else if (colHeader.includes('火')) dayIdx = 1;
+      else if (colHeader.includes('水')) dayIdx = 2;
+      else if (colHeader.includes('木')) dayIdx = 3;
+      else if (colHeader.includes('金')) dayIdx = 4;
+      else if (colHeader.includes('土')) dayIdx = 5;
+      else if (colHeader.includes('日')) dayIdx = 6;
+      else if (colHeader === '除外') dayIdx = -1;
+
+      if (dayIdx >= 0 && cell.title.trim()) {
+        const deadlineDay = (dayIdx - 1 + 7) % 7;
+        assignments.push({
+          id: `task-assignment-${table.id}-${r}-${c}`,
+          title: `${cell.title} レポート課題`,
+          category: 'must',
+          durationSize: 'medium',
+          durationMinutes: 60,
+          frequency: 'low',
+          taskType: 'assignment',
+          startDay: dayIdx,
+          deadlineDay,
+          priority: 'high',
+          period: 'week',
+          completed: false,
+          sourceTableId: table.id,
+          sourceTableName: table.name,
+        });
+      }
+    });
+  });
+
+  return assignments;
 }

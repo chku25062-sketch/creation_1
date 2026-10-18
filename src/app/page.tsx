@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { SheetFooter, SheetTab } from '@/components/SheetFooter';
 import { Timeline24h } from '@/components/Timeline24h';
 import { ImportedTablesManager } from '@/components/ImportedTablesManager';
@@ -16,6 +16,7 @@ import {
   saveImportedTables,
   loadInclusionSettings,
   saveInclusionSettings,
+  generateSlotsForTable,
   DEFAULT_INCLUSION_SETTINGS,
 } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
@@ -70,16 +71,63 @@ export default function Home() {
     setIsImportOpen(true);
   };
 
-  // 初期化ロード
+  // 初期化ロード & 反映ONテーブルの自動同期
   useEffect(() => {
     const { fixedSlots: initialFixed, tasks: initialTasks } = loadLocalData();
     const initialTables = loadImportedTables();
     const initialInclusion = loadInclusionSettings();
-    setFixedSlots(initialFixed);
+
+    let syncedFixed = [...initialFixed];
+    let isTablesChanged = false;
+
+    // 各テーブルの反映状態（isApplied）を判定し、ONのものはスロットを同期・補完
+    const updatedTables = initialTables.map((table) => {
+      const hasAppliedSlots = syncedFixed.some(
+        (s) =>
+          s.sourceTableId === table.id ||
+          s.id.startsWith(`slot-table-${table.id}-`) ||
+          s.id.startsWith(`slot-lecture-${table.id}-`),
+      );
+      // isApplied が未設定なら、現状のスロットの有無で初期判定
+      const isApplied = table.isApplied !== undefined ? table.isApplied : hasAppliedSlots;
+
+      if (isApplied) {
+        // 反映ONなのにスロットが欠けている場合、自動生成して同期
+        const expectedSlots = generateSlotsForTable(table);
+        const existingTableSlotIds = new Set(
+          syncedFixed
+            .filter(
+              (s) =>
+                s.sourceTableId === table.id ||
+                s.id.startsWith(`slot-table-${table.id}-`) ||
+                s.id.startsWith(`slot-lecture-${table.id}-`),
+            )
+            .map((s) => s.id),
+        );
+
+        // 完全に一致しない、もしくは一部しか存在しない場合
+        const missingSlots = expectedSlots.filter((s) => !existingTableSlotIds.has(s.id));
+        if (missingSlots.length > 0) {
+          syncedFixed = [...syncedFixed, ...missingSlots];
+        }
+      }
+
+      if (table.isApplied !== isApplied) {
+        isTablesChanged = true;
+        return { ...table, isApplied };
+      }
+      return table;
+    });
+
+    setFixedSlots(syncedFixed);
     setTasks(initialTasks);
-    setImportedTables(initialTables);
+    setImportedTables(updatedTables);
     setInclusionSettings(initialInclusion);
     setIsInitialized(true);
+
+    if (isTablesChanged) {
+      saveImportedTables(updatedTables);
+    }
 
     // Supabase ユーザーセッション確認
     if (supabase) {
@@ -106,29 +154,25 @@ export default function Home() {
     }
   }, []);
 
-  // 変更時の自動保存
-  const saveData = useCallback(
-    (newFixed: FixedSlot[], newTasks: TaskItem[]) => {
-      saveLocalData(newFixed, newTasks);
-      setLastSavedAt(new Date());
+  // fixedSlots または tasks 変更時の自動永続化 (isInitialized 後)
+  useEffect(() => {
+    if (!isInitialized) return;
+    saveLocalData(fixedSlots, tasks);
+    setLastSavedAt(new Date());
 
-      if (userId) {
-        syncWithSupabase(userId, newFixed, newTasks).catch((e) =>
-          console.error('Supabase sync error', e),
-        );
-      }
-    },
-    [userId],
-  );
+    if (userId) {
+      syncWithSupabase(userId, fixedSlots, tasks).catch((e) =>
+        console.error('Supabase sync error', e),
+      );
+    }
+  }, [fixedSlots, tasks, isInitialized, userId]);
 
   const handleFixedSlotsChange = (newSlots: FixedSlot[]) => {
     setFixedSlots(newSlots);
-    saveData(newSlots, tasks);
   };
 
   const handleTasksChange = (newTasks: TaskItem[]) => {
     setTasks(newTasks);
-    saveData(fixedSlots, newTasks);
   };
 
   const handleImport = (
@@ -149,7 +193,6 @@ export default function Home() {
 
     setFixedSlots(updatedFixed);
     setTasks(updatedTasks);
-    saveData(updatedFixed, updatedTasks);
   };
 
   const handleTablesChange = (newTables: ImportedTableData[]) => {

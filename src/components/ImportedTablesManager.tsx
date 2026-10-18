@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { ImportedTableData, FixedSlot, TaskItem, ScheduleInclusionSettings } from '@/types';
 import { calculatePeriodTimes, timeStringToMinutes } from '@/lib/timeUtils';
+import { generateSlotsForTable } from '@/lib/storage';
 import { TaskManager } from '@/components/TaskManager';
 
 interface ImportedTablesManagerProps {
@@ -199,6 +200,7 @@ export function ImportedTablesManager({
       const newSlots = generateSlotsForTable(nextTable);
       const filteredSlots = fixedSlots.filter(
         (s) =>
+          s.sourceTableId !== nextTable.id &&
           !s.id.startsWith(`slot-table-${nextTable.id}-`) &&
           !s.id.startsWith(`slot-lecture-${nextTable.id}-`) &&
           !(nextTable.appliedSlotIds && nextTable.appliedSlotIds.includes(s.id)),
@@ -223,7 +225,9 @@ export function ImportedTablesManager({
     if (table.appliedSlotIds && table.appliedSlotIds.length > 0) return true;
     return fixedSlots.some(
       (s) =>
-        s.id.startsWith(`slot-table-${table.id}-`) || s.id.startsWith(`slot-lecture-${table.id}-`),
+        s.sourceTableId === table.id ||
+        s.id.startsWith(`slot-table-${table.id}-`) ||
+        s.id.startsWith(`slot-lecture-${table.id}-`),
     );
   };
 
@@ -235,51 +239,6 @@ export function ImportedTablesManager({
     return false;
   }, [selectedItemId, isSlotsApplied, isDailyApplied, isWeeklyApplied, activeTable, fixedSlots]);
 
-  // 時間割テーブルのコマから FixedSlot を生成
-  const generateSlotsForTable = (table: ImportedTableData): FixedSlot[] => {
-    const tablePeriodTimes = calculatePeriodTimes(table.numRows, table.axisConfig);
-    const slots: FixedSlot[] = [];
-
-    table.cells.forEach((row, r) => {
-      const timeSlot = tablePeriodTimes[r];
-      if (!timeSlot) return;
-
-      row.forEach((cell, c) => {
-        const colHeader = table.colHeaders[c] || '';
-        let dayIdx = cell.dayIndex;
-        if (colHeader.includes('月')) dayIdx = 0;
-        else if (colHeader.includes('火')) dayIdx = 1;
-        else if (colHeader.includes('水')) dayIdx = 2;
-        else if (colHeader.includes('木')) dayIdx = 3;
-        else if (colHeader.includes('金')) dayIdx = 4;
-        else if (colHeader.includes('土')) dayIdx = 5;
-        else if (colHeader.includes('日')) dayIdx = 6;
-        else if (colHeader === '除外') dayIdx = -1;
-
-        if (dayIdx >= 0 && cell.title.trim()) {
-          const slotId = `slot-table-${table.id}-${r}-${c}`;
-          const fullTitle = cell.roomOrNote
-            ? `${cell.title} (${cell.roomOrNote.replace(/\n/g, ' ')})`
-            : cell.title;
-
-          slots.push({
-            id: slotId,
-            title: fullTitle,
-            category: 'lecture',
-            startMinutes: timeSlot.startMinutes,
-            endMinutes: timeSlot.endMinutes,
-            color: '#0284c7', // 講義カラー
-            daysOfWeek: [dayIdx],
-            sourceTableId: table.id,
-            sourceTableName: table.name,
-          });
-        }
-      });
-    });
-
-    return slots;
-  };
-
   // テーブル反映トグル切り替え
   const handleToggleTableApply = (table: ImportedTableData) => {
     const currentlyApplied = isTableApplied(table);
@@ -288,6 +247,7 @@ export function ImportedTablesManager({
       // 解除 (OFF)
       const nextSlots = fixedSlots.filter(
         (s) =>
+          s.sourceTableId !== table.id &&
           !s.id.startsWith(`slot-table-${table.id}-`) &&
           !s.id.startsWith(`slot-lecture-${table.id}-`) &&
           !(table.appliedSlotIds && table.appliedSlotIds.includes(s.id)),
@@ -295,7 +255,9 @@ export function ImportedTablesManager({
       onSlotsChange(nextSlots);
 
       // 連動課題タスクも削除
-      const nextTasks = tasks.filter((t) => !t.id.startsWith(`task-assignment-${table.id}-`));
+      const nextTasks = tasks.filter(
+        (t) => !t.id.startsWith(`task-assignment-${table.id}-`) && t.sourceTableId !== table.id,
+      );
       if (nextTasks.length !== tasks.length) {
         onTasksChange(nextTasks);
       }
@@ -320,6 +282,7 @@ export function ImportedTablesManager({
       // 既存の同一テーブル由来スロットを除去して追加
       const filteredSlots = fixedSlots.filter(
         (s) =>
+          s.sourceTableId !== table.id &&
           !s.id.startsWith(`slot-table-${table.id}-`) &&
           !s.id.startsWith(`slot-lecture-${table.id}-`) &&
           !(table.appliedSlotIds && table.appliedSlotIds.includes(s.id)),
@@ -709,6 +672,18 @@ export function ImportedTablesManager({
     if (assignmentsToAdd.length > 0) {
       onTasksChange([...tasks, ...assignmentsToAdd]);
     }
+
+    const updated = tables.map((t) =>
+      t.id === activeTable.id
+        ? {
+            ...t,
+            isApplied: true,
+            appliedSlotIds: lectureSlotsToAdd.map((s) => s.id),
+            updatedAt: new Date().toISOString(),
+          }
+        : t,
+    );
+    onTablesChange(updated);
 
     setIsApplyModalOpen(false);
     setApplySuccessMsg(
