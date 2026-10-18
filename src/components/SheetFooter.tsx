@@ -38,9 +38,9 @@ export function SheetFooter({
 }: SheetFooterProps) {
   return (
     <footer className="shrink-0 border-t border-slate-300 bg-[#ede8dc] px-2 py-1 select-none shadow-xs">
-      <div className="mx-auto flex h-9 w-full max-w-full items-center justify-between gap-2">
+      <div className="mx-auto flex flex-wrap sm:flex-nowrap w-full max-w-full items-center justify-between gap-x-2 gap-y-1 sm:h-9">
         {/* Left: Excel-style Sheet Tabs */}
-        <div className="flex items-center gap-1 overflow-x-auto">
+        <div className="flex items-center gap-1 overflow-x-auto order-1">
           {/* Sheet 1: 計画表 */}
           <button
             onClick={() => onTabChange('timeline')}
@@ -86,11 +86,11 @@ export function SheetFooter({
           </button>
         </div>
 
-        {/* Center: App Title in available space */}
-        <div className="flex flex-1 items-center justify-center min-w-0 px-2 pointer-events-none sm:pointer-events-auto">
+        {/* Center / Row 2: App Title in available space (スマホでは2行目・PCでは中央) */}
+        <div className="order-3 sm:order-2 flex w-full sm:w-auto sm:flex-1 items-center justify-center min-w-0 px-2 pt-0.5 sm:pt-0 pointer-events-none sm:pointer-events-auto">
           <div className="flex items-center gap-1.5 truncate">
-            <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-blue-600 text-white shadow-2xs">
-              <Target className="h-3 w-3" />
+            <div className="flex h-4.5 w-4.5 sm:h-5 sm:w-5 shrink-0 items-center justify-center rounded bg-blue-600 text-white shadow-2xs">
+              <Target className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
             </div>
             <h1 className="text-xs sm:text-sm font-bold text-slate-800 tracking-tight truncate select-text">
               理論値計画表
@@ -99,7 +99,7 @@ export function SheetFooter({
         </div>
 
         {/* Right: Status and Quick Actions */}
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex items-center gap-2 text-xs order-2 sm:order-3">
           {/* Autosave Status */}
           {lastSavedAt && (
             <span
