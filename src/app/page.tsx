@@ -26,8 +26,14 @@ export default function Home() {
   const [userId, setUserId] = useState<string | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [importInitialFile, setImportInitialFile] = useState<File | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+
+  const handleFileSelectFromSidebar = (file: File) => {
+    setImportInitialFile(file);
+    setIsImportOpen(true);
+  };
 
   // 初期化ロード
   useEffect(() => {
@@ -176,7 +182,6 @@ export default function Home() {
               blocks={schedulingResult.blocks}
               dayBlocks={schedulingResult.dayBlocks}
               unassignedTasks={schedulingResult.unassignedTasks}
-              onOpenImport={() => setIsImportOpen(true)}
             />
           </div>
         )}
@@ -192,6 +197,11 @@ export default function Home() {
               tasks={tasks}
               onTasksChange={handleTasksChange}
               onNavigateToTimeline={() => setActiveTab('timeline')}
+              onOpenImport={() => {
+                setImportInitialFile(null);
+                setIsImportOpen(true);
+              }}
+              onFileSelect={handleFileSelectFromSidebar}
             />
           </div>
         )}
@@ -207,7 +217,6 @@ export default function Home() {
         userEmail={userEmail}
         onOpenAuth={() => setIsAuthOpen(true)}
         onSignOut={handleSignOut}
-        onOpenImport={() => setIsImportOpen(true)}
       />
 
       <AuthModal
@@ -220,7 +229,11 @@ export default function Home() {
 
       <FileImportModal
         isOpen={isImportOpen}
-        onClose={() => setIsImportOpen(false)}
+        initialFile={importInitialFile}
+        onClose={() => {
+          setIsImportOpen(false);
+          setImportInitialFile(null);
+        }}
         onImport={handleImport}
         onSaveTableData={handleSaveTableData}
       />

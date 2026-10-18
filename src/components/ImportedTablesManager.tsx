@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   FileSpreadsheet,
   Edit2,
@@ -15,10 +15,11 @@ import {
   FolderOpen,
   Search,
   PanelLeftClose,
+  PanelLeftOpen,
   Shield,
   Sun,
   CalendarDays,
-  ChevronRight,
+  Upload,
 } from 'lucide-react';
 import { ImportedTableData, FixedSlot, TaskItem } from '@/types';
 import { calculatePeriodTimes, timeStringToMinutes } from '@/lib/timeUtils';
@@ -32,6 +33,8 @@ interface ImportedTablesManagerProps {
   tasks: TaskItem[];
   onTasksChange: (newTasks: TaskItem[]) => void;
   onNavigateToTimeline?: () => void;
+  onOpenImport?: () => void;
+  onFileSelect?: (file: File) => void;
 }
 
 const WEEKDAY_OPTIONS = [
@@ -53,7 +56,46 @@ export function ImportedTablesManager({
   tasks,
   onTasksChange,
   onNavigateToTimeline,
+  onOpenImport,
+  onFileSelect,
 }: ImportedTablesManagerProps) {
+  // ファイル直接選択用インライン参照
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const selectedFile = e.target.files[0];
+      if (onFileSelect) {
+        onFileSelect(selectedFile);
+      } else if (onOpenImport) {
+        onOpenImport();
+      }
+      e.target.value = '';
+    }
+  };
+
+  const handleDropFile = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const droppedFile = e.dataTransfer.files[0];
+      if (onFileSelect) {
+        onFileSelect(droppedFile);
+      } else if (onOpenImport) {
+        onOpenImport();
+      }
+    }
+  };
+
+  const handleTriggerFileSelect = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    } else if (onOpenImport) {
+      onOpenImport();
+    }
+  };
+
   // 選択中のファイルアイテム (固定枠: sys-slots, 日課: sys-daily, 週次: sys-weekly, 表データ: table.id)
   const [selectedItemId, setSelectedItemId] = useState<string>(tables[0]?.id || 'sys-slots');
 
@@ -453,7 +495,6 @@ export function ImportedTablesManager({
     };
     onTablesChange([...tables, newTable]);
     setSelectedItemId(newId);
-    setIsSidebarOpen(false);
   };
 
   // テーブルの削除
@@ -474,86 +515,113 @@ export function ImportedTablesManager({
 
   return (
     <div className="relative flex flex-1 min-h-0 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
-      {/* Sidebar Backdrop (ファイル一覧展開時、外側タップでスムーズに閉じる) */}
-      {isSidebarOpen && (
-        <div
-          onClick={() => setIsSidebarOpen(false)}
-          className="absolute inset-0 z-30 bg-slate-900/15 backdrop-blur-[1px] transition-opacity animate-in fade-in duration-200 cursor-pointer"
-          title="クリックしてファイル一覧を閉じる"
-        />
-      )}
-
       {/* ========================================================
-          Left Sidebar: Windows エクスプローラー風 データファイル一覧 (オーバーレイ・ドロワー)
+          Left Sidebar: データファイル一覧 (最小値: 見出し3文字バー / 展開: フルエクスプローラー)
           ======================================================== */}
       <aside
-        className={`absolute inset-y-0 left-0 z-40 flex flex-col w-72 sm:w-80 border-r border-slate-200 bg-slate-50/95 backdrop-blur-xs select-none shadow-2xl transition-transform duration-200 ease-out ${
-          isSidebarOpen ? 'translate-x-0' : '-translate-x-full pointer-events-none'
+        className={`shrink-0 flex flex-col h-full border-r border-slate-200 bg-slate-50/95 backdrop-blur-xs select-none transition-all duration-200 ease-in-out ${
+          isSidebarOpen ? 'w-64 sm:w-72' : 'w-[76px]'
         }`}
       >
         <div className="flex flex-col h-full min-h-0 w-full">
           {/* Sidebar Header */}
-          <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-100/70 px-3 py-2.5">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-blue-600 shadow-2xs">
-                <Folder className="h-3.5 w-3.5 text-white" />
+          {isSidebarOpen ? (
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-100/70 px-2.5 py-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <button
+                  onClick={toggleSidebar}
+                  title="バーを折りたたむ"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-200/80 hover:text-slate-800 transition"
+                >
+                  <PanelLeftClose className="h-4 w-4" />
+                </button>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-blue-600 shadow-2xs">
+                    <Folder className="h-3 w-3 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-xs font-bold text-slate-900 leading-tight truncate">
+                      データ一覧
+                    </h2>
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      基本3件 + 表{tables.length}件
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="min-w-0">
-                <h2 className="text-xs font-bold text-slate-900 leading-tight">データファイル</h2>
-                <span className="text-[10px] text-slate-500 font-medium">
-                  基本3件 + 表{tables.length}件
-                </span>
+
+              <div className="flex items-center gap-1 shrink-0">
+                {(onFileSelect || onOpenImport) && (
+                  <button
+                    onClick={handleTriggerFileSelect}
+                    title="画像やファイルから時間割を取り込む"
+                    className="flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1 text-[11px] font-semibold text-white shadow-2xs hover:bg-blue-700 transition"
+                  >
+                    <Upload className="h-3 w-3" />
+                    <span>取込</span>
+                  </button>
+                )}
+                <button
+                  onClick={handleAddNewTable}
+                  title="手動で新しい表を追加"
+                  className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-blue-600 transition"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>新規</span>
+                </button>
               </div>
             </div>
-
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                onClick={handleAddNewTable}
-                title="新しい表を追加"
-                className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-blue-600 transition"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>新規</span>
-              </button>
-
+          ) : (
+            /* 折りたたみ時ヘッダー: 左上に幅を広げるボタンを配置 */
+            <div className="flex shrink-0 items-center justify-center border-b border-slate-200 bg-slate-100/70 p-2">
               <button
                 onClick={toggleSidebar}
-                title="ファイル一覧を閉じる"
-                className="rounded-md p-1 text-slate-400 hover:bg-slate-200/80 hover:text-slate-700 transition"
+                title="ファイル一覧を展開する"
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-blue-200 bg-white text-blue-600 shadow-2xs hover:bg-blue-50 hover:border-blue-400 transition"
               >
-                <PanelLeftClose className="h-4 w-4" />
+                <PanelLeftOpen className="h-4 w-4" />
               </button>
             </div>
-          </div>
+          )}
 
-          {/* Search Input (Windows Explorer Search Bar風) */}
-          <div className="shrink-0 p-2 border-b border-slate-200/80 bg-slate-50">
-            <div className="relative flex items-center">
-              <Search className="absolute left-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ファイル名で検索..."
-                className="w-full rounded-md border border-slate-200 bg-white py-1 pl-8 pr-2 text-xs placeholder:text-slate-400 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500/20"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2 text-slate-400 hover:text-slate-600 text-xs"
-                >
-                  ×
-                </button>
-              )}
+          {/* Search Input (展開時のみ) */}
+          {isSidebarOpen && (
+            <div className="shrink-0 p-2 border-b border-slate-200/80 bg-slate-50">
+              <div className="relative flex items-center">
+                <Search className="absolute left-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="ファイル名で検索..."
+                  className="w-full rounded-md border border-slate-200 bg-white py-1 pl-8 pr-2 text-xs placeholder:text-slate-400 focus:border-blue-500 focus:outline-hidden focus:ring-1 focus:ring-blue-500/20"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 text-slate-400 hover:text-slate-600 text-xs"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* File List (Explorer Item Rows) */}
-          <div className="flex-1 overflow-y-auto p-1.5 space-y-2">
+          <div
+            className={`flex-1 overflow-y-auto ${isSidebarOpen ? 'p-1.5 space-y-2' : 'p-1 space-y-1.5'}`}
+          >
             {/* Section 1: 基本設定ファイル (固定枠、日課、週次) */}
             <div>
-              <div className="px-2 py-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                基本設定
+              <div
+                className={`${
+                  isSidebarOpen
+                    ? 'px-2 py-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase'
+                    : 'px-1 py-0.5 text-[9px] font-bold text-slate-400 text-center uppercase tracking-tighter'
+                }`}
+              >
+                {isSidebarOpen ? '基本設定' : '基本'}
               </div>
               <div className="space-y-0.5">
                 {/* 固定枠 */}
@@ -565,27 +633,39 @@ export function ImportedTablesManager({
                     onClick={() => {
                       setSelectedItemId('sys-slots');
                       setIsEditingName(false);
-                      setIsSidebarOpen(false);
                     }}
-                    className={`group relative flex items-center justify-between rounded-lg px-2.5 py-2 text-xs cursor-pointer transition ${
+                    title="固定枠 (生活リズム)"
+                    className={`group relative flex items-center rounded-lg cursor-pointer transition ${
+                      isSidebarOpen
+                        ? 'justify-between px-2.5 py-2 text-xs'
+                        : 'px-1.5 py-1.5 text-xs gap-1.5'
+                    } ${
                       selectedItemId === 'sys-slots'
-                        ? 'bg-blue-100/70 border-l-3 border-l-blue-600 text-blue-950 font-bold shadow-2xs'
+                        ? 'bg-blue-100/80 text-blue-950 font-bold shadow-2xs border-l-3 border-l-blue-600'
                         : 'hover:bg-slate-200/50 text-slate-700'
                     }`}
                   >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
                       <div
-                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-sm ${
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-sm ${
                           selectedItemId === 'sys-slots' ? 'text-sky-700' : 'text-sky-600'
                         }`}
                       >
                         <Shield className="h-4 w-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-xs leading-tight">固定枠 (生活リズム)</div>
-                        <div className="mt-0.5 text-[10px] text-slate-400 font-mono">
-                          睡眠・講義・勤務等 ({fixedSlots.length}件)
+                        <div
+                          className={`truncate leading-tight ${
+                            isSidebarOpen ? 'text-xs' : 'text-[11px] font-medium max-w-[42px]'
+                          }`}
+                        >
+                          固定枠
                         </div>
+                        {isSidebarOpen && (
+                          <div className="mt-0.5 text-[10px] text-slate-400 font-mono">
+                            睡眠・講義・勤務等 ({fixedSlots.length}件)
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -600,27 +680,39 @@ export function ImportedTablesManager({
                     onClick={() => {
                       setSelectedItemId('sys-daily');
                       setIsEditingName(false);
-                      setIsSidebarOpen(false);
                     }}
-                    className={`group relative flex items-center justify-between rounded-lg px-2.5 py-2 text-xs cursor-pointer transition ${
+                    title="日課タスク (毎日)"
+                    className={`group relative flex items-center rounded-lg cursor-pointer transition ${
+                      isSidebarOpen
+                        ? 'justify-between px-2.5 py-2 text-xs'
+                        : 'px-1.5 py-1.5 text-xs gap-1.5'
+                    } ${
                       selectedItemId === 'sys-daily'
-                        ? 'bg-blue-100/70 border-l-3 border-l-blue-600 text-blue-950 font-bold shadow-2xs'
+                        ? 'bg-blue-100/80 text-blue-950 font-bold shadow-2xs border-l-3 border-l-blue-600'
                         : 'hover:bg-slate-200/50 text-slate-700'
                     }`}
                   >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
                       <div
-                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-sm ${
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-sm ${
                           selectedItemId === 'sys-daily' ? 'text-amber-600' : 'text-amber-500'
                         }`}
                       >
                         <Sun className="h-4 w-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-xs leading-tight">日課タスク (毎日)</div>
-                        <div className="mt-0.5 text-[10px] text-slate-400 font-mono">
-                          高頻度・日課 ({dailyTasksCount}件)
+                        <div
+                          className={`truncate leading-tight ${
+                            isSidebarOpen ? 'text-xs' : 'text-[11px] font-medium max-w-[42px]'
+                          }`}
+                        >
+                          {isSidebarOpen ? '日課タスク (毎日)' : '日課タ…'}
                         </div>
+                        {isSidebarOpen && (
+                          <div className="mt-0.5 text-[10px] text-slate-400 font-mono">
+                            高頻度・日課 ({dailyTasksCount}件)
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -635,29 +727,39 @@ export function ImportedTablesManager({
                     onClick={() => {
                       setSelectedItemId('sys-weekly');
                       setIsEditingName(false);
-                      setIsSidebarOpen(false);
                     }}
-                    className={`group relative flex items-center justify-between rounded-lg px-2.5 py-2 text-xs cursor-pointer transition ${
+                    title="週次タスク (目標・課題)"
+                    className={`group relative flex items-center rounded-lg cursor-pointer transition ${
+                      isSidebarOpen
+                        ? 'justify-between px-2.5 py-2 text-xs'
+                        : 'px-1.5 py-1.5 text-xs gap-1.5'
+                    } ${
                       selectedItemId === 'sys-weekly'
-                        ? 'bg-blue-100/70 border-l-3 border-l-blue-600 text-blue-950 font-bold shadow-2xs'
+                        ? 'bg-blue-100/80 text-blue-950 font-bold shadow-2xs border-l-3 border-l-blue-600'
                         : 'hover:bg-slate-200/50 text-slate-700'
                     }`}
                   >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
                       <div
-                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-sm ${
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-sm ${
                           selectedItemId === 'sys-weekly' ? 'text-purple-700' : 'text-purple-600'
                         }`}
                       >
                         <CalendarDays className="h-4 w-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-xs leading-tight">
-                          週次タスク (目標・課題)
+                        <div
+                          className={`truncate leading-tight ${
+                            isSidebarOpen ? 'text-xs' : 'text-[11px] font-medium max-w-[42px]'
+                          }`}
+                        >
+                          {isSidebarOpen ? '週次タスク (目標・課題)' : '週次タ…'}
                         </div>
-                        <div className="mt-0.5 text-[10px] text-slate-400 font-mono">
-                          今週の目標・課題 ({weeklyTasksCount}件)
-                        </div>
+                        {isSidebarOpen && (
+                          <div className="mt-0.5 text-[10px] text-slate-400 font-mono">
+                            今週の目標・課題 ({weeklyTasksCount}件)
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -667,14 +769,34 @@ export function ImportedTablesManager({
 
             {/* Section 2: 取り込み表データ (外部時間割・シフト表等) */}
             <div>
-              <div className="flex items-center justify-between px-2 py-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                <span>取り込み表データ</span>
-                <span className="font-mono text-slate-400">{filteredTables.length}</span>
+              <div
+                className={`flex items-center justify-between ${
+                  isSidebarOpen
+                    ? 'px-2 py-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase'
+                    : 'px-1 py-0.5 text-[9px] font-bold text-slate-400 justify-center uppercase tracking-tighter'
+                }`}
+              >
+                <span>{isSidebarOpen ? '取り込み表データ' : '表'}</span>
+                {isSidebarOpen && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-slate-400">{filteredTables.length}</span>
+                    {(onFileSelect || onOpenImport) && (
+                      <button
+                        onClick={handleTriggerFileSelect}
+                        title="画像・ファイルから表を取り込む"
+                        className="flex items-center gap-0.5 text-[10px] font-bold text-blue-600 hover:text-blue-700 hover:underline tracking-normal"
+                      >
+                        <Upload className="h-2.5 w-2.5" />
+                        <span>取込</span>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="space-y-0.5">
                 {filteredTables.length === 0 ? (
-                  <div className="p-3 text-center text-[11px] text-slate-400">
-                    該当する表がありません
+                  <div className="p-2 text-center text-[10px] text-slate-400">
+                    {isSidebarOpen ? '該当する表がありません' : 'なし'}
                   </div>
                 ) : (
                   filteredTables.map((t) => {
@@ -692,17 +814,21 @@ export function ImportedTablesManager({
                         onClick={() => {
                           setSelectedItemId(t.id);
                           if (!isSelected) setIsEditingName(false);
-                          setIsSidebarOpen(false);
                         }}
-                        className={`group relative flex items-center justify-between rounded-lg px-2.5 py-2 text-xs cursor-pointer transition ${
+                        title={t.name}
+                        className={`group relative flex items-center rounded-lg cursor-pointer transition ${
+                          isSidebarOpen
+                            ? 'justify-between px-2.5 py-2 text-xs'
+                            : 'px-1.5 py-1.5 text-xs gap-1.5'
+                        } ${
                           isSelected
-                            ? 'bg-blue-100/70 border-l-3 border-l-blue-600 text-blue-950 font-bold shadow-2xs'
+                            ? 'bg-blue-100/80 text-blue-950 font-bold shadow-2xs border-l-3 border-l-blue-600'
                             : 'hover:bg-slate-200/50 text-slate-700'
                         }`}
                       >
-                        <div className="flex items-center gap-2 min-w-0 flex-1 pr-1">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1 pr-1">
                           <div
-                            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-sm ${
+                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-sm ${
                               isSelected ? 'text-blue-700' : 'text-emerald-600'
                             }`}
                           >
@@ -710,7 +836,7 @@ export function ImportedTablesManager({
                           </div>
 
                           <div className="min-w-0 flex-1">
-                            {isSelected && isEditingName ? (
+                            {isSelected && isEditingName && isSidebarOpen ? (
                               <input
                                 type="text"
                                 value={tempTableName}
@@ -742,42 +868,52 @@ export function ImportedTablesManager({
                                 className="w-full rounded border border-blue-400 bg-white px-1 py-0.5 text-xs text-blue-900 focus:outline-hidden"
                               />
                             ) : (
-                              <div className="truncate text-xs leading-tight">{t.name}</div>
+                              <div
+                                className={`truncate leading-tight ${
+                                  isSidebarOpen ? 'text-xs' : 'text-[11px] font-medium max-w-[42px]'
+                                }`}
+                              >
+                                {t.name}
+                              </div>
                             )}
-                            <div className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-400 font-mono font-normal">
-                              <span>
-                                {t.numRows}×{t.numCols} コマ
-                              </span>
-                              {dateStr && <span>{dateStr}</span>}
-                            </div>
+                            {isSidebarOpen && (
+                              <div className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-400 font-mono font-normal">
+                                <span>
+                                  {t.numRows}×{t.numCols} コマ
+                                </span>
+                                {dateStr && <span>{dateStr}</span>}
+                              </div>
+                            )}
                           </div>
                         </div>
 
-                        {/* Actions on Hover */}
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition shrink-0">
-                          {isSelected && !isEditingName && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setTempTableName(t.name);
-                                setIsEditingName(true);
-                              }}
-                              title="名前を変更"
-                              className="rounded p-1 text-slate-400 hover:bg-slate-200/80 hover:text-blue-600"
-                            >
-                              <Edit2 className="h-3 w-3" />
-                            </button>
-                          )}
-                          {tables.length > 1 && (
-                            <button
-                              onClick={(e) => handleDeleteTable(t.id, e)}
-                              title="表を削除"
-                              className="rounded p-1 text-slate-400 hover:bg-rose-100 hover:text-rose-600"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
-                          )}
-                        </div>
+                        {/* Actions on Hover (展開時のみ) */}
+                        {isSidebarOpen && (
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition shrink-0">
+                            {isSelected && !isEditingName && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTempTableName(t.name);
+                                  setIsEditingName(true);
+                                }}
+                                title="名前を変更"
+                                className="rounded p-1 text-slate-400 hover:bg-slate-200/80 hover:text-blue-600"
+                              >
+                                <Edit2 className="h-3 w-3" />
+                              </button>
+                            )}
+                            {tables.length > 1 && (
+                              <button
+                                onClick={(e) => handleDeleteTable(t.id, e)}
+                                title="表を削除"
+                                className="rounded p-1 text-slate-400 hover:bg-rose-100 hover:text-rose-600"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })
@@ -786,15 +922,91 @@ export function ImportedTablesManager({
             </div>
           </div>
 
-          {/* Sidebar Footer */}
-          <div className="shrink-0 border-t border-slate-200 bg-slate-100/60 p-2 text-center">
-            <button
-              onClick={handleAddNewTable}
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-white py-1.5 text-xs font-medium text-slate-600 hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900 transition shadow-2xs"
-            >
-              <Plus className="h-3.5 w-3.5 text-slate-500" />
-              <span>新規テーブルを追加</span>
-            </button>
+          {/* 隠しファイル選択 input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,.txt,.csv,.md"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+
+          {/* Sidebar Footer: インライン組み込みファイル取り込みゾーン */}
+          <div
+            className={`shrink-0 border-t border-slate-200 bg-slate-100/70 ${
+              isSidebarOpen ? 'p-2 space-y-2' : 'p-1.5 flex flex-col items-center gap-1.5'
+            }`}
+          >
+            {isSidebarOpen ? (
+              <>
+                {/* あらかじめ組み込まれたファイル取り込み・ドロップ枠 */}
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={handleDropFile}
+                  onClick={handleTriggerFileSelect}
+                  className={`relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-3 text-center cursor-pointer transition select-none shadow-2xs ${
+                    isDragging
+                      ? 'border-blue-600 bg-blue-100/80 scale-[0.99] ring-2 ring-blue-400'
+                      : 'border-blue-300 bg-white hover:border-blue-500 hover:bg-blue-50/70'
+                  }`}
+                >
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white shadow-2xs mb-1.5">
+                    <Upload className="h-4 w-4" />
+                  </div>
+                  <div className="text-xs font-bold text-slate-900 leading-tight">
+                    時間割ファイルを追加
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-0.5 leading-tight">
+                    ここにドロップ または クリックして選択
+                  </div>
+                  <div className="text-[9px] text-slate-400 mt-1 font-mono">
+                    画像 (スクショ等) / CSV / テキスト
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleAddNewTable}
+                  className="flex w-full items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition shadow-2xs"
+                >
+                  <Plus className="h-3 w-3 text-slate-400" />
+                  <span>手動で空の表を追加</span>
+                </button>
+              </>
+            ) : (
+              <>
+                {/* 折りたたみ時: ドロップ対応のコンパクトボタン */}
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={handleDropFile}
+                  onClick={handleTriggerFileSelect}
+                  title="時間割ファイルを追加 (クリックで選択 / ドロップ対応)"
+                  className={`flex h-11 w-11 flex-col items-center justify-center rounded-xl border-2 border-dashed cursor-pointer transition select-none shadow-2xs ${
+                    isDragging
+                      ? 'border-blue-600 bg-blue-100 text-blue-700 scale-95'
+                      : 'border-blue-300 bg-white text-blue-600 hover:border-blue-500 hover:bg-blue-50'
+                  }`}
+                >
+                  <Upload className="h-4 w-4" />
+                  <span className="text-[8px] font-bold leading-none mt-0.5">追加</span>
+                </div>
+
+                <button
+                  onClick={handleAddNewTable}
+                  title="手動で新しい表を追加"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-slate-500 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 transition shadow-2xs"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </>
+            )}
           </div>
         </div>
       </aside>
@@ -827,27 +1039,8 @@ export function ImportedTablesManager({
 
         {/* Explorer Path / Breadcrumb & Top Actions Bar */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
-          {/* Breadcrumb Path & Sidebar Toggle */}
+          {/* Breadcrumb Path */}
           <div className="flex items-center gap-2 text-xs text-slate-500 min-w-0">
-            {/* サイドバー開閉トグルボタン */}
-            <button
-              onClick={toggleSidebar}
-              title={isSidebarOpen ? 'ファイル一覧を閉じる' : 'ファイル一覧を展開する'}
-              className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold transition shadow-2xs ${
-                isSidebarOpen
-                  ? 'border-blue-300 bg-blue-50 text-blue-700'
-                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-blue-600'
-              }`}
-            >
-              <Folder className="h-3.5 w-3.5 text-blue-600" />
-              <span>データファイル一覧</span>
-              <ChevronRight
-                className={`h-3 w-3 text-slate-400 transition-transform ${isSidebarOpen ? 'rotate-90' : ''}`}
-              />
-            </button>
-
-            <span className="text-slate-300">|</span>
-
             {isSystemFile ? (
               <div className="flex items-center gap-1.5 min-w-0">
                 <FolderOpen className="h-4 w-4 text-amber-500 shrink-0" />

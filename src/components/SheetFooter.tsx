@@ -4,13 +4,12 @@ import React from 'react';
 import {
   Calendar,
   FileSpreadsheet,
-  Plus,
   CheckCircle2,
   Cloud,
   CloudOff,
   LogIn,
   LogOut,
-  Upload,
+  Target,
 } from 'lucide-react';
 import { isSupabaseConfigured } from '@/lib/supabase';
 
@@ -25,7 +24,6 @@ interface SheetFooterProps {
   userEmail?: string | null;
   onOpenAuth?: () => void;
   onSignOut?: () => void;
-  onOpenImport?: () => void;
 }
 
 export function SheetFooter({
@@ -37,7 +35,6 @@ export function SheetFooter({
   userEmail,
   onOpenAuth,
   onSignOut,
-  onOpenImport,
 }: SheetFooterProps) {
   return (
     <footer className="shrink-0 border-t border-slate-300 bg-[#ede8dc] px-2 py-1 select-none shadow-xs">
@@ -87,33 +84,22 @@ export function SheetFooter({
               </span>
             )}
           </button>
+        </div>
 
-          {/* Excel風 新規取込/追加 「+」タブ */}
-          {onOpenImport && (
-            <button
-              onClick={onOpenImport}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-[#e2ddd0] hover:text-slate-800 transition"
-              title="新しい表・時間割を取り込む"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
-          )}
+        {/* Center: App Title in available space */}
+        <div className="flex flex-1 items-center justify-center min-w-0 px-2 pointer-events-none sm:pointer-events-auto">
+          <div className="flex items-center gap-1.5 truncate">
+            <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-blue-600 text-white shadow-2xs">
+              <Target className="h-3 w-3" />
+            </div>
+            <h1 className="text-xs sm:text-sm font-bold text-slate-800 tracking-tight truncate select-text">
+              理論値計画表
+            </h1>
+          </div>
         </div>
 
         {/* Right: Status and Quick Actions */}
         <div className="flex items-center gap-2 text-xs">
-          {/* Quick File Import Button */}
-          {onOpenImport && (
-            <button
-              onClick={onOpenImport}
-              className="hidden sm:flex items-center gap-1 rounded-md border border-cyan-600/30 bg-cyan-50/80 px-2 py-0.5 text-[11px] font-semibold text-cyan-800 transition hover:bg-cyan-100"
-              title="時間割画像やテキストファイルから一括取り込み"
-            >
-              <Upload className="h-3 w-3 text-cyan-700" />
-              <span>ファイル取込</span>
-            </button>
-          )}
-
           {/* Autosave Status */}
           {lastSavedAt && (
             <span

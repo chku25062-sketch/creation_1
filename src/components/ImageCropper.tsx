@@ -1,17 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import {
-  Crop,
-  Check,
-  RefreshCw,
-  Maximize2,
-  Move,
-  MousePointerClick,
-  Sparkles,
-  Loader2,
-  Magnet,
-} from 'lucide-react';
+import { Crop, Check, Maximize2, Sparkles, Loader2, Magnet, Move } from 'lucide-react';
 import {
   detectTableBoundingBox,
   extractSnapGuidelines,
@@ -51,7 +41,6 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
   });
 
   const [activeAction, setActiveAction] = useState<DragAction>('none');
-  const [isDrawModeActive, setIsDrawModeActive] = useState<boolean>(false);
   const [isAutoDetecting, setIsAutoDetecting] = useState<boolean>(true);
   const [detectedMessage, setDetectedMessage] = useState<string | null>(null);
 
@@ -82,7 +71,6 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
       w: 0.9,
       h: 0.9,
     });
-    setIsDrawModeActive(false);
   }, []);
 
   // 表のデータマス本体の枠および全罫線吸着ガイドを完全自動検出
@@ -117,7 +105,7 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
     }
   }, [runAutoDetect]);
 
-  // 全体選択
+  // 全体選択 (リセット)
   const handleSelectAll = useCallback(() => {
     setCropRect({
       x: 0,
@@ -125,13 +113,6 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
       w: 1.0,
       h: 1.0,
     });
-    setIsDrawModeActive(false);
-  }, []);
-
-  // 枠をクリアして新規引き直しモードへ
-  const handleClearForRedraw = useCallback(() => {
-    setCropRect(null);
-    setIsDrawModeActive(true);
   }, []);
 
   // ドラッグ開始 (枠全体移動 / 8方向リサイズ / 外側新規ドラッグ)
@@ -285,7 +266,6 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
       if (dragSessionRef.current) {
         dragSessionRef.current = null;
         setActiveAction('none');
-        setIsDrawModeActive(false);
       }
     };
 
@@ -361,80 +341,29 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* ツールバー / ガイド */}
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300">
-        <div className="flex items-center gap-1.5 font-medium text-cyan-300">
-          <Crop className="h-4 w-4 shrink-0 text-cyan-400" />
-          <span>
-            {detectedMessage ||
-              (isDrawModeActive
-                ? 'ドラッグして、予定・講義のマス目（本体のみ）を囲んでください'
-                : '※ 表のデータマス領域を自動検出しました。四隅のハンドルで微調整も可能です')}
+    <div className="flex flex-col flex-1 min-h-0 h-full justify-between gap-1.5">
+      {/* メインプレビューコンテナ (ノート調・余白最小化) */}
+      <div className="relative flex-1 min-h-[220px] w-full select-none flex items-center justify-center overflow-auto rounded-xl border border-slate-300 bg-slate-100/90 p-1 sm:p-2 shadow-inner">
+        {/* ガイドヒントバッジ (フロート表示) */}
+        <div className="absolute top-2 left-2 z-20 flex items-center gap-1.5 rounded-md bg-white/95 px-2 py-1 text-[10px] text-slate-700 border border-slate-200 pointer-events-none shadow-xs backdrop-blur-xs">
+          <Crop className="h-3 w-3 text-blue-600 shrink-0" />
+          <span className="truncate max-w-[280px] sm:max-w-none">
+            {detectedMessage || '表のマス目を四隅・辺のハンドルで微調整'}
           </span>
         </div>
 
-        {/* 枠操作ボタン群 */}
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            disabled={isAutoDetecting}
-            onClick={runAutoDetect}
-            className="flex items-center gap-1 rounded-lg border border-cyan-800/60 bg-gradient-to-r from-cyan-950/80 to-blue-950/80 px-2.5 py-1 text-xs font-semibold text-cyan-300 shadow transition hover:from-cyan-900/90 hover:to-blue-900/90 disabled:opacity-50"
-            title="表のデータマス本体の枠を自動検出し、ピタッと合わせます"
-          >
-            {isAutoDetecting ? (
-              <Loader2 className="h-3 w-3 animate-spin text-cyan-400" />
-            ) : (
-              <Sparkles className="h-3 w-3 text-cyan-400" />
-            )}
-            <span>表枠を自動検出</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleClearForRedraw}
-            className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs transition ${
-              isDrawModeActive
-                ? 'border-cyan-400 bg-cyan-950/60 font-semibold text-cyan-300 shadow-sm'
-                : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-600 hover:text-white'
-            }`}
-          >
-            <MousePointerClick className="h-3 w-3" />
-            <span>新しく枠を描く</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleSelectAll}
-            className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 transition hover:border-slate-600 hover:text-white"
-          >
-            <Maximize2 className="h-3 w-3" />
-            <span>全体選択</span>
-          </button>
-          <button
-            type="button"
-            onClick={resetToDefault}
-            className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 transition hover:border-slate-600 hover:text-white"
-          >
-            <RefreshCw className="h-3 w-3" />
-            <span>リセット</span>
-          </button>
-        </div>
-      </div>
-
-      {/* メインプレビューコンテナ */}
-      <div className="flex max-h-[52vh] min-h-[260px] w-full select-none items-center justify-center overflow-auto rounded-xl border border-slate-800 bg-slate-950 p-6 sm:p-8">
         {imageSrc && (
           <div
             ref={imgWrapperRef}
             onPointerDown={(e) => startDrag(e, 'create')}
-            className="relative inline-block touch-none cursor-crosshair shadow-2xl"
+            className="relative inline-block touch-none cursor-crosshair shadow-lg"
           >
             <img
               ref={imgRef}
               src={imageSrc}
               alt="Crop target"
               draggable={false}
-              className="max-h-[50vh] w-auto max-w-full select-none object-contain pointer-events-none block"
+              className="max-h-[54vh] sm:max-h-[64vh] w-auto max-w-full select-none object-contain pointer-events-none block"
             />
 
             {/* 周囲の暗転マスク */}
@@ -442,7 +371,7 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
               <div
                 className="absolute inset-0 pointer-events-none"
                 style={{
-                  backgroundColor: 'rgba(0, 0, 0, 0.55)',
+                  backgroundColor: 'rgba(15, 23, 42, 0.45)',
                   clipPath: `polygon(
                     0% 0%, 0% 100%, 100% 100%, 100% 0%, 0% 0%,
                     ${cropRect.x * 100}% ${cropRect.y * 100}%,
@@ -461,8 +390,8 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
                 onPointerDown={(e) => startDrag(e, 'move')}
                 className={`absolute cursor-move border-2 transition-[box-shadow,border-color] duration-75 shadow-md ${
                   activeAction !== 'none'
-                    ? 'border-cyan-300 bg-cyan-400/15 ring-2 ring-cyan-400/50 shadow-xl'
-                    : 'border-cyan-400 bg-cyan-400/10 hover:border-cyan-300'
+                    ? 'border-blue-600 bg-blue-500/15 ring-2 ring-blue-500/40 shadow-xl'
+                    : 'border-blue-600 bg-blue-500/10 hover:border-blue-700'
                 }`}
                 style={{
                   left: `${cropRect.x * 100}%`,
@@ -473,15 +402,15 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
               >
                 {/* 吸着中インジケーター */}
                 {activeAction !== 'none' && (
-                  <div className="absolute -top-7 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded bg-cyan-950/95 border border-cyan-400 px-2 py-0.5 text-[10px] font-bold text-cyan-200 shadow-xl pointer-events-none whitespace-nowrap z-30">
-                    <Magnet className="h-3 w-3 text-cyan-400 animate-pulse" />
-                    <span>罫線ピークに強力吸着中</span>
+                  <div className="absolute -top-7 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded bg-blue-600 text-white px-2 py-0.5 text-[10px] font-bold shadow-lg pointer-events-none whitespace-nowrap z-30">
+                    <Magnet className="h-3 w-3 text-cyan-200 animate-pulse" />
+                    <span>罫線ピークに吸着中</span>
                   </div>
                 )}
 
                 {/* 中央移動ヒント */}
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition pointer-events-none">
-                  <span className="flex items-center gap-1 rounded bg-black/75 px-2 py-0.5 text-[10px] font-medium text-white shadow">
+                  <span className="flex items-center gap-1 rounded bg-slate-900/80 px-2 py-0.5 text-[10px] font-medium text-white shadow">
                     <Move className="h-3 w-3" />
                     ドラッグで移動
                   </span>
@@ -510,25 +439,25 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
                   onPointerDown={(e) => startDrag(e, 'nw')}
                   className="group absolute -left-3.5 -top-3.5 flex h-7 w-7 items-center justify-center cursor-nwse-resize"
                 >
-                  <div className="h-3.5 w-3.5 rounded-full border-2 border-cyan-400 bg-white shadow-md transition group-hover:scale-125" />
+                  <div className="h-3.5 w-3.5 rounded-full border-2 border-blue-600 bg-white shadow-md transition group-hover:scale-125" />
                 </div>
                 <div
                   onPointerDown={(e) => startDrag(e, 'ne')}
                   className="group absolute -right-3.5 -top-3.5 flex h-7 w-7 items-center justify-center cursor-nesw-resize"
                 >
-                  <div className="h-3.5 w-3.5 rounded-full border-2 border-cyan-400 bg-white shadow-md transition group-hover:scale-125" />
+                  <div className="h-3.5 w-3.5 rounded-full border-2 border-blue-600 bg-white shadow-md transition group-hover:scale-125" />
                 </div>
                 <div
                   onPointerDown={(e) => startDrag(e, 'sw')}
                   className="group absolute -left-3.5 -bottom-3.5 flex h-7 w-7 items-center justify-center cursor-nesw-resize"
                 >
-                  <div className="h-3.5 w-3.5 rounded-full border-2 border-cyan-400 bg-white shadow-md transition group-hover:scale-125" />
+                  <div className="h-3.5 w-3.5 rounded-full border-2 border-blue-600 bg-white shadow-md transition group-hover:scale-125" />
                 </div>
                 <div
                   onPointerDown={(e) => startDrag(e, 'se')}
                   className="group absolute -right-3.5 -bottom-3.5 flex h-7 w-7 items-center justify-center cursor-nwse-resize"
                 >
-                  <div className="h-3.5 w-3.5 rounded-full border-2 border-cyan-400 bg-white shadow-md transition group-hover:scale-125" />
+                  <div className="h-3.5 w-3.5 rounded-full border-2 border-blue-600 bg-white shadow-md transition group-hover:scale-125" />
                 </div>
 
                 {/* 上下左右の中央ハンドル (Middle Handles) */}
@@ -536,25 +465,25 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
                   onPointerDown={(e) => startDrag(e, 'n')}
                   className="group absolute -top-2 left-1/2 -translate-x-1/2 flex h-5 w-6 items-center justify-center cursor-ns-resize"
                 >
-                  <div className="h-1.5 w-4 rounded-full border border-cyan-400 bg-white shadow-sm transition group-hover:scale-125" />
+                  <div className="h-1.5 w-4 rounded-full border border-blue-600 bg-white shadow-xs transition group-hover:scale-125" />
                 </div>
                 <div
                   onPointerDown={(e) => startDrag(e, 's')}
                   className="group absolute -bottom-2 left-1/2 -translate-x-1/2 flex h-5 w-6 items-center justify-center cursor-ns-resize"
                 >
-                  <div className="h-1.5 w-4 rounded-full border border-cyan-400 bg-white shadow-sm transition group-hover:scale-125" />
+                  <div className="h-1.5 w-4 rounded-full border border-blue-600 bg-white shadow-xs transition group-hover:scale-125" />
                 </div>
                 <div
                   onPointerDown={(e) => startDrag(e, 'w')}
                   className="group absolute -left-2 top-1/2 -translate-y-1/2 flex h-6 w-5 items-center justify-center cursor-ew-resize"
                 >
-                  <div className="h-4 w-1.5 rounded-full border border-cyan-400 bg-white shadow-sm transition group-hover:scale-125" />
+                  <div className="h-4 w-1.5 rounded-full border border-blue-600 bg-white shadow-xs transition group-hover:scale-125" />
                 </div>
                 <div
                   onPointerDown={(e) => startDrag(e, 'e')}
                   className="group absolute -right-2 top-1/2 -translate-y-1/2 flex h-6 w-5 items-center justify-center cursor-ew-resize"
                 >
-                  <div className="h-4 w-1.5 rounded-full border border-cyan-400 bg-white shadow-sm transition group-hover:scale-125" />
+                  <div className="h-4 w-1.5 rounded-full border border-blue-600 bg-white shadow-xs transition group-hover:scale-125" />
                 </div>
               </div>
             )}
@@ -562,30 +491,60 @@ export function ImageCropper({ imageFile, onCropComplete, onCancel }: ImageCropp
         )}
       </div>
 
-      {/* フッターアクションバー */}
-      <div className="flex items-center justify-between border-t border-slate-800 pt-3">
-        <button
-          type="button"
-          onClick={() => onCropComplete(imageFile, 800, 800)}
-          className="text-xs text-slate-400 transition hover:text-white"
-        >
-          クロップをスキップ（全体解析）
-        </button>
-        <div className="flex gap-2">
+      {/* 操作パネル（ノート調ホワイトバー：ボタンを「自動」と「全選択(リセット)」の2つに絞り、下部に配置） */}
+      <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-white/95 pt-2">
+        {/* 左側: 切り取り補助ボタン (自動 と 全選択(リセット) の2つのみ) */}
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            disabled={isAutoDetecting}
+            onClick={runAutoDetect}
+            className="flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 shadow-2xs transition hover:bg-blue-100 active:scale-95 disabled:opacity-50"
+            title="表のデータマス本体の枠を自動検出し、ピタッと合わせます"
+          >
+            {isAutoDetecting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5 text-blue-600" />
+            )}
+            <span>自動</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSelectAll}
+            className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 active:scale-95 shadow-2xs"
+            title="画像全体を選択（リセット）します"
+          >
+            <Maximize2 className="h-3.5 w-3.5 text-slate-500" />
+            <span>全選択(リセット)</span>
+          </button>
+        </div>
+
+        {/* 右側: 戻る / 選択部分を解析へ / スキップ */}
+        <div className="flex items-center gap-2 ml-auto">
+          <button
+            type="button"
+            onClick={() => onCropComplete(imageFile, 800, 800)}
+            className="text-[11px] sm:text-xs text-slate-500 transition hover:text-slate-800 mr-1 hidden sm:inline-block"
+            title="切り取りを行わずに画像全体を解析します"
+          >
+            スキップ
+          </button>
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-xl border border-slate-800 px-3.5 py-1.5 text-xs text-slate-400 transition hover:bg-slate-800 hover:text-white"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 shadow-2xs"
           >
             戻る
           </button>
           <button
             type="button"
             onClick={handleExecuteCrop}
-            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-1.5 text-xs font-semibold text-white shadow-md shadow-cyan-500/20 transition hover:opacity-95"
+            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-[0.98]"
           >
-            <Check className="h-3.5 w-3.5" />
-            <span>選択した表部分を解析</span>
+            <Check className="h-4 w-4 text-white" />
+            <span>選択部分を解析へ</span>
           </button>
         </div>
       </div>

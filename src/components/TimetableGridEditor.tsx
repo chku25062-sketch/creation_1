@@ -226,39 +226,39 @@ export function TimetableGridEditor({
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col flex-1 min-h-0 h-full justify-between gap-2.5">
       {/* Header Tools */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+      <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
         <div className="flex items-center gap-2">
-          <CalendarDays className="h-4 w-4 text-cyan-400" />
-          <span className="text-xs font-semibold text-white">
-            表データエディタ（列名・行名も自由に編集可能）
+          <CalendarDays className="h-4 w-4 text-blue-600" />
+          <span className="text-xs font-bold text-slate-800">
+            表データエディタ（列名・行名も編集可能）
           </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {/* プリセット変更 */}
-          <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-900 px-1.5 py-0.5 text-xs text-slate-400">
-            <Tag className="h-3 w-3 text-cyan-400" />
-            <span className="text-[10px]">列名セット:</span>
+          <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-500 shadow-2xs">
+            <Tag className="h-3 w-3 text-blue-600" />
+            <span className="text-[10px] font-medium text-slate-600">列名セット:</span>
             <button
               type="button"
               onClick={handleApplyWeekdayPreset}
-              className="rounded px-1.5 py-0.5 text-[10px] text-slate-300 hover:bg-slate-800 hover:text-white"
+              className="rounded px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
             >
               曜日
             </button>
             <button
               type="button"
               onClick={handleApplyAlphabetPreset}
-              className="rounded px-1.5 py-0.5 text-[10px] text-slate-300 hover:bg-slate-800 hover:text-white"
+              className="rounded px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
             >
               A,B,C
             </button>
             <button
               type="button"
               onClick={handleApplyNumberPreset}
-              className="rounded px-1.5 py-0.5 text-[10px] text-slate-300 hover:bg-slate-800 hover:text-white"
+              className="rounded px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
             >
               番号
             </button>
@@ -267,17 +267,17 @@ export function TimetableGridEditor({
           <button
             type="button"
             onClick={handleCopyAsCsv}
-            className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 transition hover:bg-slate-700 hover:text-white"
+            className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50 transition"
             title="CSV形式のテキストとしてクリップボードにコピー"
           >
             {copied ? (
               <>
-                <Check className="h-3 w-3 text-emerald-400" />
-                <span className="text-emerald-400">CSVコピー完了</span>
+                <Check className="h-3 w-3 text-emerald-600" />
+                <span className="text-emerald-600">CSVコピー完了</span>
               </>
             ) : (
               <>
-                <FileSpreadsheet className="h-3 w-3 text-cyan-400" />
+                <FileSpreadsheet className="h-3 w-3 text-emerald-600" />
                 <span>CSVコピー</span>
               </>
             )}
@@ -287,9 +287,9 @@ export function TimetableGridEditor({
             type="button"
             onClick={handleAddCol}
             disabled={numCols >= 14}
-            className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-700 disabled:opacity-30"
+            className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50 transition disabled:opacity-40"
           >
-            <Plus className="h-3 w-3" />
+            <Plus className="h-3 w-3 text-slate-500" />
             <span>列を追加</span>
           </button>
 
@@ -297,35 +297,35 @@ export function TimetableGridEditor({
             type="button"
             onClick={handleAddRow}
             disabled={numRows >= 20}
-            className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-700 disabled:opacity-30"
+            className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50 transition disabled:opacity-40"
           >
-            <Plus className="h-3 w-3" />
+            <Plus className="h-3 w-3 text-slate-500" />
             <span>行を追加</span>
           </button>
         </div>
       </div>
 
-      <div className="flex items-center justify-between text-[11px] text-slate-400">
+      <div className="shrink-0 flex items-center justify-between text-[11px] text-slate-500">
         <span>
-          💡 <strong className="text-slate-300">列名（見出し）</strong>や
-          <strong className="text-slate-300">行名（時限）</strong>
-          をクリックすると、自由に好きな名前にリネームできます。
+          💡 <strong className="text-slate-700">列名</strong>や
+          <strong className="text-slate-700">行名</strong>
+          をクリックしてリネームできます。
         </span>
       </div>
 
-      {/* Grid Table */}
-      <div className="max-h-[50vh] overflow-x-auto overflow-y-auto rounded-xl border border-slate-800 bg-slate-950/60 p-2">
+      {/* Grid Table (ノート調方眼テーブル) */}
+      <div className="flex-1 min-h-[200px] overflow-x-auto overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-2xs">
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr>
-              <th className="w-20 border border-slate-800/80 bg-slate-900/90 p-2 text-center font-semibold text-slate-400">
+              <th className="w-20 border border-slate-200 bg-slate-100 p-2 text-center font-bold text-slate-600">
                 行 \ 列
               </th>
               {colHeaders.map((headerText, c) => (
                 <th
                   key={c}
                   onClick={() => setEditingColIdx(c)}
-                  className="group min-w-[110px] cursor-pointer border border-slate-800/80 bg-slate-900/90 p-2 text-center font-semibold text-slate-200 transition hover:bg-slate-800"
+                  className="group min-w-[110px] cursor-pointer border border-slate-200 bg-slate-50 p-2 text-center font-bold text-slate-800 transition hover:bg-blue-50/50"
                   title="クリックして列名を編集"
                 >
                   {editingColIdx === c ? (
@@ -347,12 +347,12 @@ export function TimetableGridEditor({
                           e.currentTarget.blur();
                         }
                       }}
-                      className="w-full rounded border border-cyan-400 bg-slate-950 px-1 py-0.5 text-center text-xs text-white focus:outline-hidden"
+                      className="w-full rounded border border-blue-500 bg-white px-1 py-0.5 text-center text-xs text-slate-900 font-bold focus:outline-hidden"
                     />
                   ) : (
                     <div className="flex items-center justify-center gap-1">
                       <span>{headerText}</span>
-                      <Edit2 className="h-2.5 w-2.5 text-slate-500 opacity-0 transition group-hover:opacity-100" />
+                      <Edit2 className="h-2.5 w-2.5 text-slate-400 opacity-0 transition group-hover:opacity-100" />
                     </div>
                   )}
                 </th>
@@ -371,7 +371,7 @@ export function TimetableGridEditor({
                   {/* Row Header Column (行名編集可能) */}
                   <td
                     onClick={() => setEditingRowIdx(r)}
-                    className="group w-20 cursor-pointer border border-slate-800/80 bg-slate-900/50 p-2 text-center font-medium text-slate-400 transition hover:bg-slate-800/80"
+                    className="group w-20 cursor-pointer border border-slate-200 bg-slate-50/80 p-2 text-center font-medium text-slate-600 transition hover:bg-blue-50/50"
                     title="クリックして行名を編集"
                   >
                     {editingRowIdx === r ? (
@@ -393,20 +393,20 @@ export function TimetableGridEditor({
                             e.currentTarget.blur();
                           }
                         }}
-                        className="w-full rounded border border-cyan-400 bg-slate-950 px-1 py-0.5 text-center text-xs text-white focus:outline-hidden"
+                        className="w-full rounded border border-blue-500 bg-white px-1 py-0.5 text-center text-xs text-slate-900 font-bold focus:outline-hidden"
                       />
                     ) : (
                       <div>
-                        <div className="flex items-center justify-center gap-1 font-bold text-white">
+                        <div className="flex items-center justify-center gap-1 font-bold text-slate-800">
                           <span>{rowLabel}</span>
-                          <Edit2 className="h-2.5 w-2.5 text-slate-500 opacity-0 transition group-hover:opacity-100" />
+                          <Edit2 className="h-2.5 w-2.5 text-slate-400 opacity-0 transition group-hover:opacity-100" />
                         </div>
-                        <div className="font-mono text-[9px] text-slate-400">{timeStr}</div>
+                        <div className="font-mono text-[9px] text-slate-500">{timeStr}</div>
                       </div>
                     )}
                   </td>
 
-                  {/* Data Cells */}
+                  {/* Data Cells (付箋調セル) */}
                   {row.map((cell, c) => {
                     const isEditing = editingCell?.r === r && editingCell?.c === c;
                     const hasContent = Boolean(cell.text && cell.text.trim());
@@ -415,12 +415,12 @@ export function TimetableGridEditor({
                       <td
                         key={c}
                         onClick={() => !isEditing && handleStartEdit(r, c)}
-                        className={`group relative cursor-pointer border border-slate-800/80 p-2 align-top transition ${
+                        className={`group relative cursor-pointer border border-slate-200 p-2 align-top transition ${
                           isEditing
-                            ? 'bg-slate-900 ring-2 ring-cyan-500'
+                            ? 'bg-blue-50/50 ring-2 ring-blue-500'
                             : hasContent
-                              ? 'bg-blue-950/20 hover:bg-blue-900/30'
-                              : 'bg-slate-950/30 hover:bg-slate-900/40'
+                              ? 'bg-blue-50/40 hover:bg-blue-50/70'
+                              : 'bg-white hover:bg-slate-50/80'
                         }`}
                       >
                         {isEditing ? (
@@ -433,21 +433,21 @@ export function TimetableGridEditor({
                               value={editText}
                               onChange={(e) => setEditText(e.target.value)}
                               placeholder="セル内容 (空にするとnull)"
-                              className="w-full resize-none rounded border border-cyan-500 bg-slate-900 p-1.5 text-xs text-white placeholder-slate-500 focus:outline-hidden"
+                              className="w-full resize-none rounded border border-blue-500 bg-white p-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-hidden shadow-2xs"
                               autoFocus
                             />
                             <div className="flex justify-end gap-1">
                               <button
                                 type="button"
                                 onClick={() => setEditingCell(null)}
-                                className="rounded px-2 py-0.5 text-[10px] text-slate-400 hover:text-white"
+                                className="rounded px-2 py-0.5 text-[10px] text-slate-500 hover:text-slate-800"
                               >
                                 取消
                               </button>
                               <button
                                 type="button"
                                 onClick={handleSaveEdit}
-                                className="flex items-center gap-0.5 rounded bg-cyan-600 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-cyan-500"
+                                className="flex items-center gap-0.5 rounded bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-blue-700 shadow-2xs"
                               >
                                 <Check className="h-3 w-3" />
                                 保存
@@ -456,7 +456,7 @@ export function TimetableGridEditor({
                           </div>
                         ) : hasContent ? (
                           <div>
-                            <div className="font-semibold whitespace-pre-line text-white">
+                            <div className="font-semibold whitespace-pre-line text-slate-800">
                               {cell.text}
                             </div>
 
@@ -468,7 +468,7 @@ export function TimetableGridEditor({
                                   e.stopPropagation();
                                   handleStartEdit(r, c);
                                 }}
-                                className="rounded bg-slate-800 p-1 text-slate-400 hover:text-white"
+                                className="rounded bg-white border border-slate-200 p-1 text-slate-500 hover:text-slate-800 shadow-2xs"
                                 title="編集"
                               >
                                 <Edit2 className="h-2.5 w-2.5" />
@@ -476,7 +476,7 @@ export function TimetableGridEditor({
                               <button
                                 type="button"
                                 onClick={(e) => handleClearCell(r, c, e)}
-                                className="rounded bg-slate-800 p-1 text-slate-400 hover:text-rose-400"
+                                className="rounded bg-white border border-slate-200 p-1 text-slate-500 hover:text-rose-600 shadow-2xs"
                                 title="コマを空(null)にする"
                               >
                                 <Trash2 className="h-2.5 w-2.5" />
@@ -484,7 +484,7 @@ export function TimetableGridEditor({
                             </div>
                           </div>
                         ) : (
-                          <div className="flex h-12 items-center justify-center font-mono text-[10px] text-slate-600 group-hover:text-cyan-400">
+                          <div className="flex h-12 items-center justify-center font-mono text-[10px] text-slate-300 group-hover:text-blue-500">
                             (null)
                           </div>
                         )}
@@ -498,12 +498,12 @@ export function TimetableGridEditor({
         </table>
       </div>
 
-      {/* Footer Controls */}
-      <div className="flex items-center justify-between border-t border-slate-800 pt-3">
+      {/* Footer Controls (画面最下部固定・ノート調ホワイトバー) */}
+      <div className="shrink-0 flex items-center justify-between border-t border-slate-200 bg-white/95 pt-2 sm:pt-2.5">
         <button
           type="button"
           onClick={onCancel}
-          className="text-xs text-slate-400 hover:text-white"
+          className="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50 shadow-2xs"
         >
           区画調整へ戻る
         </button>
@@ -511,9 +511,9 @@ export function TimetableGridEditor({
         <button
           type="button"
           onClick={handleExecuteApply}
-          className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2 text-xs font-semibold text-white shadow-lg shadow-cyan-500/20 hover:opacity-90"
+          className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-[0.98]"
         >
-          <Check className="h-4 w-4" />
+          <Check className="h-4 w-4 text-white" />
           <span>この表データを計画表へ取り込む</span>
         </button>
       </div>

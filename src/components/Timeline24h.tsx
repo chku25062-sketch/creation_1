@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Clock, AlertTriangle, Compass, BookOpen, ZoomIn, Target, Upload } from 'lucide-react';
+import { Clock, AlertTriangle, BookOpen } from 'lucide-react';
 import { TheoreticalBlock, TaskItem } from '@/types';
 import { minutesToTimeString, formatDuration } from '@/lib/timeUtils';
 
@@ -9,23 +9,12 @@ interface Timeline24hProps {
   blocks: TheoreticalBlock[];
   unassignedTasks: TaskItem[];
   dayBlocks?: Record<number, TheoreticalBlock[]>;
-  onOpenImport?: () => void;
 }
 
 const TOTAL_HOURS = 24;
 const WEEKDAY_NAMES = ['月', '火', '水', '木', '金', '土', '日'];
-const HEIGHT_OPTIONS = [
-  { label: '標準', value: 60 },
-  { label: '拡大', value: 84 },
-  { label: '特大', value: 110 },
-];
 
-export function Timeline24h({
-  blocks,
-  unassignedTasks,
-  dayBlocks,
-  onOpenImport,
-}: Timeline24hProps) {
+export function Timeline24h({ blocks, unassignedTasks, dayBlocks }: Timeline24hProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [nowTimeString, setNowTimeString] = useState<string>('');
   const [hourHeight, setHourHeight] = useState<number>(84); // デフォルト84px（縦に大きく表示）
@@ -44,15 +33,6 @@ export function Timeline24h({
       // ignore
     }
   }, []);
-
-  const handleHourHeightChange = (height: number) => {
-    setHourHeight(height);
-    try {
-      localStorage.setItem('timeline_hour_height', String(height));
-    } catch {
-      // ignore
-    }
-  };
 
   const totalHeight = TOTAL_HOURS * hourHeight;
 
@@ -110,109 +90,11 @@ export function Timeline24h({
     }
   }, [hourHeight]);
 
-  const scrollToNow = () => {
-    if (scrollContainerRef.current) {
-      const targetScroll = Math.max(0, ((currentMinutes - 45) / 60) * hourHeight);
-      scrollContainerRef.current.scrollTo({
-        top: targetScroll,
-        behavior: 'smooth',
-      });
-    }
-  };
-
-  const weekRangeString = useMemo(() => {
-    if (weekDays.length < 7) return '';
-    const start = weekDays[0];
-    const end = weekDays[6];
-    return `${start.month}/${start.day} (${start.dayOfWeek}) 〜 ${end.month}/${end.day} (${end.dayOfWeek})`;
-  }, [weekDays]);
-
   // 時間軸の統一幅（ヘッダーとグリッドで完全一致させる）
   const timeAxisWidthClass = 'w-13 sm:w-15 shrink-0';
 
   return (
-    <div className="flex flex-1 min-h-0 flex-col gap-1.5 rounded-xl border border-slate-200 bg-white p-2 shadow-2xs sm:p-2.5">
-      {/* App Top Title Bar: アプリ見出し「理論値計画表」 */}
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-1.5">
-        <div className="flex items-center gap-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-600 shadow-2xs">
-            <Target className="h-3.5 w-3.5 text-white" />
-          </div>
-          <h1 className="text-xs font-bold text-slate-900 sm:text-sm tracking-tight">
-            理論値計画表
-          </h1>
-          <span className="hidden rounded-full border border-slate-200 bg-slate-50 px-2 py-0.2 text-[11px] text-slate-600 sm:inline-block font-medium">
-            {weekRangeString}
-          </span>
-        </div>
-
-        {/* Legend, Zoom height switcher, & Current Time Scroll Action */}
-        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-          {/* Legend */}
-          <div className="hidden items-center gap-2 font-medium md:flex text-[11px]">
-            <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-xs bg-[#f4efe6] border border-[#dfd6c5]" />
-              生活固定枠
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-xs bg-[#e0f2fe] border border-[#7dd3fc]" />
-              講義・授業
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-xs bg-[#fef9c3] border border-[#fde047]" />
-              目標タスク
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-xs bg-[#f5eeff] border border-[#d8b4fe]" />
-              課題・提出
-            </span>
-          </div>
-
-          {/* マスの縦幅（ズーム）切り替えピル */}
-          <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
-            <span className="px-1.5 text-[10px] font-medium text-slate-500 flex items-center gap-0.5">
-              <ZoomIn className="h-3 w-3" />
-              <span className="hidden sm:inline">マス高さ:</span>
-            </span>
-            {HEIGHT_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => handleHourHeightChange(opt.value)}
-                className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition ${
-                  hourHeight === opt.value
-                    ? 'bg-blue-600 font-bold text-white shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-
-          {/* 現在時刻へスクロール */}
-          <button
-            onClick={scrollToNow}
-            title="現在時刻の位置へスクロール"
-            className="flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
-          >
-            <Compass className="h-3 w-3 text-blue-600" />
-            <span>現在時刻 ({nowTimeString || '今'})</span>
-          </button>
-
-          {/* ファイル取込ボタン */}
-          {onOpenImport && (
-            <button
-              onClick={onOpenImport}
-              className="flex items-center gap-1 rounded-md border border-cyan-600/30 bg-cyan-50 px-2 py-1 text-[11px] font-semibold text-cyan-800 transition hover:bg-cyan-100"
-              title="時間割画像やテキストファイルから一括取り込み"
-            >
-              <Upload className="h-3 w-3 text-cyan-600" />
-              <span className="hidden sm:inline">ファイル取込</span>
-            </button>
-          )}
-        </div>
-      </div>
-
+    <div className="flex flex-1 min-h-0 flex-col gap-1.5 rounded-xl border border-slate-200 bg-white p-1.5 sm:p-2 shadow-2xs">
       {/* Unassigned Warning Alert if any */}
       {unassignedTasks.length > 0 && (
         <div className="flex shrink-0 items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">

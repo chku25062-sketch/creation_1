@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Grid, Check, Sliders, Sparkles, Loader2, Magnet } from 'lucide-react';
+import { Grid, Check, Sparkles, Loader2, Magnet } from 'lucide-react';
 import {
   getDefaultDividers,
   calculateCellRects,
   autoDetectTableStructure,
-  detectGridDividers,
   extractSnapGuidelines,
   snapToClosestGuideline,
   SnapGuidelines,
@@ -100,26 +99,6 @@ export function GridAdjuster({
     [imageBlob],
   );
 
-  // 指定の行数・列数を適用し、画像内の実際の罫線ピークに精密スナップ
-  const handleApplyPreset = async (targetCols: number, targetRows: number) => {
-    setIsDetecting(true);
-    setColumns(targetCols);
-    setRows(targetRows);
-    try {
-      const snapped = await detectGridDividers(imageBlob, targetCols, targetRows, bounds);
-      setColDividers(snapped.colDividers);
-      setRowDividers(snapped.rowDividers);
-      setDetectedMessage(`${targetCols}列 × ${targetRows}行 の罫線ピークにスナップしました`);
-      setTimeout(() => setDetectedMessage(null), 3000);
-    } catch {
-      const defaults = getDefaultDividers(targetCols, targetRows, bounds);
-      setColDividers(defaults.colDividers);
-      setRowDividers(defaults.rowDividers);
-    } finally {
-      setIsDetecting(false);
-    }
-  };
-
   // 初回マウント時: 画像の表に合わせたグリッド数を完全自動検出
   useEffect(() => {
     if (isInitialMountRef.current) {
@@ -140,13 +119,6 @@ export function GridAdjuster({
     const validRows = Math.max(1, Math.min(20, newRows));
     setRows(validRows);
     const defaults = getDefaultDividers(columns, validRows, bounds);
-    setRowDividers(defaults.rowDividers);
-  };
-
-  // 均等割りリセット
-  const handleResetToEqual = () => {
-    const defaults = getDefaultDividers(columns, rows, bounds);
-    setColDividers(defaults.colDividers);
     setRowDividers(defaults.rowDividers);
   };
 
@@ -276,183 +248,41 @@ export function GridAdjuster({
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* ツールバー / 設定 */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-slate-800 bg-slate-900/80 p-2.5 text-xs text-slate-300">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* クイックプリセット */}
-          <div className="flex items-center gap-1">
-            <span className="font-medium text-slate-400">プリセット:</span>
-            {[
-              { cols: 5, rows: 5, label: '5×5 (月-金/5限)' },
-              { cols: 5, rows: 6, label: '5×6 (月-金/6限)' },
-              { cols: 6, rows: 5, label: '6×5 (月-土/5限)' },
-              { cols: 7, rows: 5, label: '7×5 (全日/5限)' },
-            ].map((preset) => {
-              const isCurrent = columns === preset.cols && rows === preset.rows;
-              return (
-                <button
-                  key={`${preset.cols}x${preset.rows}`}
-                  type="button"
-                  disabled={isDetecting}
-                  onClick={() => handleApplyPreset(preset.cols, preset.rows)}
-                  className={`rounded-lg px-2 py-1 text-[11px] font-semibold transition ${
-                    isCurrent
-                      ? 'border border-cyan-500/60 bg-cyan-950/70 text-cyan-300 shadow-xs'
-                      : 'border border-slate-800 bg-slate-800/80 text-slate-400 hover:border-slate-700 hover:bg-slate-800 hover:text-slate-200'
-                  } disabled:opacity-50`}
-                  title={`${preset.cols}列 × ${preset.rows}行 に設定し罫線ピークへ精密吸着`}
-                >
-                  {preset.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="hidden h-4 w-px bg-slate-800 sm:block" />
-
-          {/* 列数（横マス）コントロール */}
-          <div className="flex items-center gap-1.5">
-            <span className="font-medium text-slate-400">列数:</span>
-            <div className="flex items-center gap-1 rounded-lg bg-slate-800 px-1 py-0.5">
-              <button
-                type="button"
-                disabled={columns <= 1}
-                onClick={() => handleColumnsChange(columns - 1)}
-                className="h-5 w-5 rounded font-bold text-slate-300 hover:bg-slate-700 disabled:opacity-30"
-              >
-                -
-              </button>
-              <span className="min-w-6 text-center font-bold text-cyan-300">{columns}列</span>
-              <button
-                type="button"
-                disabled={columns >= 14}
-                onClick={() => handleColumnsChange(columns + 1)}
-                className="h-5 w-5 rounded font-bold text-slate-300 hover:bg-slate-700 disabled:opacity-30"
-              >
-                +
-              </button>
-            </div>
-            {/* スマート曜日バッジ */}
-            {columns === 5 && (
-              <span className="rounded bg-cyan-950/60 px-1.5 py-0.5 text-[10px] text-cyan-300">
-                月〜金
-              </span>
-            )}
-            {columns === 6 && (
-              <span className="rounded bg-cyan-950/60 px-1.5 py-0.5 text-[10px] text-cyan-300">
-                月〜土
-              </span>
-            )}
-            {columns === 7 && (
-              <span className="rounded bg-cyan-950/60 px-1.5 py-0.5 text-[10px] text-cyan-300">
-                月〜日
-              </span>
-            )}
-          </div>
-
-          {/* 行数（縦マス）コントロール */}
-          <div className="flex items-center gap-1.5">
-            <span className="font-medium text-slate-400">行数:</span>
-            <div className="flex items-center gap-1 rounded-lg bg-slate-800 px-1 py-0.5">
-              <button
-                type="button"
-                disabled={rows <= 1}
-                onClick={() => handleRowsChange(rows - 1)}
-                className="h-5 w-5 rounded font-bold text-slate-300 hover:bg-slate-700 disabled:opacity-30"
-              >
-                -
-              </button>
-              <span className="min-w-6 text-center font-bold text-cyan-300">{rows}行</span>
-              <button
-                type="button"
-                disabled={rows >= 20}
-                onClick={() => handleRowsChange(rows + 1)}
-                className="h-5 w-5 rounded font-bold text-slate-300 hover:bg-slate-700 disabled:opacity-30"
-              >
-                +
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* 自動検出 & スナップ & 均等割ボタン */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleResetToEqual}
-            className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-slate-300 transition hover:bg-slate-700 hover:text-white"
-          >
-            <Sliders className="h-3 w-3" />
-            <span>均等割</span>
-          </button>
-          <button
-            type="button"
-            disabled={isDetecting}
-            onClick={() => handleApplyPreset(columns, rows)}
-            className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-slate-300 transition hover:bg-slate-700 hover:text-white disabled:opacity-50"
-            title="現在の行数・列数を維持したまま、画像内の本物の罫線に再スナップ"
-          >
-            <Grid className="h-3 w-3 text-cyan-400" />
-            <span>罫線に再吸着</span>
-          </button>
-          <button
-            type="button"
-            disabled={isDetecting}
-            onClick={() => runFullAutoDetect(bounds)}
-            className="flex items-center gap-1 rounded-lg border border-cyan-800/60 bg-gradient-to-r from-cyan-950/80 to-blue-950/80 px-2.5 py-1 font-semibold text-cyan-300 shadow transition hover:from-cyan-900/90 hover:to-blue-900/90 disabled:opacity-50"
-            title="画像の表の罫線を解析し、行数・列数・境界線を自動判定"
-          >
-            {isDetecting ? (
-              <Loader2 className="h-3 w-3 animate-spin text-cyan-400" />
-            ) : (
-              <Sparkles className="h-3 w-3 text-cyan-400" />
-            )}
-            <span>表から全自動検出</span>
-          </button>
-        </div>
-      </div>
-
-      {/* ガイドメッセージ / 検出結果アラート */}
-      <div className="flex items-center justify-between text-[11px] text-slate-400">
-        <span className="flex items-center gap-1 text-cyan-300">
-          <Grid className="h-3.5 w-3.5 text-cyan-400" />
-          <span>
-            {detectedMessage ||
-              '画像の表に合わせてグリッド数を自動検出しました。破線や外枠で微調整できます'}
-          </span>
-        </span>
-        <span className="font-mono text-slate-400">
-          計 {columns * rows} マス（{columns}列 × {rows}行）
-        </span>
-      </div>
-
-      {/* メインプレビューコンテナ */}
+    <div className="flex flex-col flex-1 min-h-0 h-full justify-between gap-1.5">
+      {/* メインプレビューコンテナ (ノート調・余白最小化) */}
       <div
         ref={containerRef}
-        className="relative flex max-h-[50vh] min-h-[280px] w-full select-none items-center justify-center overflow-auto rounded-xl border border-slate-800 bg-slate-950 p-6 sm:p-8"
+        className="relative flex-1 min-h-[220px] w-full select-none flex items-center justify-center overflow-auto rounded-xl border border-slate-300 bg-slate-100/90 p-1 sm:p-2 shadow-inner"
       >
+        {/* ガイドメッセージ / 検出結果アラート (フロート配置) */}
+        <div className="absolute top-2 left-2 z-30 flex items-center gap-1.5 text-[10px] text-slate-700 bg-white/95 border border-slate-200 rounded-md px-2 py-1 shadow-xs pointer-events-none backdrop-blur-xs">
+          <Grid className="h-3 w-3 text-blue-600 shrink-0" />
+          <span className="truncate max-w-[280px] sm:max-w-none">
+            {detectedMessage || '破線をドラッグして時間割の行と列の境目に微調整'}
+          </span>
+        </div>
+
         {imageSrc && (
-          <div className="relative inline-block touch-none shadow-2xl">
+          <div className="relative inline-block touch-none shadow-lg">
             <img
               ref={imgRef}
               src={imageSrc}
               alt="Grid Adjust Preview"
               draggable={false}
-              className="max-h-[48vh] w-auto max-w-full select-none object-contain pointer-events-none block"
+              className="max-h-[54vh] sm:max-h-[64vh] w-auto max-w-full select-none object-contain pointer-events-none block"
             />
 
             {/* 吸着中インジケーター */}
             {activeDrag && (
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded bg-cyan-950/95 border border-cyan-400 px-2.5 py-0.5 text-[10px] font-bold text-cyan-200 shadow-xl pointer-events-none whitespace-nowrap z-30">
-                <Magnet className="h-3 w-3 text-cyan-400 animate-pulse" />
-                <span>罫線ピークに強力吸着中</span>
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded bg-blue-600 text-white px-2.5 py-0.5 text-[10px] font-bold shadow-lg pointer-events-none whitespace-nowrap z-30">
+                <Magnet className="h-3 w-3 text-cyan-200 animate-pulse" />
+                <span>罫線ピークに吸着中</span>
               </div>
             )}
 
             {/* 外枠（ヘッダー除外マスク） */}
             <div
-              className="pointer-events-none absolute inset-0 bg-slate-950/60"
+              className="pointer-events-none absolute inset-0 bg-slate-900/40"
               style={{
                 clipPath: `polygon(
                   0% 0%, 0% 100%, 100% 100%, 100% 0%, 0% 0%,
@@ -475,7 +305,7 @@ export function GridAdjuster({
               style={{ left: `${bounds.left * 100}%` }}
               title="左境界線（ドラッグで調整）"
             >
-              <div className="absolute top-0 bottom-0 left-3 w-0.5 bg-cyan-400 shadow group-hover:w-1 group-hover:bg-cyan-300" />
+              <div className="absolute top-0 bottom-0 left-3 w-0.5 bg-blue-600 shadow group-hover:w-1 group-hover:bg-blue-500" />
             </div>
             <div
               onPointerDown={(e) => {
@@ -486,7 +316,7 @@ export function GridAdjuster({
               style={{ left: `${bounds.right * 100}%` }}
               title="右境界線（ドラッグで調整）"
             >
-              <div className="absolute top-0 bottom-0 left-3 w-0.5 bg-cyan-400 shadow group-hover:w-1 group-hover:bg-cyan-300" />
+              <div className="absolute top-0 bottom-0 left-3 w-0.5 bg-blue-600 shadow group-hover:w-1 group-hover:bg-blue-500" />
             </div>
             <div
               onPointerDown={(e) => {
@@ -497,7 +327,7 @@ export function GridAdjuster({
               style={{ top: `${bounds.top * 100}%` }}
               title="上境界線（ドラッグで調整）"
             >
-              <div className="absolute left-0 right-0 top-3 h-0.5 bg-blue-400 shadow group-hover:h-1 group-hover:bg-blue-300" />
+              <div className="absolute left-0 right-0 top-3 h-0.5 bg-blue-600 shadow group-hover:h-1 group-hover:bg-blue-500" />
             </div>
             <div
               onPointerDown={(e) => {
@@ -508,15 +338,15 @@ export function GridAdjuster({
               style={{ top: `${bounds.bottom * 100}%` }}
               title="下境界線（ドラッグで調整）"
             >
-              <div className="absolute left-0 right-0 top-3 h-0.5 bg-blue-400 shadow group-hover:h-1 group-hover:bg-blue-300" />
+              <div className="absolute left-0 right-0 top-3 h-0.5 bg-blue-600 shadow group-hover:h-1 group-hover:bg-blue-500" />
             </div>
 
-            {/* 各セルのラベルウォーターマーク */}
+            {/* 各セルのラベルウォーターマーク (付箋風バッジ) */}
             {cellRects.map((rowCells, rIdx) =>
               rowCells.map((cell, cIdx) => (
                 <div
                   key={`cell-guide-${rIdx}-${cIdx}`}
-                  className="pointer-events-none absolute flex items-center justify-center text-[10px] font-bold text-cyan-400/60"
+                  className="pointer-events-none absolute flex items-center justify-center text-[10px] font-bold text-blue-900"
                   style={{
                     left: `${cell.x * 100}%`,
                     top: `${cell.y * 100}%`,
@@ -524,7 +354,7 @@ export function GridAdjuster({
                     height: `${cell.h * 100}%`,
                   }}
                 >
-                  <span className="rounded bg-black/50 px-1 py-0.5 shadow-xs">
+                  <span className="rounded bg-white/85 border border-slate-200 px-1 py-0.5 shadow-2xs text-[9px] text-slate-700">
                     {getColLabel(cIdx)}
                     {rIdx + 1}限
                   </span>
@@ -548,9 +378,9 @@ export function GridAdjuster({
                   bottom: `${(1 - bounds.bottom) * 100}%`,
                 }}
               >
-                <div className="absolute top-0 bottom-0 left-2 w-0.5 border-l-2 border-dashed border-cyan-400 transition group-hover:border-solid group-hover:border-cyan-300" />
-                <div className="absolute top-1 left-0.5 h-3 w-3 rounded-full border border-cyan-300 bg-cyan-500 shadow-md transition group-hover:scale-125" />
-                <div className="absolute bottom-1 left-0.5 h-3 w-3 rounded-full border border-cyan-300 bg-cyan-500 shadow-md transition group-hover:scale-125" />
+                <div className="absolute top-0 bottom-0 left-2 w-0.5 border-l-2 border-dashed border-blue-500 transition group-hover:border-solid group-hover:border-blue-600" />
+                <div className="absolute top-1 left-0.5 h-3 w-3 rounded-full border border-white bg-blue-600 shadow-sm transition group-hover:scale-125" />
+                <div className="absolute bottom-1 left-0.5 h-3 w-3 rounded-full border border-white bg-blue-600 shadow-sm transition group-hover:scale-125" />
               </div>
             ))}
 
@@ -570,33 +400,107 @@ export function GridAdjuster({
                   right: `${(1 - bounds.right) * 100}%`,
                 }}
               >
-                <div className="absolute left-0 right-0 top-2 h-0.5 border-t-2 border-dashed border-blue-400 transition group-hover:border-solid group-hover:border-blue-300" />
-                <div className="absolute left-1 top-0.5 h-3 w-3 rounded-full border border-blue-300 bg-blue-500 shadow-md transition group-hover:scale-125" />
-                <div className="absolute right-1 top-0.5 h-3 w-3 rounded-full border border-blue-300 bg-blue-500 shadow-md transition group-hover:scale-125" />
+                <div className="absolute left-0 right-0 top-2 h-0.5 border-t-2 border-dashed border-indigo-500 transition group-hover:border-solid group-hover:border-indigo-600" />
+                <div className="absolute left-1 top-0.5 h-3 w-3 rounded-full border border-white bg-indigo-600 shadow-sm transition group-hover:scale-125" />
+                <div className="absolute right-1 top-0.5 h-3 w-3 rounded-full border border-white bg-indigo-600 shadow-sm transition group-hover:scale-125" />
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* フッターアクションバー */}
-      <div className="flex items-center justify-between border-t border-slate-800 pt-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="rounded-xl border border-slate-800 px-3.5 py-1.5 text-xs text-slate-400 transition hover:bg-slate-800 hover:text-white"
-        >
-          トリミングに戻る
-        </button>
+      {/* 操作パネル（ノート調ホワイトバー：ボタンを「自動」「列」「行」のみに絞り、下部に配置） */}
+      <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-white/95 pt-2">
+        {/* 左側: 自動判定ボタン & 列・行コントロール */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          {/* 自動判定ボタン */}
+          <button
+            type="button"
+            disabled={isDetecting}
+            onClick={() => runFullAutoDetect(bounds)}
+            className="flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 shadow-2xs transition hover:bg-blue-100 active:scale-95 disabled:opacity-50"
+            title="画像の表の罫線を解析し、行数・列数・境界線を自動判定"
+          >
+            {isDetecting ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5 text-blue-600" />
+            )}
+            <span>自動</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => onConfirm(colDividers, rowDividers, columns, rows, bounds)}
-          className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-1.5 text-xs font-semibold text-white shadow-md shadow-cyan-500/20 transition hover:opacity-95"
-        >
-          <Check className="h-3.5 w-3.5" />
-          <span>この区画で高精度解析を開始 ({columns * rows}マス)</span>
-        </button>
+          {/* 列コントロール */}
+          <div className="flex items-center gap-1">
+            <span className="font-semibold text-slate-700 text-xs">列:</span>
+            <div className="flex items-center gap-0.5 rounded-lg bg-white p-0.5 border border-slate-300 shadow-2xs">
+              <button
+                type="button"
+                disabled={columns <= 1}
+                onClick={() => handleColumnsChange(columns - 1)}
+                className="flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded font-bold text-slate-600 hover:bg-slate-100 active:scale-95 disabled:opacity-30 transition"
+              >
+                -
+              </button>
+              <span className="min-w-6 text-center font-bold text-blue-700 text-xs">{columns}</span>
+              <button
+                type="button"
+                disabled={columns >= 14}
+                onClick={() => handleColumnsChange(columns + 1)}
+                className="flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded font-bold text-slate-600 hover:bg-slate-100 active:scale-95 disabled:opacity-30 transition"
+              >
+                +
+              </button>
+            </div>
+            {columns <= 7 && (
+              <span className="rounded bg-blue-50 border border-blue-200 px-1 py-0.5 text-[9px] font-bold text-blue-700 hidden sm:inline-block">
+                {columns === 5 ? '月〜金' : columns === 6 ? '月〜土' : '月〜日'}
+              </span>
+            )}
+          </div>
+
+          {/* 行コントロール */}
+          <div className="flex items-center gap-1">
+            <span className="font-semibold text-slate-700 text-xs">行:</span>
+            <div className="flex items-center gap-0.5 rounded-lg bg-white p-0.5 border border-slate-300 shadow-2xs">
+              <button
+                type="button"
+                disabled={rows <= 1}
+                onClick={() => handleRowsChange(rows - 1)}
+                className="flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded font-bold text-slate-600 hover:bg-slate-100 active:scale-95 disabled:opacity-30 transition"
+              >
+                -
+              </button>
+              <span className="min-w-6 text-center font-bold text-blue-700 text-xs">{rows}</span>
+              <button
+                type="button"
+                disabled={rows >= 20}
+                onClick={() => handleRowsChange(rows + 1)}
+                className="flex h-5 w-5 sm:h-6 sm:w-6 items-center justify-center rounded font-bold text-slate-600 hover:bg-slate-100 active:scale-95 disabled:opacity-30 transition"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 右側: 戻る / 解析を開始 */}
+        <div className="flex items-center gap-2 ml-auto">
+          <button
+            type="button"
+            onClick={onBack}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition shadow-2xs"
+          >
+            戻る
+          </button>
+          <button
+            type="button"
+            onClick={() => onConfirm(colDividers, rowDividers, columns, rows, bounds)}
+            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 active:scale-[0.98]"
+          >
+            <Check className="h-4 w-4 text-white" />
+            <span>解析を開始 ({columns * rows}マス)</span>
+          </button>
+        </div>
       </div>
     </div>
   );
