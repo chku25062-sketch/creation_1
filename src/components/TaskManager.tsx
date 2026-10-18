@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Target,
   Plus,
@@ -25,6 +25,7 @@ import {
   ChevronRight,
   ChevronUp,
   ChevronDown,
+  ArrowUpDown,
 } from 'lucide-react';
 import {
   TaskItem,
@@ -211,6 +212,13 @@ export function TaskManager({
   const [slotEndTime, setSlotEndTime] = useState('12:10');
   const [slotDays, setSlotDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [autoAddAssignment, setAutoAddAssignment] = useState(true);
+
+  // 固定枠のソート & 絞り込みステート
+  const [slotSortKey, setSlotSortKey] = useState<
+    'time-asc' | 'time-desc' | 'title-asc' | 'category'
+  >('time-asc');
+  const [slotCategoryFilter, setSlotCategoryFilter] = useState<FixedCategory | 'all'>('all');
+  const [slotDayFilter, setSlotDayFilter] = useState<number | 'all' | 'daily'>('all');
 
   // ESCキーでモーダルを閉じる
   useEffect(() => {
@@ -598,6 +606,51 @@ export function TaskManager({
   // 登録済み授業
   const lectureSlots = slots.filter((s) => s.category === 'lecture');
 
+  // 絞り込み & 並び替えされた固定枠
+  const filteredAndSortedSlots = useMemo(() => {
+    let result = [...slots];
+
+    // 1. カテゴリ絞り込み
+    if (slotCategoryFilter !== 'all') {
+      result = result.filter((s) => s.category === slotCategoryFilter);
+    }
+
+    // 2. 曜日絞り込み
+    if (slotDayFilter !== 'all') {
+      if (slotDayFilter === 'daily') {
+        // 全日
+        result = result.filter(
+          (s) => !s.daysOfWeek || s.daysOfWeek.length === 0 || s.daysOfWeek.length === 7,
+        );
+      } else {
+        const targetDay = Number(slotDayFilter);
+        result = result.filter((s) => {
+          if (!s.daysOfWeek || s.daysOfWeek.length === 0) return true; // 全日枠なら含む
+          return s.daysOfWeek.includes(targetDay);
+        });
+      }
+    }
+
+    // 3. 並び替え
+    result.sort((a, b) => {
+      if (slotSortKey === 'time-asc') {
+        return a.startMinutes - b.startMinutes;
+      }
+      if (slotSortKey === 'time-desc') {
+        return b.startMinutes - a.startMinutes;
+      }
+      if (slotSortKey === 'title-asc') {
+        return a.title.localeCompare(b.title, 'ja');
+      }
+      if (slotSortKey === 'category') {
+        return a.category.localeCompare(b.category);
+      }
+      return 0;
+    });
+
+    return result;
+  }, [slots, slotCategoryFilter, slotDayFilter, slotSortKey]);
+
   return (
     <div
       className={`flex flex-1 min-h-0 flex-col gap-2.5 ${
@@ -606,75 +659,217 @@ export function TaskManager({
           : 'rounded-2xl border border-amber-900/10 bg-[#fbfaf5]/90 p-3 shadow-xs sm:p-4'
       }`}
     >
-      {/* Top Header & Presets */}
-      <div className="flex flex-col gap-2 shrink-0 border-b border-amber-900/10 pb-2.5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          {viewMode === 'daily' ? (
-            <Sun className="h-4 w-4 text-amber-500" />
-          ) : viewMode === 'weekly' ? (
-            <CalendarDays className="h-4 w-4 text-purple-600" />
-          ) : viewMode === 'slots' ? (
-            <Shield className="h-4 w-4 text-sky-600" />
-          ) : (
-            <Target className="h-4 w-4 text-blue-600" />
-          )}
-          <h3 className="text-sm font-bold text-slate-800 sm:text-base">
-            {viewMode === 'daily'
-              ? '日課タスク (高頻度・毎日)'
-              : viewMode === 'weekly'
-                ? '週次タスク・課題 (今週の目標)'
-                : viewMode === 'slots'
-                  ? '生活固定枠 (睡眠・講義・勤務・生活リズム)'
-                  : '日課・週次タスク・生活固定枠スタック'}
-          </h3>
-          <span className="hidden text-[11px] text-slate-500 sm:inline">
-            (カードタップで編集、余白タップで新規追加)
-          </span>
-          {onNavigateToTimeline && (
-            <button
-              onClick={onNavigateToTimeline}
-              className="ml-2 inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-900 shadow-sm transition hover:bg-amber-100"
-              title="計画表（タイムライン）シートへ移動"
-            >
-              計画表シートへ →
-            </button>
-          )}
-        </div>
-
-        {/* Quick Presets Bar */}
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="flex items-center gap-1 text-[11px] font-medium text-slate-500">
-            <Zap className="h-3 w-3 text-amber-500" />
-            プリセット:
-          </span>
-          {(viewMode === 'all' || viewMode === 'daily' || viewMode === 'weekly') &&
-            PRESET_TASKS.filter((p) => {
-              if (viewMode === 'daily') return p.period === 'day' || p.frequency === 'high';
-              if (viewMode === 'weekly') return p.period === 'week' || p.taskType === 'assignment';
-              return true;
-            })
-              .slice(0, 3)
-              .map((preset) => (
-                <button
-                  key={preset.title}
-                  onClick={() => handleAddPresetTask(preset)}
-                  className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                >
-                  + {preset.title}
-                </button>
-              ))}
-          {(viewMode === 'all' || viewMode === 'slots') &&
-            PRESET_FIXED_SLOTS.slice(0, viewMode === 'slots' ? 5 : 2).map((preset) => (
+      {/* Top Header & Presets (slotsモード時は追加・並び替え・絞り込みツールバーに切り替え) */}
+      {viewMode === 'slots' ? (
+        <div className="flex flex-col gap-2 shrink-0 rounded-xl border border-slate-200/90 bg-white/80 backdrop-blur-xs p-2.5 shadow-2xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {/* ファイル（固定枠）追加ボタン & クイック例 */}
+            <div className="flex items-center gap-2">
               <button
-                key={preset.title}
-                onClick={() => handleAddPresetSlot(preset)}
-                className="rounded-md border border-sky-200 bg-white px-2 py-0.5 text-[10px] font-medium text-sky-700 transition hover:border-sky-300 hover:bg-sky-50"
+                type="button"
+                onClick={openAddSlot}
+                className="flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-bold text-white shadow-2xs transition hover:bg-sky-700 active:scale-98"
+                title="新しい固定枠を追加する"
               >
-                + {preset.title}
+                <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
+                <span>固定枠を追加</span>
               </button>
-            ))}
+
+              {/* プリセット候補 */}
+              <div className="hidden sm:flex items-center gap-1 text-[11px] text-slate-500 pl-1.5 border-l border-slate-200">
+                <span className="text-[10px] font-semibold text-slate-400">例:</span>
+                {PRESET_FIXED_SLOTS.slice(0, 3).map((preset) => (
+                  <button
+                    key={preset.title}
+                    type="button"
+                    onClick={() => handleAddPresetSlot(preset)}
+                    className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
+                  >
+                    +{preset.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 並び替え & 件数 */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-slate-400 hidden xs:inline font-medium text-[11px]">
+                  並び替え:
+                </span>
+                <div className="relative inline-flex items-center">
+                  <ArrowUpDown className="h-3 w-3 text-slate-500 absolute left-2 pointer-events-none" />
+                  <select
+                    value={slotSortKey}
+                    onChange={(e) =>
+                      setSlotSortKey(
+                        e.target.value as 'time-asc' | 'time-desc' | 'title-asc' | 'category',
+                      )
+                    }
+                    className="rounded-lg border border-slate-200 bg-white pl-6.5 pr-6 py-1 text-xs font-semibold text-slate-700 shadow-2xs hover:border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-sky-500 appearance-none cursor-pointer"
+                  >
+                    <option value="time-asc">時間順 (早→遅)</option>
+                    <option value="time-desc">時間順 (遅→早)</option>
+                    <option value="title-asc">名前順 (あ→ん)</option>
+                    <option value="category">カテゴリ順</option>
+                  </select>
+                  <ChevronDown className="h-3 w-3 text-slate-400 absolute right-2 pointer-events-none" />
+                </div>
+              </div>
+
+              <span className="text-[11px] font-bold text-slate-500 font-mono bg-slate-100 rounded-md px-2 py-0.5">
+                {filteredAndSortedSlots.length}/{slots.length}件
+              </span>
+            </div>
+          </div>
+
+          {/* 絞り込み行: カテゴリ & 曜日 */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-100 text-xs">
+            {/* カテゴリ絞り込み */}
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="text-[10px] font-bold text-slate-400 mr-0.5">カテゴリ:</span>
+              {[
+                { id: 'all', label: 'すべて' },
+                { id: 'sleep', label: '睡眠' },
+                { id: 'lecture', label: '講義' },
+                { id: 'routine', label: 'ルーティン' },
+                { id: 'meal', label: '食事' },
+                { id: 'work', label: '勤務' },
+                { id: 'other', label: 'その他' },
+              ].map((cat) => {
+                const isActive = slotCategoryFilter === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setSlotCategoryFilter(cat.id as FixedCategory | 'all')}
+                    className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
+                      isActive
+                        ? 'bg-sky-600 text-white shadow-2xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* 曜日絞り込み */}
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] font-bold text-slate-400 mr-0.5">曜日:</span>
+              <button
+                type="button"
+                onClick={() => setSlotDayFilter('all')}
+                className={`rounded-lg px-1.5 py-0.5 text-[11px] font-semibold transition ${
+                  slotDayFilter === 'all'
+                    ? 'bg-slate-800 text-white shadow-2xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                全
+              </button>
+              {[
+                { day: 0, label: '月' },
+                { day: 1, label: '火' },
+                { day: 2, label: '水' },
+                { day: 3, label: '木' },
+                { day: 4, label: '金' },
+                { day: 5, label: '土' },
+                { day: 6, label: '日' },
+              ].map((d) => {
+                const isActive = slotDayFilter === d.day;
+                return (
+                  <button
+                    key={d.day}
+                    type="button"
+                    onClick={() => setSlotDayFilter(isActive ? 'all' : d.day)}
+                    className={`h-5.5 w-5.5 rounded-md text-[11px] font-bold flex items-center justify-center transition ${
+                      isActive
+                        ? 'bg-sky-600 text-white shadow-2xs'
+                        : d.day === 5
+                          ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                          : d.day === 6
+                            ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                );
+              })}
+              {(slotCategoryFilter !== 'all' || slotDayFilter !== 'all') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSlotCategoryFilter('all');
+                    setSlotDayFilter('all');
+                  }}
+                  className="ml-1 text-[10px] font-medium text-slate-400 hover:text-rose-600 underline"
+                >
+                  解除
+                </button>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex flex-col gap-2 shrink-0 border-b border-amber-900/10 pb-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            {viewMode === 'daily' ? (
+              <Sun className="h-4 w-4 text-amber-500" />
+            ) : viewMode === 'weekly' ? (
+              <CalendarDays className="h-4 w-4 text-purple-600" />
+            ) : (
+              <Target className="h-4 w-4 text-blue-600" />
+            )}
+            <h3 className="text-sm font-bold text-slate-800 sm:text-base">
+              {viewMode === 'daily'
+                ? '日課タスク (高頻度・毎日)'
+                : viewMode === 'weekly'
+                  ? '週次タスク・課題 (今週の目標)'
+                  : '日課・週次タスク・生活固定枠スタック'}
+            </h3>
+            <span className="hidden text-[11px] text-slate-500 sm:inline">
+              (カードタップで編集、余白タップで新規追加)
+            </span>
+            {onNavigateToTimeline && (
+              <button
+                onClick={onNavigateToTimeline}
+                className="ml-2 inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-900 shadow-sm transition hover:bg-amber-100"
+                title="計画表（タイムライン）シートへ移動"
+              >
+                計画表シートへ →
+              </button>
+            )}
+          </div>
+
+          {/* Quick Presets Bar */}
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="flex items-center gap-1 text-[11px] font-medium text-slate-500">
+              <Zap className="h-3 w-3 text-amber-500" />
+              プリセット:
+            </span>
+            {(viewMode === 'all' || viewMode === 'daily' || viewMode === 'weekly') &&
+              PRESET_TASKS.filter((p) => {
+                if (viewMode === 'daily') return p.period === 'day' || p.frequency === 'high';
+                if (viewMode === 'weekly')
+                  return p.period === 'week' || p.taskType === 'assignment';
+                return true;
+              })
+                .slice(0, 3)
+                .map((preset) => (
+                  <button
+                    key={preset.title}
+                    onClick={() => handleAddPresetTask(preset)}
+                    className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    + {preset.title}
+                  </button>
+                ))}
+          </div>
+        </div>
+      )}
 
       {/* Horizontal Stacks: [日ごと] | [週ごと] | [固定枠] */}
       <div
@@ -1092,33 +1287,39 @@ export function TaskManager({
             onClick={(e) => {
               if (e.target === e.currentTarget) openAddSlot();
             }}
-            className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 h-full min-h-0 flex-1 cursor-pointer transition hover:border-slate-300"
+            className={`flex flex-col gap-2 h-full min-h-0 flex-1 ${
+              viewMode === 'slots'
+                ? 'p-0.5'
+                : 'rounded-xl border border-slate-200 bg-slate-50/60 p-3 cursor-pointer transition hover:border-slate-300'
+            }`}
             title="クリックして固定枠を追加"
           >
-            {/* Column Header */}
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default shrink-0"
-            >
-              <div className="flex items-center gap-1.5">
-                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-sky-100 text-sky-700">
-                  <Shield className="h-3.5 w-3.5" />
-                </div>
-                <h4 className="text-xs font-bold text-slate-900">固定枠 (講義・睡眠)</h4>
-                <span className="rounded-full bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
-                  {slots.length}件
-                </span>
-              </div>
-
-              <button
-                onClick={openAddSlot}
-                title="固定枠・講義を追加"
-                className="flex items-center gap-0.5 rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 transition hover:bg-sky-100 hover:border-sky-300"
+            {/* Column Header (viewMode === 'all' のみ表示) */}
+            {viewMode === 'all' && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default shrink-0"
               >
-                <Plus className="h-3 w-3" />
-                追加
-              </button>
-            </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-sky-100 text-sky-700">
+                    <Shield className="h-3.5 w-3.5" />
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-900">固定枠 (講義・睡眠)</h4>
+                  <span className="rounded-full bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
+                    {slots.length}件
+                  </span>
+                </div>
+
+                <button
+                  onClick={openAddSlot}
+                  title="固定枠・講義を追加"
+                  className="flex items-center gap-0.5 rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 transition hover:bg-sky-100 hover:border-sky-300"
+                >
+                  <Plus className="h-3 w-3" />
+                  追加
+                </button>
+              </div>
+            )}
 
             {/* Fixed Slots List */}
             <div
@@ -1134,16 +1335,34 @@ export function TaskManager({
               {slots.length === 0 ? (
                 <div
                   onClick={openAddSlot}
-                  className="flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 py-8 text-center text-xs text-slate-500 hover:border-sky-300 hover:text-sky-600 transition"
+                  className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-10 text-center text-xs text-slate-500 hover:border-sky-300 hover:text-sky-600 transition bg-white/40"
                 >
-                  <span>登録された固定枠がありません</span>
-                  <span className="mt-1 text-xs font-semibold text-sky-600">
+                  <Shield className="h-8 w-8 text-slate-300 mb-2" />
+                  <span className="font-semibold text-slate-700">登録された固定枠がありません</span>
+                  <span className="mt-1 text-xs font-bold text-sky-600">
                     + タップして固定枠を追加
                   </span>
                 </div>
+              ) : filteredAndSortedSlots.length === 0 ? (
+                <div className="col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-12 text-center text-xs text-slate-500 bg-white/40">
+                  <p className="font-semibold text-slate-700">条件に一致する固定枠がありません</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    カテゴリまたは曜日の絞り込み条件を変更してください
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSlotCategoryFilter('all');
+                      setSlotDayFilter('all');
+                    }}
+                    className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-700 hover:bg-sky-100 transition shadow-2xs"
+                  >
+                    絞り込みを解除する
+                  </button>
+                </div>
               ) : (
                 <>
-                  {slots.map((slot) => {
+                  {filteredAndSortedSlots.map((slot) => {
                     const duration =
                       slot.endMinutes >= slot.startMinutes
                         ? slot.endMinutes - slot.startMinutes
@@ -1178,7 +1397,7 @@ export function TaskManager({
 
                             <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-0.5">
                               <Clock className="h-2.5 w-2.5 text-slate-400 shrink-0" />
-                              <span className="shrink-0">
+                              <span className="shrink-0 font-medium">
                                 {minutesToTimeString(slot.startMinutes)} -{' '}
                                 {minutesToTimeString(slot.endMinutes)}
                               </span>
