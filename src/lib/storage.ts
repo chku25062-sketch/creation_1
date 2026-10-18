@@ -1,5 +1,7 @@
-import { FixedSlot, TaskItem } from '@/types';
+import { FixedSlot, TaskItem, ScheduleInclusionSettings } from '@/types';
 import { supabase, isSupabaseConfigured } from './supabase';
+
+export const LOCAL_STORAGE_KEY_INCLUSION_SETTINGS = 'schedule_inclusion_settings';
 
 export const INITIAL_FIXED_SLOTS: FixedSlot[] = [
   {
@@ -475,6 +477,33 @@ export function saveImportedTables(tables: ImportedTableData[]): void {
     localStorage.setItem(LOCAL_STORAGE_KEY_IMPORTED_TABLES, JSON.stringify(tables));
   } catch (err) {
     console.error('Failed to save imported tables to localStorage', err);
+  }
+}
+
+export const DEFAULT_INCLUSION_SETTINGS: ScheduleInclusionSettings = {
+  enableSlots: true,
+  enableDailyTasks: true,
+  enableWeeklyTasks: true,
+};
+
+export function loadInclusionSettings(): ScheduleInclusionSettings {
+  if (typeof window === 'undefined') return DEFAULT_INCLUSION_SETTINGS;
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY_INCLUSION_SETTINGS);
+    if (!raw) return DEFAULT_INCLUSION_SETTINGS;
+    return { ...DEFAULT_INCLUSION_SETTINGS, ...JSON.parse(raw) };
+  } catch (err) {
+    console.error('Failed to load inclusion settings from localStorage', err);
+    return DEFAULT_INCLUSION_SETTINGS;
+  }
+}
+
+export function saveInclusionSettings(settings: ScheduleInclusionSettings): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(LOCAL_STORAGE_KEY_INCLUSION_SETTINGS, JSON.stringify(settings));
+  } catch (err) {
+    console.error('Failed to save inclusion settings to localStorage', err);
   }
 }
 

@@ -20,7 +20,7 @@ import {
   CalendarDays,
   Upload,
 } from 'lucide-react';
-import { ImportedTableData, FixedSlot, TaskItem } from '@/types';
+import { ImportedTableData, FixedSlot, TaskItem, ScheduleInclusionSettings } from '@/types';
 import { calculatePeriodTimes, timeStringToMinutes } from '@/lib/timeUtils';
 import { TaskManager } from '@/components/TaskManager';
 
@@ -31,6 +31,8 @@ interface ImportedTablesManagerProps {
   onSlotsChange: (newSlots: FixedSlot[]) => void;
   tasks: TaskItem[];
   onTasksChange: (newTasks: TaskItem[]) => void;
+  inclusionSettings?: ScheduleInclusionSettings;
+  onInclusionSettingsChange?: (newSettings: ScheduleInclusionSettings) => void;
   onNavigateToTimeline?: () => void;
   onOpenImport?: () => void;
   onFileSelect?: (file: File) => void;
@@ -54,6 +56,8 @@ export function ImportedTablesManager({
   onSlotsChange,
   tasks,
   onTasksChange,
+  inclusionSettings,
+  onInclusionSettingsChange,
   onNavigateToTimeline,
   onOpenImport,
   onFileSelect,
@@ -186,14 +190,241 @@ export function ImportedTablesManager({
 
   // テーブル更新ヘルパー
   const updateActiveTable = (updater: (prev: ImportedTableData) => ImportedTableData) => {
-    const updated = tables.map((t) => (t.id === activeTable.id ? updater(t) : t));
+    const nextTable = updater(activeTable);
+    const updated = tables.map((t) => (t.id === activeTable.id ? nextTable : t));
     onTablesChange(updated);
+
+    // もし計画表に反映中のテーブルであれば、固定枠も自動再同期
+    if (isTableApplied(nextTable)) {
+      const newSlots = generateSlotsForTable(nextTable);
+      const filteredSlots = fixedSlots.filter(
+        (s) =>
+          !s.id.startsWith(`slot-table-${nextTable.id}-`) &&
+          !s.id.startsWith(`slot-lecture-${nextTable.id}-`) &&
+          !(nextTable.appliedSlotIds && nextTable.appliedSlotIds.includes(s.id)),
+      );
+      onSlotsChange([...filteredSlots, ...newSlots]);
+    }
   };
 
   // 時限時間の計算
   const periodTimes = activeTable
     ? calculatePeriodTimes(activeTable.numRows, activeTable.axisConfig)
     : [];
+
+  // 各アイテムの反映ON/OFF判定
+  const isSlotsApplied = inclusionSettings?.enableSlots ?? true;
+  const isDailyApplied = inclusionSettings?.enableDailyTasks ?? true;
+  const isWeeklyApplied = inclusionSettings?.enableWeeklyTasks ?? true;
+
+  // table の反映判定
+  const isTableApplied = (table: ImportedTableData): boolean => {
+    if (table.isApplied !== undefined) return table.isApplied;
+    if (table.appliedSlotIds && table.appliedSlotIds.length > 0) return true;
+    return fixedSlots.some(
+      (s) =>
+        s.id.startsWith(`slot-table-${table.id}-`) || s.id.startsWith(`slot-lecture-${table.id}-`),
+    );
+  };
+
+  const isCurrentItemApplied = useMemo(() => {
+    if (selectedItemId === 'sys-slots') return isSlotsApplied;
+    if (selectedItemId === 'sys-daily') return isDailyApplied;
+    if (selectedItemId === 'sys-weekly') return isWeeklyApplied;
+    if (activeTable) return isTableApplied(activeTable);
+    return false;
+  }, [selectedItemId, isSlotsApplied, isDailyApplied, isWeeklyApplied, activeTable, fixedSlots]);
+
+  // 時間割テーブルのコマから FixedSlot を生成
+  const generateSlotsForTable = (table: ImportedTableData): FixedSlot[] => {
+    const tablePeriodTimes = calculatePeriodTimes(table.numRows, table.axisConfig);
+    const slots: FixedSlot[] = [];
+
+    table.cells.forEach((row, r) => {
+      const timeSlot = tablePeriodTimes[r];
+      if (!timeSlot) return;
+
+      row.forEach((cell, c) => {
+        const colHeader = table.colHeaders[c] || '';
+        let dayIdx = cell.dayIndex;
+        if (colHeader.includes('月')) dayIdx = 0;
+        else if (colHeader.includes('火')) dayIdx = 1;
+        else if (colHeader.includes('水')) dayIdx = 2;
+        else if (colHeader.includes('木')) dayIdx = 3;
+        else if (colHeader.includes('金')) dayIdx = 4;
+        else if (colHeader.includes('土')) dayIdx = 5;
+        else if (colHeader.includes('日')) dayIdx = 6;
+        else if (colHeader === '除外') dayIdx = -1;
+
+        if (dayIdx >= 0 && cell.title.trim()) {
+          const slotId = `slot-table-${table.id}-${r}-${c}`;
+          const fullTitle = cell.roomOrNote
+            ? `${cell.title} (${cell.roomOrNote.replace(/\n/g, ' ')})`
+            : cell.title;
+
+          slots.push({
+            id: slotId,
+            title: fullTitle,
+            category: 'lecture',
+            startMinutes: timeSlot.startMinutes,
+            endMinutes: timeSlot.endMinutes,
+            color: '#0284c7', // 講義カラー
+            daysOfWeek: [dayIdx],
+          });
+        }
+      });
+    });
+
+    return slots;
+  };
+
+  // テーブル反映トグル切り替え
+  const handleToggleTableApply = (table: ImportedTableData) => {
+    const currentlyApplied = isTableApplied(table);
+
+    if (currentlyApplied) {
+      // 解除 (OFF)
+      const nextSlots = fixedSlots.filter(
+        (s) =>
+          !s.id.startsWith(`slot-table-${table.id}-`) &&
+          !s.id.startsWith(`slot-lecture-${table.id}-`) &&
+          !(table.appliedSlotIds && table.appliedSlotIds.includes(s.id)),
+      );
+      onSlotsChange(nextSlots);
+
+      // 連動課題タスクも削除
+      const nextTasks = tasks.filter((t) => !t.id.startsWith(`task-assignment-${table.id}-`));
+      if (nextTasks.length !== tasks.length) {
+        onTasksChange(nextTasks);
+      }
+
+      const updated = tables.map((t) =>
+        t.id === table.id ? { ...t, isApplied: false, appliedSlotIds: [] } : t,
+      );
+      onTablesChange(updated);
+
+      setApplySuccessMsg(`「${table.name}」の反映を解除しました`);
+      setTimeout(() => setApplySuccessMsg(null), 3000);
+    } else {
+      // 反映 (ON)
+      const newSlots = generateSlotsForTable(table);
+      if (newSlots.length === 0) {
+        alert(
+          '有効な授業コマがありません。セルに講義名を入力するか、列の曜日定義をご確認ください。',
+        );
+        return;
+      }
+
+      // 既存の同一テーブル由来スロットを除去して追加
+      const filteredSlots = fixedSlots.filter(
+        (s) =>
+          !s.id.startsWith(`slot-table-${table.id}-`) &&
+          !s.id.startsWith(`slot-lecture-${table.id}-`) &&
+          !(table.appliedSlotIds && table.appliedSlotIds.includes(s.id)),
+      );
+      const nextSlots = [...filteredSlots, ...newSlots];
+      onSlotsChange(nextSlots);
+
+      // 自動課題タスク生成（autoCreateAssignments が true の場合）
+      if (autoCreateAssignments) {
+        const assignmentsToAdd: TaskItem[] = [];
+        table.cells.forEach((row, r) => {
+          row.forEach((cell, c) => {
+            const colHeader = table.colHeaders[c] || '';
+            let dayIdx = cell.dayIndex;
+            if (colHeader.includes('月')) dayIdx = 0;
+            else if (colHeader.includes('火')) dayIdx = 1;
+            else if (colHeader.includes('水')) dayIdx = 2;
+            else if (colHeader.includes('木')) dayIdx = 3;
+            else if (colHeader.includes('金')) dayIdx = 4;
+            else if (colHeader.includes('土')) dayIdx = 5;
+            else if (colHeader.includes('日')) dayIdx = 6;
+            else if (colHeader === '除外') dayIdx = -1;
+
+            if (dayIdx >= 0 && cell.title.trim()) {
+              const deadlineDay = (dayIdx - 1 + 7) % 7;
+              assignmentsToAdd.push({
+                id: `task-assignment-${table.id}-${r}-${c}-${Math.random().toString(36).substring(2, 5)}`,
+                title: `${cell.title} レポート課題`,
+                category: 'must',
+                durationSize: 'medium',
+                durationMinutes: 60,
+                frequency: 'low',
+                taskType: 'assignment',
+                startDay: dayIdx,
+                deadlineDay,
+                priority: 'high',
+                period: 'week',
+                completed: false,
+              });
+            }
+          });
+        });
+
+        if (assignmentsToAdd.length > 0) {
+          const existingWithoutTable = tasks.filter(
+            (t) => !t.id.startsWith(`task-assignment-${table.id}-`),
+          );
+          onTasksChange([...existingWithoutTable, ...assignmentsToAdd]);
+        }
+      }
+
+      const updated = tables.map((t) =>
+        t.id === table.id
+          ? {
+              ...t,
+              isApplied: true,
+              appliedSlotIds: newSlots.map((s) => s.id),
+              updatedAt: new Date().toISOString(),
+            }
+          : t,
+      );
+      onTablesChange(updated);
+
+      setApplySuccessMsg(`「${table.name}」を計画表に反映しました（${newSlots.length}コマ）`);
+      setTimeout(() => setApplySuccessMsg(null), 3500);
+    }
+  };
+
+  // 全体反映トグル切り替え
+  const handleToggleCurrentApplied = () => {
+    if (selectedItemId === 'sys-slots') {
+      const next = !isSlotsApplied;
+      onInclusionSettingsChange?.({
+        enableSlots: next,
+        enableDailyTasks: isDailyApplied,
+        enableWeeklyTasks: isWeeklyApplied,
+      });
+      setApplySuccessMsg(
+        next ? '生活リズム枠を計画表に反映しました' : '生活リズム枠の反映を解除しました',
+      );
+      setTimeout(() => setApplySuccessMsg(null), 3000);
+    } else if (selectedItemId === 'sys-daily') {
+      const next = !isDailyApplied;
+      onInclusionSettingsChange?.({
+        enableSlots: isSlotsApplied,
+        enableDailyTasks: next,
+        enableWeeklyTasks: isWeeklyApplied,
+      });
+      setApplySuccessMsg(
+        next ? '日課タスクを計画表に反映しました' : '日課タスクの反映を解除しました',
+      );
+      setTimeout(() => setApplySuccessMsg(null), 3000);
+    } else if (selectedItemId === 'sys-weekly') {
+      const next = !isWeeklyApplied;
+      onInclusionSettingsChange?.({
+        enableSlots: isSlotsApplied,
+        enableDailyTasks: isDailyApplied,
+        enableWeeklyTasks: next,
+      });
+      setApplySuccessMsg(
+        next ? '週次タスクを計画表に反映しました' : '週次タスクの反映を解除しました',
+      );
+      setTimeout(() => setApplySuccessMsg(null), 3000);
+    } else if (activeTable) {
+      handleToggleTableApply(activeTable);
+    }
+  };
 
   // 横軸（列の曜日）の変更
   const handleColHeaderChange = (colIdx: number, dayValue: number) => {
@@ -652,10 +883,19 @@ export function ImportedTablesManager({
                         >
                           固定枠
                         </div>
-                        {isSidebarOpen && (
-                          <div className="mt-0.5 text-[10px] text-slate-400 font-mono">
-                            睡眠・講義・勤務等 ({fixedSlots.length}件)
+                        {isSidebarOpen ? (
+                          <div className="mt-0.5 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                            <span>睡眠・講義・勤務等 ({fixedSlots.length}件)</span>
+                            {isSlotsApplied && (
+                              <span className="rounded bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-700">
+                                ON
+                              </span>
+                            )}
                           </div>
+                        ) : (
+                          isSlotsApplied && (
+                            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          )
                         )}
                       </div>
                     </div>
@@ -696,10 +936,19 @@ export function ImportedTablesManager({
                         >
                           {isSidebarOpen ? '日課タスク (毎日)' : '日課タ…'}
                         </div>
-                        {isSidebarOpen && (
-                          <div className="mt-0.5 text-[10px] text-slate-400 font-mono">
-                            高頻度・日課 ({dailyTasksCount}件)
+                        {isSidebarOpen ? (
+                          <div className="mt-0.5 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                            <span>高頻度・日課 ({dailyTasksCount}件)</span>
+                            {isDailyApplied && (
+                              <span className="rounded bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-700">
+                                ON
+                              </span>
+                            )}
                           </div>
+                        ) : (
+                          isDailyApplied && (
+                            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          )
                         )}
                       </div>
                     </div>
@@ -740,10 +989,19 @@ export function ImportedTablesManager({
                         >
                           {isSidebarOpen ? '週次タスク (目標・課題)' : '週次タ…'}
                         </div>
-                        {isSidebarOpen && (
-                          <div className="mt-0.5 text-[10px] text-slate-400 font-mono">
-                            今週の目標・課題 ({weeklyTasksCount}件)
+                        {isSidebarOpen ? (
+                          <div className="mt-0.5 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                            <span>今週の目標・課題 ({weeklyTasksCount}件)</span>
+                            {isWeeklyApplied && (
+                              <span className="rounded bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-700">
+                                ON
+                              </span>
+                            )}
                           </div>
+                        ) : (
+                          isWeeklyApplied && (
+                            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          )
                         )}
                       </div>
                     </div>
@@ -868,13 +1126,24 @@ export function ImportedTablesManager({
                                 {t.name}
                               </div>
                             )}
-                            {isSidebarOpen && (
-                              <div className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-400 font-mono font-normal">
-                                <span>
-                                  {t.numRows}×{t.numCols} コマ
+                            {isSidebarOpen ? (
+                              <div className="mt-0.5 flex items-center justify-between text-[10px] text-slate-400 font-mono font-normal">
+                                <span className="flex items-center gap-1.5">
+                                  <span>
+                                    {t.numRows}×{t.numCols} コマ
+                                  </span>
+                                  {dateStr && <span>{dateStr}</span>}
                                 </span>
-                                {dateStr && <span>{dateStr}</span>}
+                                {isTableApplied(t) && (
+                                  <span className="rounded bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-700">
+                                    ON
+                                  </span>
+                                )}
                               </div>
+                            ) : (
+                              isTableApplied(t) && (
+                                <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                              )
                             )}
                           </div>
                         </div>
@@ -1072,28 +1341,45 @@ export function ImportedTablesManager({
             )}
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2">
-            {isSystemFile ? (
-              onNavigateToTimeline && (
-                <button
-                  onClick={onNavigateToTimeline}
-                  className="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 shadow-2xs transition hover:bg-amber-100"
-                  title="計画表（タイムライン）シートへ移動"
-                >
-                  <span>計画表シートで確認 →</span>
-                </button>
-              )
-            ) : activeTable ? (
+          {/* 計画表への反映 ON/OFF トグル */}
+          {(isSystemFile || activeTable) && (
+            <div className="flex items-center gap-1.5 sm:gap-2.5 rounded-xl border border-slate-200 bg-slate-50/90 px-2 sm:px-3 py-1 shadow-2xs">
+              <span className="text-xs font-semibold text-slate-700 select-none">計画表に反映</span>
               <button
-                onClick={() => setIsApplyModalOpen(true)}
-                className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-2xs transition hover:bg-blue-700 hover:shadow-xs"
+                type="button"
+                role="switch"
+                aria-checked={isCurrentItemApplied}
+                onClick={handleToggleCurrentApplied}
+                title={`計画表への反映を${isCurrentItemApplied ? 'オフ' : 'オン'}にする`}
+                className={`relative inline-flex h-5 w-9 sm:h-6 sm:w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 ${
+                  isCurrentItemApplied ? 'bg-emerald-500' : 'bg-slate-300'
+                }`}
               >
-                <Sparkles className="h-4 w-4 text-amber-300" />
-                <span>計画表に反映する</span>
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                    isCurrentItemApplied ? 'translate-x-4 sm:translate-x-5' : 'translate-x-0'
+                  }`}
+                />
               </button>
-            ) : null}
-          </div>
+              <span
+                className={`text-[11px] sm:text-xs font-bold min-w-[24px] select-none ${
+                  isCurrentItemApplied ? 'text-emerald-700' : 'text-slate-400'
+                }`}
+              >
+                {isCurrentItemApplied ? 'ON' : 'OFF'}
+              </span>
+              {activeTable && (
+                <button
+                  type="button"
+                  onClick={() => setIsApplyModalOpen(true)}
+                  title="反映設定（課題タスク自動生成・反映モード）"
+                  className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition"
+                >
+                  <Sliders className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Content Area: システム基本ファイル or 取り込み表詳細 */}
@@ -1593,6 +1879,14 @@ export function ImportedTablesManager({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {applySuccessMsg && (
+        <div className="fixed bottom-14 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-xl bg-slate-900/90 text-white px-4 py-2.5 text-xs font-semibold shadow-xl backdrop-blur-xs animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <Check className="h-4 w-4 text-emerald-400 shrink-0" />
+          <span>{applySuccessMsg}</span>
         </div>
       )}
     </div>

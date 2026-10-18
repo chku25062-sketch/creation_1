@@ -139,4 +139,11 @@ export interface ImportedTableData {
   axisConfig: TableAxisConfig;
   cells: GridCell[][];
   appliedSlotIds?: string[]; // 計画表に反映した際の固定枠ID群
+  isApplied?: boolean; // 計画表に反映中かどうか
+}
+
+export interface ScheduleInclusionSettings {
+  enableSlots: boolean; // 生活リズム枠 (固定枠)
+  enableDailyTasks: boolean; // 日課タスク (毎日)
+  enableWeeklyTasks: boolean; // 週次タスク (目標・課題)
 }

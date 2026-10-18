@@ -6,7 +6,7 @@ import { Timeline24h } from '@/components/Timeline24h';
 import { ImportedTablesManager } from '@/components/ImportedTablesManager';
 import { AuthModal } from '@/components/AuthModal';
 import { FileImportModal } from '@/components/FileImportModal';
-import { FixedSlot, TaskItem, ImportedTableData } from '@/types';
+import { FixedSlot, TaskItem, ImportedTableData, ScheduleInclusionSettings } from '@/types';
 import { generateTheoreticalSchedule } from '@/lib/scheduler';
 import {
   loadLocalData,
@@ -14,6 +14,9 @@ import {
   syncWithSupabase,
   loadImportedTables,
   saveImportedTables,
+  loadInclusionSettings,
+  saveInclusionSettings,
+  DEFAULT_INCLUSION_SETTINGS,
 } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 
@@ -21,6 +24,9 @@ export default function Home() {
   const [fixedSlots, setFixedSlots] = useState<FixedSlot[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [importedTables, setImportedTables] = useState<ImportedTableData[]>([]);
+  const [inclusionSettings, setInclusionSettings] = useState<ScheduleInclusionSettings>(
+    DEFAULT_INCLUSION_SETTINGS,
+  );
   const [activeTab, setActiveTab] = useState<SheetTab>('timeline');
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -68,9 +74,11 @@ export default function Home() {
   useEffect(() => {
     const { fixedSlots: initialFixed, tasks: initialTasks } = loadLocalData();
     const initialTables = loadImportedTables();
+    const initialInclusion = loadInclusionSettings();
     setFixedSlots(initialFixed);
     setTasks(initialTasks);
     setImportedTables(initialTables);
+    setInclusionSettings(initialInclusion);
     setIsInitialized(true);
 
     // Supabase ユーザーセッション確認
@@ -165,6 +173,28 @@ export default function Home() {
     }
   };
 
+  const handleInclusionSettingsChange = (newSettings: ScheduleInclusionSettings) => {
+    setInclusionSettings(newSettings);
+    saveInclusionSettings(newSettings);
+  };
+
+  // 計画表に反映する有効な固定枠（生活リズム枠のON/OFF考慮）
+  const effectiveFixedSlots = useMemo(() => {
+    if (inclusionSettings.enableSlots) return fixedSlots;
+    // 生活リズム（睡眠、ルーティン等）がOFFの場合は講義枠のみ残す
+    return fixedSlots.filter((s) => s.category === 'lecture');
+  }, [fixedSlots, inclusionSettings.enableSlots]);
+
+  // 計画表に反映する有効なタスク（日課タスク・週次タスクのON/OFF考慮）
+  const effectiveTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      const isDaily = t.period === 'day' || t.frequency === 'high';
+      if (isDaily && !inclusionSettings.enableDailyTasks) return false;
+      if (!isDaily && !inclusionSettings.enableWeeklyTasks) return false;
+      return true;
+    });
+  }, [tasks, inclusionSettings.enableDailyTasks, inclusionSettings.enableWeeklyTasks]);
+
   // 理論値スケジュールの自動算出
   const schedulingResult = useMemo(() => {
     if (!isInitialized) {
@@ -187,8 +217,8 @@ export default function Home() {
         categorySummaries: [],
       };
     }
-    return generateTheoreticalSchedule(fixedSlots, tasks);
-  }, [fixedSlots, tasks, isInitialized]);
+    return generateTheoreticalSchedule(effectiveFixedSlots, effectiveTasks);
+  }, [effectiveFixedSlots, effectiveTasks, isInitialized]);
 
   if (!isInitialized) {
     return (
@@ -227,6 +257,8 @@ export default function Home() {
               onSlotsChange={handleFixedSlotsChange}
               tasks={tasks}
               onTasksChange={handleTasksChange}
+              inclusionSettings={inclusionSettings}
+              onInclusionSettingsChange={handleInclusionSettingsChange}
               onNavigateToTimeline={() => setActiveTab('timeline')}
               onOpenImport={() => {
                 setImportInitialFile(null);
