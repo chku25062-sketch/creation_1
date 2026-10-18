@@ -1268,23 +1268,6 @@ export function ImportedTablesManager({
           isSystemFile ? 'overflow-hidden min-h-0' : 'overflow-y-auto'
         }`}
       >
-        {/* Top Notification if any */}
-        {applySuccessMsg && (
-          <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-900 shadow-xs animate-in fade-in duration-200">
-            <div className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-emerald-600" />
-              <span className="font-semibold">{applySuccessMsg}</span>
-            </div>
-            {onNavigateToTimeline && (
-              <button
-                onClick={onNavigateToTimeline}
-                className="rounded-lg bg-emerald-600 px-3 py-1 font-bold text-white shadow-2xs transition hover:bg-emerald-700"
-              >
-                週間スケジュールで確認 →
-              </button>
-            )}
-          </div>
-        )}
 
         {/* Explorer Path / Breadcrumb & Top Actions Bar */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
