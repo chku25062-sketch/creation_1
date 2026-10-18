@@ -30,6 +30,8 @@ export const INITIAL_FIXED_SLOTS: FixedSlot[] = [
     endMinutes: 14 * 60 + 40, // 14:40
     color: '#0284c7',
     daysOfWeek: [0, 2], // 月・水
+    sourceTableId: 'sample-table-1',
+    sourceTableName: 'サンプル時間割 (前期)',
   },
   {
     id: 'fixed-lecture-tuth',
@@ -39,6 +41,8 @@ export const INITIAL_FIXED_SLOTS: FixedSlot[] = [
     endMinutes: 16 * 60 + 30, // 16:30
     color: '#0284c7',
     daysOfWeek: [1, 3], // 火・木
+    sourceTableId: 'sample-table-1',
+    sourceTableName: 'サンプル時間割 (前期)',
   },
   {
     id: 'fixed-dinner',
@@ -64,6 +68,8 @@ export const INITIAL_TASKS: TaskItem[] = [
     priority: 'high',
     category: 'must',
     period: 'week',
+    sourceTableId: 'sample-table-1',
+    sourceTableName: 'サンプル時間割 (前期)',
   },
   {
     id: 'task-study-daily',

@@ -8,6 +8,8 @@ export interface FixedSlot {
   endMinutes: number;
   color: string;
   daysOfWeek?: number[]; // 0:月, 1:火, 2:水, 3:木, 4:金, 5:土, 6:日。未指定または空なら全日
+  sourceTableId?: string; // 参照元テーブルID
+  sourceTableName?: string; // 参照元テーブル名
 }
 
 export type TaskType = 'task' | 'assignment' | 'todo';
@@ -41,6 +43,8 @@ export interface TaskItem {
   hasNoDuration?: boolean; // 所要時間を設けないタスク
   startDay?: number; // 課題用: 出題曜日 (0:月〜6:日)
   deadlineDay?: number; // 課題用: 締切・期日曜日 (0:月〜6:日)
+  sourceTableId?: string; // 参照元テーブルID
+  sourceTableName?: string; // 参照元テーブル名
 }
 
 export interface TheoreticalBlock {

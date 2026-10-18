@@ -270,6 +270,8 @@ export function ImportedTablesManager({
             endMinutes: timeSlot.endMinutes,
             color: '#0284c7', // 講義カラー
             daysOfWeek: [dayIdx],
+            sourceTableId: table.id,
+            sourceTableName: table.name,
           });
         }
       });
@@ -356,6 +358,8 @@ export function ImportedTablesManager({
                 priority: 'high',
                 period: 'week',
                 completed: false,
+                sourceTableId: table.id,
+                sourceTableName: table.name,
               });
             }
           });
@@ -659,6 +663,8 @@ export function ImportedTablesManager({
             endMinutes: timeSlot.endMinutes,
             color: '#0284c7', // 講義カラー
             daysOfWeek: [dayIdx],
+            sourceTableId: activeTable.id,
+            sourceTableName: activeTable.name,
           });
 
           if (autoCreateAssignments) {
@@ -676,6 +682,8 @@ export function ImportedTablesManager({
               priority: 'high',
               period: 'week',
               completed: false,
+              sourceTableId: activeTable.id,
+              sourceTableName: activeTable.name,
             });
           }
         }
@@ -1390,6 +1398,7 @@ export function ImportedTablesManager({
               onChange={onTasksChange}
               slots={fixedSlots}
               onSlotsChange={onSlotsChange}
+              tables={tables}
               onNavigateToTimeline={onNavigateToTimeline}
               viewMode={
                 selectedItemId === 'sys-slots'

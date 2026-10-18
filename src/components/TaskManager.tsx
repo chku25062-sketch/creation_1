@@ -26,6 +26,7 @@ import {
   ChevronUp,
   ChevronDown,
   ArrowUpDown,
+  FileSpreadsheet,
 } from 'lucide-react';
 import {
   TaskItem,
@@ -36,6 +37,7 @@ import {
   TaskFrequency,
   FixedSlot,
   FixedCategory,
+  ImportedTableData,
 } from '@/types';
 import { formatDuration, minutesToTimeString, timeStringToMinutes } from '@/lib/timeUtils';
 
@@ -44,6 +46,7 @@ export interface TaskManagerProps {
   onChange: (newTasks: TaskItem[]) => void;
   slots: FixedSlot[];
   onSlotsChange: (newSlots: FixedSlot[]) => void;
+  tables?: ImportedTableData[];
   onNavigateToTimeline?: () => void;
   viewMode?: 'all' | 'daily' | 'weekly' | 'slots';
   embedded?: boolean;
@@ -182,6 +185,7 @@ export function TaskManager({
   onChange,
   slots,
   onSlotsChange,
+  tables,
   onNavigateToTimeline,
   viewMode = 'all',
   embedded = false,
@@ -204,6 +208,10 @@ export function TaskManager({
   const [isAssignment, setIsAssignment] = useState(false);
   const [startDay, setStartDay] = useState<number>(0);
   const [deadlineDay, setDeadlineDay] = useState<number>(4);
+
+  // 表データ参照元情報
+  const [taskSourceTableId, setTaskSourceTableId] = useState<string | undefined>(undefined);
+  const [taskSourceTableName, setTaskSourceTableName] = useState<string | undefined>(undefined);
 
   // 固定枠用フォームステート
   const [slotTitle, setSlotTitle] = useState('');
@@ -295,6 +303,8 @@ export function TaskManager({
     setIsAssignment(false);
     setStartDay(0);
     setDeadlineDay(4);
+    setTaskSourceTableId(undefined);
+    setTaskSourceTableName(undefined);
     setModalType('task');
   };
 
@@ -312,6 +322,8 @@ export function TaskManager({
     setIsAssignment(true);
     setStartDay(lectureDay);
     setDeadlineDay(calcDeadlineDay);
+    setTaskSourceTableId(slot.sourceTableId);
+    setTaskSourceTableName(slot.sourceTableName);
     setModalType('task');
   };
 
@@ -330,6 +342,8 @@ export function TaskManager({
     setIsAssignment(task.taskType === 'assignment');
     setStartDay(task.startDay ?? 0);
     setDeadlineDay(task.deadlineDay ?? 4);
+    setTaskSourceTableId(task.sourceTableId);
+    setTaskSourceTableName(task.sourceTableName);
     setModalType('task');
   };
 
@@ -392,6 +406,8 @@ export function TaskManager({
                 priority,
                 startDay: isAssignment ? startDay : undefined,
                 deadlineDay: isAssignment ? deadlineDay : undefined,
+                sourceTableId: taskSourceTableId,
+                sourceTableName: taskSourceTableName,
               }
             : t,
         ),
@@ -410,6 +426,8 @@ export function TaskManager({
         taskType,
         priority,
         completed: false,
+        sourceTableId: taskSourceTableId,
+        sourceTableName: taskSourceTableName,
         ...(isAssignment ? { startDay, deadlineDay } : {}),
       };
       onChange([...tasks, newTask]);
@@ -594,6 +612,23 @@ export function TaskManager({
     if (days.length === 5 && [0, 1, 2, 3, 4].every((d) => days.includes(d))) return '平日';
     if (days.length === 2 && [5, 6].every((d) => days.includes(d))) return '土日';
     return days.map((d) => WEEKDAY_SHORT[d]).join('・');
+  };
+
+  // 表データ参照元ファイル名の取得（直接保持している名前、または tables から逆引き、過去のID規則からのフォールバック）
+  const getTaskSourceFileName = (task: TaskItem): string | null => {
+    if (task.sourceTableName) {
+      return task.sourceTableName;
+    }
+    if (task.sourceTableId && tables) {
+      const found = tables.find((t) => t.id === task.sourceTableId);
+      if (found) return found.name;
+    }
+    // フォールバック: IDの命名規則 (task-assignment-${tableId}-...) から検索
+    if (task.id.startsWith('task-assignment-') && tables) {
+      const found = tables.find((t) => task.id.includes(t.id));
+      if (found) return found.name;
+    }
+    return null;
   };
 
   // 分割データ: 頻度「高 (週5回以上)」または period 'day' を日ごとスタックに配置
@@ -997,6 +1032,18 @@ export function TaskManager({
                                   🌟 やりたい
                                 </span>
                               )}
+
+                              {getTaskSourceFileName(task) && (
+                                <span
+                                  className="shrink-0 inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.2 text-[9px] font-medium text-emerald-800"
+                                  title={`参照元表データ: ${getTaskSourceFileName(task)}`}
+                                >
+                                  <FileSpreadsheet className="h-2.5 w-2.5 text-emerald-600" />
+                                  <span className="max-w-[120px] truncate">
+                                    {getTaskSourceFileName(task)}
+                                  </span>
+                                </span>
+                              )}
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 pt-0.5">
@@ -1210,6 +1257,18 @@ export function TaskManager({
                               ) : (
                                 <span className="shrink-0 flex items-center gap-0.5 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.2 text-[9px] font-bold text-blue-700">
                                   🌟 やりたい
+                                </span>
+                              )}
+
+                              {getTaskSourceFileName(task) && (
+                                <span
+                                  className="shrink-0 inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.2 text-[9px] font-medium text-emerald-800"
+                                  title={`参照元表データ: ${getTaskSourceFileName(task)}`}
+                                >
+                                  <FileSpreadsheet className="h-2.5 w-2.5 text-emerald-600" />
+                                  <span className="max-w-[120px] truncate">
+                                    {getTaskSourceFileName(task)}
+                                  </span>
                                 </span>
                               )}
                             </div>
@@ -1489,6 +1548,24 @@ export function TaskManager({
             </div>
 
             <form onSubmit={handleSaveTask} className="flex flex-col gap-2.5">
+              {/* 表データ参照元バッジ表示 */}
+              {(() => {
+                const currentTask = editingTaskId
+                  ? tasks.find((t) => t.id === editingTaskId)
+                  : undefined;
+                const srcName = currentTask
+                  ? getTaskSourceFileName(currentTask)
+                  : taskSourceTableName;
+                if (!srcName) return null;
+                return (
+                  <div className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50/90 px-2.5 py-1.5 text-xs text-emerald-800">
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                    <span className="font-semibold text-[11px]">参照元ファイル:</span>
+                    <span className="truncate text-xs font-bold text-emerald-900">{srcName}</span>
+                  </div>
+                );
+              })()}
+
               {/* 1. タスク名入力 */}
               <div>
                 <label className="text-[11px] font-semibold text-slate-700">タスク名</label>
