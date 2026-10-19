@@ -291,4 +291,29 @@ describe('tableUtils', () => {
     expect(res.tasks[2].cycleIndex).toBe(3); // 4日目の位置 (index 3)
     expect(res.tasks[2].cycleCount).toBe(4);
   });
+
+  it('uses table name as category for all generated slots, tasks, and attached tasks', () => {
+    const table = createBaseTable('09:00');
+    table.name = '筋トレルーティン表';
+    table.attachedTaskConfig = {
+      enabled: true,
+      titleTemplate: '{title} プロテイン',
+      durationMinutes: 10,
+    };
+
+    const res = generateScheduleItemsForTable(table);
+    expect(res.slots.length).toBe(1);
+    expect(res.slots[0].category).toBe('筋トレルーティン表');
+
+    expect(res.tasks.length).toBe(1);
+    expect(res.tasks[0].category).toBe('筋トレルーティン表');
+
+    // 日課タスク
+    const dailyTable = createBaseTable(null);
+    dailyTable.name = '日課表';
+    dailyTable.classificationOverride = 'daily_task';
+    const dailyRes = generateScheduleItemsForTable(dailyTable);
+    expect(dailyRes.tasks[0].category).toBe('日課表');
+  });
 });
+

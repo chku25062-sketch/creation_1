@@ -218,7 +218,7 @@ export function TaskManager({
 
   // 固定枠用フォームステート
   const [slotTitle, setSlotTitle] = useState('');
-  const [slotCategory, setSlotCategory] = useState<FixedCategory>('lecture');
+  const [slotCategory, setSlotCategory] = useState<FixedCategory | string>('lecture');
   const [slotStartTime, setSlotStartTime] = useState('10:40');
   const [slotEndTime, setSlotEndTime] = useState('12:10');
   const [slotDays, setSlotDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
@@ -485,7 +485,7 @@ export function TaskManager({
     const startMinutes = timeStringToMinutes(slotStartTime);
     const endMinutes = timeStringToMinutes(slotEndTime);
 
-    const categoryColors: Record<FixedCategory, string> = {
+    const categoryColors: Record<string, string> = {
       sleep: '#6366f1',
       work: '#3b82f6',
       lecture: '#0284c7',
@@ -504,7 +504,7 @@ export function TaskManager({
                 category: slotCategory,
                 startMinutes,
                 endMinutes,
-                color: categoryColors[slotCategory],
+                color: categoryColors[slotCategory] || '#0284c7',
                 daysOfWeek: [...slotDays],
                 sourceTableId: slotSourceTableId,
                 sourceTableName: slotSourceTableName,
@@ -519,7 +519,7 @@ export function TaskManager({
         category: slotCategory,
         startMinutes,
         endMinutes,
-        color: categoryColors[slotCategory],
+        color: categoryColors[slotCategory] || '#0284c7',
         daysOfWeek: [...slotDays],
         sourceTableId: slotSourceTableId,
         sourceTableName: slotSourceTableName,
@@ -631,7 +631,7 @@ export function TaskManager({
     else if (preset === 'weekend') setSlotDays([5, 6]);
   };
 
-  const getSlotCategoryIcon = (cat: FixedCategory) => {
+  const getSlotCategoryIcon = (cat: FixedCategory | string) => {
     switch (cat) {
       case 'sleep':
         return <Moon className="h-3.5 w-3.5 text-indigo-400" />;

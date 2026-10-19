@@ -133,7 +133,7 @@ export function FixedSlotsManager({ slots, onChange }: FixedSlotsManagerProps) {
     onChange(slots.filter((s) => s.id !== id));
   };
 
-  const getCategoryIcon = (cat: FixedCategory) => {
+  const getCategoryIcon = (cat: FixedCategory | string) => {
     switch (cat) {
       case 'sleep':
         return <Moon className="h-4 w-4 text-indigo-400" />;

@@ -347,6 +347,8 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
     ? Math.max(2, nonExcludedCols.length)
     : (table.numCols > 1 ? table.numCols : 3);
 
+  const tableCategory = table.name || '表タスク';
+
   table.cells.forEach((row, r) => {
     const timeSlot = tablePeriodTimes[r];
 
@@ -357,7 +359,6 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
       if (!cell.title || !cell.title.trim()) return;
 
       const title = cell.title.trim();
-      const rawCategory = cell.category || (classification === 'fixed_slot' ? 'lecture' : 'routine');
       const fullTitle = cell.roomOrNote
         ? `${title} (${cell.roomOrNote.replace(/\n/g, ' ')})`
         : title;
@@ -382,22 +383,14 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
           }
 
           const slotId = `slot-table-${table.id}-${r}-${c}`;
-          const fixedCat: FixedCategory =
-            rawCategory === 'lecture' || rawCategory === 'work' || rawCategory === 'routine' || rawCategory === 'meal' || rawCategory === 'sleep'
-              ? rawCategory
-              : rawCategory === 'study'
-              ? 'lecture'
-              : rawCategory === 'workout'
-              ? 'routine'
-              : 'other';
 
           slots.push({
             id: slotId,
             title: fullTitle,
-            category: fixedCat,
+            category: tableCategory, // 表の名前でカテゴリを代用
             startMinutes: timeSlot.startMinutes,
             endMinutes: timeSlot.endMinutes,
-            color: fixedCat === 'lecture' ? '#0284c7' : '#059669',
+            color: '#0284c7',
             daysOfWeek: days,
             sourceTableId: table.id,
             sourceTableName: table.name,
@@ -410,21 +403,11 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
         // - フリー/1列: 曜日・周期に関わらず毎日行う日次タスク
         const taskId = `task-table-${table.id}-${r}-${c}`;
         const duration = table.axisConfig.periodMinutes || 30;
-        const taskCat: TaskCategory =
-          rawCategory === 'workout'
-            ? 'workout'
-            : rawCategory === 'study' || rawCategory === 'lecture'
-            ? 'study'
-            : rawCategory === 'work'
-            ? 'work'
-            : rawCategory === 'hobby'
-            ? 'hobby'
-            : 'must';
 
         tasks.push({
           id: taskId,
           title: fullTitle,
-          category: taskCat,
+          category: tableCategory, // 表の名前でカテゴリを代用
           durationSize: duration <= 25 ? 'small' : duration <= 60 ? 'medium' : 'large',
           durationMinutes: duration,
           frequency: 'high',
@@ -443,21 +426,11 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
         // 週（週次タスク / 3日周期）として生成: 週に複数回組み込まれる可能性があるもの
         const taskId = `task-table-${table.id}-${r}-${c}`;
         const duration = table.axisConfig.periodMinutes || 60;
-        const taskCat: TaskCategory =
-          rawCategory === 'workout'
-            ? 'workout'
-            : rawCategory === 'study' || rawCategory === 'lecture'
-            ? 'study'
-            : rawCategory === 'work'
-            ? 'work'
-            : rawCategory === 'hobby'
-            ? 'hobby'
-            : 'want';
 
         tasks.push({
           id: taskId,
           title: fullTitle,
-          category: taskCat,
+          category: tableCategory, // 表の名前でカテゴリを代用
           durationSize: duration <= 25 ? 'small' : duration <= 60 ? 'medium' : 'large',
           durationMinutes: duration,
           frequency: isWeekday ? 'medium' : 'custom',
@@ -492,7 +465,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
           tasks.push({
             id: attachedTaskId,
             title: attachedTaskTitle,
-            category: 'must',
+            category: tableCategory, // 表の名前でカテゴリを代用
             durationSize: attachedDuration <= 25 ? 'small' : 'medium',
             durationMinutes: attachedDuration,
             frequency: 'low',
@@ -510,7 +483,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
           tasks.push({
             id: attachedTaskId,
             title: attachedTaskTitle,
-            category: 'want',
+            category: tableCategory, // 表の名前でカテゴリを代用
             durationSize: 'small',
             durationMinutes: attachedDuration,
             frequency: classification === 'daily_task' ? 'high' : 'medium',

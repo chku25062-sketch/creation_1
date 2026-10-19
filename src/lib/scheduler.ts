@@ -23,8 +23,33 @@ const CATEGORY_COLORS: Record<string, string> = {
   other: '#64748b',
 };
 
+const DYNAMIC_PALETTE = [
+  '#0284c7', // Sky
+  '#0d9488', // Teal
+  '#059669', // Emerald
+  '#7c3aed', // Purple
+  '#c026d3', // Fuchsia
+  '#ea580c', // Orange
+  '#4f46e5', // Indigo
+  '#db2777', // Pink
+  '#0891b2', // Cyan
+  '#16a34a', // Green
+];
+
 export function getCategoryColor(category: string): string {
-  return CATEGORY_COLORS[category] || '#2563eb';
+  if (CATEGORY_COLORS[category]) {
+    return CATEGORY_COLORS[category];
+  }
+  if (!category) return '#2563eb';
+
+  // 表名などの任意の文字列に対して、文字列ハッシュで一意のカラーを選択
+  let hash = 0;
+  for (let i = 0; i < category.length; i++) {
+    hash = (hash << 5) - hash + category.charCodeAt(i);
+    hash |= 0;
+  }
+  const index = Math.abs(hash) % DYNAMIC_PALETTE.length;
+  return DYNAMIC_PALETTE[index];
 }
 
 /**

@@ -224,7 +224,6 @@ export function ImportedTablesManager({
   // セル編集ステート
   const [editingCell, setEditingCell] = useState<{ r: number; c: number } | null>(null);
   const [cellEditText, setCellEditText] = useState('');
-  const [cellEditCategory, setCellEditCategory] = useState<string>('lecture');
   const [cellAttachedEnabled, setCellAttachedEnabled] = useState<boolean>(false);
   const [cellAttachedTitle, setCellAttachedTitle] = useState<string>('');
   const [cellAttachedDuration, setCellAttachedDuration] = useState<number>(15);
@@ -650,7 +649,6 @@ export function ImportedTablesManager({
     const cell = activeTable.cells[r][c];
     setEditingCell({ r, c });
     setCellEditText(cell.text || cell.title || '');
-    setCellEditCategory(cell.category || 'lecture');
     setCellAttachedEnabled(
       cell.attachedTask?.enabled ?? activeTable.attachedTaskConfig?.enabled ?? false,
     );
@@ -685,7 +683,6 @@ export function ImportedTablesManager({
               roomOrNote,
               fullText: trimmed,
               rawLines: lines,
-              category: cellEditCategory,
               attachedTask: cellAttachedEnabled
                 ? {
                     enabled: true,
@@ -2168,25 +2165,6 @@ export function ImportedTablesManager({
               autoFocus
             />
 
-            {/* 分類カテゴリ選択 */}
-            <div className="mt-2.5">
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                分類カテゴリ
-              </label>
-              <select
-                value={cellEditCategory}
-                onChange={(e) => setCellEditCategory(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-blue-500 focus:outline-hidden"
-              >
-                <option value="lecture">📚 講義・授業</option>
-                <option value="workout">💪 筋トレ・運動</option>
-                <option value="routine">🏃 日課・ルーティン</option>
-                <option value="work">💼 仕事・アルバイト</option>
-                <option value="study">📖 勉強・自己研鑽</option>
-                <option value="hobby">☕ 趣味・リフレッシュ</option>
-                <option value="other">📌 その他</option>
-              </select>
-            </div>
 
             {/* 付随タスク（連動タスク）設定 */}
             <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">

@@ -3,7 +3,7 @@ export type FixedCategory = 'sleep' | 'work' | 'lecture' | 'routine' | 'meal' | 
 export interface FixedSlot {
   id: string;
   title: string;
-  category: FixedCategory;
+  category: FixedCategory | string;
   startMinutes: number; // 0 (00:00) 〜 1440 (24:00)
   endMinutes: number;
   color: string;
@@ -34,7 +34,7 @@ export interface TaskItem {
   durationMinutes: number; // 所要時間（分）。ToDoの場合は0
   durationSize?: TaskDurationSize; // 'small' | 'medium' | 'large'
   priority: TaskPriority;
-  category: TaskCategory;
+  category: TaskCategory | string;
   period: TaskPeriod;
   frequency?: TaskFrequency; // 'low' | 'medium' | 'high' | 'custom'
   frequencyCount?: number; // カスタム時の週あたり回数
