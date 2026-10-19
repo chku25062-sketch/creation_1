@@ -982,7 +982,7 @@ export function ImportedTablesManager({
                     .includes(searchQuery.toLowerCase())) && (
                   <div
                     onClick={() => handleSelectItem('sys-weekly')}
-                    title="週 (週に複数回 / 3日周期など)"
+                    title="週 (週に複数回 / 周期など)"
                     className={`group relative flex items-center rounded-lg cursor-pointer transition ${
                       isSidebarOpen
                         ? 'justify-between px-2.5 py-2 text-xs'
@@ -1011,7 +1011,7 @@ export function ImportedTablesManager({
                         </div>
                         {isSidebarOpen ? (
                           <div className="mt-0.5 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                            <span>週複数回・3日周期 ({weeklyTasksCount}件)</span>
+                            <span>週複数回・周期 ({weeklyTasksCount}件)</span>
                             {isWeeklyApplied && (
                               <span className="rounded bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-700">
                                 ON
@@ -1458,7 +1458,7 @@ export function ImportedTablesManager({
                             ? '固定枠: 決まった時間帯に配置されます'
                             : classification === 'daily_task'
                               ? '日 (日次): 1日に複数回組み込まれるタスクとして自動配置されます'
-                              : '週 (週次): 週に複数回組み込まれるタスク・3日周期として週全体へ配分されます'
+                              : '週 (週次): 週に複数回組み込まれるタスク・周期として週全体へ配分されます'
                         }
                       >
                         <option value="auto">
@@ -1470,7 +1470,7 @@ export function ImportedTablesManager({
                         </option>
                         <option value="fixed_slot">📌 固定枠 (時間指定)</option>
                         <option value="daily_task">🏃 日 (1日複数回/日次)</option>
-                        <option value="weekly_task">🎯 週 (週複数回/3日周期)</option>
+                        <option value="weekly_task">🎯 週 (週に複数回/周期)</option>
                       </select>
                     </div>
                   );
