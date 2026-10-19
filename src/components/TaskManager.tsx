@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ArrowUpDown,
   FileSpreadsheet,
+  Filter,
 } from 'lucide-react';
 import {
   TaskItem,
@@ -229,6 +230,8 @@ export function TaskManager({
   >('time-asc');
   const [slotCategoryFilter, setSlotCategoryFilter] = useState<FixedCategory | 'all'>('all');
   const [slotDayFilter, setSlotDayFilter] = useState<number | 'all' | 'daily'>('all');
+  const [isSlotFilterOpen, setIsSlotFilterOpen] = useState(false);
+  const isSlotFilterActive = slotCategoryFilter !== 'all' || slotDayFilter !== 'all';
 
   // タスク（日課・週次）のソート & 絞り込みステート
   const [taskSortKey, setTaskSortKey] = useState<
@@ -236,6 +239,10 @@ export function TaskManager({
   >('priority');
   const [taskCategoryFilter, setTaskCategoryFilter] = useState<string>('all');
   const [taskDayFilter, setTaskDayFilter] = useState<number | 'all'>('all');
+  const [isDailyFilterOpen, setIsDailyFilterOpen] = useState(false);
+  const [isWeeklyFilterOpen, setIsWeeklyFilterOpen] = useState(false);
+  const isDailyFilterActive = taskCategoryFilter !== 'all' || taskDayFilter !== 'all';
+  const isWeeklyFilterActive = taskCategoryFilter !== 'all' || taskDayFilter !== 'all';
 
   // ESCキーでモーダルを閉じる
   useEffect(() => {
@@ -858,20 +865,31 @@ export function TaskManager({
                 <span>固定枠を追加</span>
               </button>
 
-              {/* プリセット候補 */}
-              <div className="hidden sm:flex items-center gap-1 text-[11px] text-slate-500 pl-1.5 border-l border-slate-200">
-                <span className="text-[10px] font-semibold text-slate-400">例:</span>
-                {PRESET_FIXED_SLOTS.slice(0, 3).map((preset) => (
-                  <button
-                    key={preset.title}
-                    type="button"
-                    onClick={() => handleAddPresetSlot(preset)}
-                    className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
-                  >
-                    +{preset.title}
-                  </button>
-                ))}
-              </div>
+              {/* 絞り込みトグルボタン */}
+              <button
+                type="button"
+                onClick={() => setIsSlotFilterOpen(!isSlotFilterOpen)}
+                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition shadow-2xs active:scale-95 ${
+                  isSlotFilterOpen
+                    ? 'border-sky-300 bg-sky-50 text-sky-700'
+                    : isSlotFilterActive
+                      ? 'border-sky-300 bg-sky-50/70 text-sky-700 font-bold'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+                title={isSlotFilterOpen ? '絞り込みツールを閉じる' : '絞り込みツールを開く'}
+                aria-expanded={isSlotFilterOpen}
+              >
+                <Filter className="h-3.5 w-3.5" />
+                <span className="hidden xs:inline">絞り込み</span>
+                {isSlotFilterActive && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />
+                )}
+                {isSlotFilterOpen ? (
+                  <ChevronUp className="h-3 w-3 text-slate-400" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 text-slate-400" />
+                )}
+              </button>
             </div>
 
             {/* 並び替え & 件数 */}
@@ -906,95 +924,97 @@ export function TaskManager({
             </div>
           </div>
 
-          {/* 絞り込み行: カテゴリ & 曜日 */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-100 text-xs">
-            {/* カテゴリ絞り込み */}
-            <div className="flex flex-wrap items-center gap-1">
-              <span className="text-[10px] font-bold text-slate-400 mr-0.5">カテゴリ:</span>
-              {[
-                { id: 'all', label: 'すべて' },
-                { id: 'sleep', label: '睡眠' },
-                { id: 'lecture', label: '講義' },
-                { id: 'routine', label: 'ルーティン' },
-                { id: 'meal', label: '食事' },
-                { id: 'work', label: '勤務' },
-                { id: 'other', label: 'その他' },
-              ].map((cat) => {
-                const isActive = slotCategoryFilter === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setSlotCategoryFilter(cat.id as FixedCategory | 'all')}
-                    className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
-                      isActive
-                        ? 'bg-sky-600 text-white shadow-2xs'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
-                    }`}
-                  >
-                    {cat.label}
-                  </button>
-                );
-              })}
-            </div>
+          {/* 絞り込み行: カテゴリ & 曜日 (折り畳み式) */}
+          {isSlotFilterOpen && (
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-100 text-xs animate-in fade-in duration-150">
+              {/* カテゴリ絞り込み */}
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-[10px] font-bold text-slate-400 mr-0.5">カテゴリ:</span>
+                {[
+                  { id: 'all', label: 'すべて' },
+                  { id: 'sleep', label: '睡眠' },
+                  { id: 'lecture', label: '講義' },
+                  { id: 'routine', label: 'ルーティン' },
+                  { id: 'meal', label: '食事' },
+                  { id: 'work', label: '勤務' },
+                  { id: 'other', label: 'その他' },
+                ].map((cat) => {
+                  const isActive = slotCategoryFilter === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setSlotCategoryFilter(cat.id as FixedCategory | 'all')}
+                      className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
+                        isActive
+                          ? 'bg-sky-600 text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  );
+                })}
+              </div>
 
-            {/* 曜日絞り込み */}
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] font-bold text-slate-400 mr-0.5">曜日:</span>
-              <button
-                type="button"
-                onClick={() => setSlotDayFilter('all')}
-                className={`rounded-lg px-1.5 py-0.5 text-[11px] font-semibold transition ${
-                  slotDayFilter === 'all'
-                    ? 'bg-slate-800 text-white shadow-2xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                全
-              </button>
-              {[
-                { day: 0, label: '月' },
-                { day: 1, label: '火' },
-                { day: 2, label: '水' },
-                { day: 3, label: '木' },
-                { day: 4, label: '金' },
-                { day: 5, label: '土' },
-                { day: 6, label: '日' },
-              ].map((d) => {
-                const isActive = slotDayFilter === d.day;
-                return (
-                  <button
-                    key={d.day}
-                    type="button"
-                    onClick={() => setSlotDayFilter(isActive ? 'all' : d.day)}
-                    className={`h-5.5 w-5.5 rounded-md text-[11px] font-bold flex items-center justify-center transition ${
-                      isActive
-                        ? 'bg-sky-600 text-white shadow-2xs'
-                        : d.day === 5
-                          ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                          : d.day === 6
-                            ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    {d.label}
-                  </button>
-                );
-              })}
-              {(slotCategoryFilter !== 'all' || slotDayFilter !== 'all') && (
+              {/* 曜日絞り込み */}
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-bold text-slate-400 mr-0.5">曜日:</span>
                 <button
                   type="button"
-                  onClick={() => {
-                    setSlotCategoryFilter('all');
-                    setSlotDayFilter('all');
-                  }}
-                  className="ml-1 text-[10px] font-medium text-slate-400 hover:text-rose-600 underline"
+                  onClick={() => setSlotDayFilter('all')}
+                  className={`rounded-lg px-1.5 py-0.5 text-[11px] font-semibold transition ${
+                    slotDayFilter === 'all'
+                      ? 'bg-slate-800 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
                 >
-                  解除
+                  全
                 </button>
-              )}
+                {[
+                  { day: 0, label: '月' },
+                  { day: 1, label: '火' },
+                  { day: 2, label: '水' },
+                  { day: 3, label: '木' },
+                  { day: 4, label: '金' },
+                  { day: 5, label: '土' },
+                  { day: 6, label: '日' },
+                ].map((d) => {
+                  const isActive = slotDayFilter === d.day;
+                  return (
+                    <button
+                      key={d.day}
+                      type="button"
+                      onClick={() => setSlotDayFilter(isActive ? 'all' : d.day)}
+                      className={`h-5.5 w-5.5 rounded-md text-[11px] font-bold flex items-center justify-center transition ${
+                        isActive
+                          ? 'bg-sky-600 text-white shadow-2xs'
+                          : d.day === 5
+                            ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                            : d.day === 6
+                              ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {d.label}
+                    </button>
+                  );
+                })}
+                {(slotCategoryFilter !== 'all' || slotDayFilter !== 'all') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSlotCategoryFilter('all');
+                      setSlotDayFilter('all');
+                    }}
+                    className="ml-1 text-[10px] font-medium text-slate-400 hover:text-rose-600 underline"
+                  >
+                    解除
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       ) : viewMode === 'daily' ? (
         /* 日課タスク (高頻度・毎日) ツールバー */
@@ -1012,22 +1032,31 @@ export function TaskManager({
                 <span>日課タスクを追加</span>
               </button>
 
-              {/* プリセット候補 */}
-              <div className="hidden sm:flex items-center gap-1 text-[11px] text-slate-500 pl-1.5 border-l border-slate-200">
-                <span className="text-[10px] font-semibold text-slate-400">例:</span>
-                {PRESET_TASKS.filter((p) => p.period === 'day' || p.frequency === 'high')
-                  .slice(0, 3)
-                  .map((preset) => (
-                    <button
-                      key={preset.title}
-                      type="button"
-                      onClick={() => handleAddPresetTask(preset)}
-                      className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-800"
-                    >
-                      +{preset.title}
-                    </button>
-                  ))}
-              </div>
+              {/* 絞り込みトグルボタン */}
+              <button
+                type="button"
+                onClick={() => setIsDailyFilterOpen(!isDailyFilterOpen)}
+                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition shadow-2xs active:scale-95 ${
+                  isDailyFilterOpen
+                    ? 'border-amber-300 bg-amber-50 text-amber-800'
+                    : isDailyFilterActive
+                      ? 'border-amber-200 bg-amber-50/70 text-amber-800 font-bold'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+                title={isDailyFilterOpen ? '絞り込みツールを閉じる' : '絞り込みツールを開く'}
+                aria-expanded={isDailyFilterOpen}
+              >
+                <Filter className="h-3.5 w-3.5" />
+                <span className="hidden xs:inline">絞り込み</span>
+                {isDailyFilterActive && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                )}
+                {isDailyFilterOpen ? (
+                  <ChevronUp className="h-3 w-3 text-slate-400" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 text-slate-400" />
+                )}
+              </button>
             </div>
 
             {/* 並び替え & 件数 */}
@@ -1071,91 +1100,93 @@ export function TaskManager({
             </div>
           </div>
 
-          {/* 絞り込み行: カテゴリ & 曜日 */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-100 text-xs">
-            {/* カテゴリ絞り込み */}
-            <div className="flex flex-wrap items-center gap-1">
-              <span className="text-[10px] font-bold text-slate-400 mr-0.5">カテゴリ:</span>
-              {[
-                { id: 'all', label: 'すべて' },
-                { id: 'must', label: 'やるべき (Must)' },
-                { id: 'want', label: 'やりたい (Want)' },
-              ].map((cat) => {
-                const isActive = taskCategoryFilter === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setTaskCategoryFilter(cat.id)}
-                    className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
-                      isActive
-                        ? 'bg-amber-600 text-white shadow-2xs'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
-                    }`}
-                  >
-                    {cat.label}
-                  </button>
-                );
-              })}
-            </div>
+          {/* 絞り込み行: カテゴリ & 曜日 (折り畳み式) */}
+          {isDailyFilterOpen && (
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-100 text-xs animate-in fade-in duration-150">
+              {/* カテゴリ絞り込み */}
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-[10px] font-bold text-slate-400 mr-0.5">カテゴリ:</span>
+                {[
+                  { id: 'all', label: 'すべて' },
+                  { id: 'must', label: 'やるべき (Must)' },
+                  { id: 'want', label: 'やりたい (Want)' },
+                ].map((cat) => {
+                  const isActive = taskCategoryFilter === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setTaskCategoryFilter(cat.id)}
+                      className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
+                        isActive
+                          ? 'bg-amber-600 text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  );
+                })}
+              </div>
 
-            {/* 曜日絞り込み */}
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] font-bold text-slate-400 mr-0.5">曜日:</span>
-              <button
-                type="button"
-                onClick={() => setTaskDayFilter('all')}
-                className={`rounded-lg px-1.5 py-0.5 text-[11px] font-semibold transition ${
-                  taskDayFilter === 'all'
-                    ? 'bg-slate-800 text-white shadow-2xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                全
-              </button>
-              {[
-                { day: 0, label: '月' },
-                { day: 1, label: '火' },
-                { day: 2, label: '水' },
-                { day: 3, label: '木' },
-                { day: 4, label: '金' },
-                { day: 5, label: '土' },
-                { day: 6, label: '日' },
-              ].map((d) => {
-                const isActive = taskDayFilter === d.day;
-                return (
-                  <button
-                    key={d.day}
-                    type="button"
-                    onClick={() => setTaskDayFilter(isActive ? 'all' : d.day)}
-                    className={`h-5.5 w-5.5 rounded-md text-[11px] font-bold flex items-center justify-center transition ${
-                      isActive
-                        ? 'bg-amber-600 text-white shadow-2xs'
-                        : d.day === 5
-                          ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                          : d.day === 6
-                            ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    {d.label}
-                  </button>
-                );
-              })}
-              {(taskCategoryFilter !== 'all' || taskDayFilter !== 'all') && (
+              {/* 曜日絞り込み */}
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-bold text-slate-400 mr-0.5">曜日:</span>
                 <button
                   type="button"
-                  onClick={() => {
-                    setTaskCategoryFilter('all');
-                    setTaskDayFilter('all');
-                  }}
-                  className="ml-1 text-[10px] font-medium text-slate-400 hover:text-rose-600 underline"
+                  onClick={() => setTaskDayFilter('all')}
+                  className={`rounded-lg px-1.5 py-0.5 text-[11px] font-semibold transition ${
+                    taskDayFilter === 'all'
+                      ? 'bg-slate-800 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
                 >
-                  解除
+                  全
                 </button>
-              )}
+                {[
+                  { day: 0, label: '月' },
+                  { day: 1, label: '火' },
+                  { day: 2, label: '水' },
+                  { day: 3, label: '木' },
+                  { day: 4, label: '金' },
+                  { day: 5, label: '土' },
+                  { day: 6, label: '日' },
+                ].map((d) => {
+                  const isActive = taskDayFilter === d.day;
+                  return (
+                    <button
+                      key={d.day}
+                      type="button"
+                      onClick={() => setTaskDayFilter(isActive ? 'all' : d.day)}
+                      className={`h-5.5 w-5.5 rounded-md text-[11px] font-bold flex items-center justify-center transition ${
+                        isActive
+                          ? 'bg-amber-600 text-white shadow-2xs'
+                          : d.day === 5
+                            ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                            : d.day === 6
+                              ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {d.label}
+                    </button>
+                  );
+                })}
+                {(taskCategoryFilter !== 'all' || taskDayFilter !== 'all') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTaskCategoryFilter('all');
+                      setTaskDayFilter('all');
+                    }}
+                    className="ml-1 text-[10px] font-medium text-slate-400 hover:text-rose-600 underline"
+                  >
+                    解除
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       ) : viewMode === 'weekly' ? (
         /* 週次タスク・課題・ToDo ツールバー */
@@ -1199,22 +1230,31 @@ export function TaskManager({
                 <span>+ToDo</span>
               </button>
 
-              {/* プリセット候補 */}
-              <div className="hidden lg:flex items-center gap-1 text-[11px] text-slate-500 pl-1.5 border-l border-slate-200">
-                <span className="text-[10px] font-semibold text-slate-400">例:</span>
-                {PRESET_TASKS.filter((p) => p.period === 'week' || p.taskType === 'assignment')
-                  .slice(0, 3)
-                  .map((preset) => (
-                    <button
-                      key={preset.title}
-                      type="button"
-                      onClick={() => handleAddPresetTask(preset)}
-                      className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-600 transition hover:border-purple-300 hover:bg-purple-50 hover:text-purple-800"
-                    >
-                      +{preset.title}
-                    </button>
-                  ))}
-              </div>
+              {/* 絞り込みトグルボタン */}
+              <button
+                type="button"
+                onClick={() => setIsWeeklyFilterOpen(!isWeeklyFilterOpen)}
+                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition shadow-2xs active:scale-95 ${
+                  isWeeklyFilterOpen
+                    ? 'border-purple-300 bg-purple-50 text-purple-800'
+                    : isWeeklyFilterActive
+                      ? 'border-purple-200 bg-purple-50/70 text-purple-800 font-bold'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+                title={isWeeklyFilterOpen ? '絞り込みツールを閉じる' : '絞り込みツールを開く'}
+                aria-expanded={isWeeklyFilterOpen}
+              >
+                <Filter className="h-3.5 w-3.5" />
+                <span className="hidden xs:inline">絞り込み</span>
+                {isWeeklyFilterActive && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-purple-500" />
+                )}
+                {isWeeklyFilterOpen ? (
+                  <ChevronUp className="h-3 w-3 text-slate-400" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 text-slate-400" />
+                )}
+              </button>
             </div>
 
             {/* 並び替え & 件数 */}
@@ -1258,93 +1298,95 @@ export function TaskManager({
             </div>
           </div>
 
-          {/* 絞り込み行: カテゴリ & 曜日 */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-100 text-xs">
-            {/* カテゴリ絞り込み */}
-            <div className="flex flex-wrap items-center gap-1">
-              <span className="text-[10px] font-bold text-slate-400 mr-0.5">カテゴリ:</span>
-              {[
-                { id: 'all', label: 'すべて' },
-                { id: 'assignment', label: '課題' },
-                { id: 'must', label: 'やるべき (Must)' },
-                { id: 'want', label: 'やりたい (Want)' },
-                { id: 'todo', label: 'ToDo' },
-              ].map((cat) => {
-                const isActive = taskCategoryFilter === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setTaskCategoryFilter(cat.id)}
-                    className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
-                      isActive
-                        ? 'bg-purple-600 text-white shadow-2xs'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
-                    }`}
-                  >
-                    {cat.label}
-                  </button>
-                );
-              })}
-            </div>
+          {/* 絞り込み行: カテゴリ & 曜日 (折り畳み式) */}
+          {isWeeklyFilterOpen && (
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-100 text-xs animate-in fade-in duration-150">
+              {/* カテゴリ絞り込み */}
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-[10px] font-bold text-slate-400 mr-0.5">カテゴリ:</span>
+                {[
+                  { id: 'all', label: 'すべて' },
+                  { id: 'assignment', label: '課題' },
+                  { id: 'must', label: 'やるべき (Must)' },
+                  { id: 'want', label: 'やりたい (Want)' },
+                  { id: 'todo', label: 'ToDo' },
+                ].map((cat) => {
+                  const isActive = taskCategoryFilter === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setTaskCategoryFilter(cat.id)}
+                      className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
+                        isActive
+                          ? 'bg-purple-600 text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  );
+                })}
+              </div>
 
-            {/* 曜日絞り込み（課題の締切・出題曜日） */}
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] font-bold text-slate-400 mr-0.5">締切曜日:</span>
-              <button
-                type="button"
-                onClick={() => setTaskDayFilter('all')}
-                className={`rounded-lg px-1.5 py-0.5 text-[11px] font-semibold transition ${
-                  taskDayFilter === 'all'
-                    ? 'bg-slate-800 text-white shadow-2xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                全
-              </button>
-              {[
-                { day: 0, label: '月' },
-                { day: 1, label: '火' },
-                { day: 2, label: '水' },
-                { day: 3, label: '木' },
-                { day: 4, label: '金' },
-                { day: 5, label: '土' },
-                { day: 6, label: '日' },
-              ].map((d) => {
-                const isActive = taskDayFilter === d.day;
-                return (
-                  <button
-                    key={d.day}
-                    type="button"
-                    onClick={() => setTaskDayFilter(isActive ? 'all' : d.day)}
-                    className={`h-5.5 w-5.5 rounded-md text-[11px] font-bold flex items-center justify-center transition ${
-                      isActive
-                        ? 'bg-purple-600 text-white shadow-2xs'
-                        : d.day === 5
-                          ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                          : d.day === 6
-                            ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    {d.label}
-                  </button>
-                );
-              })}
-              {(taskCategoryFilter !== 'all' || taskDayFilter !== 'all') && (
+              {/* 曜日絞り込み（課題の締切・出題曜日） */}
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-bold text-slate-400 mr-0.5">締切曜日:</span>
                 <button
                   type="button"
-                  onClick={() => {
-                    setTaskCategoryFilter('all');
-                    setTaskDayFilter('all');
-                  }}
-                  className="ml-1 text-[10px] font-medium text-slate-400 hover:text-rose-600 underline"
+                  onClick={() => setTaskDayFilter('all')}
+                  className={`rounded-lg px-1.5 py-0.5 text-[11px] font-semibold transition ${
+                    taskDayFilter === 'all'
+                      ? 'bg-slate-800 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
                 >
-                  解除
+                  全
                 </button>
-              )}
+                {[
+                  { day: 0, label: '月' },
+                  { day: 1, label: '火' },
+                  { day: 2, label: '水' },
+                  { day: 3, label: '木' },
+                  { day: 4, label: '金' },
+                  { day: 5, label: '土' },
+                  { day: 6, label: '日' },
+                ].map((d) => {
+                  const isActive = taskDayFilter === d.day;
+                  return (
+                    <button
+                      key={d.day}
+                      type="button"
+                      onClick={() => setTaskDayFilter(isActive ? 'all' : d.day)}
+                      className={`h-5.5 w-5.5 rounded-md text-[11px] font-bold flex items-center justify-center transition ${
+                        isActive
+                          ? 'bg-purple-600 text-white shadow-2xs'
+                          : d.day === 5
+                            ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                            : d.day === 6
+                              ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {d.label}
+                    </button>
+                  );
+                })}
+                {(taskCategoryFilter !== 'all' || taskDayFilter !== 'all') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTaskCategoryFilter('all');
+                      setTaskDayFilter('all');
+                    }}
+                    className="ml-1 text-[10px] font-medium text-slate-400 hover:text-rose-600 underline"
+                  >
+                    解除
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       ) : (
         /* viewMode === 'all' 統合ヘッダー */
