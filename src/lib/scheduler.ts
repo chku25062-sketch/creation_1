@@ -104,8 +104,13 @@ export function normalizeFixedSlots(slots: FixedSlot[]): FixedSlot[] {
   const result: FixedSlot[] = [];
 
   for (const slot of slots) {
-    if (slot.startMinutes >= slot.endMinutes) {
-      // 23:00 -> 24:00
+    // 期間が0分のスロット（00:00〜00:00など）は除外
+    if (slot.startMinutes === slot.endMinutes) {
+      continue;
+    }
+
+    if (slot.startMinutes > slot.endMinutes) {
+      // 日跨ぎ固定枠（例: 23:00 -> 07:00）を [23:00-24:00] と [00:00-07:00] に分割
       result.push({
         ...slot,
         id: `${slot.id}-part1`,

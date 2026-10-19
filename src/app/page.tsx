@@ -16,9 +16,9 @@ import {
   saveImportedTables,
   loadInclusionSettings,
   saveInclusionSettings,
-  generateSlotsForTable,
   DEFAULT_INCLUSION_SETTINGS,
 } from '@/lib/storage';
+import { generateScheduleItemsForTable } from '@/lib/tableUtils';
 import { supabase } from '@/lib/supabase';
 
 export default function Home() {
@@ -77,38 +77,58 @@ export default function Home() {
     const initialTables = loadImportedTables();
     const initialInclusion = loadInclusionSettings();
 
-    let syncedFixed = [...initialFixed];
-    let isTablesChanged = false;
+    // 1. 不正スロットのクリーンアップ: 期間0分や、テーブル由来で誤って24時間化してしまったスロットを除去
+    let syncedFixed = initialFixed.filter((s) => {
+      if (s.startMinutes === s.endMinutes) return false;
+      // テーブル由来のスロットで 0:00〜24:00 (1440分) になってしまっている異常スロットを除外
+      if (
+        (s.sourceTableId || s.id.startsWith('slot-table-') || s.id.startsWith('slot-lecture-')) &&
+        s.startMinutes === 0 &&
+        s.endMinutes === 1440
+      ) {
+        return false;
+      }
+      return true;
+    });
 
-    // 各テーブルの反映状態（isApplied）を判定し、ONのものはスロットを同期・補完
+    let syncedTasks = [...initialTasks];
+    let isTablesChanged = false;
+    let isDataCleaned = syncedFixed.length !== initialFixed.length;
+
+    // 2. 各テーブルの反映状態（isApplied）を判定し、安全に最新アイテムを同期
     const updatedTables = initialTables.map((table) => {
-      const hasAppliedSlots = syncedFixed.some(
-        (s) =>
-          s.sourceTableId === table.id ||
-          s.id.startsWith(`slot-table-${table.id}-`) ||
-          s.id.startsWith(`slot-lecture-${table.id}-`),
-      );
-      // isApplied が未設定なら、現状のスロットの有無で初期判定
-      const isApplied = table.isApplied !== undefined ? table.isApplied : hasAppliedSlots;
+      const hasAppliedItems =
+        syncedFixed.some((s) => s.sourceTableId === table.id) ||
+        syncedTasks.some((t) => t.sourceTableId === table.id);
+
+      const isApplied = table.isApplied !== undefined ? table.isApplied : hasAppliedItems;
 
       if (isApplied) {
-        // 反映ONなのにスロットが欠けている場合、自動生成して同期
-        const expectedSlots = generateSlotsForTable(table);
-        const existingTableSlotIds = new Set(
-          syncedFixed
-            .filter(
-              (s) =>
-                s.sourceTableId === table.id ||
-                s.id.startsWith(`slot-table-${table.id}-`) ||
-                s.id.startsWith(`slot-lecture-${table.id}-`),
-            )
-            .map((s) => s.id),
-        );
+        const { slots: generatedSlots, tasks: generatedTasks } =
+          generateScheduleItemsForTable(table);
 
-        // 完全に一致しない、もしくは一部しか存在しない場合
-        const missingSlots = expectedSlots.filter((s) => !existingTableSlotIds.has(s.id));
-        if (missingSlots.length > 0) {
-          syncedFixed = [...syncedFixed, ...missingSlots];
+        // 固定枠の同期 (開始時刻がある表の場合)
+        if (generatedSlots.length > 0) {
+          const existingSlotIds = new Set(
+            syncedFixed.filter((s) => s.sourceTableId === table.id).map((s) => s.id),
+          );
+          const missingSlots = generatedSlots.filter((s) => !existingSlotIds.has(s.id));
+          if (missingSlots.length > 0) {
+            syncedFixed = [...syncedFixed, ...missingSlots];
+            isDataCleaned = true;
+          }
+        }
+
+        // タスクの同期 (開始時刻が未設定または付随タスクがある場合)
+        if (generatedTasks.length > 0) {
+          const existingTaskIds = new Set(
+            syncedTasks.filter((t) => t.sourceTableId === table.id).map((t) => t.id),
+          );
+          const missingTasks = generatedTasks.filter((t) => !existingTaskIds.has(t.id));
+          if (missingTasks.length > 0) {
+            syncedTasks = [...syncedTasks, ...missingTasks];
+            isDataCleaned = true;
+          }
         }
       }
 
@@ -120,10 +140,14 @@ export default function Home() {
     });
 
     setFixedSlots(syncedFixed);
-    setTasks(initialTasks);
+    setTasks(syncedTasks);
     setImportedTables(updatedTables);
     setInclusionSettings(initialInclusion);
     setIsInitialized(true);
+
+    if (isDataCleaned) {
+      saveLocalData(syncedFixed, syncedTasks);
+    }
 
     if (isTablesChanged) {
       saveImportedTables(updatedTables);

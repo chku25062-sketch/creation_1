@@ -48,6 +48,23 @@ describe('Theoretical Scheduler Engine', () => {
       expect(normalized[0].startMinutes).toBe(540);
       expect(normalized[0].endMinutes).toBe(1080);
     });
+
+    it('開始・終了時刻が0分のスロット（00:00〜00:00）が誤って24時間スロットに化けずに除外されること', () => {
+      const slots: FixedSlot[] = [
+        {
+          id: 'zero-slot',
+          title: '未設定スロット',
+          category: 'routine',
+          startMinutes: 0,
+          endMinutes: 0,
+          color: '#0284c7',
+        },
+      ];
+
+      const normalized = normalizeFixedSlots(slots);
+      // 0分スロットは除外され、24時間（1440分）に膨張しないこと
+      expect(normalized).toHaveLength(0);
+    });
   });
 
   describe('calculateFreeSlots', () => {

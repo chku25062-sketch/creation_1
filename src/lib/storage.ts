@@ -549,12 +549,17 @@ export async function syncWithSupabase(
  * 時間割テーブルのコマから FixedSlot を生成
  */
 export function generateSlotsForTable(table: ImportedTableData): FixedSlot[] {
+  // 開始時刻未設定のテーブルは固定枠（時間帯枠）ではないためスロットを生成しない
+  if (!table.axisConfig.startTime || table.axisConfig.startTime === 'unset') {
+    return [];
+  }
+
   const tablePeriodTimes = calculatePeriodTimes(table.numRows, table.axisConfig);
   const slots: FixedSlot[] = [];
 
   table.cells.forEach((row, r) => {
     const timeSlot = tablePeriodTimes[r];
-    if (!timeSlot) return;
+    if (!timeSlot || (timeSlot.startMinutes === 0 && timeSlot.endMinutes === 0)) return;
 
     row.forEach((cell, c) => {
       const colHeader = table.colHeaders[c] || '';
@@ -577,7 +582,7 @@ export function generateSlotsForTable(table: ImportedTableData): FixedSlot[] {
         slots.push({
           id: slotId,
           title: fullTitle,
-          category: 'lecture',
+          category: table.name || 'lecture',
           startMinutes: timeSlot.startMinutes,
           endMinutes: timeSlot.endMinutes,
           color: '#0284c7', // 講義カラー
