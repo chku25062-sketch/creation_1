@@ -538,5 +538,62 @@ describe('Theoretical Scheduler Engine', () => {
       expect(pushMonday).toBe(true);
       expect(pullTuesday).toBe(true);
     });
+
+    it('曜日指定の日次タスク (period: day, startDay: 1) がその曜日のみに配置されること', () => {
+      const tuesdayOnlyTask: TaskItem = {
+        id: 'tuesday-routine',
+        title: '火曜専用ルーティン',
+        durationMinutes: 30,
+        priority: 'high',
+        category: 'must',
+        period: 'day',
+        startDay: 1, // 火曜日限定
+      };
+
+      const result = generateTheoreticalSchedule([], [tuesdayOnlyTask]);
+      // 月曜(0)には配置されず、火曜(1)にのみ配置されること
+      expect(result.dayBlocks[0].some((b) => b.taskId === 'tuesday-routine')).toBe(false);
+      expect(result.dayBlocks[1].some((b) => b.taskId === 'tuesday-routine')).toBe(true);
+      expect(result.dayBlocks[2].some((b) => b.taskId === 'tuesday-routine')).toBe(false);
+    });
+
+    it('周期日次タスク (period: day, cycleIndex: 0, cycleCount: 3) が周期的にローテーション配置されること', () => {
+      const cycleDailyTask: TaskItem = {
+        id: 'cycle-day1',
+        title: 'Day 1 メニュー',
+        durationMinutes: 30,
+        priority: 'high',
+        category: 'must',
+        period: 'day',
+        cycleIndex: 0,
+        cycleCount: 3,
+      };
+
+      const result = generateTheoreticalSchedule([], [cycleDailyTask]);
+      // 3日周期 (0:月, 3:木, 6:日) にのみ配置されること
+      expect(result.dayBlocks[0].some((b) => b.taskId === 'cycle-day1')).toBe(true); // 月 (0%3=0)
+      expect(result.dayBlocks[1].some((b) => b.taskId === 'cycle-day1')).toBe(false); // 火 (1%3=1)
+      expect(result.dayBlocks[2].some((b) => b.taskId === 'cycle-day1')).toBe(false); // 水 (2%3=2)
+      expect(result.dayBlocks[3].some((b) => b.taskId === 'cycle-day1')).toBe(true); // 木 (3%3=0)
+      expect(result.dayBlocks[4].some((b) => b.taskId === 'cycle-day1')).toBe(false); // 金 (4%3=1)
+      expect(result.dayBlocks[5].some((b) => b.taskId === 'cycle-day1')).toBe(false); // 土 (5%3=2)
+      expect(result.dayBlocks[6].some((b) => b.taskId === 'cycle-day1')).toBe(true); // 日 (6%3=0)
+    });
+
+    it('1列フリー日課タスク (period: day, startDay/cycleIndex 未指定) が毎日全曜日に配置されること', () => {
+      const freeDailyTask: TaskItem = {
+        id: 'everyday-habit',
+        title: '毎日の習慣',
+        durationMinutes: 30,
+        priority: 'high',
+        category: 'must',
+        period: 'day',
+      };
+
+      const result = generateTheoreticalSchedule([], [freeDailyTask]);
+      for (let d = 0; d < 7; d++) {
+        expect(result.dayBlocks[d].some((b) => b.taskId === 'everyday-habit')).toBe(true);
+      }
+    });
   });
 });

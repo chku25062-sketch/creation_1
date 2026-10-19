@@ -45,6 +45,7 @@ export interface TaskItem {
   deadlineDay?: number; // 課題用: 締切・期日曜日 (0:月〜6:日)
   dailyCount?: number; // 1日あたりの目標回数 (1, 2, 3...)
   cycleIndex?: number; // 3日周期などのローテーション番号
+  cycleCount?: number; // 周期全体の長さ (例: 3日周期なら3)
   sourceTableId?: string; // 参照元テーブルID
   sourceTableName?: string; // 参照元テーブル名
 }

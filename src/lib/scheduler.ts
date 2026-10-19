@@ -231,7 +231,21 @@ export function generateTheoreticalSchedule(
   for (const task of dailyTasks) {
     let placedTotalCount = 0;
     const maxDailyCount = task.dailyCount && task.dailyCount > 0 ? task.dailyCount : 1;
-    const targetDays = task.startDay !== undefined ? [task.startDay] : [0, 1, 2, 3, 4, 5, 6];
+
+    let targetDays: number[];
+    if (task.startDay !== undefined) {
+      // 1. 曜日指定の日次タスク: その曜日だけに配置
+      targetDays = [task.startDay];
+    } else if (task.cycleIndex !== undefined) {
+      // 2. 周期的に入れ替える日のタスク (例: Day 1, Day 2, Day 3 のローテーション)
+      // 週7日 (0:月 〜 6:日) の中で、d % cycleLength === task.cycleIndex % cycleLength の曜日に配置
+      const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
+      const primaryMod = task.cycleIndex % cycleLength;
+      targetDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => d % cycleLength === primaryMod);
+    } else {
+      // 3. 曜日や周期に関わらず毎日行う日次タスク (1列リスト対応)
+      targetDays = [0, 1, 2, 3, 4, 5, 6];
+    }
 
     for (const d of targetDays) {
       let placedToday = 0;
@@ -359,8 +373,9 @@ export function generateTheoreticalSchedule(
     if (task.startDay !== undefined) {
       candidateDays = [task.startDay, ...candidateDays.filter((d) => d !== task.startDay)];
     } else if (task.cycleIndex !== undefined) {
-      const cyclePrimary = task.cycleIndex % 3; // 0: 月/木, 1: 火/金, 2: 水/土
-      const cycleDays = [cyclePrimary, cyclePrimary + 3].filter((d) => d < 7);
+      const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
+      const cyclePrimary = task.cycleIndex % cycleLength;
+      const cycleDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => d % cycleLength === cyclePrimary);
       const otherDays = candidateDays.filter((d) => !cycleDays.includes(d));
       candidateDays = [...cycleDays, ...otherDays];
     }

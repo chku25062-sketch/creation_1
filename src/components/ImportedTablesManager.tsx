@@ -22,6 +22,7 @@ import {
   Calendar,
   Clock,
   Upload,
+  X,
 } from 'lucide-react';
 import {
   ImportedTableData,
@@ -35,9 +36,12 @@ import {
   getTableClassification,
   addRowToTable,
   removeRowFromTable,
+  removeRowAtIndex,
   addColToTable,
   removeColFromTable,
+  removeColAtIndex,
   generateScheduleItemsForTable,
+  parseColHeader,
 } from '@/lib/tableUtils';
 import { TaskManager } from '@/components/TaskManager';
 
@@ -54,6 +58,29 @@ interface ImportedTablesManagerProps {
   onOpenImport?: () => void;
   onFileSelect?: (file: File) => void;
 }
+
+const COL_HEADER_OPTIONS = [
+  // 曜日（月曜〜日曜）
+  { label: '月曜', group: '曜日' },
+  { label: '火曜', group: '曜日' },
+  { label: '水曜', group: '曜日' },
+  { label: '木曜', group: '曜日' },
+  { label: '金曜', group: '曜日' },
+  { label: '土曜', group: '曜日' },
+  { label: '日曜', group: '曜日' },
+  // 周期ローテーション
+  { label: 'Day 1', group: '周期' },
+  { label: 'Day 2', group: '周期' },
+  { label: 'Day 3', group: '周期' },
+  { label: 'Day 4', group: '周期' },
+  { label: 'Day 5', group: '周期' },
+  { label: 'Day 6', group: '周期' },
+  { label: 'Day 7', group: '周期' },
+  // 曜日周期不問 (1列リスト・毎日)
+  { label: 'フリー', group: 'その他' },
+  // 反映対象外
+  { label: '除外', group: 'その他' },
+];
 
 const WEEKDAY_OPTIONS = [
   { label: '月曜', value: 0 },
@@ -397,12 +424,19 @@ export function ImportedTablesManager({
     }
   };
 
-  // 横軸（列の曜日）の変更
-  const handleColHeaderChange = (colIdx: number, dayValue: number) => {
-    const dayLabel = WEEKDAY_OPTIONS.find((w) => w.value === dayValue)?.label || `列 ${colIdx + 1}`;
+  // 横軸（列ヘッダーの変更）
+  const handleColHeaderChange = (colIdx: number, newHeader: string) => {
     updateActiveTable((prev) => {
       const nextColHeaders = [...prev.colHeaders];
-      nextColHeaders[colIdx] = dayLabel;
+      nextColHeaders[colIdx] = newHeader;
+
+      const parsed = parseColHeader(newHeader, colIdx);
+      const dayValue =
+        parsed.type === 'weekday' && parsed.dayIndex !== undefined
+          ? parsed.dayIndex
+          : colIdx < 7
+            ? colIdx
+            : 0;
 
       // セル側のdayIndexも更新
       const nextCells = prev.cells.map((row) =>
@@ -415,6 +449,81 @@ export function ImportedTablesManager({
         cells: nextCells,
         updatedAt: new Date().toISOString(),
       };
+    });
+  };
+
+  // 表レイアウト・プリセット一括変更（曜日、周期、1列リスト）
+  const handleApplyPreset = (preset: 'weekday' | 'cycle3' | 'single') => {
+    updateActiveTable((prev) => {
+      if (preset === 'weekday') {
+        const targetCols = 5;
+        const headers = ['月曜', '火曜', '水曜', '木曜', '金曜'];
+        const nextCells = prev.cells.map((row) => {
+          const newRow = row.slice(0, targetCols);
+          while (newRow.length < targetCols) {
+            const cIdx = newRow.length;
+            newRow.push({
+              dayIndex: cIdx,
+              periodIndex: row[0]?.periodIndex || 1,
+              text: null,
+              rawLines: [],
+              fullText: '',
+              title: '',
+              roomOrNote: '',
+              startMinutes: 0,
+              endMinutes: 0,
+            });
+          }
+          return newRow;
+        });
+        return {
+          ...prev,
+          numCols: targetCols,
+          colHeaders: headers,
+          cells: nextCells,
+          updatedAt: new Date().toISOString(),
+        };
+      } else if (preset === 'cycle3') {
+        const targetCols = 3;
+        const headers = ['Day 1', 'Day 2', 'Day 3'];
+        const nextCells = prev.cells.map((row) => {
+          const newRow = row.slice(0, targetCols);
+          while (newRow.length < targetCols) {
+            const cIdx = newRow.length;
+            newRow.push({
+              dayIndex: cIdx,
+              periodIndex: row[0]?.periodIndex || 1,
+              text: null,
+              rawLines: [],
+              fullText: '',
+              title: '',
+              roomOrNote: '',
+              startMinutes: 0,
+              endMinutes: 0,
+            });
+          }
+          return newRow;
+        });
+        return {
+          ...prev,
+          numCols: targetCols,
+          colHeaders: headers,
+          cells: nextCells,
+          updatedAt: new Date().toISOString(),
+        };
+      } else {
+        // 1列リスト (フリー)
+        const targetCols = 1;
+        const headers = ['タスク一覧'];
+        const nextCells = prev.cells.map((row) => row.slice(0, 1));
+        return {
+          ...prev,
+          numCols: 1,
+          colHeaders: headers,
+          cells: nextCells,
+          updatedAt: new Date().toISOString(),
+        };
+      }
     });
   };
 
@@ -1603,25 +1712,74 @@ export function ImportedTablesManager({
                   )}
                 </div>
 
-                {/* 行・列の追加クイックボタン */}
+                {/* 行・列の増減クイックボタン */}
                 <div className="flex items-center gap-1 border-l border-slate-200 pl-1.5">
                   <button
                     type="button"
                     onClick={() => updateActiveTable(addRowToTable)}
                     title="行を末尾に追加"
-                    className="flex items-center gap-0.5 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-bold text-slate-700 hover:bg-slate-100 transition shadow-2xs active:scale-95"
+                    className="flex items-center gap-0.5 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition shadow-2xs active:scale-95"
                   >
                     <Plus className="h-3 w-3" />
                     <span>行</span>
                   </button>
                   <button
                     type="button"
+                    onClick={() => updateActiveTable(removeRowFromTable)}
+                    disabled={activeTable.numRows <= 1}
+                    title={activeTable.numRows <= 1 ? 'これ以上行を減らせません' : '末尾の行を削除'}
+                    className="flex items-center gap-0.5 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-bold text-slate-700 hover:bg-red-50 hover:text-red-600 transition shadow-2xs active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Minus className="h-3 w-3" />
+                    <span>行</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => updateActiveTable(addColToTable)}
                     title="列を右端に追加"
-                    className="flex items-center gap-0.5 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-bold text-slate-700 hover:bg-slate-100 transition shadow-2xs active:scale-95"
+                    className="flex items-center gap-0.5 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-bold text-slate-700 hover:bg-slate-100 hover:text-blue-600 transition shadow-2xs active:scale-95"
                   >
                     <Plus className="h-3 w-3" />
                     <span>列</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateActiveTable(removeColFromTable)}
+                    disabled={activeTable.numCols <= 1}
+                    title={activeTable.numCols <= 1 ? 'これ以上列を減らせません' : '右端の列を削除'}
+                    className="flex items-center gap-0.5 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-bold text-slate-700 hover:bg-red-50 hover:text-red-600 transition shadow-2xs active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Minus className="h-3 w-3" />
+                    <span>列</span>
+                  </button>
+                </div>
+
+                {/* 表の形式プリセット */}
+                <div className="hidden xl:flex items-center gap-1 border-l border-slate-200 pl-1.5">
+                  <span className="text-[10px] text-slate-400 font-medium">形式:</span>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset('weekday')}
+                    title="平日5日（月〜金）の曜日別表に切り替え"
+                    className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 transition shadow-2xs"
+                  >
+                    📅 曜日
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset('cycle3')}
+                    title="3日周期ローテーション（Day 1〜3）に切り替え"
+                    className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 transition shadow-2xs"
+                  >
+                    🔄 周期
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset('single')}
+                    title="1列のタスクリスト（フリー）に切り替え"
+                    className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-300 transition shadow-2xs"
+                  >
+                    📝 1列
                   </button>
                 </div>
               </div>
@@ -1728,11 +1886,10 @@ export function ImportedTablesManager({
                         <span>#</span>
                       </th>
 
-                      {/* 列ヘッダー (曜日マッピング) */}
+                      {/* 列ヘッダー (曜日 / 周期 / フリー / 除外) */}
                       {activeTable.colHeaders.map((colName, cIdx) => {
-                        const currentDayVal =
-                          WEEKDAY_OPTIONS.find((w) => w.label === colName)?.value ?? cIdx;
-                        const isExcluded = currentDayVal === -1;
+                        const parsed = parseColHeader(colName, cIdx);
+                        const isExcluded = parsed.type === 'excluded';
                         const colLetter = String.fromCharCode(65 + cIdx); // A, B, C, D...
 
                         return (
@@ -1743,43 +1900,70 @@ export function ImportedTablesManager({
                             }`}
                           >
                             <div className="flex flex-col items-center gap-1">
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center justify-between w-full px-1">
                                 <span className="font-mono text-[10px] font-bold text-slate-400">
                                   {colLetter}
                                 </span>
-                                <select
-                                  value={currentDayVal}
-                                  onChange={(e) =>
-                                    handleColHeaderChange(cIdx, Number(e.target.value))
-                                  }
-                                  className={`rounded-md border px-2 py-0.5 text-xs font-bold transition shadow-2xs focus:outline-hidden cursor-pointer ${
-                                    isExcluded
-                                      ? 'border-slate-300 bg-slate-100 text-slate-400'
-                                      : 'border-blue-300 bg-white text-blue-700 hover:border-blue-400'
-                                  }`}
-                                >
-                                  {WEEKDAY_OPTIONS.map((opt) => (
-                                    <option key={opt.value} value={opt.value}>
-                                      {opt.label}
-                                    </option>
-                                  ))}
-                                </select>
+                                {activeTable.numCols > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => updateActiveTable((t) => removeColAtIndex(t, cIdx))}
+                                    title={`この列 (${colName}) を削除`}
+                                    className="h-4 w-4 rounded flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                )}
                               </div>
+                              <select
+                                value={colName}
+                                onChange={(e) => handleColHeaderChange(cIdx, e.target.value)}
+                                className={`w-full rounded-md border px-1.5 py-0.5 text-xs font-bold transition shadow-2xs focus:outline-hidden cursor-pointer ${
+                                  isExcluded
+                                    ? 'border-slate-300 bg-slate-100 text-slate-400'
+                                    : parsed.type === 'cycle'
+                                    ? 'border-emerald-300 bg-white text-emerald-700 hover:border-emerald-400'
+                                    : parsed.type === 'free'
+                                    ? 'border-purple-300 bg-white text-purple-700 hover:border-purple-400'
+                                    : 'border-blue-300 bg-white text-blue-700 hover:border-blue-400'
+                                }`}
+                              >
+                                {COL_HEADER_OPTIONS.map((opt) => (
+                                  <option key={opt.label} value={opt.label}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                                {!COL_HEADER_OPTIONS.some((o) => o.label === colName) && (
+                                  <option value={colName}>{colName}</option>
+                                )}
+                              </select>
                             </div>
                           </th>
                         );
                       })}
 
-                      {/* 列追加ヘッダー */}
-                      <th className="sticky top-0 z-20 border-b-2 border-r border-slate-300 bg-slate-100/70 p-2 text-center w-12 min-w-[48px]">
-                        <button
-                          type="button"
-                          onClick={() => updateActiveTable(addColToTable)}
-                          title="列を右端に追加"
-                          className="flex h-7 w-7 items-center justify-center rounded-md border border-dashed border-slate-300 bg-white text-slate-500 hover:border-blue-400 hover:text-blue-600 transition shadow-2xs mx-auto active:scale-95"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
+                      {/* 列増減ヘッダー */}
+                      <th className="sticky top-0 z-20 border-b-2 border-r border-slate-300 bg-slate-100/70 p-1.5 text-center w-14 min-w-[56px]">
+                        <div className="flex flex-col items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => updateActiveTable(addColToTable)}
+                            title="列を右端に追加"
+                            className="flex h-6 w-6 items-center justify-center rounded-md border border-dashed border-slate-300 bg-white text-slate-500 hover:border-blue-400 hover:text-blue-600 transition shadow-2xs active:scale-95"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                          {activeTable.numCols > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => updateActiveTable(removeColFromTable)}
+                              title="右端の列を削除"
+                              className="flex h-6 w-6 items-center justify-center rounded-md border border-dashed border-slate-300 bg-white text-slate-500 hover:border-red-400 hover:text-red-600 transition shadow-2xs active:scale-95"
+                            >
+                              <Minus className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </th>
                     </tr>
                   </thead>
@@ -1788,10 +1972,22 @@ export function ImportedTablesManager({
                       const pt = periodTimes[rIdx];
                       return (
                         <tr key={`row-${rIdx}`} className="group/row">
-                          {/* 行ヘッダー (番号 & 時間帯) */}
-                          <td className="sticky left-0 z-10 border-b border-r-2 border-slate-300 bg-slate-50 p-2 text-center group-hover/row:bg-slate-100/80 transition">
-                            <div className="font-bold text-slate-900 text-xs sm:text-sm">
-                              {rIdx + 1}
+                          {/* 行ヘッダー (番号 & 時間帯 & 行削除ボタン) */}
+                          <td className="sticky left-0 z-10 border-b border-r-2 border-slate-300 bg-slate-50 p-1.5 sm:p-2 text-center group-hover/row:bg-slate-100/80 transition">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                                {rIdx + 1}
+                              </span>
+                              {activeTable.numRows > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateActiveTable((t) => removeRowAtIndex(t, rIdx))}
+                                  title={`行 ${rIdx + 1} を削除`}
+                                  className="h-4 w-4 rounded opacity-0 group-hover/row:opacity-100 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              )}
                             </div>
                             {pt?.startTime && pt?.endTime && (
                               <div className="font-mono text-[10px] text-slate-500 whitespace-nowrap mt-0.5">
@@ -1866,20 +2062,32 @@ export function ImportedTablesManager({
                       );
                     })}
 
-                    {/* 行追加フッター行 */}
+                    {/* 行追加・削除フッター行 */}
                     <tr>
                       <td
                         colSpan={activeTable.numCols + 2}
                         className="p-2 bg-slate-50/40 text-center border-b border-slate-200"
                       >
-                        <button
-                          type="button"
-                          onClick={() => updateActiveTable(addRowToTable)}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/30 transition shadow-2xs active:scale-95"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          <span>行を追加</span>
-                        </button>
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => updateActiveTable(addRowToTable)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/30 transition shadow-2xs active:scale-95"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            <span>行を追加</span>
+                          </button>
+                          {activeTable.numRows > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => updateActiveTable(removeRowFromTable)}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:border-red-400 hover:text-red-600 hover:bg-red-50/30 transition shadow-2xs active:scale-95"
+                            >
+                              <Minus className="h-3.5 w-3.5" />
+                              <span>行を削除</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   </tbody>

@@ -3,9 +3,12 @@ import {
   getTableClassification,
   addRowToTable,
   removeRowFromTable,
+  removeRowAtIndex,
   addColToTable,
   removeColFromTable,
+  removeColAtIndex,
   generateScheduleItemsForTable,
+  parseColHeader,
 } from './tableUtils';
 import { ImportedTableData } from '@/types';
 
@@ -176,5 +179,65 @@ describe('tableUtils', () => {
     expect(res.tasks[0].title).toBe('胸トレ');
     expect(res.tasks[0].period).toBe('week');
     expect(res.tasks[0].cycleIndex).toBe(0);
+  });
+
+  it('correctly parses column headers with parseColHeader', () => {
+    expect(parseColHeader('月曜', 0)).toEqual({ type: 'weekday', dayIndex: 0, label: '月曜' });
+    expect(parseColHeader('金', 4)).toEqual({ type: 'weekday', dayIndex: 4, label: '金' });
+    expect(parseColHeader('Day 1', 0)).toEqual({ type: 'cycle', cycleIndex: 0, label: 'Day 1' });
+    expect(parseColHeader('Day 3', 2)).toEqual({ type: 'cycle', cycleIndex: 2, label: 'Day 3' });
+    expect(parseColHeader('サイクル2', 1)).toEqual({ type: 'cycle', cycleIndex: 1, label: 'サイクル2' });
+    expect(parseColHeader('A日', 0)).toEqual({ type: 'cycle', cycleIndex: 0, label: 'A日' });
+    expect(parseColHeader('フリー', 0)).toEqual({ type: 'free', label: 'フリー' });
+    expect(parseColHeader('除外', 0)).toEqual({ type: 'excluded', label: '除外' });
+  });
+
+  it('removes row and column at specific index', () => {
+    const table = createBaseTable();
+    const addedRow = addRowToTable(table); // 3 rows
+    const removedRow = removeRowAtIndex(addedRow, 1); // remove row index 1
+    expect(removedRow.numRows).toBe(2);
+    expect(removedRow.cells.length).toBe(2);
+
+    const addedCol = addColToTable(table); // 3 cols
+    const removedCol = removeColAtIndex(addedCol, 0); // remove col index 0
+    expect(removedCol.numCols).toBe(2);
+    expect(removedCol.colHeaders).toEqual(['火曜', '水曜']);
+  });
+
+  it('generates weekday-specific daily tasks when daily table has weekday headers', () => {
+    const table = createBaseTable(null);
+    table.classificationOverride = 'daily_task';
+    table.colHeaders = ['月曜', '火曜'];
+    const res = generateScheduleItemsForTable(table);
+    expect(res.tasks.length).toBe(1);
+    expect(res.tasks[0].period).toBe('day');
+    expect(res.tasks[0].startDay).toBe(0); // 月曜限定日課
+    expect(res.tasks[0].cycleIndex).toBeUndefined();
+  });
+
+  it('generates cyclic daily tasks when daily table has Day headers', () => {
+    const table = createBaseTable(null);
+    table.classificationOverride = 'daily_task';
+    table.colHeaders = ['Day 1', 'Day 2', 'Day 3'];
+    const res = generateScheduleItemsForTable(table);
+    expect(res.tasks.length).toBe(1);
+    expect(res.tasks[0].period).toBe('day');
+    expect(res.tasks[0].cycleIndex).toBe(0);
+    expect(res.tasks[0].cycleCount).toBe(3);
+    expect(res.tasks[0].startDay).toBeUndefined(); // 周期ローテーション日課
+  });
+
+  it('generates free daily tasks for single-column list tables', () => {
+    const table = createBaseTable(null);
+    table.classificationOverride = 'daily_task';
+    table.numCols = 1;
+    table.colHeaders = ['タスク一覧'];
+    table.cells = table.cells.map((row) => row.slice(0, 1));
+    const res = generateScheduleItemsForTable(table);
+    expect(res.tasks.length).toBe(1);
+    expect(res.tasks[0].period).toBe('day');
+    expect(res.tasks[0].startDay).toBeUndefined();
+    expect(res.tasks[0].cycleIndex).toBeUndefined();
   });
 });
