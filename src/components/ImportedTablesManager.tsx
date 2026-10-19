@@ -6,6 +6,7 @@ import {
   Edit2,
   Trash2,
   Plus,
+  Minus,
   Check,
   ChevronDown,
   ChevronUp,
@@ -22,9 +23,22 @@ import {
   Clock,
   Upload,
 } from 'lucide-react';
-import { ImportedTableData, FixedSlot, TaskItem, ScheduleInclusionSettings } from '@/types';
+import {
+  ImportedTableData,
+  FixedSlot,
+  TaskItem,
+  ScheduleInclusionSettings,
+  TableClassification,
+} from '@/types';
 import { calculatePeriodTimes, timeStringToMinutes } from '@/lib/timeUtils';
-import { generateSlotsForTable } from '@/lib/storage';
+import {
+  getTableClassification,
+  addRowToTable,
+  removeRowFromTable,
+  addColToTable,
+  removeColFromTable,
+  generateScheduleItemsForTable,
+} from '@/lib/tableUtils';
 import { TaskManager } from '@/components/TaskManager';
 
 interface ImportedTablesManagerProps {
@@ -191,22 +205,25 @@ export function ImportedTablesManager({
   // セル編集ステート
   const [editingCell, setEditingCell] = useState<{ r: number; c: number } | null>(null);
   const [cellEditText, setCellEditText] = useState('');
+  const [cellEditCategory, setCellEditCategory] = useState<string>('lecture');
+  const [cellAttachedEnabled, setCellAttachedEnabled] = useState<boolean>(false);
+  const [cellAttachedTitle, setCellAttachedTitle] = useState<string>('');
+  const [cellAttachedDuration, setCellAttachedDuration] = useState<number>(15);
 
-  // 計画表反映確認モーダルのステート
-  const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
-  const [applyMode, setApplyMode] = useState<'replace' | 'add'>('replace');
-  const [autoCreateAssignments, setAutoCreateAssignments] = useState(true);
   const [applySuccessMsg, setApplySuccessMsg] = useState<string | null>(null);
 
   // テーブル更新ヘルパー
   const updateActiveTable = (updater: (prev: ImportedTableData) => ImportedTableData) => {
+    if (!activeTable) return;
     const nextTable = updater(activeTable);
     const updated = tables.map((t) => (t.id === activeTable.id ? nextTable : t));
     onTablesChange(updated);
 
-    // もし計画表に反映中のテーブルであれば、固定枠も自動再同期
+    // もし計画表に反映中のテーブルであれば、固定枠 & タスクも自動再同期
     if (isTableApplied(nextTable)) {
-      const newSlots = generateSlotsForTable(nextTable);
+      const { slots: newSlots, tasks: newTasks, slotIds, taskIds } =
+        generateScheduleItemsForTable(nextTable);
+
       const filteredSlots = fixedSlots.filter(
         (s) =>
           s.sourceTableId !== nextTable.id &&
@@ -215,6 +232,16 @@ export function ImportedTablesManager({
           !(nextTable.appliedSlotIds && nextTable.appliedSlotIds.includes(s.id)),
       );
       onSlotsChange([...filteredSlots, ...newSlots]);
+
+      const filteredTasks = tasks.filter(
+        (t) =>
+          t.sourceTableId !== nextTable.id &&
+          !t.id.startsWith(`task-table-${nextTable.id}-`) &&
+          !t.id.startsWith(`task-attached-${nextTable.id}-`) &&
+          !t.id.startsWith(`task-assignment-${nextTable.id}-`) &&
+          !(nextTable.appliedTaskIds && nextTable.appliedTaskIds.includes(t.id)),
+      );
+      onTasksChange([...filteredTasks, ...newTasks]);
     }
   };
 
@@ -232,11 +259,10 @@ export function ImportedTablesManager({
   const isTableApplied = (table: ImportedTableData): boolean => {
     if (table.isApplied !== undefined) return table.isApplied;
     if (table.appliedSlotIds && table.appliedSlotIds.length > 0) return true;
-    return fixedSlots.some(
-      (s) =>
-        s.sourceTableId === table.id ||
-        s.id.startsWith(`slot-table-${table.id}-`) ||
-        s.id.startsWith(`slot-lecture-${table.id}-`),
+    if (table.appliedTaskIds && table.appliedTaskIds.length > 0) return true;
+    return (
+      fixedSlots.some((s) => s.sourceTableId === table.id) ||
+      tasks.some((t) => t.sourceTableId === table.id)
     );
   };
 
@@ -246,9 +272,9 @@ export function ImportedTablesManager({
     if (selectedItemId === 'sys-weekly') return isWeeklyApplied;
     if (activeTable) return isTableApplied(activeTable);
     return false;
-  }, [selectedItemId, isSlotsApplied, isDailyApplied, isWeeklyApplied, activeTable, fixedSlots]);
+  }, [selectedItemId, isSlotsApplied, isDailyApplied, isWeeklyApplied, activeTable, fixedSlots, tasks]);
 
-  // テーブル反映トグル切り替え
+  // テーブル反映トグル切り替え (Plan7: 固定枠 / 日課タスク / 週次タスク / 付随タスク対応)
   const handleToggleTableApply = (table: ImportedTableData) => {
     const currentlyApplied = isTableApplied(table);
 
@@ -263,16 +289,20 @@ export function ImportedTablesManager({
       );
       onSlotsChange(nextSlots);
 
-      // 連動課題タスクも削除
       const nextTasks = tasks.filter(
-        (t) => !t.id.startsWith(`task-assignment-${table.id}-`) && t.sourceTableId !== table.id,
+        (t) =>
+          t.sourceTableId !== table.id &&
+          !t.id.startsWith(`task-table-${table.id}-`) &&
+          !t.id.startsWith(`task-attached-${table.id}-`) &&
+          !t.id.startsWith(`task-assignment-${table.id}-`) &&
+          !(table.appliedTaskIds && table.appliedTaskIds.includes(t.id)),
       );
-      if (nextTasks.length !== tasks.length) {
-        onTasksChange(nextTasks);
-      }
+      onTasksChange(nextTasks);
 
       const updated = tables.map((t) =>
-        t.id === table.id ? { ...t, isApplied: false, appliedSlotIds: [] } : t,
+        t.id === table.id
+          ? { ...t, isApplied: false, appliedSlotIds: [], appliedTaskIds: [] }
+          : t,
       );
       onTablesChange(updated);
 
@@ -280,15 +310,15 @@ export function ImportedTablesManager({
       setTimeout(() => setApplySuccessMsg(null), 3000);
     } else {
       // 反映 (ON)
-      const newSlots = generateSlotsForTable(table);
-      if (newSlots.length === 0) {
-        alert(
-          '有効な授業コマがありません。セルに講義名を入力するか、列の曜日定義をご確認ください。',
-        );
+      const { slots: newSlots, tasks: newTasks, slotIds, taskIds } =
+        generateScheduleItemsForTable(table);
+
+      if (newSlots.length === 0 && newTasks.length === 0) {
+        alert('有効なコマがありません。セルに内容を入力するか、列の曜日定義をご確認ください。');
         return;
       }
 
-      // 既存の同一テーブル由来スロットを除去して追加
+      // 既存の同一テーブル由来スロット・タスクを除去して追加
       const filteredSlots = fixedSlots.filter(
         (s) =>
           s.sourceTableId !== table.id &&
@@ -296,68 +326,33 @@ export function ImportedTablesManager({
           !s.id.startsWith(`slot-lecture-${table.id}-`) &&
           !(table.appliedSlotIds && table.appliedSlotIds.includes(s.id)),
       );
-      const nextSlots = [...filteredSlots, ...newSlots];
-      onSlotsChange(nextSlots);
+      onSlotsChange([...filteredSlots, ...newSlots]);
 
-      // 自動課題タスク生成（autoCreateAssignments が true の場合）
-      if (autoCreateAssignments) {
-        const assignmentsToAdd: TaskItem[] = [];
-        table.cells.forEach((row, r) => {
-          row.forEach((cell, c) => {
-            const colHeader = table.colHeaders[c] || '';
-            let dayIdx = cell.dayIndex;
-            if (colHeader.includes('月')) dayIdx = 0;
-            else if (colHeader.includes('火')) dayIdx = 1;
-            else if (colHeader.includes('水')) dayIdx = 2;
-            else if (colHeader.includes('木')) dayIdx = 3;
-            else if (colHeader.includes('金')) dayIdx = 4;
-            else if (colHeader.includes('土')) dayIdx = 5;
-            else if (colHeader.includes('日')) dayIdx = 6;
-            else if (colHeader === '除外') dayIdx = -1;
-
-            if (dayIdx >= 0 && cell.title.trim()) {
-              const deadlineDay = (dayIdx - 1 + 7) % 7;
-              assignmentsToAdd.push({
-                id: `task-assignment-${table.id}-${r}-${c}-${Math.random().toString(36).substring(2, 5)}`,
-                title: `${cell.title} レポート課題`,
-                category: 'must',
-                durationSize: 'medium',
-                durationMinutes: 60,
-                frequency: 'low',
-                taskType: 'assignment',
-                startDay: dayIdx,
-                deadlineDay,
-                priority: 'high',
-                period: 'week',
-                completed: false,
-                sourceTableId: table.id,
-                sourceTableName: table.name,
-              });
-            }
-          });
-        });
-
-        if (assignmentsToAdd.length > 0) {
-          const existingWithoutTable = tasks.filter(
-            (t) => !t.id.startsWith(`task-assignment-${table.id}-`),
-          );
-          onTasksChange([...existingWithoutTable, ...assignmentsToAdd]);
-        }
-      }
+      const filteredTasks = tasks.filter(
+        (t) =>
+          t.sourceTableId !== table.id &&
+          !t.id.startsWith(`task-table-${table.id}-`) &&
+          !t.id.startsWith(`task-attached-${table.id}-`) &&
+          !t.id.startsWith(`task-assignment-${table.id}-`) &&
+          !(table.appliedTaskIds && table.appliedTaskIds.includes(t.id)),
+      );
+      onTasksChange([...filteredTasks, ...newTasks]);
 
       const updated = tables.map((t) =>
         t.id === table.id
           ? {
               ...t,
               isApplied: true,
-              appliedSlotIds: newSlots.map((s) => s.id),
+              appliedSlotIds: slotIds,
+              appliedTaskIds: taskIds,
               updatedAt: new Date().toISOString(),
             }
           : t,
       );
       onTablesChange(updated);
 
-      setApplySuccessMsg(`「${table.name}」を計画表に反映しました（${newSlots.length}コマ）`);
+      const totalItems = newSlots.length + newTasks.length;
+      setApplySuccessMsg(`「${table.name}」を計画表に反映しました（${totalItems}件）`);
       setTimeout(() => setApplySuccessMsg(null), 3500);
     }
   };
@@ -426,7 +421,7 @@ export function ImportedTablesManager({
   // 縦軸（基本ルール一括設定）の変更
   const handleAxisConfigChange = (
     key: keyof ImportedTableData['axisConfig'],
-    value: string | number | boolean,
+    value: string | number | boolean | null,
   ) => {
     updateActiveTable((prev) => {
       const nextConfig = {
@@ -534,9 +529,24 @@ export function ImportedTablesManager({
 
   // セル編集
   const handleStartEditCell = (r: number, c: number) => {
+    if (!activeTable) return;
     const cell = activeTable.cells[r][c];
     setEditingCell({ r, c });
     setCellEditText(cell.text || cell.title || '');
+    setCellEditCategory(cell.category || 'lecture');
+    setCellAttachedEnabled(
+      cell.attachedTask?.enabled ?? activeTable.attachedTaskConfig?.enabled ?? false,
+    );
+    setCellAttachedTitle(
+      cell.attachedTask?.title ||
+        activeTable.attachedTaskConfig?.titleTemplate ||
+        '{title} の記録・確認',
+    );
+    setCellAttachedDuration(
+      cell.attachedTask?.durationMinutes ||
+        activeTable.attachedTaskConfig?.durationMinutes ||
+        15,
+    );
   };
 
   const handleSaveEditCell = () => {
@@ -558,6 +568,14 @@ export function ImportedTablesManager({
               roomOrNote,
               fullText: trimmed,
               rawLines: lines,
+              category: cellEditCategory,
+              attachedTask: cellAttachedEnabled
+                ? {
+                    enabled: true,
+                    title: cellAttachedTitle,
+                    durationMinutes: cellAttachedDuration,
+                  }
+                : undefined,
             };
           }
           return cell;
@@ -600,124 +618,18 @@ export function ImportedTablesManager({
     });
   };
 
-  // 計画表へ反映
-  const handleExecuteApply = () => {
-    // 有効なセル（テキストが存在し、除外列でないもの）を抽出
-    const lectureSlotsToAdd: FixedSlot[] = [];
-    const assignmentsToAdd: TaskItem[] = [];
-
-    activeTable.cells.forEach((row, r) => {
-      const timeSlot = periodTimes[r];
-      row.forEach((cell, c) => {
-        // 列の曜日を判定
-        const colHeader = activeTable.colHeaders[c] || '';
-        let dayIdx = cell.dayIndex;
-        if (colHeader.includes('月')) dayIdx = 0;
-        else if (colHeader.includes('火')) dayIdx = 1;
-        else if (colHeader.includes('水')) dayIdx = 2;
-        else if (colHeader.includes('木')) dayIdx = 3;
-        else if (colHeader.includes('金')) dayIdx = 4;
-        else if (colHeader.includes('土')) dayIdx = 5;
-        else if (colHeader.includes('日')) dayIdx = 6;
-        else if (colHeader === '除外') dayIdx = -1;
-
-        if (dayIdx >= 0 && cell.title.trim()) {
-          const slotId = `slot-lecture-${Date.now()}-${r}-${c}-${Math.random().toString(36).substring(2, 5)}`;
-          const fullTitle = cell.roomOrNote
-            ? `${cell.title} (${cell.roomOrNote.replace(/\n/g, ' ')})`
-            : cell.title;
-
-          lectureSlotsToAdd.push({
-            id: slotId,
-            title: fullTitle,
-            category: 'lecture',
-            startMinutes: timeSlot.startMinutes,
-            endMinutes: timeSlot.endMinutes,
-            color: '#0284c7', // 講義カラー
-            daysOfWeek: [dayIdx],
-            sourceTableId: activeTable.id,
-            sourceTableName: activeTable.name,
-          });
-
-          if (autoCreateAssignments) {
-            const deadlineDay = (dayIdx - 1 + 7) % 7; // 授業前日を締切に
-            assignmentsToAdd.push({
-              id: `task-assignment-${Date.now()}-${r}-${c}-${Math.random().toString(36).substring(2, 5)}`,
-              title: `${cell.title} レポート課題`,
-              category: 'must',
-              durationSize: 'medium',
-              durationMinutes: 60,
-              frequency: 'low',
-              taskType: 'assignment',
-              startDay: dayIdx,
-              deadlineDay,
-              priority: 'high',
-              period: 'week',
-              completed: false,
-              sourceTableId: activeTable.id,
-              sourceTableName: activeTable.name,
-            });
-          }
-        }
-      });
-    });
-
-    if (lectureSlotsToAdd.length === 0) {
-      alert('有効な授業コマがありません。セルに講義名を入力するか、列の曜日定義をご確認ください。');
-      return;
-    }
-
-    let nextSlots: FixedSlot[];
-    if (applyMode === 'replace') {
-      // 既存の講義枠のみを除去して新規置換（睡眠やルーティン、勤務などは保持！）
-      const nonLectureSlots = fixedSlots.filter((s) => s.category !== 'lecture');
-      nextSlots = [...nonLectureSlots, ...lectureSlotsToAdd];
-    } else {
-      nextSlots = [...fixedSlots, ...lectureSlotsToAdd];
-    }
-
-    onSlotsChange(nextSlots);
-
-    if (assignmentsToAdd.length > 0) {
-      onTasksChange([...tasks, ...assignmentsToAdd]);
-    }
-
-    const updated = tables.map((t) =>
-      t.id === activeTable.id
-        ? {
-            ...t,
-            isApplied: true,
-            appliedSlotIds: lectureSlotsToAdd.map((s) => s.id),
-            updatedAt: new Date().toISOString(),
-          }
-        : t,
-    );
-    onTablesChange(updated);
-
-    setIsApplyModalOpen(false);
-    setApplySuccessMsg(
-      `計画表に ${lectureSlotsToAdd.length}件の授業枠${
-        assignmentsToAdd.length > 0 ? ` と ${assignmentsToAdd.length}件の課題タスク` : ''
-      } を組み込みました！`,
-    );
-
-    setTimeout(() => {
-      setApplySuccessMsg(null);
-    }, 4000);
-  };
-
   // 新規テーブル作成（空テーブル）
   const handleAddNewTable = () => {
     const newId = `table-${Date.now()}`;
     const newTable: ImportedTableData = {
       id: newId,
-      name: `新しい時間割 ${tables.length + 1}`,
+      name: `新しい表 ${tables.length + 1}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       numRows: 5,
       numCols: 5,
       colHeaders: ['月曜', '火曜', '水曜', '木曜', '金曜'],
-      rowHeaders: ['1限', '2限', '3限', '4限', '5限'],
+      rowHeaders: ['1', '2', '3', '4', '5'],
       axisConfig: {
         startTime: '09:00',
         periodMinutes: 90,
@@ -1356,16 +1268,6 @@ export function ImportedTablesManager({
               >
                 {isCurrentItemApplied ? 'ON' : 'OFF'}
               </span>
-              {activeTable && (
-                <button
-                  type="button"
-                  onClick={() => setIsApplyModalOpen(true)}
-                  title="反映設定（課題タスク自動生成・反映モード）"
-                  className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition"
-                >
-                  <Sliders className="h-3.5 w-3.5" />
-                </button>
-              )}
             </div>
           )}
         </div>
@@ -1408,20 +1310,82 @@ export function ImportedTablesManager({
                 - 全体稼働時間 & 表サイズサマリー
                 ======================================================== */}
             <div className="shrink-0 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-lg border border-slate-200/90 bg-slate-50/95 px-2.5 py-1.5 text-xs text-slate-700 shadow-2xs">
-              {/* Left: 時間軸クイック設定 */}
+              {/* Left: 分類バッジ ＆ 時間軸・付随タスク・行列クイック設定 */}
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                {/* 現在分類インジケーター */}
+                {(() => {
+                  const classification = getTableClassification(activeTable);
+                  if (classification === 'fixed_slot') {
+                    return (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-md border border-sky-300 bg-sky-50 px-2 py-0.5 text-[11px] font-bold text-sky-700 shadow-2xs select-none"
+                        title="開始時刻が指定されているため、計画表の決まった時間帯に固定枠として配置されます"
+                      >
+                        <span>📌 固定枠</span>
+                      </span>
+                    );
+                  }
+                  if (classification === 'daily_task') {
+                    return (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 shadow-2xs select-none"
+                        title="開始時刻が未設定のため、指定曜日の空き時間(FreeSlot)へアルゴリズムが自動組み込みます"
+                      >
+                        <span>🏃 日課タスク</span>
+                      </span>
+                    );
+                  }
+                  return (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 shadow-2xs select-none"
+                      title="開始時刻・曜日が未設定のため、週の空き時間へアルゴリズムが最適配分します"
+                    >
+                      <span>🎯 週次タスク</span>
+                    </span>
+                  );
+                })()}
+
                 {/* 始業時間 */}
                 <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
                   <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                   <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
-                    1限始業:
+                    始業:
                   </span>
-                  <input
-                    type="time"
-                    value={activeTable.axisConfig.startTime}
-                    onChange={(e) => handleAxisConfigChange('startTime', e.target.value)}
-                    className="font-mono text-xs font-bold text-slate-800 bg-transparent focus:outline-hidden"
-                  />
+                  <select
+                    value={activeTable.axisConfig.startTime || 'unset'}
+                    onChange={(e) =>
+                      handleAxisConfigChange(
+                        'startTime',
+                        e.target.value === 'unset' ? null : e.target.value,
+                      )
+                    }
+                    className="font-bold text-xs text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
+                  >
+                    <option value="unset">🌟 未設定 (自動)</option>
+                    <option value="06:00">06:00</option>
+                    <option value="07:00">07:00</option>
+                    <option value="08:00">08:00</option>
+                    <option value="08:50">08:50</option>
+                    <option value="09:00">09:00</option>
+                    <option value="10:00">10:00</option>
+                    <option value="13:00">13:00</option>
+                    <option value="17:00">17:00</option>
+                    {activeTable.axisConfig.startTime &&
+                      ![
+                        '06:00',
+                        '07:00',
+                        '08:00',
+                        '08:50',
+                        '09:00',
+                        '10:00',
+                        '13:00',
+                        '17:00',
+                      ].includes(activeTable.axisConfig.startTime) && (
+                        <option value={activeTable.axisConfig.startTime}>
+                          {activeTable.axisConfig.startTime}
+                        </option>
+                      )}
+                  </select>
                 </div>
 
                 {/* 1コマ分数 */}
@@ -1430,17 +1394,21 @@ export function ImportedTablesManager({
                     1コマ:
                   </span>
                   <select
-                    value={activeTable.axisConfig.periodMinutes}
-                    onChange={(e) =>
-                      handleAxisConfigChange('periodMinutes', Number(e.target.value))
-                    }
+                    value={activeTable.axisConfig.periodMinutes ?? 0}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      handleAxisConfigChange('periodMinutes', val === 0 ? null : val);
+                    }}
                     className="font-bold text-xs text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
                   >
+                    <option value={0}>🌟 未設定 (自動)</option>
                     <option value={90}>90分</option>
-                    <option value={100}>100分</option>
                     <option value={60}>60分</option>
                     <option value={50}>50分</option>
                     <option value={45}>45分</option>
+                    <option value={30}>30分</option>
+                    <option value={25}>25分</option>
+                    <option value={15}>15分</option>
                   </select>
                 </div>
 
@@ -1450,12 +1418,14 @@ export function ImportedTablesManager({
                     休憩:
                   </span>
                   <select
-                    value={activeTable.axisConfig.intervalMinutes}
-                    onChange={(e) =>
-                      handleAxisConfigChange('intervalMinutes', Number(e.target.value))
-                    }
+                    value={activeTable.axisConfig.intervalMinutes ?? -1}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      handleAxisConfigChange('intervalMinutes', val === -1 ? null : val);
+                    }}
                     className="font-bold text-xs text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
                   >
+                    <option value={-1}>🌟 未設定 (自動)</option>
                     <option value={10}>10分</option>
                     <option value={15}>15分</option>
                     <option value={20}>20分</option>
@@ -1464,75 +1434,179 @@ export function ImportedTablesManager({
                   </select>
                 </div>
 
-                {/* 昼休み */}
-                <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
+                {/* 昼休み (開始時刻が設定されている場合のみ有効) */}
+                {activeTable.axisConfig.startTime && (
+                  <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
+                    <label className="flex items-center gap-1 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={activeTable.axisConfig.hasLunch}
+                        onChange={(e) => handleAxisConfigChange('hasLunch', e.target.checked)}
+                        className="h-3 w-3 rounded text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-[10px] sm:text-[11px] font-semibold text-slate-600 whitespace-nowrap">
+                        昼休:
+                      </span>
+                    </label>
+                    {activeTable.axisConfig.hasLunch ? (
+                      <div className="flex items-center gap-0.5">
+                        <select
+                          value={activeTable.axisConfig.lunchAfterPeriod}
+                          onChange={(e) =>
+                            handleAxisConfigChange('lunchAfterPeriod', Number(e.target.value))
+                          }
+                          className="text-[11px] font-bold text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
+                        >
+                          {Array.from({ length: Math.max(1, activeTable.numRows - 1) }).map(
+                            (_, idx) => (
+                              <option key={idx + 1} value={idx + 1}>
+                                {idx + 1}行後
+                              </option>
+                            ),
+                          )}
+                        </select>
+                        <select
+                          value={activeTable.axisConfig.lunchMinutes}
+                          onChange={(e) =>
+                            handleAxisConfigChange('lunchMinutes', Number(e.target.value))
+                          }
+                          className="text-[11px] font-bold text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
+                        >
+                          <option value={40}>40分</option>
+                          <option value={50}>50分</option>
+                          <option value={60}>60分</option>
+                          <option value={70}>70分</option>
+                        </select>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 font-mono">なし</span>
+                    )}
+                  </div>
+                )}
+
+                {/* 個別時間微調整 (開始時刻がある場合) */}
+                {activeTable.axisConfig.startTime && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomTimes(!showCustomTimes)}
+                    className={`flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold transition shadow-2xs active:scale-95 ${
+                      showCustomTimes || hasCustomTimes
+                        ? 'border-blue-300 bg-blue-50 text-blue-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    }`}
+                    title="行ごとの時間微調整（特定行のみ時間を手動変更したい場合）"
+                  >
+                    <Sliders className="h-3 w-3" />
+                    <span className="hidden sm:inline">時間微調整</span>
+                    <span className="sm:hidden">微調整</span>
+                    {hasCustomTimes && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                    )}
+                    {showCustomTimes ? (
+                      <ChevronUp className="h-3 w-3 text-slate-400" />
+                    ) : (
+                      <ChevronDown className="h-3 w-3 text-slate-400" />
+                    )}
+                  </button>
+                )}
+
+                {/* 付随タスク (インライン設定) */}
+                <div className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
                   <label className="flex items-center gap-1 cursor-pointer select-none">
                     <input
                       type="checkbox"
-                      checked={activeTable.axisConfig.hasLunch}
-                      onChange={(e) => handleAxisConfigChange('hasLunch', e.target.checked)}
+                      checked={activeTable.attachedTaskConfig?.enabled ?? false}
+                      onChange={(e) => {
+                        const enabled = e.target.checked;
+                        updateActiveTable((prev) => ({
+                          ...prev,
+                          attachedTaskConfig: {
+                            enabled,
+                            titleTemplate:
+                              prev.attachedTaskConfig?.titleTemplate || '{title} の記録・確認',
+                            durationMinutes:
+                              prev.attachedTaskConfig?.durationMinutes || 15,
+                          },
+                        }));
+                      }}
                       className="h-3 w-3 rounded text-blue-600 focus:ring-blue-500"
                     />
                     <span className="text-[10px] sm:text-[11px] font-semibold text-slate-600 whitespace-nowrap">
-                      昼休:
+                      付随タスク:
                     </span>
                   </label>
-                  {activeTable.axisConfig.hasLunch ? (
-                    <div className="flex items-center gap-0.5">
+                  {activeTable.attachedTaskConfig?.enabled && (
+                    <div className="flex items-center gap-1">
                       <select
-                        value={activeTable.axisConfig.lunchAfterPeriod}
-                        onChange={(e) =>
-                          handleAxisConfigChange('lunchAfterPeriod', Number(e.target.value))
-                        }
+                        value={activeTable.attachedTaskConfig.titleTemplate}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateActiveTable((prev) => ({
+                            ...prev,
+                            attachedTaskConfig: {
+                              enabled: true,
+                              titleTemplate: val,
+                              durationMinutes:
+                                prev.attachedTaskConfig?.durationMinutes || 15,
+                            },
+                          }));
+                        }}
                         className="text-[11px] font-bold text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
                       >
-                        {Array.from({ length: activeTable.numRows - 1 }).map((_, idx) => (
-                          <option key={idx + 1} value={idx + 1}>
-                            {idx + 1}限後
-                          </option>
-                        ))}
+                        <option value="{title} の記録・確認">記録・確認</option>
+                        <option value="{title} のプロテイン・記録">プロテイン・記録</option>
+                        <option value="{title} の課題レポート">課題レポート</option>
+                        <option value="{title} の予習・復習">予習・復習</option>
+                        <option value="{title} の前日準備">前日準備</option>
                       </select>
                       <select
-                        value={activeTable.axisConfig.lunchMinutes}
-                        onChange={(e) =>
-                          handleAxisConfigChange('lunchMinutes', Number(e.target.value))
-                        }
+                        value={activeTable.attachedTaskConfig.durationMinutes}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          updateActiveTable((prev) => ({
+                            ...prev,
+                            attachedTaskConfig: {
+                              enabled: true,
+                              titleTemplate:
+                                prev.attachedTaskConfig?.titleTemplate || '{title} の記録・確認',
+                              durationMinutes: val,
+                            },
+                          }));
+                        }}
                         className="text-[11px] font-bold text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
                       >
-                        <option value={40}>40分</option>
-                        <option value={50}>50分</option>
+                        <option value={10}>10分</option>
+                        <option value={15}>15分</option>
+                        <option value={30}>30分</option>
+                        <option value={45}>45分</option>
                         <option value={60}>60分</option>
-                        <option value={70}>70分</option>
+                        <option value={90}>90分</option>
                       </select>
                     </div>
-                  ) : (
-                    <span className="text-[10px] text-slate-400 font-mono">なし</span>
                   )}
                 </div>
 
-                {/* 時限ごとの個別微調整 */}
-                <button
-                  type="button"
-                  onClick={() => setShowCustomTimes(!showCustomTimes)}
-                  className={`flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold transition shadow-2xs active:scale-95 ${
-                    showCustomTimes || hasCustomTimes
-                      ? 'border-blue-300 bg-blue-50 text-blue-700'
-                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                  }`}
-                  title="時限ごとの個別調整（特定時限のみ時間を手動変更したい場合）"
-                >
-                  <Sliders className="h-3 w-3" />
-                  <span className="hidden sm:inline">時限微調整</span>
-                  <span className="sm:hidden">微調整</span>
-                  {hasCustomTimes && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
-                  )}
-                  {showCustomTimes ? (
-                    <ChevronUp className="h-3 w-3 text-slate-400" />
-                  ) : (
-                    <ChevronDown className="h-3 w-3 text-slate-400" />
-                  )}
-                </button>
+                {/* 行・列の追加クイックボタン */}
+                <div className="flex items-center gap-1 border-l border-slate-200 pl-1.5">
+                  <button
+                    type="button"
+                    onClick={() => updateActiveTable(addRowToTable)}
+                    title="行を末尾に追加"
+                    className="flex items-center gap-0.5 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-bold text-slate-700 hover:bg-slate-100 transition shadow-2xs active:scale-95"
+                  >
+                    <Plus className="h-3 w-3" />
+                    <span>行</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateActiveTable(addColToTable)}
+                    title="列を右端に追加"
+                    className="flex items-center gap-0.5 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-bold text-slate-700 hover:bg-slate-100 transition shadow-2xs active:scale-95"
+                  >
+                    <Plus className="h-3 w-3" />
+                    <span>列</span>
+                  </button>
+                </div>
               </div>
 
               {/* Right: サマリー */}
@@ -1540,10 +1614,12 @@ export function ImportedTablesManager({
                 <div className="flex items-center gap-1 rounded-md bg-blue-100/70 border border-blue-200/70 px-2 py-0.5 font-mono text-[11px] font-bold text-blue-900 shadow-2xs">
                   <Calendar className="h-3.5 w-3.5 text-blue-600 shrink-0" />
                   <span>
-                    {periodTimes[0]?.startTime} 〜 {periodTimes[periodTimes.length - 1]?.endTime}
+                    {activeTable.axisConfig.startTime && periodTimes[0]?.startTime
+                      ? `${periodTimes[0]?.startTime} 〜 ${periodTimes[periodTimes.length - 1]?.endTime}`
+                      : '自動組み込み'}
                   </span>
                   <span className="text-[10px] font-normal text-blue-600 hidden md:inline">
-                    ({activeTable.numRows}コマ)
+                    ({activeTable.numRows}行)
                   </span>
                 </div>
 
@@ -1553,15 +1629,15 @@ export function ImportedTablesManager({
               </div>
             </div>
 
-            {/* Optional Drawer: Individual Period Time Adjustments (コマ個別微調整) */}
-            {showCustomTimes && (
+            {/* Optional Drawer: Individual Row Time Adjustments (行個別微調整) */}
+            {showCustomTimes && activeTable.axisConfig.startTime && (
               <div className="shrink-0 rounded-lg border border-blue-200 bg-blue-50/50 p-2.5 shadow-2xs animate-in fade-in duration-150">
                 <div className="mb-1.5 flex items-center justify-between text-xs">
                   <span className="font-bold text-slate-800">
-                    時限ごとの個別時間調整（特定時限のみ時間を手動変更）
+                    行ごとの時間調整（特定行のみ時間を手動変更）
                   </span>
                   <span className="text-[10px] text-slate-500">
-                    ※手動変更した時限は黄色枠で強調されます
+                    ※手動変更した行は黄色枠で強調されます
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
@@ -1581,7 +1657,7 @@ export function ImportedTablesManager({
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-slate-800 text-[11px]">
-                            {pt.periodIndex}限
+                            {pt.periodIndex}
                           </span>
                           {isCustom && (
                             <button
@@ -1630,13 +1706,9 @@ export function ImportedTablesManager({
                 <table className="w-full border-separate border-spacing-0 text-left text-xs">
                   <thead>
                     <tr>
-                      {/* 左上 交差見出し (全選択セル風) */}
-                      <th className="sticky top-0 left-0 z-30 w-24 sm:w-28 min-w-[96px] sm:min-w-[112px] border-b-2 border-r-2 border-slate-300 bg-slate-100 p-2 text-center text-[10px] font-bold text-slate-600 select-none shadow-2xs">
-                        <div className="flex items-center justify-center gap-1">
-                          <span>時限</span>
-                          <span className="text-slate-300">/</span>
-                          <span>時間</span>
-                        </div>
+                      {/* 左上 交差見出し (行番号 / 時間) */}
+                      <th className="sticky top-0 left-0 z-30 w-16 sm:w-20 min-w-[64px] sm:min-w-[80px] border-b-2 border-r-2 border-slate-300 bg-slate-100 p-2 text-center text-[10px] font-bold text-slate-600 select-none shadow-2xs">
+                        <span>#</span>
                       </th>
 
                       {/* 列ヘッダー (曜日マッピング) */}
@@ -1680,6 +1752,18 @@ export function ImportedTablesManager({
                           </th>
                         );
                       })}
+
+                      {/* 列追加ヘッダー */}
+                      <th className="sticky top-0 z-20 border-b-2 border-r border-slate-300 bg-slate-100/70 p-2 text-center w-12 min-w-[48px]">
+                        <button
+                          type="button"
+                          onClick={() => updateActiveTable(addColToTable)}
+                          title="列を右端に追加"
+                          className="flex h-7 w-7 items-center justify-center rounded-md border border-dashed border-slate-300 bg-white text-slate-500 hover:border-blue-400 hover:text-blue-600 transition shadow-2xs mx-auto active:scale-95"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1687,17 +1771,16 @@ export function ImportedTablesManager({
                       const pt = periodTimes[rIdx];
                       return (
                         <tr key={`row-${rIdx}`} className="group/row">
-                          {/* 行ヘッダー (時限 & 時間帯) */}
+                          {/* 行ヘッダー (番号 & 時間帯) */}
                           <td className="sticky left-0 z-10 border-b border-r-2 border-slate-300 bg-slate-50 p-2 text-center group-hover/row:bg-slate-100/80 transition">
-                            <div className="flex items-center justify-center gap-1">
-                              <span className="font-bold text-slate-900 text-xs sm:text-sm">
-                                {rIdx + 1}
-                              </span>
-                              <span className="text-[10px] text-slate-500 font-medium">限</span>
+                            <div className="font-bold text-slate-900 text-xs sm:text-sm">
+                              {rIdx + 1}
                             </div>
-                            <div className="font-mono text-[10px] text-slate-500 whitespace-nowrap mt-0.5">
-                              {pt?.startTime} - {pt?.endTime}
-                            </div>
+                            {pt?.startTime && pt?.endTime && (
+                              <div className="font-mono text-[10px] text-slate-500 whitespace-nowrap mt-0.5">
+                                {pt.startTime} - {pt.endTime}
+                              </div>
+                            )}
                           </td>
 
                           {/* 各セル */}
@@ -1720,8 +1803,16 @@ export function ImportedTablesManager({
                                 {hasContent ? (
                                   <div className="flex h-full flex-col justify-between group/cell">
                                     <div>
-                                      <div className="font-bold text-sky-950 text-xs sm:text-[13px] leading-snug break-words">
-                                        {cell.title}
+                                      <div className="flex items-center gap-1">
+                                        <span className="font-bold text-sky-950 text-xs sm:text-[13px] leading-snug break-words">
+                                          {cell.title}
+                                        </span>
+                                        {cell.attachedTask?.enabled && (
+                                          <span
+                                            className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"
+                                            title="付随タスクあり"
+                                          />
+                                        )}
                                       </div>
                                       {cell.roomOrNote && (
                                         <div className="text-[10px] sm:text-[11px] text-sky-700 font-medium whitespace-pre-wrap mt-0.5 line-clamp-2">
@@ -1730,7 +1821,9 @@ export function ImportedTablesManager({
                                       )}
                                     </div>
                                     <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                                      <span className="opacity-70">{pt?.startTime}</span>
+                                      <span className="opacity-70">
+                                        {pt?.startTime || ''}
+                                      </span>
                                       <button
                                         type="button"
                                         onClick={(e) => handleClearCell(rIdx, cIdx, e)}
@@ -1749,9 +1842,29 @@ export function ImportedTablesManager({
                               </td>
                             );
                           })}
+
+                          {/* 行末の空セル (列追加ヘッダー対応) */}
+                          <td className="border-b border-r border-slate-200 bg-slate-50/20" />
                         </tr>
                       );
                     })}
+
+                    {/* 行追加フッター行 */}
+                    <tr>
+                      <td
+                        colSpan={activeTable.numCols + 2}
+                        className="p-2 bg-slate-50/40 text-center border-b border-slate-200"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => updateActiveTable(addRowToTable)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/30 transition shadow-2xs active:scale-95"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          <span>行を追加</span>
+                        </button>
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -1764,130 +1877,112 @@ export function ImportedTablesManager({
       {editingCell && activeTable && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-2xs p-4">
           <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-4 shadow-xl animate-in zoom-in-95 duration-150">
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-2.5 flex items-center justify-between">
               <span className="text-xs font-bold text-slate-800">
-                コマ内容を編集 ({editingCell.r + 1}限・{activeTable.colHeaders[editingCell.c]})
+                コマ内容を編集 ({editingCell.r + 1}行目・{activeTable.colHeaders[editingCell.c]})
               </span>
               <button
+                type="button"
                 onClick={() => setEditingCell(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 transition"
               >
                 ✕
               </button>
             </div>
+
+            {/* コマ内容入力 */}
             <textarea
-              rows={4}
+              rows={3}
               value={cellEditText}
               onChange={(e) => setCellEditText(e.target.value)}
-              placeholder="1行目: 講義名&#13;&#10;2行目以降: 教室名・教員名・メモ"
+              placeholder="1行目: コマ名称（講義名・メニュー・日課名など）&#13;&#10;2行目以降: 場所・メモ・詳細"
               className="w-full rounded-lg border border-slate-300 p-2 text-xs focus:border-blue-500 focus:outline-hidden"
               autoFocus
             />
-            <div className="mt-3 flex justify-end gap-2">
-              <button
-                onClick={() => setEditingCell(null)}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
-              >
-                キャンセル
-              </button>
-              <button
-                onClick={handleSaveEditCell}
-                className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 shadow-2xs"
-              >
-                保存
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Apply to Schedule Confirmation Modal */}
-      {isApplyModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-2xs p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl animate-in zoom-in-95 duration-150">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-              <Sparkles className="h-5 w-5 text-blue-600" />
-              <h3 className="text-sm font-bold text-slate-900 sm:text-base">
-                計画表への組み込み（反映）
-              </h3>
+            {/* 分類カテゴリ選択 */}
+            <div className="mt-2.5">
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                分類カテゴリ
+              </label>
+              <select
+                value={cellEditCategory}
+                onChange={(e) => setCellEditCategory(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-blue-500 focus:outline-hidden"
+              >
+                <option value="lecture">📚 講義・授業</option>
+                <option value="workout">💪 筋トレ・運動</option>
+                <option value="routine">🏃 日課・ルーティン</option>
+                <option value="work">💼 仕事・アルバイト</option>
+                <option value="study">📖 勉強・自己研鑽</option>
+                <option value="hobby">☕ 趣味・リフレッシュ</option>
+                <option value="other">📌 その他</option>
+              </select>
             </div>
 
-            <div className="my-4 flex flex-col gap-3 text-xs">
-              <p className="text-slate-600 leading-relaxed">
-                定義した横軸（曜日）・縦軸（時間帯）・セル内容を、週間スケジュール（固定枠）へ展開します。
-              </p>
-
-              {/* Mode Selection */}
-              <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <span className="font-bold text-slate-800">反映モード</span>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="applyMode"
-                    value="replace"
-                    checked={applyMode === 'replace'}
-                    onChange={() => setApplyMode('replace')}
-                    className="text-blue-600 focus:ring-blue-500"
-                  />
-                  <div>
-                    <span className="font-semibold text-slate-800">既存の講義枠を置換 (推奨)</span>
-                    <p className="text-[11px] text-slate-500">
-                      以前の講義固定枠のみをクリアし、この表の講義枠に差し替えます（睡眠・勤務等は保持されます）。
-                    </p>
-                  </div>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer mt-1">
-                  <input
-                    type="radio"
-                    name="applyMode"
-                    value="add"
-                    checked={applyMode === 'add'}
-                    onChange={() => setApplyMode('add')}
-                    className="text-blue-600 focus:ring-blue-500"
-                  />
-                  <div>
-                    <span className="font-semibold text-slate-800">既存の枠に追加</span>
-                    <p className="text-[11px] text-slate-500">
-                      すでに登録されているすべての固定枠を残したまま、新しく追加します。
-                    </p>
-                  </div>
-                </label>
-              </div>
-
-              {/* Automatic Assignment Tasks creation */}
-              <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-white p-3 cursor-pointer hover:bg-slate-50 transition">
+            {/* 付随タスク（連動タスク）設定 */}
+            <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
-                  checked={autoCreateAssignments}
-                  onChange={(e) => setAutoCreateAssignments(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded text-blue-600 focus:ring-blue-500"
+                  checked={cellAttachedEnabled}
+                  onChange={(e) => setCellAttachedEnabled(e.target.checked)}
+                  className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500"
                 />
-                <div>
-                  <span className="font-bold text-slate-800">
-                    講義に対応するレポート・課題タスクを自動生成
-                  </span>
-                  <p className="text-[11px] text-slate-500 leading-snug">
-                    各講義に対して「出題日: 講義当日 / 締切:
-                    講義前日」の週間課題タスクを自動起票します。
-                  </p>
-                </div>
+                <span className="text-xs font-semibold text-slate-800">
+                  このコマに付随タスクを連動生成する
+                </span>
               </label>
+              {cellAttachedEnabled && (
+                <div className="mt-2 flex flex-col gap-2 pl-5.5">
+                  <div>
+                    <label className="block text-[10px] text-slate-500 mb-0.5">
+                      付随タスク名 ({'{title}'} でコマ名に置換)
+                    </label>
+                    <input
+                      type="text"
+                      value={cellAttachedTitle}
+                      onChange={(e) => setCellAttachedTitle(e.target.value)}
+                      placeholder="{title} の記録・確認"
+                      className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs focus:border-blue-500 focus:outline-hidden"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-[10px] text-slate-500 shrink-0">
+                      所要時間:
+                    </label>
+                    <select
+                      value={cellAttachedDuration}
+                      onChange={(e) => setCellAttachedDuration(Number(e.target.value))}
+                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs focus:border-blue-500 focus:outline-hidden"
+                    >
+                      <option value={5}>5分</option>
+                      <option value={10}>10分</option>
+                      <option value={15}>15分</option>
+                      <option value={20}>20分</option>
+                      <option value={30}>30分</option>
+                      <option value={45}>45分</option>
+                      <option value={60}>60分</option>
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <div className="mt-3.5 flex justify-end gap-2 border-t border-slate-100 pt-2.5">
               <button
-                onClick={() => setIsApplyModalOpen(false)}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                type="button"
+                onClick={() => setEditingCell(null)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition"
               >
                 キャンセル
               </button>
               <button
-                onClick={handleExecuteApply}
-                className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700"
+                type="button"
+                onClick={handleSaveEditCell}
+                className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 shadow-2xs transition"
               >
-                <Check className="h-4 w-4" />
-                <span>計画表へ組み込む</span>
+                保存
               </button>
             </div>
           </div>

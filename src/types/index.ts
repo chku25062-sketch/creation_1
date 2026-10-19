@@ -111,40 +111,56 @@ export interface ParsedScheduleItem {
   confidence?: number;
 }
 
+export type TableClassification = 'fixed_slot' | 'daily_task' | 'weekly_task';
+
+export interface AttachedTaskConfig {
+  enabled: boolean;
+  titleTemplate: string; // 例: "{title} の記録・プロテイン", "{title} の課題レポート"
+  durationMinutes: number; // 例: 15
+}
+
 export interface GridCell {
   dayIndex: number; // 0:月, 1:火, 2:水, 3:木, 4:金, 5:土, 6:日
-  periodIndex: number; // 1: 1限, 2: 2限, ...
+  periodIndex: number; // 1: 1行目, 2: 2行目, ...
   text: string | null; // セル内の単一要素テキスト (空コマはnull)
   rawLines: string[]; // 改行ごとのテキスト
   fullText: string; // 改行で結合されたセル内テキスト
-  title: string; // 講義名（タイトル）
-  roomOrNote: string; // 教室・備考
+  title: string; // 講義・タスク名（タイトル）
+  roomOrNote: string; // 教室・場所・備考
   startMinutes: number;
   endMinutes: number;
+  category?: string; // "lecture", "workout", "routine", "work", "hobby", "study" 等の自由カテゴリ
+  attachedTask?: {
+    enabled: boolean;
+    title: string;
+    durationMinutes: number;
+  };
 }
 
 export interface TableAxisConfig {
-  startTime: string; // "09:00"
-  periodMinutes: number; // 90
-  intervalMinutes: number; // 10
+  startTime: string | null; // "09:00" または null (未設定: アルゴリズム組み込み)
+  periodMinutes: number | null; // 90 または null (未設定: アルゴリズムおまかせ伸縮)
+  intervalMinutes: number | null; // 10 または null (未設定: アルゴリズムおまかせ)
   hasLunch: boolean; // true
   lunchAfterPeriod: number; // 2
   lunchMinutes: number; // 50
-  customRowTimes?: Record<number, { startMinutes: number; endMinutes: number }>;
+  customRowTimes?: Record<number, { startMinutes?: number; endMinutes?: number }>;
 }
 
 export interface ImportedTableData {
   id: string;
-  name: string; // 例: "2026年度 前期時間割"
+  name: string; // 例: "2026年度 前期時間割", "筋トレメニュー"
   createdAt: string; // ISO
   updatedAt: string; // ISO
   numRows: number;
   numCols: number;
   colHeaders: string[]; // 各列の曜日・ラベル (例: ["月曜", "火曜", "水曜", "木曜", "金曜"])
-  rowHeaders: string[]; // 各行の時限名 (例: ["1限", "2限", "3限", "4限", "5限"])
+  rowHeaders: string[]; // 各行の番号・ラベル (例: ["1", "2", "3", "4", "5"])
   axisConfig: TableAxisConfig;
   cells: GridCell[][];
+  attachedTaskConfig?: AttachedTaskConfig; // ツールバーで設定する表全体の付随タスク設定
   appliedSlotIds?: string[]; // 計画表に反映した際の固定枠ID群
+  appliedTaskIds?: string[]; // 計画表に反映した際のタスクID群
   isApplied?: boolean; // 計画表に反映中かどうか
 }
 

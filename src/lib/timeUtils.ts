@@ -32,17 +32,33 @@ export interface PeriodTimeSlot {
 export function calculatePeriodTimes(
   numRows: number,
   config: {
-    startTime: string;
-    periodMinutes: number;
-    intervalMinutes: number;
+    startTime: string | null;
+    periodMinutes: number | null;
+    intervalMinutes: number | null;
     hasLunch: boolean;
     lunchAfterPeriod: number;
     lunchMinutes: number;
-    customRowTimes?: Record<number, { startMinutes: number; endMinutes: number }>;
+    customRowTimes?: Record<number, { startMinutes?: number; endMinutes?: number }>;
   },
 ): PeriodTimeSlot[] {
   const result: PeriodTimeSlot[] = [];
-  const startBase = timeStringToMinutes(config.startTime || '09:00');
+  const isUnset = !config.startTime || config.startTime === 'unset';
+
+  if (isUnset || !config.startTime) {
+    for (let r = 0; r < numRows; r++) {
+      const periodIndex = r + 1;
+      result.push({
+        periodIndex,
+        startMinutes: 0,
+        endMinutes: 0,
+        startTime: '',
+        endTime: '',
+      });
+    }
+    return result;
+  }
+
+  const startBase = timeStringToMinutes(config.startTime);
   let currentStart = startBase;
 
   for (let r = 0; r < numRows; r++) {
@@ -52,8 +68,9 @@ export function calculatePeriodTimes(
 
     // カスタム指定があれば上書き
     if (config.customRowTimes && config.customRowTimes[periodIndex]) {
-      periodStart = config.customRowTimes[periodIndex].startMinutes;
-      periodEnd = config.customRowTimes[periodIndex].endMinutes;
+      const custom = config.customRowTimes[periodIndex];
+      if (custom.startMinutes !== undefined) periodStart = custom.startMinutes;
+      if (custom.endMinutes !== undefined) periodEnd = custom.endMinutes;
     }
 
     result.push({
@@ -65,7 +82,7 @@ export function calculatePeriodTimes(
     });
 
     // 次のコマの開始時間
-    let nextStart = periodEnd + (config.intervalMinutes || 10);
+    let nextStart = periodEnd + (config.intervalMinutes ?? 10);
     if (config.hasLunch && config.lunchAfterPeriod === periodIndex) {
       nextStart = periodEnd + (config.lunchMinutes || 50);
     }
