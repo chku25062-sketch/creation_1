@@ -315,5 +315,95 @@ describe('tableUtils', () => {
     const dailyRes = generateScheduleItemsForTable(dailyTable);
     expect(dailyRes.tasks[0].category).toBe('日課表');
   });
+
+  it('aggregates same-title weekly tasks across multiple weekdays into a single task with targetDays', () => {
+    // 週のタスク: 表の列の要素が日ごとに繰り返される
+    // 月曜と木曜（2列）に「胸トレ」
+    const table = createBaseTable(null);
+    table.numCols = 4;
+    table.colHeaders = ['月曜', '火曜', '水曜', '木曜'];
+    table.cells = [
+      [
+        { ...table.cells[0][0], title: '胸トレ', dayIndex: 0 },
+        { ...table.cells[0][1], title: '', dayIndex: 1 },
+        { ...table.cells[0][0], title: '', dayIndex: 2 },
+        { ...table.cells[0][1], title: '胸トレ', dayIndex: 3 }, // 木曜にも「胸トレ」
+      ],
+    ];
+
+    const res = generateScheduleItemsForTable(table);
+    // 同一名のタスクは1つにマージされるためタスク数は1件
+    expect(res.tasks.length).toBe(1);
+    expect(res.tasks[0].title).toBe('胸トレ');
+    expect(res.tasks[0].targetDays).toEqual([0, 3]);
+    expect(res.tasks[0].frequencyCount).toBe(2);
+  });
+
+  it('aggregates same-title weekly tasks across multiple cycle days into a single task with cycleDays', () => {
+    // 3日周期表: Day 1 と Day 3 に「腹筋」
+    const table = createBaseTable(null);
+    table.columnMode = 'cycle';
+    table.numCols = 3;
+    table.colHeaders = ['Day 1', 'Day 2', 'Day 3'];
+    table.cells = [
+      [
+        { ...table.cells[0][0], title: '腹筋', dayIndex: 0 },
+        { ...table.cells[0][1], title: '背中', dayIndex: 1 },
+        { ...table.cells[0][0], title: '腹筋', dayIndex: 2 }, // Day 3 にも「腹筋」
+      ],
+    ];
+
+    const res = generateScheduleItemsForTable(table);
+    // 「腹筋」と「背中」の2タスク
+    expect(res.tasks.length).toBe(2);
+    const abTask = res.tasks.find((t) => t.title === '腹筋')!;
+    expect(abTask).toBeDefined();
+    expect(abTask.cycleDays).toEqual([0, 2]);
+    expect(abTask.cycleCount).toBe(3);
+    expect(abTask.frequencyCount).toBe(2);
+  });
+
+  it('aggregates same-title daily tasks within a day into a single task with dailyCount', () => {
+    // 日のタスク: 表の列の要素がその日の中で繰り返される (朝・昼・夜)
+    // 朝と夜に同じ「プロテイン」
+    const table = createBaseTable(null);
+    table.classificationOverride = 'daily_task';
+    table.numCols = 3;
+    table.colHeaders = ['朝', '昼', '夜'];
+    table.cells = [
+      [
+        { ...table.cells[0][0], title: 'プロテイン', dayIndex: 0 },
+        { ...table.cells[0][1], title: '昼寝', dayIndex: 1 },
+        { ...table.cells[0][0], title: 'プロテイン', dayIndex: 2 }, // 夜にも「プロテイン」
+      ],
+    ];
+
+    const res = generateScheduleItemsForTable(table);
+    expect(res.tasks.length).toBe(2);
+    const proteinTask = res.tasks.find((t) => t.title === 'プロテイン')!;
+    expect(proteinTask).toBeDefined();
+    expect(proteinTask.period).toBe('day');
+    expect(proteinTask.dailyCount).toBe(2); // 朝と夜で1日2回！
+  });
+
+  it('aggregates fixed slots at the same period with same title across weekdays into daysOfWeek', () => {
+    // 固定枠: 1限に月曜と水曜の両方「英語講義」
+    const table = createBaseTable('09:00');
+    table.numCols = 3;
+    table.colHeaders = ['月曜', '火曜', '水曜'];
+    table.cells = [
+      [
+        { ...table.cells[0][0], title: '英語講義', dayIndex: 0 },
+        { ...table.cells[0][1], title: '', dayIndex: 1 },
+        { ...table.cells[0][0], title: '英語講義', dayIndex: 2 }, // 水曜1限にも「英語講義」
+      ],
+    ];
+
+    const res = generateScheduleItemsForTable(table);
+    expect(res.slots.length).toBe(1);
+    expect(res.slots[0].title).toBe('英語講義');
+    expect(res.slots[0].daysOfWeek).toEqual([0, 2]); // 月曜と水曜
+  });
 });
+
 

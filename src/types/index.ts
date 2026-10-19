@@ -43,8 +43,10 @@ export interface TaskItem {
   hasNoDuration?: boolean; // 所要時間を設けないタスク
   startDay?: number; // 課題用: 出題曜日 (0:月〜6:日)
   deadlineDay?: number; // 課題用: 締切・期日曜日 (0:月〜6:日)
+  targetDays?: number[]; // 対象曜日一覧 (0:月〜6:日)。複数曜日の指定に対応
+  cycleDays?: number[]; // 対象周期インデックス一覧 (0: Day 1, 1: Day 2, ...)。複数周期日の指定に対応
   dailyCount?: number; // 1日あたりの目標回数 (1, 2, 3...)
-  cycleIndex?: number; // 3日周期などのローテーション番号
+  cycleIndex?: number; // 3日周期などのローテーション番号 (単一または代表値)
   cycleCount?: number; // 周期全体の長さ (例: 3日周期なら3)
   sourceTableId?: string; // 参照元テーブルID
   sourceTableName?: string; // 参照元テーブル名

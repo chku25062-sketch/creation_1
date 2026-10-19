@@ -258,7 +258,14 @@ export function generateTheoreticalSchedule(
     const maxDailyCount = task.dailyCount && task.dailyCount > 0 ? task.dailyCount : 1;
 
     let targetDays: number[];
-    if (task.startDay !== undefined) {
+    if (task.targetDays && task.targetDays.length > 0) {
+      // 複数曜日指定の日次タスク
+      targetDays = task.targetDays;
+    } else if (task.cycleDays && task.cycleDays.length > 0) {
+      // 複数周期日指定の日次タスク (例: Day 1, Day 3 のローテーション)
+      const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
+      targetDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => task.cycleDays!.includes(d % cycleLength));
+    } else if (task.startDay !== undefined) {
       // 1. 曜日指定の日次タスク: その曜日だけに配置
       targetDays = [task.startDay];
     } else if (task.cycleIndex !== undefined) {
@@ -276,40 +283,52 @@ export function generateTheoreticalSchedule(
       let placedToday = 0;
       const slots = dayAvailableSlots[d];
 
-      for (const slot of slots) {
-        if (placedToday >= maxDailyCount) break;
+      // maxDailyCount 回配置できるまでスロットを巡回 (複数スロットがある場合は分散配置)
+      let pass = 0;
+      while (placedToday < maxDailyCount && pass < 10) {
+        pass++;
+        let placedInPass = false;
 
-        const requiredMin =
-          task.durationSize === 'small'
-            ? 15
-            : task.durationSize === 'medium'
-              ? 30
-              : task.durationMinutes || 30;
-        if (slot.durationMinutes >= requiredMin) {
-          const effectiveDuration = getAdjustedDuration(task, slot.durationMinutes);
-          const taskStart = slot.startMinutes;
-          const taskEnd = taskStart + effectiveDuration;
+        for (const slot of slots) {
+          if (placedToday >= maxDailyCount) break;
 
-          dayBlocks[d].push({
-            id: `block-task-${d}-${task.id}-${placedToday}`,
-            title: task.title,
-            category: task.category,
-            startMinutes: taskStart,
-            endMinutes: taskEnd,
-            isFixed: false,
-            color: getCategoryColor(task.category),
-            taskId: task.id,
-            priority: task.priority,
-            taskType: task.taskType || 'task',
-            dayIndex: d,
-            sourceTableId: task.sourceTableId,
-            sourceTableName: task.sourceTableName,
-          });
+          const requiredMin =
+            task.durationSize === 'small'
+              ? 15
+              : task.durationSize === 'medium'
+                ? 30
+                : task.durationMinutes || 30;
+          if (slot.durationMinutes >= requiredMin) {
+            const effectiveDuration = getAdjustedDuration(task, slot.durationMinutes);
+            const taskStart = slot.startMinutes;
+            const taskEnd = taskStart + effectiveDuration;
 
-          slot.startMinutes = taskEnd;
-          slot.durationMinutes = slot.endMinutes - taskEnd;
-          placedToday++;
-          placedTotalCount++;
+            dayBlocks[d].push({
+              id: `block-task-${d}-${task.id}-${placedToday}`,
+              title: task.title,
+              category: task.category,
+              startMinutes: taskStart,
+              endMinutes: taskEnd,
+              isFixed: false,
+              color: getCategoryColor(task.category),
+              taskId: task.id,
+              priority: task.priority,
+              taskType: task.taskType || 'task',
+              dayIndex: d,
+              sourceTableId: task.sourceTableId,
+              sourceTableName: task.sourceTableName,
+            });
+
+            slot.startMinutes = taskEnd;
+            slot.durationMinutes = slot.endMinutes - taskEnd;
+            placedToday++;
+            placedTotalCount++;
+            placedInPass = true;
+          }
+        }
+
+        if (!placedInPass) {
+          break; // 空きスロット不足
         }
       }
     }
@@ -383,73 +402,133 @@ export function generateTheoreticalSchedule(
     }
   }
 
-  // 3-C. 一般タスク（頻度: 低/中/カスタムに応じて適切な日数分、空き時間の多い曜日に分散配置）
+  // 3-C. 一般タスク（週次タスク / 周期タスク）
   for (const task of generalTasks) {
-    const targetDays = getTargetPlacementDays(task);
-    let placedDaysCount = 0;
-
-    // 7日間の探索順序: cycleIndex (3日周期) または startDay を考慮
-    let candidateDays = [0, 1, 2, 3, 4, 5, 6].sort((a, b) => {
-      const freeA = dayAvailableSlots[a].reduce((s, slot) => s + slot.durationMinutes, 0);
-      const freeB = dayAvailableSlots[b].reduce((s, slot) => s + slot.durationMinutes, 0);
-      return freeB - freeA;
-    });
-
-    if (task.startDay !== undefined) {
-      candidateDays = [task.startDay, ...candidateDays.filter((d) => d !== task.startDay)];
-    } else if (task.cycleIndex !== undefined) {
+    // 曜日・周期が明確に指定されているか確認
+    let specificDays: number[] | null = null;
+    if (task.targetDays && task.targetDays.length > 0) {
+      specificDays = [...task.targetDays];
+    } else if (task.cycleDays && task.cycleDays.length > 0) {
       const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
-      const cyclePrimary = task.cycleIndex % cycleLength;
-      const cycleDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => d % cycleLength === cyclePrimary);
-      const otherDays = candidateDays.filter((d) => !cycleDays.includes(d));
-      candidateDays = [...cycleDays, ...otherDays];
+      specificDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => task.cycleDays!.includes(d % cycleLength));
     }
 
-    for (const d of candidateDays) {
-      if (placedDaysCount >= targetDays) break;
+    if (specificDays && specificDays.length > 0) {
+      // 指定された曜日・周期日それぞれに確実に1回ずつ配置
+      let placedCount = 0;
+      for (const d of specificDays) {
+        const slots = dayAvailableSlots[d];
+        for (const slot of slots) {
+          const requiredMin =
+            task.durationSize === 'small'
+              ? 15
+              : task.durationSize === 'medium'
+                ? 30
+                : task.durationMinutes || 30;
+          if (slot.durationMinutes >= requiredMin) {
+            const effectiveDuration = getAdjustedDuration(task, slot.durationMinutes);
+            const taskStart = slot.startMinutes;
+            const taskEnd = taskStart + effectiveDuration;
 
-      const slots = dayAvailableSlots[d];
-      for (const slot of slots) {
-        const requiredMin =
-          task.durationSize === 'small'
-            ? 15
-            : task.durationSize === 'medium'
-              ? 30
-              : task.durationMinutes || 30;
-        if (slot.durationMinutes >= requiredMin) {
-          const effectiveDuration = getAdjustedDuration(task, slot.durationMinutes);
-          const taskStart = slot.startMinutes;
-          const taskEnd = taskStart + effectiveDuration;
+            dayBlocks[d].push({
+              id: `block-gen-${d}-${task.id}-${placedCount}`,
+              title: task.title,
+              category: task.category,
+              startMinutes: taskStart,
+              endMinutes: taskEnd,
+              isFixed: false,
+              color: getCategoryColor(task.category),
+              taskId: task.id,
+              priority: task.priority,
+              taskType: 'task',
+              dayIndex: d,
+              sourceTableId: task.sourceTableId,
+              sourceTableName: task.sourceTableName,
+            });
 
-          dayBlocks[d].push({
-            id: `block-gen-${d}-${task.id}`,
-            title: task.title,
-            category: task.category,
-            startMinutes: taskStart,
-            endMinutes: taskEnd,
-            isFixed: false,
-            color: getCategoryColor(task.category),
-            taskId: task.id,
-            priority: task.priority,
-            taskType: 'task',
-            dayIndex: d,
-            sourceTableId: task.sourceTableId,
-            sourceTableName: task.sourceTableName,
-          });
-
-          slot.startMinutes = taskEnd;
-          slot.durationMinutes = slot.endMinutes - taskEnd;
-          placedDaysCount++;
-          scheduledTaskMinutes += effectiveDuration;
-          break;
+            slot.startMinutes = taskEnd;
+            slot.durationMinutes = slot.endMinutes - taskEnd;
+            placedCount++;
+            scheduledTaskMinutes += effectiveDuration;
+            break; // この曜日は1回配置できたので次の指定曜日へ
+          }
         }
       }
-    }
 
-    if (placedDaysCount > 0) {
-      assignedTaskCount++;
+      if (placedCount > 0) {
+        assignedTaskCount++;
+      } else {
+        unassignedTasks.push(task);
+      }
     } else {
-      unassignedTasks.push(task);
+      // 曜日や周期の事前指定がない一般の週次タスク:
+      // 空き時間の多い曜日から探索して targetPlacementDays 分配置
+      const targetDays = getTargetPlacementDays(task);
+      let placedDaysCount = 0;
+
+      // 7日間の探索順序: cycleIndex (3日周期) または startDay を考慮
+      let candidateDays = [0, 1, 2, 3, 4, 5, 6].sort((a, b) => {
+        const freeA = dayAvailableSlots[a].reduce((s, slot) => s + slot.durationMinutes, 0);
+        const freeB = dayAvailableSlots[b].reduce((s, slot) => s + slot.durationMinutes, 0);
+        return freeB - freeA;
+      });
+
+      if (task.startDay !== undefined) {
+        candidateDays = [task.startDay, ...candidateDays.filter((d) => d !== task.startDay)];
+      } else if (task.cycleIndex !== undefined) {
+        const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
+        const cyclePrimary = task.cycleIndex % cycleLength;
+        const cycleDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => d % cycleLength === cyclePrimary);
+        const otherDays = candidateDays.filter((d) => !cycleDays.includes(d));
+        candidateDays = [...cycleDays, ...otherDays];
+      }
+
+      for (const d of candidateDays) {
+        if (placedDaysCount >= targetDays) break;
+
+        const slots = dayAvailableSlots[d];
+        for (const slot of slots) {
+          const requiredMin =
+            task.durationSize === 'small'
+              ? 15
+              : task.durationSize === 'medium'
+                ? 30
+                : task.durationMinutes || 30;
+          if (slot.durationMinutes >= requiredMin) {
+            const effectiveDuration = getAdjustedDuration(task, slot.durationMinutes);
+            const taskStart = slot.startMinutes;
+            const taskEnd = taskStart + effectiveDuration;
+
+            dayBlocks[d].push({
+              id: `block-gen-${d}-${task.id}`,
+              title: task.title,
+              category: task.category,
+              startMinutes: taskStart,
+              endMinutes: taskEnd,
+              isFixed: false,
+              color: getCategoryColor(task.category),
+              taskId: task.id,
+              priority: task.priority,
+              taskType: 'task',
+              dayIndex: d,
+              sourceTableId: task.sourceTableId,
+              sourceTableName: task.sourceTableName,
+            });
+
+            slot.startMinutes = taskEnd;
+            slot.durationMinutes = slot.endMinutes - taskEnd;
+            placedDaysCount++;
+            scheduledTaskMinutes += effectiveDuration;
+            break;
+          }
+        }
+      }
+
+      if (placedDaysCount > 0) {
+        assignedTaskCount++;
+      } else {
+        unassignedTasks.push(task);
+      }
     }
   }
 

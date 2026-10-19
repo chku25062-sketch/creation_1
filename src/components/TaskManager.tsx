@@ -1616,8 +1616,23 @@ export function TaskManager({
                                     : '中 (30m〜2h)'}
                               </span>
                               <span className="shrink-0 flex items-center gap-0.5 text-slate-500">
-                                <Repeat className="h-2.5 w-2.5 text-slate-400" />高 (毎日)
+                                <Repeat className="h-2.5 w-2.5 text-slate-400" />
+                                {task.dailyCount && task.dailyCount > 1
+                                  ? `1日${task.dailyCount}回`
+                                  : '高 (毎日)'}
                               </span>
+
+                              {task.targetDays && task.targetDays.length > 0 && task.targetDays.length < 7 && (
+                                <span className="shrink-0 rounded bg-sky-50 border border-sky-200 px-1 py-0.2 text-[9px] font-bold text-sky-700">
+                                  {task.targetDays.map((d) => WEEKDAY_SHORT[d]).join('・')}
+                                </span>
+                              )}
+
+                              {task.cycleDays && task.cycleDays.length > 0 && (
+                                <span className="shrink-0 rounded bg-purple-50 border border-purple-200 px-1 py-0.2 text-[9px] font-bold text-purple-700">
+                                  {task.cycleDays.map((c) => `Day ${c + 1}`).join('・')} ({task.cycleCount}日周期)
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1892,6 +1907,18 @@ export function TaskManager({
                                     締切)
                                   </span>
                                 )}
+
+                              {!isAssign && task.targetDays && task.targetDays.length > 0 && task.targetDays.length < 7 && (
+                                <span className="shrink-0 rounded bg-sky-50 border border-sky-200 px-1 py-0.2 text-[9px] font-bold text-sky-700">
+                                  {task.targetDays.map((d) => WEEKDAY_SHORT[d]).join('・')}
+                                </span>
+                              )}
+
+                              {!isAssign && task.cycleDays && task.cycleDays.length > 0 && (
+                                <span className="shrink-0 rounded bg-purple-50 border border-purple-200 px-1 py-0.2 text-[9px] font-bold text-purple-700">
+                                  {task.cycleDays.map((c) => `Day ${c + 1}`).join('・')} ({task.cycleCount}日周期)
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>

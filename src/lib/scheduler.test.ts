@@ -648,5 +648,75 @@ describe('Theoretical Scheduler Engine', () => {
       // 日曜 (d=6, 6%4=2): オフ日（胸・背中・脚のいずれも配置されない）
       expect(result.dayBlocks[6].some((b) => b.taskId === 'chest' || b.taskId === 'back' || b.taskId === 'leg')).toBe(false);
     });
+
+    it('複数曜日 targetDays: [0, 3] を持つ週次タスクが月曜と木曜にのみ正確に配置されること', () => {
+      const task: TaskItem = {
+        id: 'chest-multi-day',
+        title: '胸トレ',
+        durationMinutes: 45,
+        priority: 'high',
+        category: '筋トレ表',
+        period: 'week',
+        targetDays: [0, 3], // 月曜 (0) と 木曜 (3)
+        frequencyCount: 2,
+      };
+
+      const result = generateTheoreticalSchedule([], [task]);
+
+      expect(result.dayBlocks[0].some((b) => b.taskId === 'chest-multi-day')).toBe(true);
+      expect(result.dayBlocks[1].some((b) => b.taskId === 'chest-multi-day')).toBe(false);
+      expect(result.dayBlocks[2].some((b) => b.taskId === 'chest-multi-day')).toBe(false);
+      expect(result.dayBlocks[3].some((b) => b.taskId === 'chest-multi-day')).toBe(true);
+      expect(result.dayBlocks[4].some((b) => b.taskId === 'chest-multi-day')).toBe(false);
+      expect(result.dayBlocks[5].some((b) => b.taskId === 'chest-multi-day')).toBe(false);
+      expect(result.dayBlocks[6].some((b) => b.taskId === 'chest-multi-day')).toBe(false);
+    });
+
+    it('複数周期日 cycleDays: [0, 2] (3日周期) を持つタスクが該当曜日にのみ配置されること', () => {
+      // 3日周期: Day 1 (0) と Day 3 (2) のみ実施、Day 2 (1) はオフ
+      // 曜日mod3: 月(0), 火(1:オフ), 水(2), 木(0), 金(1:オフ), 土(2), 日(0)
+      const task: TaskItem = {
+        id: 'cycle-multi',
+        title: 'プロテイン摂取',
+        durationMinutes: 30,
+        priority: 'high',
+        category: '日課表',
+        period: 'week',
+        cycleDays: [0, 2],
+        cycleCount: 3,
+        frequencyCount: 2,
+      };
+
+      const result = generateTheoreticalSchedule([], [task]);
+
+      expect(result.dayBlocks[0].some((b) => b.taskId === 'cycle-multi')).toBe(true); // 月 (0)
+      expect(result.dayBlocks[1].some((b) => b.taskId === 'cycle-multi')).toBe(false); // 火 (1: オフ)
+      expect(result.dayBlocks[2].some((b) => b.taskId === 'cycle-multi')).toBe(true); // 水 (2)
+      expect(result.dayBlocks[3].some((b) => b.taskId === 'cycle-multi')).toBe(true); // 木 (0)
+      expect(result.dayBlocks[4].some((b) => b.taskId === 'cycle-multi')).toBe(false); // 金 (1: オフ)
+      expect(result.dayBlocks[5].some((b) => b.taskId === 'cycle-multi')).toBe(true); // 土 (2)
+      expect(result.dayBlocks[6].some((b) => b.taskId === 'cycle-multi')).toBe(true); // 日 (0)
+    });
+
+    it('dailyCount: 2 の日次タスクが1日の中に2回配置されること', () => {
+      const task: TaskItem = {
+        id: 'daily-twice',
+        title: 'プロテイン',
+        durationMinutes: 15,
+        priority: 'high',
+        category: '日課表',
+        period: 'day',
+        dailyCount: 2, // 1日2回！
+      };
+
+      const result = generateTheoreticalSchedule([], [task]);
+
+      // 各曜日に2回ずつ配置されていること
+      for (let d = 0; d < 7; d++) {
+        const count = result.dayBlocks[d].filter((b) => b.taskId === 'daily-twice').length;
+        expect(count).toBe(2);
+      }
+    });
   });
 });
+

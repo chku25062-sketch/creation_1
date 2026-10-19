@@ -326,8 +326,9 @@ export interface TableScheduleGenerationResult {
 export function generateScheduleItemsForTable(table: ImportedTableData): TableScheduleGenerationResult {
   const classification = getTableClassification(table);
   const columnMode = getTableColumnMode(table);
-  const slots: FixedSlot[] = [];
-  const tasks: TaskItem[] = [];
+  const slotMap = new Map<string, FixedSlot>();
+  const taskMap = new Map<string, TaskItem>();
+  const attachedTaskMap = new Map<string, TaskItem>();
 
   const tablePeriodTimes =
     classification === 'fixed_slot'
@@ -369,6 +370,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
 
       if (classification === 'fixed_slot') {
         // 固定枠として生成 (開始時刻・終了時刻あり)
+        // 同じ時限（時間帯）かつ同じタイトルのセルは、曜日（daysOfWeek）を結合して1つのスロットに集約
         if (timeSlot && (timeSlot.startMinutes > 0 || timeSlot.endMinutes > 0)) {
           let days: number[] = [];
           if (isWeekday) {
@@ -378,73 +380,114 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               (d) => d % cycleCount === (cycleIdx % cycleCount),
             );
           } else {
-            // フリー・1列・全日: 毎日
             days = [0, 1, 2, 3, 4, 5, 6];
           }
 
-          const slotId = `slot-table-${table.id}-${r}-${c}`;
+          const slotKey = `${r}_${fullTitle}`;
+          const existingSlot = slotMap.get(slotKey);
 
-          slots.push({
-            id: slotId,
+          if (existingSlot) {
+            existingSlot.daysOfWeek = Array.from(
+              new Set([...(existingSlot.daysOfWeek || []), ...days]),
+            ).sort((a, b) => a - b);
+          } else {
+            const slotId = `slot-table-${table.id}-${r}-${c}`;
+            slotMap.set(slotKey, {
+              id: slotId,
+              title: fullTitle,
+              category: tableCategory, // 表の名前でカテゴリを代用
+              startMinutes: timeSlot.startMinutes,
+              endMinutes: timeSlot.endMinutes,
+              color: '#0284c7',
+              daysOfWeek: days,
+              sourceTableId: table.id,
+              sourceTableName: table.name,
+            });
+          }
+        }
+      } else if (classification === 'daily_task') {
+        // 日（日のタスク）: 表の列の要素がその日の中で繰り返されるもの
+        // 同じ表の中で同じタイトルのセルがあれば、その日の中の反復回数 (dailyCount) を加算
+        const taskKey = fullTitle;
+        const existing = taskMap.get(taskKey);
+
+        if (existing) {
+          existing.dailyCount = (existing.dailyCount || 1) + 1;
+          if (isWeekday && colInfo.dayIndex !== undefined) {
+            const curDays = existing.targetDays || [];
+            if (!curDays.includes(colInfo.dayIndex)) {
+              existing.targetDays = [...curDays, colInfo.dayIndex].sort((a, b) => a - b);
+            }
+          }
+        } else {
+          const taskId = `task-table-${table.id}-${r}-${c}`;
+          const duration = table.axisConfig.periodMinutes || 30;
+
+          taskMap.set(taskKey, {
+            id: taskId,
             title: fullTitle,
             category: tableCategory, // 表の名前でカテゴリを代用
-            startMinutes: timeSlot.startMinutes,
-            endMinutes: timeSlot.endMinutes,
-            color: '#0284c7',
-            daysOfWeek: days,
+            durationSize: duration <= 25 ? 'small' : duration <= 60 ? 'medium' : 'large',
+            durationMinutes: duration,
+            frequency: 'high',
+            period: 'day',
+            dailyCount: 1, // 1日の中で組み込む
+            targetDays: isWeekday ? [colInfo.dayIndex!] : undefined,
+            startDay: isWeekday ? colInfo.dayIndex : undefined,
+            deadlineDay: isWeekday ? colInfo.dayIndex : undefined,
+            cycleDays: isCycle ? [cycleIdx] : undefined,
+            cycleIndex: isCycle ? cycleIdx : undefined,
+            cycleCount: isCycle ? cycleCount : undefined,
+            priority: 'medium',
+            completed: false,
             sourceTableId: table.id,
             sourceTableName: table.name,
           });
         }
-      } else if (classification === 'daily_task') {
-        // 日（日次タスク）として生成:
-        // - 曜日指定: その曜日だけ行う日次タスク (例: 月曜日の日課)
-        // - 周期指定: 日ごとに順番に入れ替える周期日次タスク (空列はオフ日としてスロットを空ける)
-        // - フリー/1列: 曜日・周期に関わらず毎日行う日次タスク
-        const taskId = `task-table-${table.id}-${r}-${c}`;
-        const duration = table.axisConfig.periodMinutes || 30;
-
-        tasks.push({
-          id: taskId,
-          title: fullTitle,
-          category: tableCategory, // 表の名前でカテゴリを代用
-          durationSize: duration <= 25 ? 'small' : duration <= 60 ? 'medium' : 'large',
-          durationMinutes: duration,
-          frequency: 'high',
-          period: 'day',
-          dailyCount: 1, // 1日の中で組み込む
-          startDay: isWeekday ? colInfo.dayIndex : undefined,
-          deadlineDay: isWeekday ? colInfo.dayIndex : undefined,
-          cycleIndex: isCycle ? cycleIdx : undefined,
-          cycleCount: isCycle ? cycleCount : undefined,
-          priority: 'medium',
-          completed: false,
-          sourceTableId: table.id,
-          sourceTableName: table.name,
-        });
       } else {
-        // 週（週次タスク / 3日周期）として生成: 週に複数回組み込まれる可能性があるもの
-        const taskId = `task-table-${table.id}-${r}-${c}`;
-        const duration = table.axisConfig.periodMinutes || 60;
+        // 週（週のタスク）: 表の列の要素が、日ごとに繰り返されるもの
+        // 同じ表の中で同じタイトルのセルは、複数のday（targetDays / cycleDays）を登録して1つのタスクに集約
+        const taskKey = fullTitle;
+        const existing = taskMap.get(taskKey);
 
-        tasks.push({
-          id: taskId,
-          title: fullTitle,
-          category: tableCategory, // 表の名前でカテゴリを代用
-          durationSize: duration <= 25 ? 'small' : duration <= 60 ? 'medium' : 'large',
-          durationMinutes: duration,
-          frequency: isWeekday ? 'medium' : 'custom',
-          frequencyCount: isWeekday ? undefined : Math.min(table.numCols, 4),
-          cycleIndex: isCycle ? cycleIdx : undefined,
-          cycleCount: isCycle ? cycleCount : undefined,
-          period: 'week',
-          startDay: isWeekday ? colInfo.dayIndex : undefined,
-          deadlineDay: isWeekday ? colInfo.dayIndex : undefined,
-          priority: 'medium',
-          completed: false,
-          sourceTableId: table.id,
-          sourceTableName: table.name,
-        });
+        if (existing) {
+          if (isWeekday && colInfo.dayIndex !== undefined) {
+            const curDays = existing.targetDays || [];
+            if (!curDays.includes(colInfo.dayIndex)) {
+              existing.targetDays = [...curDays, colInfo.dayIndex].sort((a, b) => a - b);
+              existing.startDay = existing.targetDays[0];
+            }
+          } else if (isCycle) {
+            const curCycles = existing.cycleDays || [];
+            if (!curCycles.includes(cycleIdx)) {
+              existing.cycleDays = [...curCycles, cycleIdx].sort((a, b) => a - b);
+              existing.cycleIndex = existing.cycleDays[0];
+            }
+          }
+        } else {
+          const taskId = `task-table-${table.id}-${r}-${c}`;
+          const duration = table.axisConfig.periodMinutes || 60;
+
+          taskMap.set(taskKey, {
+            id: taskId,
+            title: fullTitle,
+            category: tableCategory, // 表の名前でカテゴリを代用
+            durationSize: duration <= 25 ? 'small' : duration <= 60 ? 'medium' : 'large',
+            durationMinutes: duration,
+            frequency: 'medium',
+            period: 'week',
+            targetDays: isWeekday ? [colInfo.dayIndex!] : (!isCycle ? [0, 1, 2, 3, 4, 5, 6] : undefined),
+            cycleDays: isCycle ? [cycleIdx] : undefined,
+            cycleCount: isCycle ? cycleCount : undefined,
+            startDay: isWeekday ? colInfo.dayIndex : undefined,
+            deadlineDay: isWeekday ? colInfo.dayIndex : undefined,
+            cycleIndex: isCycle ? cycleIdx : undefined,
+            priority: 'medium',
+            completed: false,
+            sourceTableId: table.id,
+            sourceTableName: table.name,
+          });
+        }
       }
 
       // 付随タスク（セル個別設定 または 表全体設定）の生成
@@ -457,51 +500,92 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
         const attachedDuration =
           cellAttached?.durationMinutes || attachedConfig?.durationMinutes || 15;
         const attachedTaskTitle = attachedTitleTemplate.replace('{title}', title);
-        const attachedTaskId = `task-attached-${table.id}-${r}-${c}`;
+        const attachedKey = `${classification}_${attachedTaskTitle}`;
 
-        if (classification === 'fixed_slot') {
-          // 固定枠（講義・バイト等）の場合は週次タスク（課題・準備など）
-          const deadlineDay = isWeekday ? (colInfo.dayIndex! - 1 + 7) % 7 : undefined;
-          tasks.push({
-            id: attachedTaskId,
-            title: attachedTaskTitle,
-            category: tableCategory, // 表の名前でカテゴリを代用
-            durationSize: attachedDuration <= 25 ? 'small' : 'medium',
-            durationMinutes: attachedDuration,
-            frequency: 'low',
-            taskType: 'assignment',
-            startDay: isWeekday ? colInfo.dayIndex : undefined,
-            deadlineDay,
-            priority: 'high',
-            period: 'week',
-            completed: false,
-            sourceTableId: table.id,
-            sourceTableName: table.name,
-          });
+        if (!attachedTaskMap.has(attachedKey)) {
+          const attachedTaskId = `task-attached-${table.id}-${r}-${c}`;
+
+          if (classification === 'fixed_slot') {
+            const deadlineDay = isWeekday ? (colInfo.dayIndex! - 1 + 7) % 7 : undefined;
+            attachedTaskMap.set(attachedKey, {
+              id: attachedTaskId,
+              title: attachedTaskTitle,
+              category: tableCategory, // 表の名前でカテゴリを代用
+              durationSize: attachedDuration <= 25 ? 'small' : 'medium',
+              durationMinutes: attachedDuration,
+              frequency: 'low',
+              taskType: 'assignment',
+              startDay: isWeekday ? colInfo.dayIndex : undefined,
+              targetDays: isWeekday ? [colInfo.dayIndex!] : undefined,
+              deadlineDay,
+              priority: 'high',
+              period: 'week',
+              completed: false,
+              sourceTableId: table.id,
+              sourceTableName: table.name,
+            });
+          } else {
+            attachedTaskMap.set(attachedKey, {
+              id: attachedTaskId,
+              title: attachedTaskTitle,
+              category: tableCategory, // 表の名前でカテゴリを代用
+              durationSize: 'small',
+              durationMinutes: attachedDuration,
+              frequency: classification === 'daily_task' ? 'high' : 'medium',
+              period: classification === 'daily_task' ? 'day' : 'week',
+              dailyCount: classification === 'daily_task' ? 1 : undefined,
+              targetDays: isWeekday ? [colInfo.dayIndex!] : undefined,
+              startDay: isWeekday ? colInfo.dayIndex : undefined,
+              deadlineDay: isWeekday ? colInfo.dayIndex : undefined,
+              cycleDays: isCycle ? [cycleIdx] : undefined,
+              cycleIndex: isCycle ? cycleIdx : undefined,
+              cycleCount: isCycle ? cycleCount : undefined,
+              priority: 'medium',
+              completed: false,
+              sourceTableId: table.id,
+              sourceTableName: table.name,
+            });
+          }
         } else {
-          // 日課や週次タスクの場合は、同日の事後タスク（プロテイン摂取など）
-          tasks.push({
-            id: attachedTaskId,
-            title: attachedTaskTitle,
-            category: tableCategory, // 表の名前でカテゴリを代用
-            durationSize: 'small',
-            durationMinutes: attachedDuration,
-            frequency: classification === 'daily_task' ? 'high' : 'medium',
-            period: classification === 'daily_task' ? 'day' : 'week',
-            dailyCount: classification === 'daily_task' ? 1 : undefined,
-            startDay: isWeekday ? colInfo.dayIndex : undefined,
-            deadlineDay: isWeekday ? colInfo.dayIndex : undefined,
-            cycleIndex: isCycle ? cycleIdx : undefined,
-            cycleCount: isCycle ? cycleCount : undefined,
-            priority: 'medium',
-            completed: false,
-            sourceTableId: table.id,
-            sourceTableName: table.name,
-          });
+          // 既存付随タスクの日程情報をマージ
+          const existingAttached = attachedTaskMap.get(attachedKey)!;
+          if (classification === 'daily_task') {
+            existingAttached.dailyCount = (existingAttached.dailyCount || 1) + 1;
+          } else {
+            if (isWeekday && colInfo.dayIndex !== undefined) {
+              const curDays = existingAttached.targetDays || [];
+              if (!curDays.includes(colInfo.dayIndex)) {
+                existingAttached.targetDays = [...curDays, colInfo.dayIndex].sort((a, b) => a - b);
+              }
+            } else if (isCycle) {
+              const curCycles = existingAttached.cycleDays || [];
+              if (!curCycles.includes(cycleIdx)) {
+                existingAttached.cycleDays = [...curCycles, cycleIdx].sort((a, b) => a - b);
+              }
+            }
+          }
         }
       }
     });
   });
+
+  // 週次タスクの頻度をマージ結果に基づいて更新
+  taskMap.forEach((task) => {
+    if (task.period === 'week') {
+      if (task.targetDays && task.targetDays.length > 0) {
+        task.frequencyCount = task.targetDays.length;
+        task.frequency =
+          task.targetDays.length >= 5 ? 'high' : task.targetDays.length >= 3 ? 'medium' : 'low';
+      } else if (task.cycleDays && task.cycleDays.length > 0) {
+        task.frequencyCount = task.cycleDays.length;
+        task.frequency =
+          task.cycleDays.length >= Math.ceil(cycleCount * 0.7) ? 'high' : 'medium';
+      }
+    }
+  });
+
+  const slots = Array.from(slotMap.values());
+  const tasks = [...Array.from(taskMap.values()), ...Array.from(attachedTaskMap.values())];
 
   return {
     slots,
