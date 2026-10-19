@@ -9,22 +9,40 @@ import {
 } from '@/types';
 import { calculatePeriodTimes } from './timeUtils';
 
-const WEEKDAY_NAMES = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'];
+const WEEKDAY_NAMES = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜', '月', '火', '水', '木', '金', '土', '日'];
+const DAILY_TIMEFRAME_KEYWORDS = ['朝', '昼', '夕', '夜', '午前', '午後', '起床', '就寝', 'タイムテーブル', '日課', 'ルーティン', '1日'];
+const CYCLE_KEYWORDS = ['day', 'サイクル', '周期', '分割', 'rot', 'part'];
 
 /**
- * 表データが「固定枠」「日課タスク」「週次タスク」のどれに分類されるかを判定
+ * 表データが「固定枠」「日（日次タスク）」「週（週次タスク/周期）」のどれに分類されるかを判定
+ * - 固定枠: 開始時刻が設定されているもの
+ * - 日（日次）: 1日に複数回組み込まれる可能性があるもの (1日メニュー、朝昼晩ルーティン等)
+ * - 週（週次）: 週に複数回組み込まれる可能性があるもの (3日周期筋トレ表、週次タスク等)
  */
 export function getTableClassification(table: ImportedTableData): TableClassification {
-  const isStartTimeUnset = !table.axisConfig.startTime || table.axisConfig.startTime === 'unset';
-
-  if (isStartTimeUnset) {
-    // 曜日ヘッダー（月曜〜日曜）が1つでも有効に含まれているか
-    const hasWeekdays = table.colHeaders.some((h) => WEEKDAY_NAMES.includes(h));
-    return hasWeekdays ? 'daily_task' : 'weekly_task';
+  if (table.classificationOverride) {
+    return table.classificationOverride;
   }
 
-  // 開始時刻が指定されている場合は固定枠
-  return 'fixed_slot';
+  const isStartTimeUnset = !table.axisConfig.startTime || table.axisConfig.startTime === 'unset';
+  if (!isStartTimeUnset) {
+    return 'fixed_slot';
+  }
+
+  const tableNameLower = table.name.toLowerCase();
+  const hasDailyName = DAILY_TIMEFRAME_KEYWORDS.some((kw) => tableNameLower.includes(kw));
+
+  const hasDailyHeaders = table.colHeaders.some((h) =>
+    DAILY_TIMEFRAME_KEYWORDS.some((kw) => h.toLowerCase().includes(kw)),
+  );
+
+  // 1日の区分ヘッダーがある、または表名が1日向けで曜日指定がない場合 ➔ 日次タスク (1日に複数回)
+  if (hasDailyHeaders || (hasDailyName && !table.colHeaders.some((h) => WEEKDAY_NAMES.includes(h)))) {
+    return 'daily_task';
+  }
+
+  // 3日周期や曜日ヘッダー、一般の表 ➔ 週次タスク (週に複数回組み込む)
+  return 'weekly_task';
 }
 
 /**
@@ -192,39 +210,38 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
           });
         }
       } else if (classification === 'daily_task') {
-        // 日課タスクとして生成 (特定曜日の空き枠に自動組み込み)
-        if (dayIdx >= 0) {
-          const taskId = `task-table-${table.id}-${r}-${c}`;
-          const duration = table.axisConfig.periodMinutes || 30;
-          const taskCat: TaskCategory =
-            rawCategory === 'workout'
-              ? 'workout'
-              : rawCategory === 'study' || rawCategory === 'lecture'
-              ? 'study'
-              : rawCategory === 'work'
-              ? 'work'
-              : rawCategory === 'hobby'
-              ? 'hobby'
-              : 'must';
+        // 日（日次タスク）として生成: 1日に複数回組み込まれる可能性があるもの
+        const taskId = `task-table-${table.id}-${r}-${c}`;
+        const duration = table.axisConfig.periodMinutes || 30;
+        const taskCat: TaskCategory =
+          rawCategory === 'workout'
+            ? 'workout'
+            : rawCategory === 'study' || rawCategory === 'lecture'
+            ? 'study'
+            : rawCategory === 'work'
+            ? 'work'
+            : rawCategory === 'hobby'
+            ? 'hobby'
+            : 'must';
 
-          tasks.push({
-            id: taskId,
-            title: fullTitle,
-            category: taskCat,
-            durationSize: duration <= 25 ? 'small' : duration <= 60 ? 'medium' : 'large',
-            durationMinutes: duration,
-            frequency: 'high',
-            period: 'day',
-            startDay: dayIdx,
-            deadlineDay: dayIdx,
-            priority: 'medium',
-            completed: false,
-            sourceTableId: table.id,
-            sourceTableName: table.name,
-          });
-        }
+        tasks.push({
+          id: taskId,
+          title: fullTitle,
+          category: taskCat,
+          durationSize: duration <= 25 ? 'small' : duration <= 60 ? 'medium' : 'large',
+          durationMinutes: duration,
+          frequency: 'high',
+          period: 'day',
+          dailyCount: 1, // 1日の中で組み込む
+          startDay: dayIdx >= 0 ? dayIdx : undefined,
+          deadlineDay: dayIdx >= 0 ? dayIdx : undefined,
+          priority: 'medium',
+          completed: false,
+          sourceTableId: table.id,
+          sourceTableName: table.name,
+        });
       } else {
-        // 週次タスクとして生成 (週全体の空き枠に自動配分)
+        // 週（週次タスク / 3日周期）として生成: 週に複数回組み込まれる可能性があるもの
         const taskId = `task-table-${table.id}-${r}-${c}`;
         const duration = table.axisConfig.periodMinutes || 60;
         const taskCat: TaskCategory =
@@ -238,14 +255,21 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             ? 'hobby'
             : 'want';
 
+        const isWeekdayAssigned = dayIdx >= 0;
+        const cycleIdx = c; // 列インデックスを周期番号（Day 1=0, Day 2=1, Day 3=2）として活用
+
         tasks.push({
           id: taskId,
           title: fullTitle,
           category: taskCat,
           durationSize: duration <= 25 ? 'small' : duration <= 60 ? 'medium' : 'large',
           durationMinutes: duration,
-          frequency: 'low',
+          frequency: isWeekdayAssigned ? 'medium' : 'custom',
+          frequencyCount: isWeekdayAssigned ? undefined : Math.min(table.numCols, 4),
+          cycleIndex: cycleIdx,
           period: 'week',
+          startDay: isWeekdayAssigned ? dayIdx : undefined,
+          deadlineDay: isWeekdayAssigned ? dayIdx : undefined,
           priority: 'medium',
           completed: false,
           sourceTableId: table.id,
@@ -292,8 +316,9 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             category: 'want',
             durationSize: 'small',
             durationMinutes: attachedDuration,
-            frequency: classification === 'daily_task' ? 'high' : 'low',
+            frequency: classification === 'daily_task' ? 'high' : 'medium',
             period: classification === 'daily_task' ? 'day' : 'week',
+            dailyCount: classification === 'daily_task' ? 1 : undefined,
             startDay: dayIdx >= 0 ? dayIdx : undefined,
             deadlineDay: dayIdx >= 0 ? dayIdx : undefined,
             priority: 'medium',

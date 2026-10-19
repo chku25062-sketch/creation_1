@@ -227,13 +227,19 @@ export function generateTheoreticalSchedule(
   let assignedTaskCount = 0;
   let scheduledTaskMinutes = 0;
 
-  // 3-A. 毎日タスク（daily / frequency: high）を各曜日の空きスロットに配置
+  // 3-A. 日次タスク（1日に複数回組み込まれる可能性があるもの）を各曜日の空きスロットに配置
   for (const task of dailyTasks) {
-    let placedAtLeastOnce = false;
+    let placedTotalCount = 0;
+    const maxDailyCount = task.dailyCount && task.dailyCount > 0 ? task.dailyCount : 1;
+    const targetDays = task.startDay !== undefined ? [task.startDay] : [0, 1, 2, 3, 4, 5, 6];
 
-    for (let d = 0; d < 7; d++) {
+    for (const d of targetDays) {
+      let placedToday = 0;
       const slots = dayAvailableSlots[d];
+
       for (const slot of slots) {
+        if (placedToday >= maxDailyCount) break;
+
         const requiredMin =
           task.durationSize === 'small'
             ? 15
@@ -246,7 +252,7 @@ export function generateTheoreticalSchedule(
           const taskEnd = taskStart + effectiveDuration;
 
           dayBlocks[d].push({
-            id: `block-task-${d}-${task.id}`,
+            id: `block-task-${d}-${task.id}-${placedToday}`,
             title: task.title,
             category: task.category,
             startMinutes: taskStart,
@@ -263,13 +269,13 @@ export function generateTheoreticalSchedule(
 
           slot.startMinutes = taskEnd;
           slot.durationMinutes = slot.endMinutes - taskEnd;
-          placedAtLeastOnce = true;
-          break;
+          placedToday++;
+          placedTotalCount++;
         }
       }
     }
 
-    if (placedAtLeastOnce) {
+    if (placedTotalCount > 0) {
       assignedTaskCount++;
       scheduledTaskMinutes += task.durationMinutes || 30;
     } else {
@@ -343,14 +349,23 @@ export function generateTheoreticalSchedule(
     const targetDays = getTargetPlacementDays(task);
     let placedDaysCount = 0;
 
-    // 7日間を空き時間の大きい順に探索
-    const daysSortedByFreeTime = [0, 1, 2, 3, 4, 5, 6].sort((a, b) => {
+    // 7日間の探索順序: cycleIndex (3日周期) または startDay を考慮
+    let candidateDays = [0, 1, 2, 3, 4, 5, 6].sort((a, b) => {
       const freeA = dayAvailableSlots[a].reduce((s, slot) => s + slot.durationMinutes, 0);
       const freeB = dayAvailableSlots[b].reduce((s, slot) => s + slot.durationMinutes, 0);
       return freeB - freeA;
     });
 
-    for (const d of daysSortedByFreeTime) {
+    if (task.startDay !== undefined) {
+      candidateDays = [task.startDay, ...candidateDays.filter((d) => d !== task.startDay)];
+    } else if (task.cycleIndex !== undefined) {
+      const cyclePrimary = task.cycleIndex % 3; // 0: 月/木, 1: 火/金, 2: 水/土
+      const cycleDays = [cyclePrimary, cyclePrimary + 3].filter((d) => d < 7);
+      const otherDays = candidateDays.filter((d) => !cycleDays.includes(d));
+      candidateDays = [...cycleDays, ...otherDays];
+    }
+
+    for (const d of candidateDays) {
       if (placedDaysCount >= targetDays) break;
 
       const slots = dayAvailableSlots[d];

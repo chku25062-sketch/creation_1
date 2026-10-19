@@ -84,15 +84,27 @@ describe('tableUtils', () => {
     expect(getTableClassification(table)).toBe('fixed_slot');
   });
 
-  it('correctly classifies daily_task when startTime is null but weekdays are present', () => {
+  it('correctly classifies daily_task when headers or name represent daily timeframe', () => {
     const table = createBaseTable(null);
+    table.name = '1日のルーティン';
+    table.colHeaders = ['朝', '昼'];
     expect(getTableClassification(table)).toBe('daily_task');
   });
 
-  it('correctly classifies weekly_task when startTime is null and no weekdays in colHeaders', () => {
+  it('correctly classifies weekly_task for 3-day cycle tables and weekdays', () => {
     const table = createBaseTable(null);
-    table.colHeaders = ['タスク1', 'タスク2'];
+    table.colHeaders = ['Day 1', 'Day 2', 'Day 3'];
     expect(getTableClassification(table)).toBe('weekly_task');
+
+    const weekdayTable = createBaseTable(null);
+    weekdayTable.colHeaders = ['月曜', '火曜'];
+    expect(getTableClassification(weekdayTable)).toBe('weekly_task');
+  });
+
+  it('honors classificationOverride when specified', () => {
+    const table = createBaseTable('09:00');
+    table.classificationOverride = 'daily_task';
+    expect(getTableClassification(table)).toBe('daily_task');
   });
 
   it('adds and removes rows', () => {
@@ -137,8 +149,9 @@ describe('tableUtils', () => {
     expect(res.tasks[0].durationMinutes).toBe(45);
   });
 
-  it('generates daily tasks and attached tasks when classified as daily_task', () => {
+  it('generates daily tasks with dailyCount when classified as daily_task', () => {
     const table = createBaseTable(null);
+    table.colHeaders = ['朝', '夜'];
     table.attachedTaskConfig = {
       enabled: true,
       titleTemplate: '{title} プロテイン',
@@ -149,8 +162,19 @@ describe('tableUtils', () => {
     expect(res.tasks.length).toBe(2); // メインタスク + 付随タスク
     expect(res.tasks[0].title).toBe('胸トレ');
     expect(res.tasks[0].period).toBe('day');
-    expect(res.tasks[0].startDay).toBe(0);
+    expect(res.tasks[0].dailyCount).toBe(1);
     expect(res.tasks[1].title).toBe('胸トレ プロテイン');
     expect(res.tasks[1].durationMinutes).toBe(15);
+  });
+
+  it('generates weekly tasks with cycleIndex when classified as weekly_task (3-day cycle)', () => {
+    const table = createBaseTable(null);
+    table.colHeaders = ['Day 1', 'Day 2'];
+    const res = generateScheduleItemsForTable(table);
+    expect(res.slots.length).toBe(0);
+    expect(res.tasks.length).toBe(1);
+    expect(res.tasks[0].title).toBe('胸トレ');
+    expect(res.tasks[0].period).toBe('week');
+    expect(res.tasks[0].cycleIndex).toBe(0);
   });
 });

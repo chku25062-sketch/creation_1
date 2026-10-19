@@ -808,14 +808,14 @@ export function ImportedTablesManager({
                   </div>
                 )}
 
-                {/* 日課タスク */}
+                {/* 日 (1日に複数回) */}
                 {(!searchQuery.trim() ||
-                  '日課 毎日 日課タスク ルーティン daily'
+                  '日 日課 毎日 日次 ルーティン daily'
                     .toLowerCase()
                     .includes(searchQuery.toLowerCase())) && (
                   <div
                     onClick={() => handleSelectItem('sys-daily')}
-                    title="日課タスク (毎日)"
+                    title="日 (1日に複数回組み込まれるもの)"
                     className={`group relative flex items-center rounded-lg cursor-pointer transition ${
                       isSidebarOpen
                         ? 'justify-between px-2.5 py-2 text-xs'
@@ -840,11 +840,11 @@ export function ImportedTablesManager({
                             isSidebarOpen ? 'text-xs' : 'text-[11px] font-medium max-w-[42px]'
                           }`}
                         >
-                          {isSidebarOpen ? '日課タスク (毎日)' : '日課タ…'}
+                          {isSidebarOpen ? '日 (1日に複数回)' : '日次'}
                         </div>
                         {isSidebarOpen ? (
                           <div className="mt-0.5 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                            <span>高頻度・日課 ({dailyTasksCount}件)</span>
+                            <span>1日複数回・日課 ({dailyTasksCount}件)</span>
                             {isDailyApplied && (
                               <span className="rounded bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-700">
                                 ON
@@ -861,14 +861,14 @@ export function ImportedTablesManager({
                   </div>
                 )}
 
-                {/* 週次タスク */}
+                {/* 週 (週に複数回 / 周期) */}
                 {(!searchQuery.trim() ||
-                  '週次 目標 週次タスク 課題 todo weekly'
+                  '週 週次 目標 周期 課題 todo weekly'
                     .toLowerCase()
                     .includes(searchQuery.toLowerCase())) && (
                   <div
                     onClick={() => handleSelectItem('sys-weekly')}
-                    title="週次タスク (目標・課題)"
+                    title="週 (週に複数回 / 3日周期など)"
                     className={`group relative flex items-center rounded-lg cursor-pointer transition ${
                       isSidebarOpen
                         ? 'justify-between px-2.5 py-2 text-xs'
@@ -893,11 +893,11 @@ export function ImportedTablesManager({
                             isSidebarOpen ? 'text-xs' : 'text-[11px] font-medium max-w-[42px]'
                           }`}
                         >
-                          {isSidebarOpen ? '週次タスク (目標・課題)' : '週次タ…'}
+                          {isSidebarOpen ? '週 (週に複数回 / 周期)' : '週次'}
                         </div>
                         {isSidebarOpen ? (
                           <div className="mt-0.5 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                            <span>今週の目標・課題 ({weeklyTasksCount}件)</span>
+                            <span>週複数回・3日周期 ({weeklyTasksCount}件)</span>
                             {isWeeklyApplied && (
                               <span className="rounded bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-700">
                                 ON
@@ -1209,8 +1209,8 @@ export function ImportedTablesManager({
                   {selectedItemId === 'sys-slots'
                     ? '固定枠 (生活リズム)'
                     : selectedItemId === 'sys-daily'
-                      ? '日課タスク (高頻度・毎日)'
-                      : '週次タスク (目標・課題)'}
+                      ? '日 (1日に複数回 / 日次)'
+                      : '週 (週に複数回 / 周期)'}
                 </span>
               </div>
             ) : activeTable ? (
@@ -1312,36 +1312,53 @@ export function ImportedTablesManager({
             <div className="shrink-0 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-lg border border-slate-200/90 bg-slate-50/95 px-2.5 py-1.5 text-xs text-slate-700 shadow-2xs">
               {/* Left: 分類バッジ ＆ 時間軸・付随タスク・行列クイック設定 */}
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                {/* 現在分類インジケーター */}
+                {/* 現在分類セレクタ (自動判定 + 手動上書き) */}
                 {(() => {
                   const classification = getTableClassification(activeTable);
-                  if (classification === 'fixed_slot') {
-                    return (
-                      <span
-                        className="inline-flex items-center gap-1 rounded-md border border-sky-300 bg-sky-50 px-2 py-0.5 text-[11px] font-bold text-sky-700 shadow-2xs select-none"
-                        title="開始時刻が指定されているため、計画表の決まった時間帯に固定枠として配置されます"
-                      >
-                        <span>📌 固定枠</span>
-                      </span>
-                    );
-                  }
-                  if (classification === 'daily_task') {
-                    return (
-                      <span
-                        className="inline-flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 shadow-2xs select-none"
-                        title="開始時刻が未設定のため、指定曜日の空き時間(FreeSlot)へアルゴリズムが自動組み込みます"
-                      >
-                        <span>🏃 日課タスク</span>
-                      </span>
-                    );
-                  }
+
+                  const handleChangeClassification = (val: string) => {
+                    updateActiveTable((prev) => ({
+                      ...prev,
+                      classificationOverride:
+                        val === 'auto' ? undefined : (val as TableClassification),
+                    }));
+                  };
+
                   return (
-                    <span
-                      className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 shadow-2xs select-none"
-                      title="開始時刻・曜日が未設定のため、週の空き時間へアルゴリズムが最適配分します"
-                    >
-                      <span>🎯 週次タスク</span>
-                    </span>
+                    <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
+                      <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
+                        分類:
+                      </span>
+                      <select
+                        value={activeTable.classificationOverride || 'auto'}
+                        onChange={(e) => handleChangeClassification(e.target.value)}
+                        className={`font-bold text-xs bg-transparent focus:outline-hidden cursor-pointer ${
+                          classification === 'fixed_slot'
+                            ? 'text-sky-700'
+                            : classification === 'daily_task'
+                              ? 'text-emerald-700'
+                              : 'text-purple-700'
+                        }`}
+                        title={
+                          classification === 'fixed_slot'
+                            ? '固定枠: 決まった時間帯に配置されます'
+                            : classification === 'daily_task'
+                              ? '日 (日次): 1日に複数回組み込まれるタスクとして自動配置されます'
+                              : '週 (週次): 週に複数回組み込まれるタスク・3日周期として週全体へ配分されます'
+                        }
+                      >
+                        <option value="auto">
+                          {classification === 'fixed_slot'
+                            ? '📌 固定枠 (自動)'
+                            : classification === 'daily_task'
+                              ? '🏃 日 (日次・自動)'
+                              : '🎯 週 (週次・自動)'}
+                        </option>
+                        <option value="fixed_slot">📌 固定枠 (時間指定)</option>
+                        <option value="daily_task">🏃 日 (1日複数回/日次)</option>
+                        <option value="weekly_task">🎯 週 (週複数回/3日周期)</option>
+                      </select>
+                    </div>
                   );
                 })()}
 

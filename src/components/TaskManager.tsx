@@ -200,6 +200,8 @@ export function TaskManager({
   // 絞り込まれたシンプルタスク設定ステート
   const [taskTitle, setTaskTitle] = useState('');
   const [taskCategory, setTaskCategory] = useState<'must' | 'want'>('want'); // 2択: やらなければいけないこと vs やりたいこと
+  const [taskPeriodScope, setTaskPeriodScope] = useState<'day' | 'week'>('week'); // 日(1日複数回) vs 週(週複数回/周期)
+  const [dailyCount, setDailyCount] = useState<number>(1); // 1日あたりの目標回数 (1, 2, 3...)
   const [durationSize, setDurationSize] = useState<TaskDurationSize>('medium'); // 3択: 小(15〜30m), 中(30m〜2h), 大(2h+)
   const [frequency, setFrequency] = useState<TaskFrequency>('medium'); // 4択: 低(週1〜2), 中(週3〜4), 高(週5+), カスタム
   const [customFrequencyCount, setCustomFrequencyCount] = useState(2);
@@ -308,10 +310,13 @@ export function TaskManager({
   const openAddTask = (
     presetCategory: 'must' | 'want' = 'want',
     presetFreq: TaskFrequency = 'medium',
+    presetPeriod: 'day' | 'week' = presetFreq === 'high' ? 'day' : 'week',
   ) => {
     setEditingTaskId(null);
     setTaskTitle('');
     setTaskCategory(presetCategory);
+    setTaskPeriodScope(presetPeriod);
+    setDailyCount(1);
     setDurationSize('medium');
     setFrequency(presetFreq);
     setCustomFrequencyCount(2);
@@ -332,6 +337,8 @@ export function TaskManager({
     setEditingTaskId(null);
     setTaskTitle(`${slot.title} レポート課題`);
     setTaskCategory('must'); // 課題は必ず「やらなければいけないこと」
+    setTaskPeriodScope('week');
+    setDailyCount(1);
     setDurationSize('medium');
     setFrequency('low'); // 週1回の課題枠
     setIsNoDurationTodo(false);
@@ -348,11 +355,14 @@ export function TaskManager({
     setEditingTaskId(task.id);
     setTaskTitle(task.title);
     setTaskCategory(task.category === 'must' || task.taskType === 'assignment' ? 'must' : 'want');
+    const isDaily = task.period === 'day' || task.frequency === 'high';
+    setTaskPeriodScope(isDaily ? 'day' : 'week');
+    setDailyCount(task.dailyCount || 1);
     setDurationSize(
       task.durationSize ||
         (task.durationMinutes < 30 ? 'small' : task.durationMinutes >= 120 ? 'large' : 'medium'),
     );
-    setFrequency(task.frequency || (task.period === 'day' ? 'high' : 'medium'));
+    setFrequency(task.frequency || (isDaily ? 'high' : 'medium'));
     setCustomFrequencyCount(task.frequencyCount || 2);
     setIsNoDurationTodo(!!task.hasNoDuration || task.taskType === 'todo');
     setIsAssignment(task.taskType === 'assignment');
@@ -404,7 +414,8 @@ export function TaskManager({
           ? 60
           : 120;
 
-    const period: TaskPeriod = frequency === 'high' ? 'day' : 'week';
+    const period: TaskPeriod = taskPeriodScope === 'day' ? 'day' : 'week';
+    const finalDailyCount = taskPeriodScope === 'day' ? Math.max(1, dailyCount) : undefined;
     const taskType: TaskType = isNoDurationTodo ? 'todo' : isAssignment ? 'assignment' : 'task';
     const priority: TaskPriority = taskCategory === 'must' ? 'high' : 'medium';
 
@@ -422,6 +433,7 @@ export function TaskManager({
                 frequency,
                 frequencyCount: frequency === 'custom' ? customFrequencyCount : undefined,
                 period,
+                dailyCount: finalDailyCount,
                 taskType,
                 priority,
                 startDay: isAssignment ? startDay : undefined,
@@ -443,6 +455,7 @@ export function TaskManager({
         frequency,
         frequencyCount: frequency === 'custom' ? customFrequencyCount : undefined,
         period,
+        dailyCount: finalDailyCount,
         taskType,
         priority,
         completed: false,
@@ -1461,7 +1474,7 @@ export function TaskManager({
                     <Sun className="h-3.5 w-3.5" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-slate-900">日ごと (高頻度・毎日)</h4>
+                    <h4 className="text-xs font-bold text-slate-900">日 (1日に複数回 / 日次)</h4>
                   </div>
                   <span className="rounded-full bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
                     {dailyTasks.length}件
@@ -1661,7 +1674,7 @@ export function TaskManager({
                     <CalendarDays className="h-3.5 w-3.5" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-slate-900">週ごと (課題・ToDo)</h4>
+                    <h4 className="text-xs font-bold text-slate-900">週 (週に複数回 / 周期)</h4>
                   </div>
                   <span className="rounded-full bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
                     {weeklyTasks.length}件
@@ -2197,6 +2210,45 @@ export function TaskManager({
                 </div>
               </div>
 
+              {/* 期間スコープ（日: 1日に複数回 vs 週: 週に複数回/周期） */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-semibold text-slate-700">
+                  期間スコープ
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTaskPeriodScope('day');
+                      setFrequency('high');
+                    }}
+                    className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition border ${
+                      taskPeriodScope === 'day'
+                        ? 'border-amber-300 bg-amber-50 text-amber-800 shadow-xs'
+                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Sun className="h-3.5 w-3.5 text-amber-600" />
+                    <span>🏃 日 (1日に複数回)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTaskPeriodScope('week');
+                      if (frequency === 'high') setFrequency('medium');
+                    }}
+                    className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition border ${
+                      taskPeriodScope === 'week'
+                        ? 'border-purple-300 bg-purple-50 text-purple-800 shadow-xs'
+                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <CalendarDays className="h-3.5 w-3.5 text-purple-600" />
+                    <span>🎯 週 (週に複数回 / 周期)</span>
+                  </button>
+                </div>
+              </div>
+
               {/* 3. 正方形ブロック＋十字コントローラー: [所要時間] & [実施頻度] */}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {/* 3-A. 所要時間コントローラー */}
@@ -2305,20 +2357,36 @@ export function TaskManager({
 
                 {/* 3-B. 実施頻度コントローラー */}
                 <div
-                  onWheel={handleCustomWheel}
+                  onWheel={(e) => {
+                    if (taskPeriodScope === 'day') {
+                      e.preventDefault();
+                      if (e.deltaY < 0) setDailyCount((prev) => Math.min(prev + 1, 6));
+                      else if (e.deltaY > 0) setDailyCount((prev) => Math.max(prev - 1, 1));
+                    } else {
+                      handleCustomWheel(e);
+                    }
+                  }}
                   className="flex flex-col items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/80 p-3 shadow-2xs"
                 >
                   <div className="flex w-full items-center justify-between pb-1">
-                    <span className="text-xs font-bold text-slate-700">実施頻度</span>
-                    <span className="text-[10px] font-semibold text-purple-700">
-                      {frequency === 'custom'
-                        ? `週 ${customFrequencyCount} 回 (カスタム)`
-                        : (() => {
-                            const curFreq =
-                              FREQUENCY_OPTIONS.find((f) => f.freq === frequency) ||
-                              FREQUENCY_OPTIONS[1];
-                            return `${curFreq.label} (${curFreq.badge})`;
-                          })()}
+                    <span className="text-xs font-bold text-slate-700">
+                      {taskPeriodScope === 'day' ? '1日の回数' : '実施頻度'}
+                    </span>
+                    <span
+                      className={`text-[10px] font-semibold ${
+                        taskPeriodScope === 'day' ? 'text-amber-700' : 'text-purple-700'
+                      }`}
+                    >
+                      {taskPeriodScope === 'day'
+                        ? `1日に ${dailyCount} 回組み込み`
+                        : frequency === 'custom'
+                          ? `週 ${customFrequencyCount} 回 (カスタム)`
+                          : (() => {
+                              const curFreq =
+                                FREQUENCY_OPTIONS.find((f) => f.freq === frequency) ||
+                                FREQUENCY_OPTIONS[1];
+                              return `${curFreq.label} (${curFreq.badge})`;
+                            })()}
                     </span>
                   </div>
 
@@ -2328,11 +2396,15 @@ export function TaskManager({
                     <button
                       type="button"
                       onClick={() => {
-                        if (frequency !== 'custom') setFrequency('custom');
-                        stepCustomCount('up');
+                        if (taskPeriodScope === 'day') {
+                          setDailyCount((prev) => Math.min(prev + 1, 6));
+                        } else {
+                          if (frequency !== 'custom') setFrequency('custom');
+                          stepCustomCount('up');
+                        }
                       }}
                       className="flex h-6 w-16 items-center justify-center rounded-t-lg border-t border-x border-slate-300 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition active:scale-95 shadow-2xs"
-                      title="上: 回数を増やす (カスタム)"
+                      title={taskPeriodScope === 'day' ? '上: 1日の回数を増やす' : '上: 回数を増やす (カスタム)'}
                     >
                       <ChevronUp className="h-4 w-4" />
                     </button>
@@ -2342,15 +2414,42 @@ export function TaskManager({
                       {/* 左ボタン (◀) */}
                       <button
                         type="button"
-                        onClick={() => rotateFrequency('prev')}
+                        onClick={() => {
+                          if (taskPeriodScope === 'day') {
+                            setDailyCount((prev) => (prev > 1 ? prev - 1 : 4));
+                          } else {
+                            rotateFrequency('prev');
+                          }
+                        }}
                         className="flex h-16 w-6 items-center justify-center rounded-l-lg border-l border-y border-slate-300 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition active:scale-95 shadow-2xs"
-                        title="左: 前の頻度へ"
+                        title="左: 前の回数/頻度へ"
                       >
                         <ChevronLeft className="h-4 w-4" />
                       </button>
 
                       {/* 中央の正方形ディスプレイブロック (タップで次へ) */}
                       {(() => {
+                        if (taskPeriodScope === 'day') {
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => setDailyCount((prev) => (prev < 4 ? prev + 1 : 1))}
+                              className="flex h-16 w-16 flex-col items-center justify-center border border-amber-300 bg-white shadow-xs hover:border-amber-400 transition select-none active:scale-95"
+                              title="クリックして1日の回数を変更"
+                            >
+                              <div className="flex items-baseline gap-0.5">
+                                <span className="text-xl font-black text-amber-700">
+                                  {dailyCount}
+                                </span>
+                                <span className="text-[10px] font-bold text-amber-600">回</span>
+                              </div>
+                              <span className="text-[8px] font-bold text-amber-700">
+                                1日あたり
+                              </span>
+                            </button>
+                          );
+                        }
+
                         const curFreq =
                           FREQUENCY_OPTIONS.find((f) => f.freq === frequency) ||
                           FREQUENCY_OPTIONS[1];
@@ -2390,9 +2489,15 @@ export function TaskManager({
                       {/* 右ボタン (▶) */}
                       <button
                         type="button"
-                        onClick={() => rotateFrequency('next')}
+                        onClick={() => {
+                          if (taskPeriodScope === 'day') {
+                            setDailyCount((prev) => (prev < 4 ? prev + 1 : 1));
+                          } else {
+                            rotateFrequency('next');
+                          }
+                        }}
                         className="flex h-16 w-6 items-center justify-center rounded-r-lg border-r border-y border-slate-300 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition active:scale-95 shadow-2xs"
-                        title="右: 次の頻度へ"
+                        title="右: 次の回数/頻度へ"
                       >
                         <ChevronRight className="h-4 w-4" />
                       </button>
@@ -2402,11 +2507,15 @@ export function TaskManager({
                     <button
                       type="button"
                       onClick={() => {
-                        if (frequency !== 'custom') setFrequency('custom');
-                        stepCustomCount('down');
+                        if (taskPeriodScope === 'day') {
+                          setDailyCount((prev) => Math.max(prev - 1, 1));
+                        } else {
+                          if (frequency !== 'custom') setFrequency('custom');
+                          stepCustomCount('down');
+                        }
                       }}
                       className="flex h-6 w-16 items-center justify-center rounded-b-lg border-b border-x border-slate-300 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition active:scale-95 shadow-2xs"
-                      title="下: 回数を減らす (カスタム)"
+                      title={taskPeriodScope === 'day' ? '下: 1日の回数を減らす' : '下: 回数を減らす (カスタム)'}
                     >
                       <ChevronDown className="h-4 w-4" />
                     </button>
@@ -2414,7 +2523,9 @@ export function TaskManager({
 
                   {/* フッター説明 */}
                   <span className="text-[9px] text-slate-500 font-medium">
-                    ◀ ▶ 頻度切替 / ▲ ▼ 回数上下スクロール
+                    {taskPeriodScope === 'day'
+                      ? '◀ ▶ 回数切替 / ▲ ▼ 増減'
+                      : '◀ ▶ 頻度切替 / ▲ ▼ 回数上下スクロール'}
                   </span>
                 </div>
               </div>

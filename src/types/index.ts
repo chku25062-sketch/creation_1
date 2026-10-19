@@ -43,6 +43,8 @@ export interface TaskItem {
   hasNoDuration?: boolean; // 所要時間を設けないタスク
   startDay?: number; // 課題用: 出題曜日 (0:月〜6:日)
   deadlineDay?: number; // 課題用: 締切・期日曜日 (0:月〜6:日)
+  dailyCount?: number; // 1日あたりの目標回数 (1, 2, 3...)
+  cycleIndex?: number; // 3日周期などのローテーション番号
   sourceTableId?: string; // 参照元テーブルID
   sourceTableName?: string; // 参照元テーブル名
 }
@@ -162,6 +164,7 @@ export interface ImportedTableData {
   appliedSlotIds?: string[]; // 計画表に反映した際の固定枠ID群
   appliedTaskIds?: string[]; // 計画表に反映した際のタスクID群
   isApplied?: boolean; // 計画表に反映中かどうか
+  classificationOverride?: TableClassification; // 手動で日・週・固定枠を明示上書きしたい場合の設定
 }
 
 export interface ScheduleInclusionSettings {

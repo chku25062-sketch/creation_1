@@ -470,4 +470,73 @@ describe('Theoretical Scheduler Engine', () => {
       expect(getAdjustedDuration(largeTask, 180)).toBe(120);
     });
   });
+
+  describe('Plan8: Multi-insertion and 3-day cycle', () => {
+    it('1日に複数回 (dailyCount: 2) 組み込まれること', () => {
+      // 空きスロットが複数ある固定枠 (9:00〜12:00, 14:00〜18:00)
+      const fixedSlots: FixedSlot[] = [
+        {
+          id: 'work1',
+          title: '午前作業',
+          category: 'work',
+          startMinutes: 540,
+          endMinutes: 720,
+          color: '#3b82f6',
+        },
+        {
+          id: 'work2',
+          title: '午後作業',
+          category: 'work',
+          startMinutes: 840,
+          endMinutes: 1080,
+          color: '#3b82f6',
+        },
+      ];
+
+      const multiDailyTask: TaskItem = {
+        id: 'stretch',
+        title: 'ストレッチ・水分補給',
+        durationMinutes: 15,
+        durationSize: 'small',
+        priority: 'high',
+        category: 'must',
+        period: 'day',
+        dailyCount: 2,
+      };
+
+      const result = generateTheoreticalSchedule(fixedSlots, [multiDailyTask]);
+      // 月曜 (dayIndex: 0) に 2回配置されていること
+      const mondayBlocks = result.dayBlocks[0].filter((b) => b.taskId === 'stretch');
+      expect(mondayBlocks.length).toBe(2);
+    });
+
+    it('3日周期のタスク (cycleIndex) が適切にローテーション配置されること', () => {
+      const pushTask: TaskItem = {
+        id: 'push',
+        title: '胸トレ (Push)',
+        durationMinutes: 45,
+        priority: 'medium',
+        category: 'want',
+        period: 'week',
+        cycleIndex: 0, // 月(0) / 木(3) 優先
+      };
+
+      const pullTask: TaskItem = {
+        id: 'pull',
+        title: '背中トレ (Pull)',
+        durationMinutes: 45,
+        priority: 'medium',
+        category: 'want',
+        period: 'week',
+        cycleIndex: 1, // 火(1) / 金(4) 優先
+      };
+
+      const result = generateTheoreticalSchedule([], [pushTask, pullTask]);
+      const pushMonday = result.dayBlocks[0].some((b) => b.taskId === 'push');
+      const pullTuesday = result.dayBlocks[1].some((b) => b.taskId === 'pull');
+
+      expect(pushMonday).toBe(true);
+      expect(pullTuesday).toBe(true);
+    });
+  });
 });
