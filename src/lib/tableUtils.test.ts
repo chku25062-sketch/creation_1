@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   getTableClassification,
+  getTableColumnMode,
+  setTableColumnMode,
   addRowToTable,
   removeRowFromTable,
   removeRowAtIndex,
@@ -239,5 +241,54 @@ describe('tableUtils', () => {
     expect(res.tasks[0].period).toBe('day');
     expect(res.tasks[0].startDay).toBeUndefined();
     expect(res.tasks[0].cycleIndex).toBeUndefined();
+  });
+
+  it('correctly handles columnMode toggling with getTableColumnMode and setTableColumnMode', () => {
+    const table = createBaseTable();
+    expect(getTableColumnMode(table)).toBe('weekday');
+
+    const cycleTable = setTableColumnMode(table, 'cycle');
+    expect(cycleTable.columnMode).toBe('cycle');
+    expect(cycleTable.colHeaders).toEqual(['Day 1', 'Day 2']);
+    expect(getTableColumnMode(cycleTable)).toBe('cycle');
+
+    const weekdayTable = setTableColumnMode(cycleTable, 'weekday');
+    expect(weekdayTable.columnMode).toBe('weekday');
+    expect(weekdayTable.colHeaders).toEqual(['月曜', '火曜']);
+    expect(getTableColumnMode(weekdayTable)).toBe('weekday');
+  });
+
+  it('treats empty columns in a cyclic table as rest days (maintains total cycle length)', () => {
+    // 4日周期: Day 1 (胸), Day 2 (背中), Day 3 (空列・何もしないオフ日), Day 4 (脚)
+    const table = createBaseTable(null);
+    table.columnMode = 'cycle';
+    table.classificationOverride = 'daily_task';
+    table.numCols = 4;
+    table.colHeaders = ['Day 1', 'Day 2', 'Day 3', 'Day 4'];
+    table.cells = [
+      [
+        { ...table.cells[0][0], title: '胸トレ', dayIndex: 0 },
+        { ...table.cells[0][1], title: '背中トレ', dayIndex: 1 },
+        { ...table.cells[0][0], title: '', text: null, dayIndex: 2 }, // 空列！
+        { ...table.cells[0][1], title: '脚トレ', dayIndex: 3 },
+      ],
+    ];
+
+    const res = generateScheduleItemsForTable(table);
+    // 空列にはタスクが生成されないためタスク数は 3 件
+    expect(res.tasks.length).toBe(3);
+
+    // 全てのタスクが 4日周期 (cycleCount: 4) を保持していること
+    expect(res.tasks[0].title).toBe('胸トレ');
+    expect(res.tasks[0].cycleIndex).toBe(0);
+    expect(res.tasks[0].cycleCount).toBe(4);
+
+    expect(res.tasks[1].title).toBe('背中トレ');
+    expect(res.tasks[1].cycleIndex).toBe(1);
+    expect(res.tasks[1].cycleCount).toBe(4);
+
+    expect(res.tasks[2].title).toBe('脚トレ');
+    expect(res.tasks[2].cycleIndex).toBe(3); // 4日目の位置 (index 3)
+    expect(res.tasks[2].cycleCount).toBe(4);
   });
 });

@@ -595,5 +595,58 @@ describe('Theoretical Scheduler Engine', () => {
         expect(result.dayBlocks[d].some((b) => b.taskId === 'everyday-habit')).toBe(true);
       }
     });
+
+    it('空列（オフ日）を含む4日周期のタスクで、オフ日の曜日には何も配置されないこと', () => {
+      // 4日周期: Day 1 (胸: 0), Day 2 (背中: 1), Day 3 はオフ(タスクなし), Day 4 (脚: 3)
+      const chestTask: TaskItem = {
+        id: 'chest',
+        title: '胸トレ',
+        durationMinutes: 30,
+        priority: 'high',
+        category: 'must',
+        period: 'day',
+        cycleIndex: 0,
+        cycleCount: 4,
+      };
+
+      const backTask: TaskItem = {
+        id: 'back',
+        title: '背中トレ',
+        durationMinutes: 30,
+        priority: 'high',
+        category: 'must',
+        period: 'day',
+        cycleIndex: 1,
+        cycleCount: 4,
+      };
+
+      const legTask: TaskItem = {
+        id: 'leg',
+        title: '脚トレ',
+        durationMinutes: 30,
+        priority: 'high',
+        category: 'must',
+        period: 'day',
+        cycleIndex: 3,
+        cycleCount: 4,
+      };
+
+      const result = generateTheoreticalSchedule([], [chestTask, backTask, legTask]);
+
+      // 月曜 (d=0, 0%4=0): 胸トレ
+      expect(result.dayBlocks[0].some((b) => b.taskId === 'chest')).toBe(true);
+      // 火曜 (d=1, 1%4=1): 背中トレ
+      expect(result.dayBlocks[1].some((b) => b.taskId === 'back')).toBe(true);
+      // 水曜 (d=2, 2%4=2): オフ日（胸・背中・脚のいずれも配置されない）
+      expect(result.dayBlocks[2].some((b) => b.taskId === 'chest' || b.taskId === 'back' || b.taskId === 'leg')).toBe(false);
+      // 木曜 (d=3, 3%4=3): 脚トレ
+      expect(result.dayBlocks[3].some((b) => b.taskId === 'leg')).toBe(true);
+      // 金曜 (d=4, 4%4=0): 胸トレ
+      expect(result.dayBlocks[4].some((b) => b.taskId === 'chest')).toBe(true);
+      // 土曜 (d=5, 5%4=1): 背中トレ
+      expect(result.dayBlocks[5].some((b) => b.taskId === 'back')).toBe(true);
+      // 日曜 (d=6, 6%4=2): オフ日（胸・背中・脚のいずれも配置されない）
+      expect(result.dayBlocks[6].some((b) => b.taskId === 'chest' || b.taskId === 'back' || b.taskId === 'leg')).toBe(false);
+    });
   });
 });

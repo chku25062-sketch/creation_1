@@ -30,10 +30,13 @@ import {
   TaskItem,
   ScheduleInclusionSettings,
   TableClassification,
+  TableColumnMode,
 } from '@/types';
 import { calculatePeriodTimes, timeStringToMinutes } from '@/lib/timeUtils';
 import {
   getTableClassification,
+  getTableColumnMode,
+  setTableColumnMode,
   addRowToTable,
   removeRowFromTable,
   removeRowAtIndex,
@@ -59,38 +62,27 @@ interface ImportedTablesManagerProps {
   onFileSelect?: (file: File) => void;
 }
 
-const COL_HEADER_OPTIONS = [
-  // 曜日（月曜〜日曜）
-  { label: '月曜', group: '曜日' },
-  { label: '火曜', group: '曜日' },
-  { label: '水曜', group: '曜日' },
-  { label: '木曜', group: '曜日' },
-  { label: '金曜', group: '曜日' },
-  { label: '土曜', group: '曜日' },
-  { label: '日曜', group: '曜日' },
-  // 周期ローテーション
-  { label: 'Day 1', group: '周期' },
-  { label: 'Day 2', group: '周期' },
-  { label: 'Day 3', group: '周期' },
-  { label: 'Day 4', group: '周期' },
-  { label: 'Day 5', group: '周期' },
-  { label: 'Day 6', group: '周期' },
-  { label: 'Day 7', group: '周期' },
-  // 曜日周期不問 (1列リスト・毎日)
-  { label: 'フリー', group: 'その他' },
-  // 反映対象外
-  { label: '除外', group: 'その他' },
+const WEEKDAY_HEADER_OPTIONS = [
+  '月曜',
+  '火曜',
+  '水曜',
+  '木曜',
+  '金曜',
+  '土曜',
+  '日曜',
+  '除外',
 ];
 
-const WEEKDAY_OPTIONS = [
-  { label: '月曜', value: 0 },
-  { label: '火曜', value: 1 },
-  { label: '水曜', value: 2 },
-  { label: '木曜', value: 3 },
-  { label: '金曜', value: 4 },
-  { label: '土曜', value: 5 },
-  { label: '日曜', value: 6 },
-  { label: '除外', value: -1 },
+const CYCLE_HEADER_OPTIONS = [
+  'Day 1',
+  'Day 2',
+  'Day 3',
+  'Day 4',
+  'Day 5',
+  'Day 6',
+  'Day 7',
+  'オフ (何もしない日)',
+  '除外',
 ];
 
 export function ImportedTablesManager({
@@ -450,6 +442,22 @@ export function ImportedTablesManager({
         updatedAt: new Date().toISOString(),
       };
     });
+  };
+
+  // 表の列管理方式（曜日 vs 周期）
+  const tableColumnMode: TableColumnMode = useMemo(() => {
+    return activeTable ? getTableColumnMode(activeTable) : 'weekday';
+  }, [activeTable]);
+
+  // 列管理方式の切り替えハンドラー (表左上のマスで切り替え)
+  const handleToggleColumnMode = (newMode: TableColumnMode) => {
+    updateActiveTable((prev) => setTableColumnMode(prev, newMode));
+    setApplySuccessMsg(
+      newMode === 'cycle'
+        ? '列の基準を「周期（Day 1, 2...）」に切り替えました'
+        : '列の基準を「曜日（月曜, 火曜...）」に切り替えました',
+    );
+    setTimeout(() => setApplySuccessMsg(null), 3000);
   };
 
   // 表レイアウト・プリセット一括変更（曜日、周期、1列リスト）
@@ -1881,22 +1889,51 @@ export function ImportedTablesManager({
                 <table className="w-full border-separate border-spacing-0 text-left text-xs">
                   <thead>
                     <tr>
-                      {/* 左上 交差見出し (行番号 / 時間) */}
-                      <th className="sticky top-0 left-0 z-30 w-16 sm:w-20 min-w-[64px] sm:min-w-[80px] border-b-2 border-r-2 border-slate-300 bg-slate-100 p-2 text-center text-[10px] font-bold text-slate-600 select-none shadow-2xs">
-                        <span>#</span>
+                      {/* 左上 交差見出し: 曜日で管理 vs 周期で管理 の切替スイッチ */}
+                      <th className="sticky top-0 left-0 z-30 w-24 sm:w-28 min-w-[96px] sm:min-w-[110px] border-b-2 border-r-2 border-slate-300 bg-slate-100 p-1.5 text-center select-none shadow-2xs">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                            列の管理
+                          </span>
+                          <select
+                            value={tableColumnMode}
+                            onChange={(e) =>
+                              handleToggleColumnMode(e.target.value as TableColumnMode)
+                            }
+                            className={`w-full rounded-md border px-1.5 py-1 text-[11px] font-bold shadow-2xs focus:outline-hidden cursor-pointer transition ${
+                              tableColumnMode === 'cycle'
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:border-emerald-400'
+                                : 'border-blue-300 bg-blue-50 text-blue-800 hover:border-blue-400'
+                            }`}
+                            title="表の列を「曜日」で管理するか「周期」で管理するかを切り替えます"
+                          >
+                            <option value="weekday">📅 曜日</option>
+                            <option value="cycle">🔄 周期</option>
+                          </select>
+                        </div>
                       </th>
 
-                      {/* 列ヘッダー (曜日 / 周期 / フリー / 除外) */}
+                      {/* 列ヘッダー (曜日または周期) */}
                       {activeTable.colHeaders.map((colName, cIdx) => {
                         const parsed = parseColHeader(colName, cIdx);
                         const isExcluded = parsed.type === 'excluded';
                         const colLetter = String.fromCharCode(65 + cIdx); // A, B, C, D...
+                        const headerOptions =
+                          tableColumnMode === 'cycle'
+                            ? CYCLE_HEADER_OPTIONS
+                            : WEEKDAY_HEADER_OPTIONS;
+                        const isColumnEmpty =
+                          activeTable.cells.every((r) => !r[cIdx]?.title?.trim());
 
                         return (
                           <th
                             key={`col-header-${cIdx}`}
                             className={`sticky top-0 z-20 border-b-2 border-r border-slate-300 p-2 text-center transition min-w-[140px] sm:min-w-[160px] ${
-                              isExcluded ? 'bg-slate-200/60 text-slate-400' : 'bg-slate-100/90'
+                              isExcluded
+                                ? 'bg-slate-200/60 text-slate-400'
+                                : tableColumnMode === 'cycle'
+                                ? 'bg-emerald-50/50'
+                                : 'bg-slate-100/90'
                             }`}
                           >
                             <div className="flex flex-col items-center gap-1">
@@ -1904,6 +1941,14 @@ export function ImportedTablesManager({
                                 <span className="font-mono text-[10px] font-bold text-slate-400">
                                   {colLetter}
                                 </span>
+                                {tableColumnMode === 'cycle' && !isExcluded && isColumnEmpty && (
+                                  <span
+                                    className="inline-flex items-center gap-0.5 rounded bg-emerald-100 border border-emerald-300/80 px-1 py-0.2 text-[9px] font-bold text-emerald-800"
+                                    title="空列のため、周期内で何もしないオフ日になります"
+                                  >
+                                    💤 オフ日
+                                  </span>
+                                )}
                                 {activeTable.numCols > 1 && (
                                   <button
                                     type="button"
@@ -1921,19 +1966,17 @@ export function ImportedTablesManager({
                                 className={`w-full rounded-md border px-1.5 py-0.5 text-xs font-bold transition shadow-2xs focus:outline-hidden cursor-pointer ${
                                   isExcluded
                                     ? 'border-slate-300 bg-slate-100 text-slate-400'
-                                    : parsed.type === 'cycle'
+                                    : tableColumnMode === 'cycle'
                                     ? 'border-emerald-300 bg-white text-emerald-700 hover:border-emerald-400'
-                                    : parsed.type === 'free'
-                                    ? 'border-purple-300 bg-white text-purple-700 hover:border-purple-400'
                                     : 'border-blue-300 bg-white text-blue-700 hover:border-blue-400'
                                 }`}
                               >
-                                {COL_HEADER_OPTIONS.map((opt) => (
-                                  <option key={opt.label} value={opt.label}>
-                                    {opt.label}
+                                {headerOptions.map((opt) => (
+                                  <option key={opt} value={opt}>
+                                    {opt}
                                   </option>
                                 ))}
-                                {!COL_HEADER_OPTIONS.some((o) => o.label === colName) && (
+                                {!headerOptions.includes(colName) && (
                                   <option value={colName}>{colName}</option>
                                 )}
                               </select>

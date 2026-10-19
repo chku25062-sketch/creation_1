@@ -1,6 +1,7 @@
 import {
   ImportedTableData,
   TableClassification,
+  TableColumnMode,
   GridCell,
   FixedSlot,
   TaskItem,
@@ -12,6 +13,52 @@ import { calculatePeriodTimes } from './timeUtils';
 const WEEKDAY_NAMES = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜', '月', '火', '水', '木', '金', '土', '日'];
 const DAILY_TIMEFRAME_KEYWORDS = ['朝', '昼', '夕', '夜', '午前', '午後', '起床', '就寝', 'タイムテーブル', '日課', 'ルーティン', '1日'];
 const CYCLE_KEYWORDS = ['day', 'サイクル', '周期', '分割', 'rot', 'part'];
+
+/**
+ * 表が「曜日で管理」か「周期で管理」かを判定
+ */
+export function getTableColumnMode(table: ImportedTableData): TableColumnMode {
+  if (table.columnMode) {
+    return table.columnMode;
+  }
+  const hasCycleHeader = table.colHeaders.some((h) => {
+    const parsed = parseColHeader(h, 0);
+    return parsed.type === 'cycle';
+  });
+  return hasCycleHeader ? 'cycle' : 'weekday';
+}
+
+/**
+ * 表の列管理方式（曜日 ⇄ 周期）を切り替え、列ヘッダーとセルの dayIndex を一括変換
+ */
+export function setTableColumnMode(
+  table: ImportedTableData,
+  mode: TableColumnMode,
+): ImportedTableData {
+  const nextHeaders = table.colHeaders.map((h, idx) => {
+    if (h === '除外') return '除外';
+    if (mode === 'cycle') {
+      return `Day ${idx + 1}`;
+    } else {
+      return idx < 7 ? WEEKDAY_NAMES[idx] : `列 ${idx + 1}`;
+    }
+  });
+
+  const nextCells = table.cells.map((row) =>
+    row.map((cell, cIdx) => ({
+      ...cell,
+      dayIndex: mode === 'cycle' ? cIdx : cIdx < 7 ? cIdx : 0,
+    })),
+  );
+
+  return {
+    ...table,
+    columnMode: mode,
+    colHeaders: nextHeaders,
+    cells: nextCells,
+    updatedAt: new Date().toISOString(),
+  };
+}
 
 /**
  * 列ヘッダーの種類（曜日・周期ローテーション・フリー/1列・除外）の型定義
@@ -190,14 +237,23 @@ export function removeRowAtIndex(table: ImportedTableData, rowIndex: number): Im
 /**
  * 表に新しい列を右端に追加
  */
+/**
+ * 表に新しい列を右端に追加 (曜日モードなら曜日名、周期モードならDay番号)
+ */
 export function addColToTable(table: ImportedTableData): ImportedTableData {
   const newColIdx = table.numCols;
-  const nextHeader = newColIdx < 7 ? WEEKDAY_NAMES[newColIdx] : `列 ${newColIdx + 1}`;
+  const mode = getTableColumnMode(table);
+  const nextHeader =
+    mode === 'cycle'
+      ? `Day ${newColIdx + 1}`
+      : newColIdx < 7
+        ? WEEKDAY_NAMES[newColIdx]
+        : `列 ${newColIdx + 1}`;
 
   const nextCells = table.cells.map((row, rIdx) => [
     ...row,
     {
-      dayIndex: newColIdx < 7 ? newColIdx : 0,
+      dayIndex: mode === 'cycle' ? newColIdx : newColIdx < 7 ? newColIdx : 0,
       periodIndex: rIdx + 1,
       text: null,
       rawLines: [],
@@ -264,9 +320,12 @@ export interface TableScheduleGenerationResult {
 /**
  * 表データの分類（固定枠/日課/週次）と付随タスク設定に基づいて、
  * 計画表に反映すべき FixedSlot[] と TaskItem[] を一括生成
+ * - 周期管理モードまたは周期列がある場合、空列があっても総列数 (cycleCount) に含め、
+ *   その日はタスクが生成されない「何もしない日（オフ日）」として成立させる
  */
 export function generateScheduleItemsForTable(table: ImportedTableData): TableScheduleGenerationResult {
   const classification = getTableClassification(table);
+  const columnMode = getTableColumnMode(table);
   const slots: FixedSlot[] = [];
   const tasks: TaskItem[] = [];
 
@@ -279,8 +338,14 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
 
   // 各列の属性（曜日、周期、フリー、除外）を事前解析
   const parsedCols = table.colHeaders.map((h, idx) => parseColHeader(h, idx));
-  const cycleCols = parsedCols.filter((p) => p.type === 'cycle');
-  const cycleCount = cycleCols.length > 0 ? cycleCols.length : (table.numCols > 1 ? table.numCols : 3);
+  const nonExcludedCols = parsedCols.filter((p) => p.type !== 'excluded');
+  const isCycleMode = columnMode === 'cycle' || parsedCols.some((p) => p.type === 'cycle');
+
+  // 周期全体の長さ (cycleCount):
+  // 周期管理モードの場合は空列（オフ日）も周期日数としてカウントするため、除外列以外の列総数とする
+  const cycleCount = isCycleMode
+    ? Math.max(2, nonExcludedCols.length)
+    : (table.numCols > 1 ? table.numCols : 3);
 
   table.cells.forEach((row, r) => {
     const timeSlot = tablePeriodTimes[r];
@@ -297,8 +362,9 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
         ? `${title} (${cell.roomOrNote.replace(/\n/g, ' ')})`
         : title;
 
-      const isWeekday = colInfo.type === 'weekday' && colInfo.dayIndex !== undefined;
-      const isCycle = colInfo.type === 'cycle' && colInfo.cycleIndex !== undefined;
+      const isWeekday = !isCycleMode && colInfo.type === 'weekday' && colInfo.dayIndex !== undefined;
+      const isCycle = isCycleMode;
+      const cycleIdx = colInfo.cycleIndex !== undefined ? colInfo.cycleIndex : c;
 
       if (classification === 'fixed_slot') {
         // 固定枠として生成 (開始時刻・終了時刻あり)
@@ -308,7 +374,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             days = [colInfo.dayIndex!];
           } else if (isCycle) {
             days = [0, 1, 2, 3, 4, 5, 6].filter(
-              (d) => d % cycleCount === (colInfo.cycleIndex! % cycleCount),
+              (d) => d % cycleCount === (cycleIdx % cycleCount),
             );
           } else {
             // フリー・1列・全日: 毎日
@@ -340,7 +406,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
       } else if (classification === 'daily_task') {
         // 日（日次タスク）として生成:
         // - 曜日指定: その曜日だけ行う日次タスク (例: 月曜日の日課)
-        // - 周期指定: 日ごとに順番に入れ替える周期日次タスク (例: Day 1, Day 2, Day 3 のローテーション)
+        // - 周期指定: 日ごとに順番に入れ替える周期日次タスク (空列はオフ日としてスロットを空ける)
         // - フリー/1列: 曜日・周期に関わらず毎日行う日次タスク
         const taskId = `task-table-${table.id}-${r}-${c}`;
         const duration = table.axisConfig.periodMinutes || 30;
@@ -366,7 +432,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
           dailyCount: 1, // 1日の中で組み込む
           startDay: isWeekday ? colInfo.dayIndex : undefined,
           deadlineDay: isWeekday ? colInfo.dayIndex : undefined,
-          cycleIndex: isCycle ? colInfo.cycleIndex : undefined,
+          cycleIndex: isCycle ? cycleIdx : undefined,
           cycleCount: isCycle ? cycleCount : undefined,
           priority: 'medium',
           completed: false,
@@ -388,8 +454,6 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             ? 'hobby'
             : 'want';
 
-        const cycleIdx = isCycle ? colInfo.cycleIndex! : c;
-
         tasks.push({
           id: taskId,
           title: fullTitle,
@@ -398,8 +462,8 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
           durationMinutes: duration,
           frequency: isWeekday ? 'medium' : 'custom',
           frequencyCount: isWeekday ? undefined : Math.min(table.numCols, 4),
-          cycleIndex: cycleIdx,
-          cycleCount: cycleCount,
+          cycleIndex: isCycle ? cycleIdx : undefined,
+          cycleCount: isCycle ? cycleCount : undefined,
           period: 'week',
           startDay: isWeekday ? colInfo.dayIndex : undefined,
           deadlineDay: isWeekday ? colInfo.dayIndex : undefined,
@@ -454,7 +518,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             dailyCount: classification === 'daily_task' ? 1 : undefined,
             startDay: isWeekday ? colInfo.dayIndex : undefined,
             deadlineDay: isWeekday ? colInfo.dayIndex : undefined,
-            cycleIndex: isCycle ? colInfo.cycleIndex : undefined,
+            cycleIndex: isCycle ? cycleIdx : undefined,
             cycleCount: isCycle ? cycleCount : undefined,
             priority: 'medium',
             completed: false,

@@ -150,6 +150,8 @@ export interface TableAxisConfig {
   customRowTimes?: Record<number, { startMinutes?: number; endMinutes?: number }>;
 }
 
+export type TableColumnMode = 'weekday' | 'cycle';
+
 export interface ImportedTableData {
   id: string;
   name: string; // 例: "2026年度 前期時間割", "筋トレメニュー"
@@ -166,6 +168,7 @@ export interface ImportedTableData {
   appliedTaskIds?: string[]; // 計画表に反映した際のタスクID群
   isApplied?: boolean; // 計画表に反映中かどうか
   classificationOverride?: TableClassification; // 手動で日・週・固定枠を明示上書きしたい場合の設定
+  columnMode?: TableColumnMode; // 列の管理方式: 曜日で管理 ('weekday') または 周期で管理 ('cycle')
 }
 
 export interface ScheduleInclusionSettings {
