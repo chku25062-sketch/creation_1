@@ -197,18 +197,29 @@ export function TaskManager({
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
 
-  // 絞り込まれたシンプルタスク設定ステート
+  // 表での設定項目になぞらえたタスク設定ステート
   const [taskTitle, setTaskTitle] = useState('');
-  const [taskCategory, setTaskCategory] = useState<'must' | 'want'>('want'); // 2択: やらなければいけないこと vs やりたいこと
-  const [taskPeriodScope, setTaskPeriodScope] = useState<'day' | 'week'>('week'); // 日(1日複数回) vs 週(週複数回/周期)
-  const [dailyCount, setDailyCount] = useState<number>(1); // 1日あたりの目標回数 (1, 2, 3...)
+  const [taskPeriodScope, setTaskPeriodScope] = useState<'day' | 'week'>('week'); // 🏃 日(1日複数回/日課) vs 🎯 週(週複数回/周期)
+  const [taskGroupName, setTaskGroupName] = useState<string>('基本設定'); // 表名またはグループ名
+
+  // 所要時間
   const [durationSize, setDurationSize] = useState<TaskDurationSize>('medium'); // 3択: 小(15〜30m), 中(30m〜2h), 大(2h+)
-  const [frequency, setFrequency] = useState<TaskFrequency>('medium'); // 4択: 低(週1〜2), 中(週3〜4), 高(週5+), カスタム
-  const [customFrequencyCount, setCustomFrequencyCount] = useState(2);
+  const [durationMinutes, setDurationMinutes] = useState<number>(60);
   const [isNoDurationTodo, setIsNoDurationTodo] = useState(false); // 時間枠なしToDo
 
-  // 課題オプション（Must選択時のみ任意で設定可能）
-  const [isAssignment, setIsAssignment] = useState(false);
+  // 日の設定: 1日の中の回数 & 実施曜日
+  const [dailyCount, setDailyCount] = useState<number>(1); // 1日あたりの目標回数 (1, 2, 3...)
+  const [dailyDays, setDailyDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]); // 対象曜日 (全日は毎日)
+
+  // 週の設定: 表の列管理になぞらえた方式 (曜日指定 vs 周期指定 vs おまかせ)
+  const [weekTimingMode, setWeekTimingMode] = useState<'weekday' | 'cycle' | 'flexible'>('weekday');
+  const [weekTargetDays, setWeekTargetDays] = useState<number[]>([0, 2]); // 曜日で指定 (月・水など)
+  const [weekCycleDays, setWeekCycleDays] = useState<number[]>([0]); // 周期で指定 (Day 1など)
+  const [weekCycleCount, setWeekCycleCount] = useState<number>(3); // 周期の長さ (3日周期など)
+  const [flexibleCount, setFlexibleCount] = useState<number>(2); // おまかせ週回数
+
+  // 課題・期日オプション（週のタスクで締切がある場合）
+  const [hasDeadline, setHasDeadline] = useState(false);
   const [startDay, setStartDay] = useState<number>(0);
   const [deadlineDay, setDeadlineDay] = useState<number>(4);
 
@@ -276,52 +287,30 @@ export function TaskManager({
     setDurationSize(DURATION_OPTIONS[nextIdx].size);
   };
 
-  // 頻度の横ローテーション切り替え
-  const rotateFrequency = (dir: 'prev' | 'next') => {
-    const curIdx = FREQUENCY_OPTIONS.findIndex((f) => f.freq === frequency);
-    const safeIdx = curIdx >= 0 ? curIdx : 1;
-    const nextIdx =
-      dir === 'next'
-        ? (safeIdx + 1) % FREQUENCY_OPTIONS.length
-        : (safeIdx - 1 + FREQUENCY_OPTIONS.length) % FREQUENCY_OPTIONS.length;
-    setFrequency(FREQUENCY_OPTIONS[nextIdx].freq);
-  };
-
-  // カスタム頻度回数の縦スクロール（上下）
-  const stepCustomCount = (dir: 'up' | 'down') => {
-    if (dir === 'up') {
-      setCustomFrequencyCount((prev) => (prev < 6 ? prev + 1 : 1));
-    } else {
-      setCustomFrequencyCount((prev) => (prev > 1 ? prev - 1 : 6));
-    }
-  };
-
-  // マウスホイールによる縦スクロール
-  const handleCustomWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    if (e.deltaY < 0) {
-      stepCustomCount('up');
-    } else if (e.deltaY > 0) {
-      stepCustomCount('down');
-    }
-  };
-
   // タスク追加モーダルを開く
   const openAddTask = (
-    presetCategory: 'must' | 'want' = 'want',
-    presetFreq: TaskFrequency = 'medium',
-    presetPeriod: 'day' | 'week' = presetFreq === 'high' ? 'day' : 'week',
+    presetPeriod: 'day' | 'week' = 'week',
+    options?: {
+      isAssignment?: boolean;
+      isTodo?: boolean;
+      groupName?: string;
+    },
   ) => {
     setEditingTaskId(null);
-    setTaskTitle('');
-    setTaskCategory(presetCategory);
+    setTaskTitle(options?.isAssignment ? 'レポート課題' : '');
     setTaskPeriodScope(presetPeriod);
+    setTaskGroupName(options?.groupName || '基本設定');
     setDailyCount(1);
-    setDurationSize('medium');
-    setFrequency(presetFreq);
-    setCustomFrequencyCount(2);
-    setIsNoDurationTodo(false);
-    setIsAssignment(false);
+    setDailyDays([0, 1, 2, 3, 4, 5, 6]);
+    setWeekTimingMode('weekday');
+    setWeekTargetDays([0, 2]); // 月・水
+    setWeekCycleDays([0]);
+    setWeekCycleCount(3);
+    setFlexibleCount(2);
+    setDurationSize(options?.isTodo ? 'small' : 'medium');
+    setDurationMinutes(options?.isTodo ? 0 : 60);
+    setIsNoDurationTodo(!!options?.isTodo);
+    setHasDeadline(!!options?.isAssignment);
     setStartDay(0);
     setDeadlineDay(4);
     setTaskSourceTableId(undefined);
@@ -336,13 +325,19 @@ export function TaskManager({
 
     setEditingTaskId(null);
     setTaskTitle(`${slot.title} レポート課題`);
-    setTaskCategory('must'); // 課題は必ず「やらなければいけないこと」
     setTaskPeriodScope('week');
+    setTaskGroupName(slot.sourceTableName || slot.category || '授業課題');
     setDailyCount(1);
+    setDailyDays([0, 1, 2, 3, 4, 5, 6]);
+    setWeekTimingMode('weekday');
+    setWeekTargetDays([lectureDay]);
+    setWeekCycleDays([0]);
+    setWeekCycleCount(3);
+    setFlexibleCount(1);
     setDurationSize('medium');
-    setFrequency('low'); // 週1回の課題枠
+    setDurationMinutes(60);
     setIsNoDurationTodo(false);
-    setIsAssignment(true);
+    setHasDeadline(true);
     setStartDay(lectureDay);
     setDeadlineDay(calcDeadlineDay);
     setTaskSourceTableId(slot.sourceTableId);
@@ -354,20 +349,60 @@ export function TaskManager({
   const openEditTask = (task: TaskItem) => {
     setEditingTaskId(task.id);
     setTaskTitle(task.title);
-    setTaskCategory(task.category === 'must' || task.taskType === 'assignment' ? 'must' : 'want');
     const isDaily = task.period === 'day' || task.frequency === 'high';
     setTaskPeriodScope(isDaily ? 'day' : 'week');
+    setTaskGroupName(task.sourceTableName || task.category || '基本設定');
+
+    // 日の設定復元
     setDailyCount(task.dailyCount || 1);
+    setDailyDays(
+      task.targetDays && task.targetDays.length > 0
+        ? [...task.targetDays]
+        : [0, 1, 2, 3, 4, 5, 6],
+    );
+
+    // 週の設定復元
+    if (task.cycleDays && task.cycleDays.length > 0) {
+      setWeekTimingMode('cycle');
+      setWeekCycleDays([...task.cycleDays]);
+      setWeekCycleCount(task.cycleCount || 3);
+      setWeekTargetDays([0, 2]);
+      setFlexibleCount(task.cycleDays.length);
+    } else if (task.targetDays && task.targetDays.length > 0) {
+      setWeekTimingMode('weekday');
+      setWeekTargetDays([...task.targetDays]);
+      setWeekCycleDays([0]);
+      setWeekCycleCount(3);
+      setFlexibleCount(task.targetDays.length);
+    } else if (task.frequencyCount) {
+      setWeekTimingMode('flexible');
+      setFlexibleCount(task.frequencyCount);
+      setWeekTargetDays([0, 2]);
+      setWeekCycleDays([0]);
+      setWeekCycleCount(3);
+    } else {
+      setWeekTimingMode('weekday');
+      setWeekTargetDays(task.startDay !== undefined ? [task.startDay] : [0, 2]);
+      setWeekCycleDays([0]);
+      setWeekCycleCount(3);
+      setFlexibleCount(2);
+    }
+
+    // 所要時間復元
+    const isTodo = !!task.hasNoDuration || task.taskType === 'todo';
+    setIsNoDurationTodo(isTodo);
+    setDurationMinutes(task.durationMinutes || (isTodo ? 0 : 60));
     setDurationSize(
       task.durationSize ||
         (task.durationMinutes < 30 ? 'small' : task.durationMinutes >= 120 ? 'large' : 'medium'),
     );
-    setFrequency(task.frequency || (isDaily ? 'high' : 'medium'));
-    setCustomFrequencyCount(task.frequencyCount || 2);
-    setIsNoDurationTodo(!!task.hasNoDuration || task.taskType === 'todo');
-    setIsAssignment(task.taskType === 'assignment');
+
+    // 締切オプション復元
+    const hasDl = task.taskType === 'assignment' || task.deadlineDay !== undefined;
+    setHasDeadline(hasDl);
     setStartDay(task.startDay ?? 0);
     setDeadlineDay(task.deadlineDay ?? 4);
+
     setTaskSourceTableId(task.sourceTableId);
     setTaskSourceTableName(task.sourceTableName);
     setModalType('task');
@@ -408,16 +443,69 @@ export function TaskManager({
     // 所要時間の基準値
     const defaultMinutes = isNoDurationTodo
       ? 0
-      : durationSize === 'small'
-        ? 25
-        : durationSize === 'medium'
-          ? 60
-          : 120;
+      : durationMinutes > 0
+        ? durationMinutes
+        : durationSize === 'small'
+          ? 25
+          : durationSize === 'medium'
+            ? 60
+            : 120;
 
     const period: TaskPeriod = taskPeriodScope === 'day' ? 'day' : 'week';
     const finalDailyCount = taskPeriodScope === 'day' ? Math.max(1, dailyCount) : undefined;
-    const taskType: TaskType = isNoDurationTodo ? 'todo' : isAssignment ? 'assignment' : 'task';
-    const priority: TaskPriority = taskCategory === 'must' ? 'high' : 'medium';
+    const taskType: TaskType = isNoDurationTodo ? 'todo' : hasDeadline ? 'assignment' : 'task';
+    const priority: TaskPriority = hasDeadline ? 'high' : 'medium';
+    const finalCategory = taskSourceTableName || taskGroupName.trim() || '基本設定';
+
+    // 実施タイミングの設定
+    let targetDays: number[] | undefined = undefined;
+    let cycleDays: number[] | undefined = undefined;
+    let cycleCount: number | undefined = undefined;
+    let frequency: TaskFrequency = 'medium';
+    let frequencyCount: number | undefined = undefined;
+
+    if (period === 'day') {
+      frequency = 'high';
+      targetDays = dailyDays.length < 7 ? [...dailyDays].sort((a, b) => a - b) : undefined;
+    } else {
+      // 週の場合
+      if (weekTimingMode === 'weekday') {
+        targetDays = weekTargetDays.length > 0 ? [...weekTargetDays].sort((a, b) => a - b) : [0];
+        frequency = targetDays.length >= 5 ? 'high' : targetDays.length >= 3 ? 'medium' : 'low';
+        frequencyCount = targetDays.length;
+      } else if (weekTimingMode === 'cycle') {
+        cycleDays = weekCycleDays.length > 0 ? [...weekCycleDays].sort((a, b) => a - b) : [0];
+        cycleCount = Math.max(2, weekCycleCount);
+        frequency = 'medium';
+        frequencyCount = cycleDays.length;
+      } else {
+        // flexible (おまかせ週N回)
+        frequency = flexibleCount >= 5 ? 'high' : flexibleCount >= 3 ? 'medium' : 'low';
+        frequencyCount = flexibleCount;
+      }
+    }
+
+    const taskPayload = {
+      title: taskTitle.trim(),
+      category: finalCategory,
+      durationSize,
+      durationMinutes: defaultMinutes,
+      hasNoDuration: isNoDurationTodo,
+      frequency,
+      frequencyCount,
+      period,
+      dailyCount: finalDailyCount,
+      targetDays,
+      cycleDays,
+      cycleCount,
+      taskType,
+      priority,
+      startDay: hasDeadline ? startDay : (targetDays && targetDays[0] !== undefined ? targetDays[0] : undefined),
+      deadlineDay: hasDeadline ? deadlineDay : undefined,
+      cycleIndex: cycleDays && cycleDays.length > 0 ? cycleDays[0] : undefined,
+      sourceTableId: taskSourceTableId,
+      sourceTableName: taskSourceTableName || (taskSourceTableId ? finalCategory : undefined),
+    };
 
     if (editingTaskId) {
       onChange(
@@ -425,21 +513,7 @@ export function TaskManager({
           t.id === editingTaskId
             ? {
                 ...t,
-                title: taskTitle.trim(),
-                category: taskCategory,
-                durationSize,
-                durationMinutes: defaultMinutes,
-                hasNoDuration: isNoDurationTodo,
-                frequency,
-                frequencyCount: frequency === 'custom' ? customFrequencyCount : undefined,
-                period,
-                dailyCount: finalDailyCount,
-                taskType,
-                priority,
-                startDay: isAssignment ? startDay : undefined,
-                deadlineDay: isAssignment ? deadlineDay : undefined,
-                sourceTableId: taskSourceTableId,
-                sourceTableName: taskSourceTableName,
+                ...taskPayload,
               }
             : t,
         ),
@@ -447,21 +521,8 @@ export function TaskManager({
     } else {
       const newTask: TaskItem = {
         id: `task-${Date.now()}`,
-        title: taskTitle.trim(),
-        category: taskCategory,
-        durationSize,
-        durationMinutes: defaultMinutes,
-        hasNoDuration: isNoDurationTodo,
-        frequency,
-        frequencyCount: frequency === 'custom' ? customFrequencyCount : undefined,
-        period,
-        dailyCount: finalDailyCount,
-        taskType,
-        priority,
         completed: false,
-        sourceTableId: taskSourceTableId,
-        sourceTableName: taskSourceTableName,
-        ...(isAssignment ? { startDay, deadlineDay } : {}),
+        ...taskPayload,
       };
       onChange([...tasks, newTask]);
     }
@@ -746,14 +807,17 @@ export function TaskManager({
   const filteredAndSortedDailyTasks = useMemo(() => {
     let result = [...dailyTasks];
 
-    // 1. カテゴリ絞り込み
+    // 1. カテゴリ/グループ絞り込み
     if (taskCategoryFilter !== 'all') {
-      if (taskCategoryFilter === 'must') {
-        result = result.filter((t) => t.category === 'must' || t.taskType === 'assignment');
-      } else if (taskCategoryFilter === 'want') {
-        result = result.filter((t) => t.category === 'want' && t.taskType !== 'assignment');
-      } else if (taskCategoryFilter === 'todo') {
+      if (taskCategoryFilter === 'todo') {
         result = result.filter((t) => t.taskType === 'todo' || t.hasNoDuration);
+      } else {
+        result = result.filter(
+          (t) =>
+            t.category === taskCategoryFilter ||
+            t.sourceTableName === taskCategoryFilter ||
+            getTaskSourceFileName(t) === taskCategoryFilter,
+        );
       }
     }
 
@@ -761,7 +825,9 @@ export function TaskManager({
     if (taskDayFilter !== 'all') {
       const targetDay = Number(taskDayFilter);
       result = result.filter((t) => {
-        if (t.deadlineDay !== undefined) return t.deadlineDay === targetDay;
+        if (t.targetDays && t.targetDays.length > 0) {
+          return t.targetDays.includes(targetDay);
+        }
         if (t.startDay !== undefined) return t.startDay === targetDay;
         return true; // 毎日タスクはどの曜日にも該当
       });
@@ -770,10 +836,6 @@ export function TaskManager({
     // 3. 並び替え
     result.sort((a, b) => {
       if (taskSortKey === 'priority') {
-        const isMustA = a.category === 'must' || a.taskType === 'assignment';
-        const isMustB = b.category === 'must' || b.taskType === 'assignment';
-        if (isMustA && !isMustB) return -1;
-        if (!isMustA && isMustB) return 1;
         const pWeight = { high: 3, medium: 2, low: 1 };
         return (pWeight[b.priority] || 2) - (pWeight[a.priority] || 2);
       }
@@ -799,23 +861,29 @@ export function TaskManager({
   const filteredAndSortedWeeklyTasks = useMemo(() => {
     let result = [...weeklyTasks];
 
-    // 1. カテゴリ絞り込み
+    // 1. カテゴリ/グループ絞り込み
     if (taskCategoryFilter !== 'all') {
       if (taskCategoryFilter === 'assignment') {
         result = result.filter((t) => t.taskType === 'assignment');
-      } else if (taskCategoryFilter === 'must') {
-        result = result.filter((t) => t.category === 'must' && t.taskType !== 'assignment');
-      } else if (taskCategoryFilter === 'want') {
-        result = result.filter((t) => t.category === 'want');
       } else if (taskCategoryFilter === 'todo') {
         result = result.filter((t) => t.taskType === 'todo' || t.hasNoDuration);
+      } else {
+        result = result.filter(
+          (t) =>
+            t.category === taskCategoryFilter ||
+            t.sourceTableName === taskCategoryFilter ||
+            getTaskSourceFileName(t) === taskCategoryFilter,
+        );
       }
     }
 
-    // 2. 曜日絞り込み（課題の締切・出題曜日）
+    // 2. 曜日絞り込み（実施曜日または課題の締切日）
     if (taskDayFilter !== 'all') {
       const targetDay = Number(taskDayFilter);
       result = result.filter((t) => {
+        if (t.targetDays && t.targetDays.length > 0) {
+          return t.targetDays.includes(targetDay);
+        }
         if (t.deadlineDay !== undefined && t.deadlineDay === targetDay) return true;
         if (t.startDay !== undefined && t.startDay === targetDay) return true;
         return false;
@@ -825,14 +893,10 @@ export function TaskManager({
     // 3. 並び替え
     result.sort((a, b) => {
       if (taskSortKey === 'priority') {
-        const isAssignA = a.taskType === 'assignment';
-        const isAssignB = b.taskType === 'assignment';
+        const isAssignA = a.taskType === 'assignment' || a.deadlineDay !== undefined;
+        const isAssignB = b.taskType === 'assignment' || b.deadlineDay !== undefined;
         if (isAssignA && !isAssignB) return -1;
         if (!isAssignA && isAssignB) return 1;
-        const isMustA = a.category === 'must';
-        const isMustB = b.category === 'must';
-        if (isMustA && !isMustB) return -1;
-        if (!isMustA && isMustB) return 1;
         const pWeight = { high: 3, medium: 2, low: 1 };
         return (pWeight[b.priority] || 2) - (pWeight[a.priority] || 2);
       }
@@ -1037,7 +1101,7 @@ export function TaskManager({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => openAddTask('want', 'high')}
+                onClick={() => openAddTask('day')}
                 className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white shadow-2xs transition hover:bg-amber-700 active:scale-98"
                 title="新しい日課タスクを追加する"
               >
@@ -1116,27 +1180,41 @@ export function TaskManager({
           {/* 絞り込み行: カテゴリ & 曜日 (折り畳み式) */}
           {isDailyFilterOpen && (
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-100 text-xs animate-in fade-in duration-150">
-              {/* カテゴリ絞り込み */}
+              {/* カテゴリ/グループ絞り込み */}
               <div className="flex flex-wrap items-center gap-1">
-                <span className="text-[10px] font-bold text-slate-400 mr-0.5">カテゴリ:</span>
-                {[
-                  { id: 'all', label: 'すべて' },
-                  { id: 'must', label: 'やるべき (Must)' },
-                  { id: 'want', label: 'やりたい (Want)' },
-                ].map((cat) => {
-                  const isActive = taskCategoryFilter === cat.id;
+                <span className="text-[10px] font-bold text-slate-400 mr-0.5">グループ:</span>
+                <button
+                  type="button"
+                  onClick={() => setTaskCategoryFilter('all')}
+                  className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
+                    taskCategoryFilter === 'all'
+                      ? 'bg-amber-600 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
+                  }`}
+                >
+                  すべて
+                </button>
+                {/* ユニークな表名・カテゴリ一覧からチップ生成 */}
+                {Array.from(
+                  new Set(
+                    dailyTasks
+                      .map((t) => getTaskSourceFileName(t) || t.category || '')
+                      .filter(Boolean),
+                  ),
+                ).map((catName) => {
+                  const isActive = taskCategoryFilter === catName;
                   return (
                     <button
-                      key={cat.id}
+                      key={catName}
                       type="button"
-                      onClick={() => setTaskCategoryFilter(cat.id)}
+                      onClick={() => setTaskCategoryFilter(catName)}
                       className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
                         isActive
                           ? 'bg-amber-600 text-white shadow-2xs'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
                       }`}
                     >
-                      {cat.label}
+                      {catName}
                     </button>
                   );
                 })}
@@ -1209,7 +1287,7 @@ export function TaskManager({
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => openAddTask('must', 'medium')}
+                onClick={() => openAddTask('week')}
                 className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-bold text-white shadow-2xs transition hover:bg-purple-700 active:scale-98"
                 title="新しい週次タスクを追加する"
               >
@@ -1219,10 +1297,7 @@ export function TaskManager({
 
               <button
                 type="button"
-                onClick={() => {
-                  openAddTask('must', 'low');
-                  setIsAssignment(true);
-                }}
+                onClick={() => openAddTask('week', { isAssignment: true })}
                 className="hidden xs:flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2 py-1.5 text-xs font-bold text-purple-700 shadow-2xs transition hover:bg-purple-100"
                 title="課題レポートを追加"
               >
@@ -1232,10 +1307,7 @@ export function TaskManager({
 
               <button
                 type="button"
-                onClick={() => {
-                  openAddTask('must', 'low');
-                  setIsNoDurationTodo(true);
-                }}
+                onClick={() => openAddTask('week', { isTodo: true })}
                 className="hidden xs:flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs font-bold text-amber-800 shadow-2xs transition hover:bg-amber-100"
                 title="ToDoタスクを追加"
               >
@@ -1314,29 +1386,63 @@ export function TaskManager({
           {/* 絞り込み行: カテゴリ & 曜日 (折り畳み式) */}
           {isWeeklyFilterOpen && (
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-100 text-xs animate-in fade-in duration-150">
-              {/* カテゴリ絞り込み */}
+              {/* カテゴリ/グループ絞り込み */}
               <div className="flex flex-wrap items-center gap-1">
-                <span className="text-[10px] font-bold text-slate-400 mr-0.5">カテゴリ:</span>
-                {[
-                  { id: 'all', label: 'すべて' },
-                  { id: 'assignment', label: '課題' },
-                  { id: 'must', label: 'やるべき (Must)' },
-                  { id: 'want', label: 'やりたい (Want)' },
-                  { id: 'todo', label: 'ToDo' },
-                ].map((cat) => {
-                  const isActive = taskCategoryFilter === cat.id;
+                <span className="text-[10px] font-bold text-slate-400 mr-0.5">グループ:</span>
+                <button
+                  type="button"
+                  onClick={() => setTaskCategoryFilter('all')}
+                  className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
+                    taskCategoryFilter === 'all'
+                      ? 'bg-purple-600 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
+                  }`}
+                >
+                  すべて
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTaskCategoryFilter('assignment')}
+                  className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
+                    taskCategoryFilter === 'assignment'
+                      ? 'bg-purple-600 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
+                  }`}
+                >
+                  課題のみ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTaskCategoryFilter('todo')}
+                  className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
+                    taskCategoryFilter === 'todo'
+                      ? 'bg-purple-600 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
+                  }`}
+                >
+                  ToDoのみ
+                </button>
+                {/* ユニークな表名・カテゴリ一覧からチップ生成 */}
+                {Array.from(
+                  new Set(
+                    weeklyTasks
+                      .map((t) => getTaskSourceFileName(t) || t.category || '')
+                      .filter(Boolean),
+                  ),
+                ).map((catName) => {
+                  const isActive = taskCategoryFilter === catName;
                   return (
                     <button
-                      key={cat.id}
+                      key={catName}
                       type="button"
-                      onClick={() => setTaskCategoryFilter(cat.id)}
+                      onClick={() => setTaskCategoryFilter(catName)}
                       className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
                         isActive
                           ? 'bg-purple-600 text-white shadow-2xs'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
                       }`}
                     >
-                      {cat.label}
+                      {catName}
                     </button>
                   );
                 })}
@@ -1454,7 +1560,7 @@ export function TaskManager({
         {(viewMode === 'all' || viewMode === 'daily') && (
           <div
             onClick={(e) => {
-              if (e.target === e.currentTarget) openAddTask('want', 'high');
+              if (e.target === e.currentTarget) openAddTask('day');
             }}
             className={`flex flex-col gap-2 h-full min-h-0 flex-1 ${
               viewMode === 'daily'
@@ -1486,7 +1592,7 @@ export function TaskManager({
                     計 {formatDuration(dailyTotalMinutes)}
                   </span>
                   <button
-                    onClick={() => openAddTask('want', 'high')}
+                    onClick={() => openAddTask('day')}
                     title="日次タスクを追加"
                     className="flex items-center gap-0.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-100 hover:border-blue-300"
                   >
@@ -1500,7 +1606,7 @@ export function TaskManager({
             {/* Daily Blocks Stack List */}
             <div
               onClick={(e) => {
-                if (e.target === e.currentTarget) openAddTask('want', 'high');
+                if (e.target === e.currentTarget) openAddTask('day');
               }}
               className={`pt-1 flex-1 min-h-[140px] ${
                 viewMode !== 'all'
@@ -1510,7 +1616,7 @@ export function TaskManager({
             >
               {dailyTasks.length === 0 ? (
                 <div
-                  onClick={() => openAddTask('want', 'high')}
+                  onClick={() => openAddTask('day')}
                   className="col-span-full flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-10 text-center text-xs text-slate-500 hover:border-amber-300 hover:text-amber-700 transition bg-white/40"
                 >
                   <Sun className="h-8 w-8 text-amber-300 mb-2" />
@@ -1539,7 +1645,7 @@ export function TaskManager({
               ) : (
                 <>
                   {filteredAndSortedDailyTasks.map((task) => {
-                    const isMust = task.category === 'must' || task.taskType === 'assignment';
+                    const groupLabel = getTaskSourceFileName(task) || task.category || '日課';
                     return (
                       <div
                         key={task.id}
@@ -1548,15 +1654,13 @@ export function TaskManager({
                         className={`group relative flex items-center justify-between overflow-hidden rounded-xl border p-2.5 transition cursor-pointer shrink-0 min-h-[64px] ${
                           task.completed
                             ? 'border-slate-200 bg-slate-100/70 opacity-60'
-                            : isMust
-                              ? 'border-rose-200/90 bg-rose-50/40 hover:border-rose-300 hover:bg-white hover:shadow-xs'
-                              : 'border-blue-200/90 bg-blue-50/40 hover:border-blue-300 hover:bg-white hover:shadow-xs'
+                            : 'border-amber-200/90 bg-amber-50/30 hover:border-amber-300 hover:bg-white hover:shadow-xs'
                         }`}
                       >
                         {/* Left Accent Bar */}
                         <div
                           className={`absolute inset-y-0 left-0 w-1 ${
-                            task.completed ? 'bg-slate-300' : isMust ? 'bg-rose-500' : 'bg-blue-500'
+                            task.completed ? 'bg-slate-300' : 'bg-amber-500'
                           }`}
                         />
 
@@ -1564,7 +1668,7 @@ export function TaskManager({
                           <button
                             onClick={(e) => handleToggleComplete(e, task.id)}
                             title={task.completed ? '未完了に戻す' : '完了にする'}
-                            className="shrink-0 text-slate-400 transition hover:text-blue-600"
+                            className="shrink-0 text-slate-400 transition hover:text-amber-600"
                           >
                             {task.completed ? (
                               <CheckCircle2 className="h-4 w-4 text-emerald-600" />
@@ -1583,27 +1687,15 @@ export function TaskManager({
                                 {task.title}
                               </h5>
 
-                              {isMust ? (
-                                <span className="shrink-0 flex items-center gap-0.5 rounded border border-rose-200 bg-rose-50 px-1.5 py-0.2 text-[9px] font-bold text-rose-700">
-                                  📌 やるべき
-                                </span>
-                              ) : (
-                                <span className="shrink-0 flex items-center gap-0.5 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.2 text-[9px] font-bold text-blue-700">
-                                  🌟 やりたい
-                                </span>
-                              )}
-
-                              {getTaskSourceFileName(task) && (
-                                <span
-                                  className="shrink-0 inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.2 text-[9px] font-medium text-emerald-800"
-                                  title={`参照元表データ: ${getTaskSourceFileName(task)}`}
-                                >
-                                  <FileSpreadsheet className="h-2.5 w-2.5 text-emerald-600" />
-                                  <span className="max-w-[120px] truncate">
-                                    {getTaskSourceFileName(task)}
-                                  </span>
-                                </span>
-                              )}
+                              <span
+                                className="shrink-0 inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.2 text-[9px] font-medium text-amber-800"
+                                title={`所属グループ: ${groupLabel}`}
+                              >
+                                {getTaskSourceFileName(task) && (
+                                  <FileSpreadsheet className="h-2.5 w-2.5 text-amber-600" />
+                                )}
+                                <span className="max-w-[120px] truncate">{groupLabel}</span>
+                              </span>
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 pt-0.5">
@@ -1654,8 +1746,8 @@ export function TaskManager({
                   })}
 
                   <button
-                    onClick={() => openAddTask('want', 'high')}
-                    className="shrink-0 flex items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 bg-white py-2 text-[11px] font-medium text-slate-600 transition hover:border-blue-400 hover:bg-blue-50/50 hover:text-blue-700 min-h-[40px]"
+                    onClick={() => openAddTask('day')}
+                    className="shrink-0 flex items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 bg-white py-2 text-[11px] font-medium text-slate-600 transition hover:border-amber-400 hover:bg-amber-50/50 hover:text-amber-700 min-h-[40px]"
                   >
                     <Plus className="h-3.5 w-3.5" />+ タスクを追加
                   </button>
@@ -1669,7 +1761,7 @@ export function TaskManager({
         {(viewMode === 'all' || viewMode === 'weekly') && (
           <div
             onClick={(e) => {
-              if (e.target === e.currentTarget) openAddTask('must', 'medium');
+              if (e.target === e.currentTarget) openAddTask('week');
             }}
             className={`flex flex-col gap-2 h-full min-h-0 flex-1 ${
               viewMode === 'weekly'
@@ -1702,8 +1794,7 @@ export function TaskManager({
                   </span>
                   <button
                     onClick={() => {
-                      openAddTask('must', 'low');
-                      setIsAssignment(true);
+                      openAddTask('week', { isAssignment: true });
                     }}
                     title="課題を追加"
                     className="flex items-center gap-0.5 rounded-md border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 transition hover:bg-purple-100 hover:border-purple-300"
@@ -1713,8 +1804,7 @@ export function TaskManager({
                   </button>
                   <button
                     onClick={() => {
-                      openAddTask('must', 'low');
-                      setIsNoDurationTodo(true);
+                      openAddTask('week', { isTodo: true });
                     }}
                     title="ToDoを追加"
                     className="flex items-center gap-0.5 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 transition hover:bg-amber-100 hover:border-amber-300"
@@ -1723,7 +1813,7 @@ export function TaskManager({
                     +ToDo
                   </button>
                   <button
-                    onClick={() => openAddTask('want', 'medium')}
+                    onClick={() => openAddTask('week')}
                     title="タスクを追加"
                     className="flex items-center gap-0.5 rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-100 hover:border-blue-300"
                   >
@@ -1737,7 +1827,7 @@ export function TaskManager({
             {/* Weekly Blocks Stack List */}
             <div
               onClick={(e) => {
-                if (e.target === e.currentTarget) openAddTask('must', 'medium');
+                if (e.target === e.currentTarget) openAddTask('week');
               }}
               className={`pt-1 flex-1 min-h-[140px] ${
                 viewMode !== 'all'
@@ -1747,7 +1837,7 @@ export function TaskManager({
             >
               {weeklyTasks.length === 0 ? (
                 <div
-                  onClick={() => openAddTask('must', 'medium')}
+                  onClick={() => openAddTask('week')}
                   className="col-span-full flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-10 text-center text-xs text-slate-500 hover:border-purple-300 hover:text-purple-700 transition bg-white/40"
                 >
                   <CalendarDays className="h-8 w-8 text-purple-300 mb-2" />
@@ -1776,9 +1866,9 @@ export function TaskManager({
               ) : (
                 <>
                   {filteredAndSortedWeeklyTasks.map((task) => {
-                    const isMust = task.category === 'must' || task.taskType === 'assignment';
                     const isAssign = task.taskType === 'assignment';
                     const isTodo = task.taskType === 'todo' || task.hasNoDuration;
+                    const groupLabel = getTaskSourceFileName(task) || task.category || '週次';
 
                     return (
                       <div
@@ -1792,9 +1882,7 @@ export function TaskManager({
                               ? 'border-purple-200/90 bg-purple-50/40 hover:border-purple-300 hover:bg-white hover:shadow-xs'
                               : isTodo
                                 ? 'border-amber-200/90 bg-amber-50/40 hover:border-amber-300 hover:bg-white hover:shadow-xs'
-                                : isMust
-                                  ? 'border-rose-200/90 bg-rose-50/40 hover:border-rose-300 hover:bg-white hover:shadow-xs'
-                                  : 'border-blue-200/90 bg-blue-50/40 hover:border-blue-300 hover:bg-white hover:shadow-xs'
+                                : 'border-purple-200/90 bg-purple-50/20 hover:border-purple-300 hover:bg-white hover:shadow-xs'
                         }`}
                       >
                         {/* Left Accent Bar */}
@@ -1803,12 +1891,10 @@ export function TaskManager({
                             task.completed
                               ? 'bg-slate-300'
                               : isAssign
-                                ? 'bg-purple-500'
+                                ? 'bg-purple-600'
                                 : isTodo
                                   ? 'bg-amber-400'
-                                  : isMust
-                                    ? 'bg-rose-500'
-                                    : 'bg-blue-500'
+                                  : 'bg-purple-500'
                           }`}
                         />
 
@@ -1849,25 +1935,15 @@ export function TaskManager({
                                   <CheckSquare className="h-2.5 w-2.5" />
                                   ToDo
                                 </span>
-                              ) : isMust ? (
-                                <span className="shrink-0 flex items-center gap-0.5 rounded border border-rose-200 bg-rose-50 px-1.5 py-0.2 text-[9px] font-bold text-rose-700">
-                                  📌 やるべき
-                                </span>
                               ) : (
-                                <span className="shrink-0 flex items-center gap-0.5 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.2 text-[9px] font-bold text-blue-700">
-                                  🌟 やりたい
-                                </span>
-                              )}
-
-                              {getTaskSourceFileName(task) && (
                                 <span
-                                  className="shrink-0 inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.2 text-[9px] font-medium text-emerald-800"
-                                  title={`参照元表データ: ${getTaskSourceFileName(task)}`}
+                                  className="shrink-0 inline-flex items-center gap-1 rounded border border-purple-200 bg-purple-50 px-1.5 py-0.2 text-[9px] font-medium text-purple-800"
+                                  title={`所属グループ: ${groupLabel}`}
                                 >
-                                  <FileSpreadsheet className="h-2.5 w-2.5 text-emerald-600" />
-                                  <span className="max-w-[120px] truncate">
-                                    {getTaskSourceFileName(task)}
-                                  </span>
+                                  {getTaskSourceFileName(task) && (
+                                    <FileSpreadsheet className="h-2.5 w-2.5 text-purple-600" />
+                                  )}
+                                  <span className="max-w-[120px] truncate">{groupLabel}</span>
                                 </span>
                               )}
                             </div>
@@ -1891,9 +1967,9 @@ export function TaskManager({
                               <span className="shrink-0 flex items-center gap-0.5 text-slate-500">
                                 <Repeat className="h-2.5 w-2.5 text-slate-400" />
                                 {task.frequency === 'low'
-                                  ? '低 (週1〜2回)'
+                                  ? '週1〜2回'
                                   : task.frequency === 'medium'
-                                    ? '中 (週3〜4回)'
+                                    ? '週3〜4回'
                                     : task.frequency === 'custom'
                                       ? `週${task.frequencyCount}回`
                                       : '週枠'}
@@ -1940,7 +2016,7 @@ export function TaskManager({
                   })}
 
                   <button
-                    onClick={() => openAddTask('must', 'medium')}
+                    onClick={() => openAddTask('week')}
                     className="shrink-0 flex items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 bg-white py-2 text-[11px] font-medium text-slate-600 transition hover:border-purple-400 hover:bg-purple-50/50 hover:text-purple-700 min-h-[40px]"
                   >
                     <Plus className="h-3.5 w-3.5" />+ タスク・課題を追加
@@ -2133,7 +2209,7 @@ export function TaskManager({
         )}
       </div>
 
-      {/* ===================== SIMPLIFIED TASK MODAL ===================== */}
+      {/* ===================== SIMPLIFIED TASK MODAL (表での設定項目になぞらえた設計) ===================== */}
       {modalType === 'task' && (
         <div
           onClick={closeModal}
@@ -2141,24 +2217,33 @@ export function TaskManager({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative flex w-full max-w-lg flex-col gap-2.5 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl text-slate-900"
+            className="relative flex w-full max-w-lg flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl text-slate-900 max-h-[90vh] overflow-y-auto"
           >
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
               <div className="flex items-center gap-2">
                 <div
                   className={`flex h-7 w-7 items-center justify-center rounded-lg ${
-                    taskCategory === 'must'
-                      ? 'bg-rose-100 text-rose-700'
-                      : 'bg-blue-100 text-blue-700'
+                    taskPeriodScope === 'day'
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'bg-purple-100 text-purple-700'
                   }`}
                 >
-                  {editingTaskId ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                  {taskPeriodScope === 'day' ? (
+                    <Sun className="h-4 w-4" />
+                  ) : (
+                    <CalendarDays className="h-4 w-4" />
+                  )}
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">
                     {editingTaskId ? 'タスクの編集' : '新しいタスクの追加'}
                   </h3>
+                  <span className="text-[10px] text-slate-400">
+                    {taskPeriodScope === 'day'
+                      ? '🏃 日課タスク（その日の中で繰り返す・日次）'
+                      : '🎯 週次タスク（日ごとに繰り返す・曜日／周期）'}
+                  </span>
                 </div>
               </div>
               <button
@@ -2170,7 +2255,7 @@ export function TaskManager({
               </button>
             </div>
 
-            <form onSubmit={handleSaveTask} className="flex flex-col gap-2.5">
+            <form onSubmit={handleSaveTask} className="flex flex-col gap-3">
               {/* 表データ参照元バッジ表示 */}
               {(() => {
                 const currentTask = editingTaskId
@@ -2183,7 +2268,7 @@ export function TaskManager({
                 return (
                   <div className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50/90 px-2.5 py-1.5 text-xs text-emerald-800">
                     <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                    <span className="font-semibold text-[11px]">参照元ファイル:</span>
+                    <span className="font-semibold text-[11px]">参照元テーブル:</span>
                     <span className="truncate text-xs font-bold text-emerald-900">{srcName}</span>
                   </div>
                 );
@@ -2198,446 +2283,483 @@ export function TaskManager({
                   autoFocus
                   value={taskTitle}
                   onChange={(e) => setTaskTitle(e.target.value)}
-                  placeholder="例: プログラミング演習、ジム筋トレ、英会話"
+                  placeholder="例: プログラミング演習、筋トレ、英単語学習"
                   className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none"
                 />
               </div>
 
-              {/* 2. カテゴリ（2択: やらなければいけないこと vs やりたいこと） */}
+              {/* 2. 分類（表の分類と同じ: 日 vs 週） */}
               <div className="flex flex-col gap-1">
-                <label className="text-[11px] font-semibold text-slate-700">
-                  分類（どちらに該当しますか？）
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setTaskCategory('must')}
-                    className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition border ${
-                      taskCategory === 'must'
-                        ? 'border-rose-300 bg-rose-50 text-rose-800 shadow-xs'
-                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span>📌 やらなければいけないこと</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTaskCategory('want');
-                      setIsAssignment(false);
-                    }}
-                    className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition border ${
-                      taskCategory === 'want'
-                        ? 'border-blue-300 bg-blue-50 text-blue-800 shadow-xs'
-                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span>🌟 やりたいこと</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* 期間スコープ（日: 1日に複数回 vs 週: 週に複数回/周期） */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[11px] font-semibold text-slate-700">
-                  期間スコープ
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTaskPeriodScope('day');
-                      setFrequency('high');
-                    }}
-                    className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition border ${
-                      taskPeriodScope === 'day'
-                        ? 'border-amber-300 bg-amber-50 text-amber-800 shadow-xs'
-                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    <Sun className="h-3.5 w-3.5 text-amber-600" />
-                    <span>🏃 日 (1日に複数回)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTaskPeriodScope('week');
-                      if (frequency === 'high') setFrequency('medium');
-                    }}
-                    className={`flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-bold transition border ${
-                      taskPeriodScope === 'week'
-                        ? 'border-purple-300 bg-purple-50 text-purple-800 shadow-xs'
-                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    <CalendarDays className="h-3.5 w-3.5 text-purple-600" />
-                    <span>🎯 週 (週に複数回 / 周期)</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* 3. 正方形ブロック＋十字コントローラー: [所要時間] & [実施頻度] */}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {/* 3-A. 所要時間コントローラー */}
-                <div className="flex flex-col items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/80 p-3 shadow-2xs">
-                  <div className="flex w-full items-center justify-between pb-1">
-                    <span className="text-xs font-bold text-slate-700">所要時間</span>
-                    <span className="text-[10px] font-semibold text-blue-700">
-                      {isNoDurationTodo
-                        ? '時間枠なし (ToDo)'
-                        : (() => {
-                            const curDur =
-                              DURATION_OPTIONS.find((d) => d.size === durationSize) ||
-                              DURATION_OPTIONS[1];
-                            return curDur.badge;
-                          })()}
-                    </span>
-                  </div>
-
-                  {/* 十字キー（D-pad）レイアウト */}
-                  <div className="my-1.5 flex flex-col items-center">
-                    {/* 上ボタン (▲) */}
-                    <button
-                      type="button"
-                      onClick={() => setIsNoDurationTodo(!isNoDurationTodo)}
-                      className="flex h-6 w-16 items-center justify-center rounded-t-lg border-t border-x border-slate-300 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition active:scale-95 shadow-2xs"
-                      title="上: 時間枠なし(ToDo) 切り替え"
-                    >
-                      <ChevronUp className="h-4 w-4" />
-                    </button>
-
-                    {/* 中段: [ ◀ ] [ 正方形ブロック ] [ ▶ ] */}
-                    <div className="flex items-center">
-                      {/* 左ボタン (◀) */}
-                      <button
-                        type="button"
-                        onClick={() => rotateDuration('prev')}
-                        className="flex h-16 w-6 items-center justify-center rounded-l-lg border-l border-y border-slate-300 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition active:scale-95 shadow-2xs"
-                        title="左: 前の所要時間へ"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </button>
-
-                      {/* 中央の正方形ディスプレイブロック (タップで次へ) */}
-                      {(() => {
-                        const curDur =
-                          DURATION_OPTIONS.find((d) => d.size === durationSize) ||
-                          DURATION_OPTIONS[1];
-                        return (
-                          <button
-                            type="button"
-                            onClick={() => rotateDuration('next')}
-                            className={`flex h-16 w-16 flex-col items-center justify-center border transition select-none active:scale-95 ${
-                              isNoDurationTodo
-                                ? 'border-amber-300 bg-amber-50 shadow-xs'
-                                : 'border-blue-300 bg-white shadow-xs hover:border-blue-400'
-                            }`}
-                            title="クリックして次のサイズへ"
-                          >
-                            {isNoDurationTodo ? (
-                              <>
-                                <CheckSquare className="h-4 w-4 text-amber-700 mb-0.5" />
-                                <span className="text-[11px] font-bold text-amber-800">ToDo</span>
-                                <span className="text-[8px] text-amber-700">枠なし</span>
-                              </>
-                            ) : (
-                              <>
-                                <span className="text-xl font-black text-blue-700">
-                                  {curDur.label}
-                                </span>
-                                <span className="text-[9px] font-bold text-blue-600 mt-0.5">
-                                  {curDur.badge}
-                                </span>
-                              </>
-                            )}
-                          </button>
-                        );
-                      })()}
-
-                      {/* 右ボタン (▶) */}
-                      <button
-                        type="button"
-                        onClick={() => rotateDuration('next')}
-                        className="flex h-16 w-6 items-center justify-center rounded-r-lg border-r border-y border-slate-300 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition active:scale-95 shadow-2xs"
-                        title="右: 次の所要時間へ"
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    {/* 下ボタン (▼) */}
-                    <button
-                      type="button"
-                      onClick={() => setIsNoDurationTodo(!isNoDurationTodo)}
-                      className="flex h-6 w-16 items-center justify-center rounded-b-lg border-b border-x border-slate-300 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition active:scale-95 shadow-2xs"
-                      title="下: 時間枠なし(ToDo) 切り替え"
-                    >
-                      <ChevronDown className="h-4 w-4" />
-                    </button>
-                  </div>
-
-                  {/* フッター説明 */}
-                  <span className="text-[9px] text-slate-500 font-medium">
-                    ◀ ▶ 小/中/大 / ▲ ▼ 枠なし切替
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-semibold text-slate-700">
+                    分類（表の分類になぞらえた区分）
+                  </label>
+                  <span className="text-[10px] text-slate-400">
+                    {taskPeriodScope === 'day' ? '1日に複数回組み込み可' : '日ごとに反復または周期'}
                   </span>
                 </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTaskPeriodScope('day')}
+                    className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition border ${
+                      taskPeriodScope === 'day'
+                        ? 'border-amber-400 bg-amber-50 text-amber-900 shadow-xs ring-1 ring-amber-300'
+                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Sun className="h-4 w-4 text-amber-600" />
+                    <span>🏃 日 (その日の中で反復)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTaskPeriodScope('week')}
+                    className={`flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition border ${
+                      taskPeriodScope === 'week'
+                        ? 'border-purple-400 bg-purple-50 text-purple-900 shadow-xs ring-1 ring-purple-300'
+                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <CalendarDays className="h-4 w-4 text-purple-600" />
+                    <span>🎯 週 (日ごとに反復 / 周期)</span>
+                  </button>
+                </div>
+              </div>
 
-                {/* 3-B. 実施頻度コントローラー */}
-                <div
-                  onWheel={(e) => {
-                    if (taskPeriodScope === 'day') {
-                      e.preventDefault();
-                      if (e.deltaY < 0) setDailyCount((prev) => Math.min(prev + 1, 6));
-                      else if (e.deltaY > 0) setDailyCount((prev) => Math.max(prev - 1, 1));
-                    } else {
-                      handleCustomWheel(e);
-                    }
-                  }}
-                  className="flex flex-col items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/80 p-3 shadow-2xs"
-                >
-                  <div className="flex w-full items-center justify-between pb-1">
-                    <span className="text-xs font-bold text-slate-700">
-                      {taskPeriodScope === 'day' ? '1日の回数' : '実施頻度'}
+              {/* 3. 所属グループ（表の表名になぞらえたカテゴリ） */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-semibold text-slate-700">
+                  所属グループ / 表名
+                </label>
+                <div className="flex gap-1.5 items-center">
+                  <input
+                    type="text"
+                    value={taskGroupName}
+                    onChange={(e) => setTaskGroupName(e.target.value)}
+                    placeholder="例: 基本設定、筋トレ、資格学習"
+                    className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none"
+                  />
+                  {/* テーブル一覧からのクイック選択チップ */}
+                  {tables && tables.length > 0 && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <select
+                        onChange={(e) => {
+                          if (e.target.value) setTaskGroupName(e.target.value);
+                        }}
+                        defaultValue=""
+                        className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-medium text-slate-600 hover:bg-slate-100 cursor-pointer focus:outline-none"
+                      >
+                        <option value="" disabled>
+                          表から選択...
+                        </option>
+                        {tables.map((t) => (
+                          <option key={t.id} value={t.name}>
+                            {t.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 4. 実施タイミングの設定（表の列設定となぞらえた設定） */}
+              {taskPeriodScope === 'day' ? (
+                /* === 日のタスク: 1日の回数 ＆ 対象曜日 === */
+                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-900 flex items-center gap-1">
+                      <Sun className="h-3.5 w-3.5 text-amber-600" />
+                      日の実施タイミング設定
                     </span>
-                    <span
-                      className={`text-[10px] font-semibold ${
-                        taskPeriodScope === 'day' ? 'text-amber-700' : 'text-purple-700'
+                    <span className="text-[10px] text-amber-700 font-semibold">
+                      1日の中で複数回配置
+                    </span>
+                  </div>
+
+                  {/* 1日の中の目標回数 */}
+                  <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-white p-2">
+                    <div>
+                      <span className="text-xs font-bold text-slate-800">1日の回数</span>
+                      <p className="text-[10px] text-slate-500">
+                        朝・昼・晩など、1日の空き時間帯に分散して配置されます
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setDailyCount((prev) => Math.max(1, prev - 1))}
+                        className="h-7 w-7 rounded-md border border-slate-300 bg-slate-50 font-bold text-slate-700 hover:bg-slate-100 active:scale-95 flex items-center justify-center"
+                      >
+                        -
+                      </button>
+                      <span className="w-12 text-center text-sm font-black text-amber-800">
+                        {dailyCount} 回
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setDailyCount((prev) => Math.min(6, prev + 1))}
+                        className="h-7 w-7 rounded-md border border-slate-300 bg-slate-50 font-bold text-slate-700 hover:bg-slate-100 active:scale-95 flex items-center justify-center"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 対象曜日の選択 (毎日 または 特定曜日) */}
+                  <div>
+                    <div className="flex items-center justify-between pb-1">
+                      <span className="text-[11px] font-semibold text-amber-950">
+                        実施曜日（オプション）
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDailyDays(
+                            dailyDays.length === 7 ? [0, 1, 2, 3, 4] : [0, 1, 2, 3, 4, 5, 6],
+                          )
+                        }
+                        className="text-[10px] text-amber-700 font-bold hover:underline"
+                      >
+                        {dailyDays.length === 7 ? '平日のみに切り替え' : '毎日にリセット'}
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {WEEKDAY_SHORT.map((w, idx) => {
+                        const isSelected = dailyDays.includes(idx);
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                if (dailyDays.length > 1) {
+                                  setDailyDays(dailyDays.filter((d) => d !== idx));
+                                }
+                              } else {
+                                setDailyDays([...dailyDays, idx].sort());
+                              }
+                            }}
+                            className={`flex-1 py-1 rounded-md text-xs font-bold transition border ${
+                              isSelected
+                                ? 'border-amber-400 bg-amber-500 text-white shadow-2xs'
+                                : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-100'
+                            }`}
+                          >
+                            {w}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* === 週のタスク: 表の列になぞらえた管理方式 (曜日指定 / 周期指定 / おまかせ) === */
+                <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-purple-900 flex items-center gap-1">
+                      <CalendarDays className="h-3.5 w-3.5 text-purple-600" />
+                      週の実施タイミング（表の列管理に対応）
+                    </span>
+                  </div>
+
+                  {/* 管理方式セレクタ: 曜日 vs 周期 vs おまかせ */}
+                  <div className="grid grid-cols-3 gap-1 rounded-lg border border-purple-200 bg-white p-1">
+                    <button
+                      type="button"
+                      onClick={() => setWeekTimingMode('weekday')}
+                      className={`py-1 text-xs font-bold rounded-md transition ${
+                        weekTimingMode === 'weekday'
+                          ? 'bg-purple-600 text-white shadow-2xs'
+                          : 'text-slate-600 hover:bg-purple-50'
                       }`}
                     >
-                      {taskPeriodScope === 'day'
-                        ? `1日に ${dailyCount} 回組み込み`
-                        : frequency === 'custom'
-                          ? `週 ${customFrequencyCount} 回 (カスタム)`
-                          : (() => {
-                              const curFreq =
-                                FREQUENCY_OPTIONS.find((f) => f.freq === frequency) ||
-                                FREQUENCY_OPTIONS[1];
-                              return `${curFreq.label} (${curFreq.badge})`;
-                            })()}
-                    </span>
-                  </div>
-
-                  {/* 十字キー（D-pad）レイアウト */}
-                  <div className="my-1.5 flex flex-col items-center">
-                    {/* 上ボタン (▲) */}
+                      📅 曜日で指定
+                    </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (taskPeriodScope === 'day') {
-                          setDailyCount((prev) => Math.min(prev + 1, 6));
-                        } else {
-                          if (frequency !== 'custom') setFrequency('custom');
-                          stepCustomCount('up');
-                        }
-                      }}
-                      className="flex h-6 w-16 items-center justify-center rounded-t-lg border-t border-x border-slate-300 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition active:scale-95 shadow-2xs"
-                      title={taskPeriodScope === 'day' ? '上: 1日の回数を増やす' : '上: 回数を増やす (カスタム)'}
+                      onClick={() => setWeekTimingMode('cycle')}
+                      className={`py-1 text-xs font-bold rounded-md transition ${
+                        weekTimingMode === 'cycle'
+                          ? 'bg-purple-600 text-white shadow-2xs'
+                          : 'text-slate-600 hover:bg-purple-50'
+                      }`}
                     >
-                      <ChevronUp className="h-4 w-4" />
+                      🔄 周期で指定
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setWeekTimingMode('flexible')}
+                      className={`py-1 text-xs font-bold rounded-md transition ${
+                        weekTimingMode === 'flexible'
+                          ? 'bg-purple-600 text-white shadow-2xs'
+                          : 'text-slate-600 hover:bg-purple-50'
+                      }`}
+                    >
+                      🎲 週N回 (おまかせ)
+                    </button>
+                  </div>
 
-                    {/* 中段: [ ◀ ] [ 正方形ブロック ] [ ▶ ] */}
-                    <div className="flex items-center">
-                      {/* 左ボタン (◀) */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (taskPeriodScope === 'day') {
-                            setDailyCount((prev) => (prev > 1 ? prev - 1 : 4));
-                          } else {
-                            rotateFrequency('prev');
-                          }
-                        }}
-                        className="flex h-16 w-6 items-center justify-center rounded-l-lg border-l border-y border-slate-300 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition active:scale-95 shadow-2xs"
-                        title="左: 前の回数/頻度へ"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </button>
-
-                      {/* 中央の正方形ディスプレイブロック (タップで次へ) */}
-                      {(() => {
-                        if (taskPeriodScope === 'day') {
-                          return (
-                            <button
-                              type="button"
-                              onClick={() => setDailyCount((prev) => (prev < 4 ? prev + 1 : 1))}
-                              className="flex h-16 w-16 flex-col items-center justify-center border border-amber-300 bg-white shadow-xs hover:border-amber-400 transition select-none active:scale-95"
-                              title="クリックして1日の回数を変更"
-                            >
-                              <div className="flex items-baseline gap-0.5">
-                                <span className="text-xl font-black text-amber-700">
-                                  {dailyCount}
-                                </span>
-                                <span className="text-[10px] font-bold text-amber-600">回</span>
-                              </div>
-                              <span className="text-[8px] font-bold text-amber-700">
-                                1日あたり
-                              </span>
-                            </button>
-                          );
-                        }
-
-                        const curFreq =
-                          FREQUENCY_OPTIONS.find((f) => f.freq === frequency) ||
-                          FREQUENCY_OPTIONS[1];
-                        return (
+                  {/* 方式ごとの詳細設定 */}
+                  {weekTimingMode === 'weekday' && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-purple-950">
+                          実施する曜日を選択（複数可）
+                        </span>
+                        <div className="flex items-center gap-1 text-[10px]">
                           <button
                             type="button"
-                            onClick={() => rotateFrequency('next')}
-                            className="flex h-16 w-16 flex-col items-center justify-center border border-purple-300 bg-white shadow-xs hover:border-purple-400 transition select-none active:scale-95"
-                            title="クリックして次の頻度へ"
+                            onClick={() => setWeekTargetDays([0, 2, 4])}
+                            className="text-purple-700 hover:underline font-bold"
                           >
-                            {frequency === 'custom' ? (
-                              <>
-                                <div className="flex items-baseline gap-0.5">
-                                  <span className="text-xl font-black text-purple-700">
-                                    {customFrequencyCount}
-                                  </span>
-                                  <span className="text-[10px] font-bold text-purple-600">回</span>
-                                </div>
-                                <span className="text-[8px] font-bold text-purple-700">
-                                  カスタム
-                                </span>
-                              </>
-                            ) : (
-                              <>
-                                <span className="text-xl font-black text-purple-700">
-                                  {curFreq.label}
-                                </span>
-                                <span className="text-[9px] font-bold text-purple-600 mt-0.5">
-                                  {curFreq.badge}
-                                </span>
-                              </>
-                            )}
+                            月水金
                           </button>
-                        );
-                      })()}
-
-                      {/* 右ボタン (▶) */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (taskPeriodScope === 'day') {
-                            setDailyCount((prev) => (prev < 4 ? prev + 1 : 1));
-                          } else {
-                            rotateFrequency('next');
-                          }
-                        }}
-                        className="flex h-16 w-6 items-center justify-center rounded-r-lg border-r border-y border-slate-300 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition active:scale-95 shadow-2xs"
-                        title="右: 次の回数/頻度へ"
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
+                          <span className="text-slate-300">|</span>
+                          <button
+                            type="button"
+                            onClick={() => setWeekTargetDays([0, 1, 2, 3, 4])}
+                            className="text-purple-700 hover:underline font-bold"
+                          >
+                            平日
+                          </button>
+                          <span className="text-slate-300">|</span>
+                          <button
+                            type="button"
+                            onClick={() => setWeekTargetDays([5, 6])}
+                            className="text-purple-700 hover:underline font-bold"
+                          >
+                            土日
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {WEEKDAY_SHORT.map((w, idx) => {
+                          const isSelected = weekTargetDays.includes(idx);
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  if (weekTargetDays.length > 1) {
+                                    setWeekTargetDays(weekTargetDays.filter((d) => d !== idx));
+                                  }
+                                } else {
+                                  setWeekTargetDays([...weekTargetDays, idx].sort());
+                                }
+                              }}
+                              className={`flex-1 py-1 rounded-md text-xs font-bold transition border ${
+                                isSelected
+                                  ? 'border-purple-400 bg-purple-600 text-white shadow-2xs'
+                                  : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-100'
+                              }`}
+                            >
+                              {w}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
+                  )}
 
-                    {/* 下ボタン (▼) */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (taskPeriodScope === 'day') {
-                          setDailyCount((prev) => Math.max(prev - 1, 1));
-                        } else {
-                          if (frequency !== 'custom') setFrequency('custom');
-                          stepCustomCount('down');
+                  {weekTimingMode === 'cycle' && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-purple-950">
+                          周期ローテーション設定
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-slate-500">周期の長さ:</span>
+                          <select
+                            value={weekCycleCount}
+                            onChange={(e) => {
+                              const cnt = Number(e.target.value);
+                              setWeekCycleCount(cnt);
+                              setWeekCycleDays(weekCycleDays.filter((c) => c < cnt));
+                            }}
+                            className="rounded border border-purple-200 bg-white px-1.5 py-0.5 text-xs font-bold text-purple-800"
+                          >
+                            {[2, 3, 4, 5, 6, 7].map((num) => (
+                              <option key={num} value={num}>
+                                {num}日周期
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: weekCycleCount }, (_, idx) => {
+                          const isSelected = weekCycleDays.includes(idx);
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  if (weekCycleDays.length > 1) {
+                                    setWeekCycleDays(weekCycleDays.filter((c) => c !== idx));
+                                  }
+                                } else {
+                                  setWeekCycleDays([...weekCycleDays, idx].sort());
+                                }
+                              }}
+                              className={`flex-1 py-1 rounded-md text-xs font-bold transition border ${
+                                isSelected
+                                  ? 'border-purple-400 bg-purple-600 text-white shadow-2xs'
+                                  : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-100'
+                              }`}
+                            >
+                              Day {idx + 1}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="text-[10px] text-purple-700">
+                        ※表のDay列と同様に、指定したサイクル日に確実に1回ずつ配置されます
+                      </p>
+                    </div>
+                  )}
+
+                  {weekTimingMode === 'flexible' && (
+                    <div className="flex items-center justify-between rounded-lg border border-purple-200 bg-white p-2">
+                      <div>
+                        <span className="text-xs font-bold text-slate-800">週あたりの目標回数</span>
+                        <p className="text-[10px] text-slate-500">
+                          空き時間の多い曜日を自動探索して配置します
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setFlexibleCount((prev) => Math.max(1, prev - 1))}
+                          className="h-7 w-7 rounded-md border border-slate-300 bg-slate-50 font-bold text-slate-700 hover:bg-slate-100 active:scale-95 flex items-center justify-center"
+                        >
+                          -
+                        </button>
+                        <span className="w-12 text-center text-sm font-black text-purple-800">
+                          週 {flexibleCount} 回
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setFlexibleCount((prev) => Math.min(7, prev + 1))}
+                          className="h-7 w-7 rounded-md border border-slate-300 bg-slate-50 font-bold text-slate-700 hover:bg-slate-100 active:scale-95 flex items-center justify-center"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 5. 所要時間（分数チップ ＆ 枠なしToDo切替） */}
+              <div className="flex flex-col gap-1.5 rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700">所要時間</span>
+                  <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isNoDurationTodo}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setIsNoDurationTodo(checked);
+                        if (!checked && durationMinutes === 0) {
+                          setDurationMinutes(60);
+                          setDurationSize('medium');
                         }
                       }}
-                      className="flex h-6 w-16 items-center justify-center rounded-b-lg border-b border-x border-slate-300 bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition active:scale-95 shadow-2xs"
-                      title={taskPeriodScope === 'day' ? '下: 1日の回数を減らす' : '下: 回数を減らす (カスタム)'}
-                    >
-                      <ChevronDown className="h-4 w-4" />
-                    </button>
-                  </div>
-
-                  {/* フッター説明 */}
-                  <span className="text-[9px] text-slate-500 font-medium">
-                    {taskPeriodScope === 'day'
-                      ? '◀ ▶ 回数切替 / ▲ ▼ 増減'
-                      : '◀ ▶ 頻度切替 / ▲ ▼ 回数上下スクロール'}
-                  </span>
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <CheckSquare className="h-3.5 w-3.5 text-amber-600" />
+                    <span>時間枠なし (ToDoチェックのみ)</span>
+                  </label>
                 </div>
+
+                {!isNoDurationTodo && (
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-center gap-1.5">
+                      {[
+                        { min: 15, label: '15分', size: 'small' as TaskDurationSize },
+                        { min: 30, label: '30分', size: 'small' as TaskDurationSize },
+                        { min: 45, label: '45分', size: 'medium' as TaskDurationSize },
+                        { min: 60, label: '60分 (1h)', size: 'medium' as TaskDurationSize },
+                        { min: 90, label: '90分 (1.5h)', size: 'medium' as TaskDurationSize },
+                        { min: 120, label: '120分 (2h)', size: 'large' as TaskDurationSize },
+                      ].map((item) => {
+                        const isSelected = durationMinutes === item.min;
+                        return (
+                          <button
+                            key={item.min}
+                            type="button"
+                            onClick={() => {
+                              setDurationMinutes(item.min);
+                              setDurationSize(item.size);
+                            }}
+                            className={`flex-1 py-1 rounded-md text-xs font-bold transition border ${
+                              isSelected
+                                ? 'border-blue-400 bg-blue-600 text-white shadow-2xs'
+                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            {item.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* 5. 課題オプション（Must時のみ、授業連携・締切日を設定可能） */}
-              {taskCategory === 'must' && (
-                <div className="rounded-lg border border-purple-200 bg-purple-50/70 p-2.5">
+              {/* 6. オプション: 締切・提出期日の設定（週のタスクで必要な場合） */}
+              {taskPeriodScope === 'week' && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-2.5 space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-1.5 text-xs font-semibold text-purple-900 cursor-pointer">
-                      <GraduationCap className="h-4 w-4 text-purple-700" />
-                      <span>大学の課題・レポートとして登録する</span>
+                    <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                      <GraduationCap className="h-4 w-4 text-purple-600" />
+                      <span>提出期日・締切曜日を設定する (課題・レポート等)</span>
                     </label>
                     <input
                       type="checkbox"
-                      checked={isAssignment}
-                      onChange={(e) => setIsAssignment(e.target.checked)}
-                      className="rounded border-purple-300 bg-white text-purple-600 focus:ring-purple-500"
+                      checked={hasDeadline}
+                      onChange={(e) => setHasDeadline(e.target.checked)}
+                      className="rounded border-slate-300 text-purple-600 focus:ring-purple-500"
                     />
                   </div>
 
-                  {isAssignment && (
-                    <div className="mt-2.5 flex flex-col gap-2 border-t border-purple-200 pt-2">
-                      {lectureSlots.length > 0 && (
-                        <div>
-                          <label className="text-[10px] font-semibold text-purple-800">
-                            登録済みの授業から引用:
-                          </label>
-                          <select
-                            defaultValue=""
-                            onChange={(e) => {
-                              const sel = slots.find((s) => s.id === e.target.value);
-                              if (sel) {
-                                const lDay = sel.daysOfWeek?.[0] ?? 0;
-                                setTaskTitle(`${sel.title} レポート課題`);
-                                setStartDay(lDay);
-                                setDeadlineDay((lDay - 1 + 7) % 7);
-                              }
-                            }}
-                            className="mt-0.5 w-full rounded border border-purple-200 bg-white px-2 py-1 text-xs text-slate-800 focus:border-purple-500 focus:outline-none"
-                          >
-                            <option value="" disabled>
-                              授業を選択すると自動入力されます...
+                  {hasDeadline && (
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200">
+                      <div>
+                        <label className="text-[10px] font-semibold text-slate-600">
+                          出題・開始曜日
+                        </label>
+                        <select
+                          value={startDay}
+                          onChange={(e) => setStartDay(parseInt(e.target.value, 10))}
+                          className="mt-0.5 w-full rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none"
+                        >
+                          {DAY_LABELS.map((label, idx) => (
+                            <option key={idx} value={idx}>
+                              {label}
                             </option>
-                            {lectureSlots.map((l) => (
-                              <option key={l.id} value={l.id}>
-                                {l.title} ({formatDaysString(l.daysOfWeek)}開講)
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[10px] font-semibold text-purple-800">
-                            出題曜日 (授業日)
-                          </label>
-                          <select
-                            value={startDay}
-                            onChange={(e) => setStartDay(parseInt(e.target.value, 10))}
-                            className="mt-0.5 w-full rounded border border-purple-200 bg-white px-2 py-1 text-xs text-slate-800 focus:border-purple-500 focus:outline-none"
-                          >
-                            {DAY_LABELS.map((label, idx) => (
-                              <option key={idx} value={idx}>
-                                {label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-semibold text-purple-800">
-                            締切曜日 (前日)
-                          </label>
-                          <select
-                            value={deadlineDay}
-                            onChange={(e) => setDeadlineDay(parseInt(e.target.value, 10))}
-                            className="mt-0.5 w-full rounded border border-purple-200 bg-white px-2 py-1 text-xs text-slate-800 focus:border-purple-500 focus:outline-none"
-                          >
-                            {DAY_LABELS.map((label, idx) => (
-                              <option key={idx} value={idx}>
-                                {label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-purple-800">
+                          締切曜日 (期日)
+                        </label>
+                        <select
+                          value={deadlineDay}
+                          onChange={(e) => setDeadlineDay(parseInt(e.target.value, 10))}
+                          className="mt-0.5 w-full rounded border border-purple-200 bg-white px-2 py-1 text-xs font-bold text-purple-900 focus:outline-none"
+                        >
+                          {DAY_LABELS.map((label, idx) => (
+                            <option key={idx} value={idx}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                   )}
