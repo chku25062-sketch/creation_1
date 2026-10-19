@@ -418,6 +418,11 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             if (!curDays.includes(colInfo.dayIndex)) {
               existing.targetDays = [...curDays, colInfo.dayIndex].sort((a, b) => a - b);
             }
+          } else if (isCycle) {
+            const curCycles = existing.cycleDays || [];
+            if (!curCycles.includes(cycleIdx)) {
+              existing.cycleDays = [...curCycles, cycleIdx].sort((a, b) => a - b);
+            }
           }
         } else {
           const taskId = `task-table-${table.id}-${r}-${c}`;

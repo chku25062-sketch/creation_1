@@ -207,9 +207,12 @@ export function TaskManager({
   const [durationMinutes, setDurationMinutes] = useState<number>(60);
   const [isNoDurationTodo, setIsNoDurationTodo] = useState(false); // 時間枠なしToDo
 
-  // 日の設定: 1日の中の回数 & 実施曜日
+  // 日の設定: 1日の中の回数 & 実施タイミング (曜日・毎日 vs 周期)
+  const [dailyTimingMode, setDailyTimingMode] = useState<'weekday' | 'cycle'>('weekday');
   const [dailyCount, setDailyCount] = useState<number>(1); // 1日あたりの目標回数 (1, 2, 3...)
   const [dailyDays, setDailyDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]); // 対象曜日 (全日は毎日)
+  const [dailyCycleDays, setDailyCycleDays] = useState<number[]>([0]); // 周期で指定 (Day 1など)
+  const [dailyCycleCount, setDailyCycleCount] = useState<number>(3); // 周期の長さ (3日周期など)
 
   // 週の設定: 表の列管理になぞらえた方式 (曜日指定 vs 周期指定 vs おまかせ)
   const [weekTimingMode, setWeekTimingMode] = useState<'weekday' | 'cycle' | 'flexible'>('weekday');
@@ -300,8 +303,11 @@ export function TaskManager({
     setTaskTitle(options?.isAssignment ? 'レポート課題' : '');
     setTaskPeriodScope(presetPeriod);
     setTaskGroupName(options?.groupName || '基本設定');
+    setDailyTimingMode('weekday');
     setDailyCount(1);
     setDailyDays([0, 1, 2, 3, 4, 5, 6]);
+    setDailyCycleDays([0]);
+    setDailyCycleCount(3);
     setWeekTimingMode('weekday');
     setWeekTargetDays([0, 2]); // 月・水
     setWeekCycleDays([0]);
@@ -327,8 +333,11 @@ export function TaskManager({
     setTaskTitle(`${slot.title} レポート課題`);
     setTaskPeriodScope('week');
     setTaskGroupName(slot.sourceTableName || slot.category || '授業課題');
+    setDailyTimingMode('weekday');
     setDailyCount(1);
     setDailyDays([0, 1, 2, 3, 4, 5, 6]);
+    setDailyCycleDays([0]);
+    setDailyCycleCount(3);
     setWeekTimingMode('weekday');
     setWeekTargetDays([lectureDay]);
     setWeekCycleDays([0]);
@@ -355,11 +364,21 @@ export function TaskManager({
 
     // 日の設定復元
     setDailyCount(task.dailyCount || 1);
-    setDailyDays(
-      task.targetDays && task.targetDays.length > 0
-        ? [...task.targetDays]
-        : [0, 1, 2, 3, 4, 5, 6],
-    );
+    if (task.cycleDays && task.cycleDays.length > 0) {
+      setDailyTimingMode('cycle');
+      setDailyCycleDays([...task.cycleDays]);
+      setDailyCycleCount(task.cycleCount || 3);
+      setDailyDays([0, 1, 2, 3, 4, 5, 6]);
+    } else {
+      setDailyTimingMode('weekday');
+      setDailyDays(
+        task.targetDays && task.targetDays.length > 0
+          ? [...task.targetDays]
+          : [0, 1, 2, 3, 4, 5, 6],
+      );
+      setDailyCycleDays([0]);
+      setDailyCycleCount(3);
+    }
 
     // 週の設定復元
     if (task.cycleDays && task.cycleDays.length > 0) {
@@ -466,7 +485,15 @@ export function TaskManager({
 
     if (period === 'day') {
       frequency = 'high';
-      targetDays = dailyDays.length < 7 ? [...dailyDays].sort((a, b) => a - b) : undefined;
+      if (dailyTimingMode === 'cycle') {
+        cycleDays = dailyCycleDays.length > 0 ? [...dailyCycleDays].sort((a, b) => a - b) : [0];
+        cycleCount = Math.max(2, dailyCycleCount);
+        targetDays = undefined;
+      } else {
+        targetDays = dailyDays.length < 7 ? [...dailyDays].sort((a, b) => a - b) : undefined;
+        cycleDays = undefined;
+        cycleCount = undefined;
+      }
     } else {
       // 週の場合
       if (weekTimingMode === 'weekday') {
@@ -825,6 +852,10 @@ export function TaskManager({
     if (taskDayFilter !== 'all') {
       const targetDay = Number(taskDayFilter);
       result = result.filter((t) => {
+        if (t.cycleDays && t.cycleDays.length > 0) {
+          const cCount = t.cycleCount || 3;
+          return t.cycleDays.includes(targetDay % cCount);
+        }
         if (t.targetDays && t.targetDays.length > 0) {
           return t.targetDays.includes(targetDay);
         }
@@ -881,6 +912,10 @@ export function TaskManager({
     if (taskDayFilter !== 'all') {
       const targetDay = Number(taskDayFilter);
       result = result.filter((t) => {
+        if (t.cycleDays && t.cycleDays.length > 0) {
+          const cCount = t.cycleCount || 3;
+          if (t.cycleDays.includes(targetDay % cCount)) return true;
+        }
         if (t.targetDays && t.targetDays.length > 0) {
           return t.targetDays.includes(targetDay);
         }
@@ -1711,7 +1746,7 @@ export function TaskManager({
                                 <Repeat className="h-2.5 w-2.5 text-slate-400" />
                                 {task.dailyCount && task.dailyCount > 1
                                   ? `1日${task.dailyCount}回`
-                                  : '高 (毎日)'}
+                                  : '1日1回'}
                               </span>
 
                               {task.targetDays && task.targetDays.length > 0 && task.targetDays.length < 7 && (
@@ -2365,7 +2400,7 @@ export function TaskManager({
 
               {/* 4. 実施タイミングの設定（表の列設定となぞらえた設定） */}
               {taskPeriodScope === 'day' ? (
-                /* === 日のタスク: 1日の回数 ＆ 対象曜日 === */
+                /* === 日のタスク: 曜日・毎日 vs 周期 ＆ 1日の回数 === */
                 <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-amber-900 flex items-center gap-1">
@@ -2373,16 +2408,157 @@ export function TaskManager({
                       日の実施タイミング設定
                     </span>
                     <span className="text-[10px] text-amber-700 font-semibold">
-                      1日の中で複数回配置
+                      その日の中で反復・1日複数回
                     </span>
                   </div>
+
+                  {/* 管理方式セレクタ: 曜日・毎日 vs 周期 */}
+                  <div className="grid grid-cols-2 gap-1 rounded-lg border border-amber-200 bg-white p-1">
+                    <button
+                      type="button"
+                      onClick={() => setDailyTimingMode('weekday')}
+                      className={`py-1 text-xs font-bold rounded-md transition ${
+                        dailyTimingMode === 'weekday'
+                          ? 'bg-amber-600 text-white shadow-2xs'
+                          : 'text-slate-600 hover:bg-amber-50'
+                      }`}
+                    >
+                      📅 曜日・毎日で指定
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDailyTimingMode('cycle')}
+                      className={`py-1 text-xs font-bold rounded-md transition ${
+                        dailyTimingMode === 'cycle'
+                          ? 'bg-amber-600 text-white shadow-2xs'
+                          : 'text-slate-600 hover:bg-amber-50'
+                      }`}
+                    >
+                      🔄 周期で指定 (Day 1〜N)
+                    </button>
+                  </div>
+
+                  {dailyTimingMode === 'weekday' ? (
+                    /* 対象曜日の選択 (毎日 または 特定曜日) */
+                    <div>
+                      <div className="flex items-center justify-between pb-1">
+                        <span className="text-[11px] font-semibold text-amber-950">
+                          実施曜日
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDailyDays(
+                              dailyDays.length === 7 ? [0, 1, 2, 3, 4] : [0, 1, 2, 3, 4, 5, 6],
+                            )
+                          }
+                          className="text-[10px] text-amber-700 font-bold hover:underline"
+                        >
+                          {dailyDays.length === 7 ? '平日のみに切り替え' : '毎日にリセット'}
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {WEEKDAY_SHORT.map((w, idx) => {
+                          const isSelected = dailyDays.includes(idx);
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  if (dailyDays.length > 1) {
+                                    setDailyDays(dailyDays.filter((d) => d !== idx));
+                                  }
+                                } else {
+                                  setDailyDays([...dailyDays, idx].sort());
+                                }
+                              }}
+                              className={`flex-1 py-1 rounded-md text-xs font-bold transition border ${
+                                isSelected
+                                  ? 'border-amber-400 bg-amber-500 text-white shadow-2xs'
+                                  : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-100'
+                              }`}
+                            >
+                              {w}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    /* 周期で指定 (Day 1〜N、周期日数) */
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-[11px] font-bold text-amber-950">周期の日数</span>
+                          <p className="text-[10px] text-slate-500">例: 2日周期、3日周期ローテーション</p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextCount = Math.max(2, dailyCycleCount - 1);
+                              setDailyCycleCount(nextCount);
+                              setDailyCycleDays(dailyCycleDays.filter((d) => d < nextCount));
+                            }}
+                            className="h-6 w-6 rounded border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 flex items-center justify-center"
+                          >
+                            -
+                          </button>
+                          <span className="w-12 text-center text-xs font-black text-amber-900">
+                            {dailyCycleCount} 日周期
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setDailyCycleCount((prev) => Math.min(7, prev + 1))}
+                            className="h-6 w-6 rounded border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 flex items-center justify-center"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-[11px] font-semibold text-amber-950 block pb-1">
+                          実施するDay（複数選択可）
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {Array.from({ length: dailyCycleCount }, (_, idx) => {
+                            const isSelected = dailyCycleDays.includes(idx);
+                            return (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    if (dailyCycleDays.length > 1) {
+                                      setDailyCycleDays(dailyCycleDays.filter((d) => d !== idx));
+                                    }
+                                  } else {
+                                    setDailyCycleDays([...dailyCycleDays, idx].sort((a, b) => a - b));
+                                  }
+                                }}
+                                className={`flex-1 py-1 rounded-md text-xs font-bold transition border ${
+                                  isSelected
+                                    ? 'border-amber-400 bg-amber-500 text-white shadow-2xs'
+                                    : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-100'
+                                }`}
+                              >
+                                Day {idx + 1}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* 1日の中の目標回数 */}
                   <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-white p-2">
                     <div>
                       <span className="text-xs font-bold text-slate-800">1日の回数</span>
                       <p className="text-[10px] text-slate-500">
-                        朝・昼・晩など、1日の空き時間帯に分散して配置されます
+                        該当する日に、朝・昼・晩など分散して配置されます
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -2403,53 +2579,6 @@ export function TaskManager({
                       >
                         +
                       </button>
-                    </div>
-                  </div>
-
-                  {/* 対象曜日の選択 (毎日 または 特定曜日) */}
-                  <div>
-                    <div className="flex items-center justify-between pb-1">
-                      <span className="text-[11px] font-semibold text-amber-950">
-                        実施曜日（オプション）
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setDailyDays(
-                            dailyDays.length === 7 ? [0, 1, 2, 3, 4] : [0, 1, 2, 3, 4, 5, 6],
-                          )
-                        }
-                        className="text-[10px] text-amber-700 font-bold hover:underline"
-                      >
-                        {dailyDays.length === 7 ? '平日のみに切り替え' : '毎日にリセット'}
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {WEEKDAY_SHORT.map((w, idx) => {
-                        const isSelected = dailyDays.includes(idx);
-                        return (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => {
-                              if (isSelected) {
-                                if (dailyDays.length > 1) {
-                                  setDailyDays(dailyDays.filter((d) => d !== idx));
-                                }
-                              } else {
-                                setDailyDays([...dailyDays, idx].sort());
-                              }
-                            }}
-                            className={`flex-1 py-1 rounded-md text-xs font-bold transition border ${
-                              isSelected
-                                ? 'border-amber-400 bg-amber-500 text-white shadow-2xs'
-                                : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-100'
-                            }`}
-                          >
-                            {w}
-                          </button>
-                        );
-                      })}
                     </div>
                   </div>
                 </div>
