@@ -88,6 +88,70 @@ const CYCLE_HEADER_OPTIONS = [
   '除外',
 ];
 
+interface SemiInputProps {
+  value: string;
+  onChange: (val: string) => void;
+  options: { label: string; value: string }[];
+  placeholder?: string;
+  unit?: string;
+  inputClassName?: string;
+  title?: string;
+}
+
+/**
+ * 手入力 ＋ プリセット選択が可能な半入力式コンボボックス
+ */
+function SemiInput({
+  value,
+  onChange,
+  options,
+  placeholder,
+  unit,
+  inputClassName = 'w-14 text-center',
+  title,
+}: SemiInputProps) {
+  return (
+    <div
+      className="relative flex items-center rounded border border-slate-200/90 bg-white shadow-2xs hover:border-slate-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition"
+      title={title}
+    >
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={`bg-transparent px-1.5 py-0.5 text-xs font-bold text-slate-800 focus:outline-hidden ${inputClassName}`}
+      />
+      {unit && (
+        <span className="text-[10px] text-slate-400 font-medium pr-0.5 pointer-events-none select-none shrink-0">
+          {unit}
+        </span>
+      )}
+      <div className="relative flex items-center pr-1 cursor-pointer shrink-0">
+        <select
+          value=""
+          onChange={(e) => {
+            onChange(e.target.value);
+            e.target.value = '';
+          }}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          title="候補から選択"
+        >
+          <option value="" disabled>
+            候補から選択
+          </option>
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="h-3 w-3 text-slate-400 hover:text-slate-600 transition pointer-events-none" />
+      </div>
+    </div>
+  );
+}
+
 export function ImportedTablesManager({
   tables,
   onTablesChange,
@@ -1537,28 +1601,20 @@ export function ImportedTablesManager({
                   );
                 })()}
 
-                {/* 表カラー選択ドロップダウン（ツールバー） */}
+                {/* 表カラー選択ドロップダウン（色のアイコンのみ表示） */}
                 <div className="relative" ref={colorPickerRef}>
                   <button
                     type="button"
                     onClick={() => setIsColorPickerOpen((prev) => !prev)}
-                    className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs hover:bg-slate-50 transition cursor-pointer"
-                    title="表のカラーを選択（計画表の付箋ブロックに反映されます）"
+                    className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-1.5 py-1 shadow-2xs hover:bg-slate-50 hover:border-slate-300 transition cursor-pointer"
+                    title={`表カラー: ${TABLE_PALETTE_OPTIONS[activeTableColorIndex]?.name || 'カスタム'} (クリックで変更)`}
                   >
+                    <Palette className="h-3.5 w-3.5 text-slate-500 shrink-0" />
                     <span
-                      className="h-3 w-3 rounded-full ring-1 ring-black/10 shrink-0"
+                      className="h-3.5 w-3.5 rounded-full ring-1 ring-black/10 shadow-2xs shrink-0"
                       style={{ backgroundColor: activeTablePalette.strip }}
                     />
-                    <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
-                      カラー:
-                    </span>
-                    <span
-                      className="font-bold text-xs"
-                      style={{ color: activeTablePalette.text }}
-                    >
-                      {TABLE_PALETTE_OPTIONS[activeTableColorIndex]?.name || 'カスタム'}
-                    </span>
-                    <ChevronDown className="h-3 w-3 text-slate-400" />
+                    <ChevronDown className="h-2.5 w-2.5 text-slate-400" />
                   </button>
 
                   {isColorPickerOpen && (
@@ -1623,121 +1679,165 @@ export function ImportedTablesManager({
                   )}
                 </div>
 
-                {/* 1日の中の繰り返し回数 */}
+                {/* 1日の中の繰り返し回数（半入力式） */}
                 <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
                   <Repeat className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                   <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
-                    繰り返し:
+                    1日の繰り返し:
                   </span>
-                  <select
-                    value={activeTable.dailyRepeatCount ?? 'auto'}
-                    onChange={(e) => {
-                      const val = e.target.value === 'auto' ? 'auto' : Number(e.target.value);
-                      updateActiveTable((prev) => ({
-                        ...prev,
-                        dailyRepeatCount: val,
-                      }));
+                  <SemiInput
+                    value={
+                      activeTable.dailyRepeatCount === 'auto' || activeTable.dailyRepeatCount === undefined
+                        ? '自動'
+                        : String(activeTable.dailyRepeatCount)
+                    }
+                    onChange={(val) => {
+                      const trimmed = val.trim();
+                      if (trimmed === '自動' || trimmed === 'auto' || trimmed === '' || trimmed === '0') {
+                        updateActiveTable((prev) => ({ ...prev, dailyRepeatCount: 'auto' }));
+                      } else {
+                        const num = parseInt(trimmed.replace(/[^0-9]/g, ''), 10);
+                        updateActiveTable((prev) => ({
+                          ...prev,
+                          dailyRepeatCount: isNaN(num) || num <= 0 ? 'auto' : num,
+                        }));
+                      }
                     }}
-                    className="font-bold text-xs text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
-                    title="1日の中の繰り返し回数（デフォルト: 自動）"
-                  >
-                    <option value="auto">🌟 自動</option>
-                    <option value={1}>1回</option>
-                    <option value={2}>2回</option>
-                    <option value={3}>3回</option>
-                    <option value={4}>4回</option>
-                    <option value={5}>5回</option>
-                    <option value={6}>6回</option>
-                  </select>
+                    placeholder="自動"
+                    unit="回"
+                    inputClassName="w-10 text-center"
+                    options={[
+                      { label: '🌟 自動', value: 'auto' },
+                      { label: '1回', value: '1' },
+                      { label: '2回', value: '2' },
+                      { label: '3回', value: '3' },
+                      { label: '4回', value: '4' },
+                      { label: '5回', value: '5' },
+                      { label: '6回', value: '6' },
+                      { label: '7回', value: '7' },
+                      { label: '8回', value: '8' },
+                      { label: '10回', value: '10' },
+                    ]}
+                    title="1日の中での繰り返し回数（手入力または候補選択）"
+                  />
                 </div>
 
-                {/* 始業時間 */}
+                {/* 開始時間（半入力式） */}
                 <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
                   <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                   <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
-                    始業:
+                    開始:
                   </span>
-                  <select
-                    value={activeTable.axisConfig.startTime || 'unset'}
-                    onChange={(e) =>
-                      handleAxisConfigChange(
-                        'startTime',
-                        e.target.value === 'unset' ? null : e.target.value,
-                      )
-                    }
-                    className="font-bold text-xs text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
-                  >
-                    <option value="unset">🌟 未設定 (自動)</option>
-                    <option value="06:00">06:00</option>
-                    <option value="07:00">07:00</option>
-                    <option value="08:00">08:00</option>
-                    <option value="08:50">08:50</option>
-                    <option value="09:00">09:00</option>
-                    <option value="10:00">10:00</option>
-                    <option value="13:00">13:00</option>
-                    <option value="17:00">17:00</option>
-                    {activeTable.axisConfig.startTime &&
-                      ![
-                        '06:00',
-                        '07:00',
-                        '08:00',
-                        '08:50',
-                        '09:00',
-                        '10:00',
-                        '13:00',
-                        '17:00',
-                      ].includes(activeTable.axisConfig.startTime) && (
-                        <option value={activeTable.axisConfig.startTime}>
-                          {activeTable.axisConfig.startTime}
-                        </option>
-                      )}
-                  </select>
+                  <SemiInput
+                    value={activeTable.axisConfig.startTime ?? ''}
+                    onChange={(val) => {
+                      const trimmed = val.trim();
+                      if (!trimmed || trimmed === 'unset' || trimmed === '未設定' || trimmed === '自動') {
+                        handleAxisConfigChange('startTime', null);
+                      } else {
+                        handleAxisConfigChange('startTime', trimmed);
+                      }
+                    }}
+                    placeholder="未設定 (自動)"
+                    inputClassName="w-24 text-center"
+                    options={[
+                      { label: '🌟 未設定 (自動)', value: 'unset' },
+                      { label: '06:00', value: '06:00' },
+                      { label: '07:00', value: '07:00' },
+                      { label: '08:00', value: '08:00' },
+                      { label: '08:30', value: '08:30' },
+                      { label: '08:50', value: '08:50' },
+                      { label: '09:00', value: '09:00' },
+                      { label: '09:30', value: '09:30' },
+                      { label: '10:00', value: '10:00' },
+                      { label: '13:00', value: '13:00' },
+                      { label: '17:00', value: '17:00' },
+                      { label: '18:00', value: '18:00' },
+                      { label: '19:00', value: '19:00' },
+                    ]}
+                    title="開始時間（例: 08:30、手入力または候補選択）"
+                  />
                 </div>
 
-                {/* 1コマ分数 */}
+                {/* 1コマ分数（半入力式） */}
                 <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
                   <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
                     1コマ:
                   </span>
-                  <select
-                    value={activeTable.axisConfig.periodMinutes ?? 0}
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      handleAxisConfigChange('periodMinutes', val === 0 ? null : val);
+                  <SemiInput
+                    value={
+                      activeTable.axisConfig.periodMinutes !== null && activeTable.axisConfig.periodMinutes !== undefined
+                        ? String(activeTable.axisConfig.periodMinutes)
+                        : ''
+                    }
+                    onChange={(val) => {
+                      const trimmed = val.trim();
+                      if (!trimmed || trimmed === '0' || trimmed === 'unset' || trimmed === '未設定' || trimmed === '自動') {
+                        handleAxisConfigChange('periodMinutes', null);
+                      } else {
+                        const num = parseInt(trimmed.replace(/[^0-9]/g, ''), 10);
+                        handleAxisConfigChange('periodMinutes', isNaN(num) || num <= 0 ? null : num);
+                      }
                     }}
-                    className="font-bold text-xs text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
-                  >
-                    <option value={0}>🌟 未設定 (自動)</option>
-                    <option value={90}>90分</option>
-                    <option value={60}>60分</option>
-                    <option value={50}>50分</option>
-                    <option value={45}>45分</option>
-                    <option value={30}>30分</option>
-                    <option value={25}>25分</option>
-                    <option value={15}>15分</option>
-                  </select>
+                    placeholder="自動"
+                    unit="分"
+                    inputClassName="w-12 text-center"
+                    options={[
+                      { label: '🌟 未設定 (自動)', value: 'unset' },
+                      { label: '90分', value: '90' },
+                      { label: '60分', value: '60' },
+                      { label: '50分', value: '50' },
+                      { label: '45分', value: '45' },
+                      { label: '40分', value: '40' },
+                      { label: '30分', value: '30' },
+                      { label: '25分', value: '25' },
+                      { label: '20分', value: '20' },
+                      { label: '15分', value: '15' },
+                    ]}
+                    title="1コマの分数（手入力または候補選択）"
+                  />
                 </div>
 
-                {/* コマ間休憩 */}
+                {/* コマ間休憩（半入力式） */}
                 <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
                   <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
                     休憩:
                   </span>
-                  <select
-                    value={activeTable.axisConfig.intervalMinutes ?? -1}
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      handleAxisConfigChange('intervalMinutes', val === -1 ? null : val);
+                  <SemiInput
+                    value={
+                      activeTable.axisConfig.intervalMinutes === null || activeTable.axisConfig.intervalMinutes === undefined
+                        ? ''
+                        : activeTable.axisConfig.intervalMinutes === 0
+                          ? '0'
+                          : String(activeTable.axisConfig.intervalMinutes)
+                    }
+                    onChange={(val) => {
+                      const trimmed = val.trim();
+                      if (!trimmed || trimmed === 'unset' || trimmed === '未設定' || trimmed === '自動') {
+                        handleAxisConfigChange('intervalMinutes', null);
+                      } else if (trimmed === '0' || trimmed === 'なし') {
+                        handleAxisConfigChange('intervalMinutes', 0);
+                      } else {
+                        const num = parseInt(trimmed.replace(/[^0-9]/g, ''), 10);
+                        handleAxisConfigChange('intervalMinutes', isNaN(num) ? null : num);
+                      }
                     }}
-                    className="font-bold text-xs text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
-                  >
-                    <option value={-1}>🌟 未設定 (自動)</option>
-                    <option value={10}>10分</option>
-                    <option value={15}>15分</option>
-                    <option value={20}>20分</option>
-                    <option value={5}>5分</option>
-                    <option value={0}>なし</option>
-                  </select>
+                    placeholder="自動"
+                    unit="分"
+                    inputClassName="w-12 text-center"
+                    options={[
+                      { label: '🌟 未設定 (自動)', value: 'unset' },
+                      { label: '0分 (なし)', value: '0' },
+                      { label: '5分', value: '5' },
+                      { label: '10分', value: '10' },
+                      { label: '15分', value: '15' },
+                      { label: '20分', value: '20' },
+                      { label: '30分', value: '30' },
+                      { label: '45分', value: '45' },
+                      { label: '60分', value: '60' },
+                    ]}
+                    title="コマ間の休憩/タスク後余白（手入力または候補選択）"
+                  />
                 </div>
 
                 {/* 昼休み (開始時刻が設定されている場合のみ有効) */}
