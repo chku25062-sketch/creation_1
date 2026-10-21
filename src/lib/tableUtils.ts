@@ -310,6 +310,36 @@ export function removeColAtIndex(table: ImportedTableData, colIndex: number): Im
   };
 }
 
+/**
+ * 表の行数を直接指定された数値（1〜50）にリサイズ
+ */
+export function setTableNumRows(table: ImportedTableData, targetRows: number): ImportedTableData {
+  const safeTarget = Math.max(1, Math.min(50, targetRows));
+  let current = table;
+  while (current.numRows < safeTarget) {
+    current = addRowToTable(current);
+  }
+  while (current.numRows > safeTarget) {
+    current = removeRowFromTable(current);
+  }
+  return current;
+}
+
+/**
+ * 表の列数を直接指定された数値（1〜30）にリサイズ
+ */
+export function setTableNumCols(table: ImportedTableData, targetCols: number): ImportedTableData {
+  const safeTarget = Math.max(1, Math.min(30, targetCols));
+  let current = table;
+  while (current.numCols < safeTarget) {
+    current = addColToTable(current);
+  }
+  while (current.numCols > safeTarget) {
+    current = removeColFromTable(current);
+  }
+  return current;
+}
+
 export interface TableScheduleGenerationResult {
   slots: FixedSlot[];
   tasks: TaskItem[];

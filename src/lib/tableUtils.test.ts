@@ -6,9 +6,11 @@ import {
   addRowToTable,
   removeRowFromTable,
   removeRowAtIndex,
+  setTableNumRows,
   addColToTable,
   removeColFromTable,
   removeColAtIndex,
+  setTableNumCols,
   generateScheduleItemsForTable,
   parseColHeader,
 } from './tableUtils';
@@ -465,6 +467,34 @@ describe('tableUtils', () => {
     expect(res.slots.length).toBe(1);
     expect(res.slots[0].title).toBe('数学講義');
     expect(res.slots[0].breakMinutes).toBe(15);
+  });
+
+  describe('setTableNumRows and setTableNumCols', () => {
+    it('行数を直接指定して増減できること', () => {
+      const table = createBaseTable();
+      expect(table.numRows).toBe(2);
+
+      const expanded = setTableNumRows(table, 5);
+      expect(expanded.numRows).toBe(5);
+      expect(expanded.cells.length).toBe(5);
+
+      const shrunk = setTableNumRows(expanded, 3);
+      expect(shrunk.numRows).toBe(3);
+      expect(shrunk.cells.length).toBe(3);
+    });
+
+    it('列数を直接指定して増減できること', () => {
+      const table = createBaseTable();
+      expect(table.numCols).toBe(2);
+
+      const expanded = setTableNumCols(table, 6);
+      expect(expanded.numCols).toBe(6);
+      expect(expanded.colHeaders.length).toBe(6);
+
+      const shrunk = setTableNumCols(expanded, 1);
+      expect(shrunk.numCols).toBe(1);
+      expect(shrunk.colHeaders.length).toBe(1);
+    });
   });
 });
 
