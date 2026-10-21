@@ -407,12 +407,21 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
         }
       } else if (classification === 'daily_task') {
         // 日（日のタスク）: 表の列の要素がその日の中で繰り返されるもの
-        // 同じ表の中で同じタイトルのセルがあれば、その日の中の反復回数 (dailyCount) を加算
+        // 表データに「1日の中の繰り返し回数」が指定されていればその値、自動なら表内の重複出現回数を集計
+        const tableDailyCount =
+          table.dailyRepeatCount && table.dailyRepeatCount !== 'auto'
+            ? Number(table.dailyRepeatCount)
+            : undefined;
+
         const taskKey = fullTitle;
         const existing = taskMap.get(taskKey);
 
         if (existing) {
-          existing.dailyCount = (existing.dailyCount || 1) + 1;
+          if (!tableDailyCount) {
+            existing.dailyCount = (existing.dailyCount || 1) + 1;
+          } else {
+            existing.dailyCount = tableDailyCount;
+          }
           if (isWeekday && colInfo.dayIndex !== undefined) {
             const curDays = existing.targetDays || [];
             if (!curDays.includes(colInfo.dayIndex)) {
@@ -436,7 +445,8 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             durationMinutes: duration,
             frequency: 'high',
             period: 'day',
-            dailyCount: 1, // 1日の中で組み込む
+            dailyCount: tableDailyCount ?? 1, // 指定があればその回数、自動なら1(重複で加算)
+            dailyRepeatMode: tableDailyCount ? 'custom' : 'auto',
             targetDays: isWeekday ? [colInfo.dayIndex!] : undefined,
             startDay: isWeekday ? colInfo.dayIndex : undefined,
             deadlineDay: isWeekday ? colInfo.dayIndex : undefined,

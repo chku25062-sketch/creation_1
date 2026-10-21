@@ -209,6 +209,7 @@ export function TaskManager({
 
   // 日の設定: 1日の中の回数 & 実施タイミング (曜日・毎日 vs 周期)
   const [dailyTimingMode, setDailyTimingMode] = useState<'weekday' | 'cycle'>('weekday');
+  const [dailyRepeatMode, setDailyRepeatMode] = useState<'auto' | 'custom'>('auto'); // 1日の中の繰り返し回数 ('auto': 自動, 'custom': 回数指定)
   const [dailyCount, setDailyCount] = useState<number>(1); // 1日あたりの目標回数 (1, 2, 3...)
   const [dailyDays, setDailyDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]); // 対象曜日 (全日は毎日)
   const [dailyCycleDays, setDailyCycleDays] = useState<number[]>([0]); // 周期で指定 (Day 1など)
@@ -304,6 +305,7 @@ export function TaskManager({
     setTaskPeriodScope(presetPeriod);
     setTaskGroupName(options?.groupName || '基本設定');
     setDailyTimingMode('weekday');
+    setDailyRepeatMode('auto');
     setDailyCount(1);
     setDailyDays([0, 1, 2, 3, 4, 5, 6]);
     setDailyCycleDays([0]);
@@ -334,6 +336,7 @@ export function TaskManager({
     setTaskPeriodScope('week');
     setTaskGroupName(slot.sourceTableName || slot.category || '授業課題');
     setDailyTimingMode('weekday');
+    setDailyRepeatMode('auto');
     setDailyCount(1);
     setDailyDays([0, 1, 2, 3, 4, 5, 6]);
     setDailyCycleDays([0]);
@@ -363,7 +366,19 @@ export function TaskManager({
     setTaskGroupName(task.sourceTableName || task.category || '基本設定');
 
     // 日の設定復元
-    setDailyCount(task.dailyCount || 1);
+    if (task.dailyRepeatMode === 'custom' && task.dailyCount !== undefined) {
+      setDailyRepeatMode('custom');
+      setDailyCount(task.dailyCount);
+    } else if (task.dailyCount && task.dailyCount > 1) {
+      setDailyRepeatMode('custom');
+      setDailyCount(task.dailyCount);
+    } else if (task.dailyRepeatMode === 'auto' || task.dailyCount === undefined) {
+      setDailyRepeatMode('auto');
+      setDailyCount(1);
+    } else {
+      setDailyRepeatMode('auto');
+      setDailyCount(1);
+    }
     if (task.cycleDays && task.cycleDays.length > 0) {
       setDailyTimingMode('cycle');
       setDailyCycleDays([...task.cycleDays]);
@@ -471,7 +486,12 @@ export function TaskManager({
             : 120;
 
     const period: TaskPeriod = taskPeriodScope === 'day' ? 'day' : 'week';
-    const finalDailyCount = taskPeriodScope === 'day' ? Math.max(1, dailyCount) : undefined;
+    const finalDailyCount =
+      taskPeriodScope === 'day'
+        ? dailyRepeatMode === 'auto'
+          ? undefined
+          : Math.max(1, dailyCount)
+        : undefined;
     const taskType: TaskType = isNoDurationTodo ? 'todo' : hasDeadline ? 'assignment' : 'task';
     const priority: TaskPriority = hasDeadline ? 'high' : 'medium';
     const finalCategory = taskSourceTableName || taskGroupName.trim() || '基本設定';
@@ -522,6 +542,7 @@ export function TaskManager({
       frequencyCount,
       period,
       dailyCount: finalDailyCount,
+      dailyRepeatMode: taskPeriodScope === 'day' ? dailyRepeatMode : undefined,
       targetDays,
       cycleDays,
       cycleCount,
@@ -1746,7 +1767,9 @@ export function TaskManager({
                                 <Repeat className="h-2.5 w-2.5 text-slate-400" />
                                 {task.dailyCount && task.dailyCount > 1
                                   ? `1日${task.dailyCount}回`
-                                  : '1日1回'}
+                                  : task.dailyRepeatMode === 'auto' || task.dailyCount === undefined
+                                    ? '繰り返し: 自動'
+                                    : '1日1回'}
                               </span>
 
                               {task.targetDays && task.targetDays.length > 0 && task.targetDays.length < 7 && (
@@ -2553,32 +2576,38 @@ export function TaskManager({
                     </div>
                   )}
 
-                  {/* 1日の中の目標回数 */}
-                  <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-white p-2">
+                  {/* 1日の中の繰り返し回数 */}
+                  <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-white p-2.5">
                     <div>
-                      <span className="text-xs font-bold text-slate-800">1日の回数</span>
+                      <span className="text-xs font-bold text-slate-800">1日の中の繰り返し回数</span>
                       <p className="text-[10px] text-slate-500">
-                        該当する日に、朝・昼・晩など分散して配置されます
+                        {dailyRepeatMode === 'auto'
+                          ? '🌟 自動: スケジュールの空き時間に合わせて自動で最適配置されます'
+                          : '指定した回数分、朝・昼・晩などの空き時間に分散配置されます'}
                       </p>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setDailyCount((prev) => Math.max(1, prev - 1))}
-                        className="h-7 w-7 rounded-md border border-slate-300 bg-slate-50 font-bold text-slate-700 hover:bg-slate-100 active:scale-95 flex items-center justify-center"
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <select
+                        value={dailyRepeatMode === 'auto' ? 'auto' : String(dailyCount)}
+                        onChange={(e) => {
+                          if (e.target.value === 'auto') {
+                            setDailyRepeatMode('auto');
+                          } else {
+                            setDailyRepeatMode('custom');
+                            setDailyCount(Number(e.target.value));
+                          }
+                        }}
+                        className="rounded-lg border border-amber-300 bg-amber-50/90 px-3 py-1.5 text-xs font-bold text-amber-900 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer shadow-2xs"
+                        title="1日の中の繰り返し回数（デフォルト: 自動）"
                       >
-                        -
-                      </button>
-                      <span className="w-12 text-center text-sm font-black text-amber-800">
-                        {dailyCount} 回
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setDailyCount((prev) => Math.min(6, prev + 1))}
-                        className="h-7 w-7 rounded-md border border-slate-300 bg-slate-50 font-bold text-slate-700 hover:bg-slate-100 active:scale-95 flex items-center justify-center"
-                      >
-                        +
-                      </button>
+                        <option value="auto">🌟 自動</option>
+                        <option value="1">1回</option>
+                        <option value="2">2回</option>
+                        <option value="3">3回</option>
+                        <option value="4">4回</option>
+                        <option value="5">5回</option>
+                        <option value="6">6回</option>
+                      </select>
                     </div>
                   </div>
                 </div>

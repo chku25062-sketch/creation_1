@@ -46,6 +46,7 @@ export interface TaskItem {
   targetDays?: number[]; // 対象曜日一覧 (0:月〜6:日)。複数曜日の指定に対応
   cycleDays?: number[]; // 対象周期インデックス一覧 (0: Day 1, 1: Day 2, ...)。複数周期日の指定に対応
   dailyCount?: number; // 1日あたりの目標回数 (1, 2, 3...)
+  dailyRepeatMode?: 'auto' | 'custom'; // 1日の中の繰り返し回数モード ('auto': 自動, 'custom': 回数指定)
   cycleIndex?: number; // 3日周期などのローテーション番号 (単一または代表値)
   cycleCount?: number; // 周期全体の長さ (例: 3日周期なら3)
   sourceTableId?: string; // 参照元テーブルID
@@ -171,6 +172,7 @@ export interface ImportedTableData {
   isApplied?: boolean; // 計画表に反映中かどうか
   classificationOverride?: TableClassification; // 手動で日・週・固定枠を明示上書きしたい場合の設定
   columnMode?: TableColumnMode; // 列の管理方式: 曜日で管理 ('weekday') または 周期で管理 ('cycle')
+  dailyRepeatCount?: number | 'auto'; // 1日の中の繰り返し回数 (未指定または 'auto' は自動)
 }
 
 export interface ScheduleInclusionSettings {

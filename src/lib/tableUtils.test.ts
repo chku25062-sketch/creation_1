@@ -404,6 +404,32 @@ describe('tableUtils', () => {
     expect(res.slots[0].title).toBe('英語講義');
     expect(res.slots[0].daysOfWeek).toEqual([0, 2]); // 月曜と水曜
   });
+
+  it('respects table dailyRepeatCount when explicitly set to a number', () => {
+    const table = createBaseTable(null);
+    table.classificationOverride = 'daily_task';
+    table.dailyRepeatCount = 3; // 1日3回を明示指定
+    table.cells[0][0].title = 'ストレッチ';
+
+    const res = generateScheduleItemsForTable(table);
+    expect(res.tasks.length).toBe(1);
+    expect(res.tasks[0].title).toBe('ストレッチ');
+    expect(res.tasks[0].dailyCount).toBe(3);
+    expect(res.tasks[0].dailyRepeatMode).toBe('custom');
+  });
+
+  it('defaults to auto repeat count when dailyRepeatCount is auto or unset', () => {
+    const table = createBaseTable(null);
+    table.classificationOverride = 'daily_task';
+    table.dailyRepeatCount = 'auto'; // デフォルト「自動」
+    table.cells[0][0].title = '瞑想';
+
+    const res = generateScheduleItemsForTable(table);
+    expect(res.tasks.length).toBe(1);
+    expect(res.tasks[0].title).toBe('瞑想');
+    expect(res.tasks[0].dailyCount).toBe(1);
+    expect(res.tasks[0].dailyRepeatMode).toBe('auto');
+  });
 });
 
 

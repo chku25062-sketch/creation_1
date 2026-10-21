@@ -21,6 +21,7 @@ import {
   CalendarDays,
   Calendar,
   Clock,
+  Repeat,
   Upload,
   X,
 } from 'lucide-react';
@@ -744,6 +745,7 @@ export function ImportedTablesManager({
       numCols: 5,
       colHeaders: ['月曜', '火曜', '水曜', '木曜', '金曜'],
       rowHeaders: ['1', '2', '3', '4', '5'],
+      dailyRepeatCount: 'auto',
       axisConfig: {
         startTime: '09:00',
         periodMinutes: 90,
@@ -1475,6 +1477,34 @@ export function ImportedTablesManager({
                     </div>
                   );
                 })()}
+
+                {/* 1日の中の繰り返し回数 */}
+                <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
+                  <Repeat className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
+                    繰り返し:
+                  </span>
+                  <select
+                    value={activeTable.dailyRepeatCount ?? 'auto'}
+                    onChange={(e) => {
+                      const val = e.target.value === 'auto' ? 'auto' : Number(e.target.value);
+                      updateActiveTable((prev) => ({
+                        ...prev,
+                        dailyRepeatCount: val,
+                      }));
+                    }}
+                    className="font-bold text-xs text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
+                    title="1日の中の繰り返し回数（デフォルト: 自動）"
+                  >
+                    <option value="auto">🌟 自動</option>
+                    <option value={1}>1回</option>
+                    <option value={2}>2回</option>
+                    <option value={3}>3回</option>
+                    <option value={4}>4回</option>
+                    <option value={5}>5回</option>
+                    <option value={6}>6回</option>
+                  </select>
+                </div>
 
                 {/* 始業時間 */}
                 <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
