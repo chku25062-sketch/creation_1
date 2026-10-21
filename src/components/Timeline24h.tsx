@@ -771,6 +771,15 @@ export function Timeline24h({
                       const isShort = duration < 25 || height < 30;
                       const isAssignment = block.taskType === 'assignment';
 
+                      // ★ 枠の高さ（所要時間）に応じて、タスク名を表示できる最大行数を動的に算出
+                      // 1時間96px基準: 30分=46px, 45分=70px, 60分=94px, 90分=142px
+                      const hasTimeRow = !isShort;
+                      const availableHeightForTitle = hasTimeRow ? height - 20 : height - 8;
+                      const calculatedLines = Math.max(
+                        1,
+                        Math.min(6, Math.floor(availableHeightForTitle / 15)),
+                      );
+
                       // ★ 参照元の表ごとのカラーパレットを取得（表ごとに重複のない一意カラー）
                       const colorScheme = getBlockColorScheme(block, tableColorMap);
 
@@ -798,45 +807,55 @@ export function Timeline24h({
                           />
 
                           {/* Block Content */}
-                          <div className="flex h-full flex-col justify-between p-1 pl-2.5">
-                            <div className="flex items-start justify-between gap-1 overflow-hidden">
-                              <span className="truncate text-xs font-bold leading-tight sm:text-[13px]">
+                          <div className="flex h-full flex-col justify-between p-1 pl-2.5 overflow-hidden">
+                            <div className="flex items-start justify-between gap-1 min-w-0 overflow-hidden">
+                              <span
+                                className="min-w-0 flex-1 font-bold leading-snug break-words [overflow-wrap:anywhere] text-xs sm:text-[13px]"
+                                style={{
+                                  display: '-webkit-box',
+                                  WebkitBoxOrient: 'vertical',
+                                  WebkitLineClamp: calculatedLines,
+                                  overflow: 'hidden',
+                                }}
+                              >
                                 {block.title}
                               </span>
-                              {block.sourceTableName && (
-                                <span
-                                  className="shrink-0 inline-flex items-center gap-0.5 rounded px-1 py-0.2 text-[8px] font-bold shadow-2xs border"
-                                  style={{
-                                    backgroundColor: colorScheme.badgeBg,
-                                    color: colorScheme.badgeText,
-                                    borderColor: colorScheme.badgeBorder,
-                                  }}
-                                  title={`参照元: ${block.sourceTableName}`}
-                                >
-                                  <FileSpreadsheet className="h-2 w-2" />
-                                  <span className="max-w-[70px] truncate hidden sm:inline">
-                                    {block.sourceTableName}
+                              <div className="shrink-0 flex items-center gap-1">
+                                {block.sourceTableName && (
+                                  <span
+                                    className="inline-flex items-center gap-0.5 rounded px-1 py-0.2 text-[8px] font-bold shadow-2xs border"
+                                    style={{
+                                      backgroundColor: colorScheme.badgeBg,
+                                      color: colorScheme.badgeText,
+                                      borderColor: colorScheme.badgeBorder,
+                                    }}
+                                    title={`参照元: ${block.sourceTableName}`}
+                                  >
+                                    <FileSpreadsheet className="h-2 w-2" />
+                                    <span className="max-w-[70px] truncate hidden sm:inline">
+                                      {block.sourceTableName}
+                                    </span>
                                   </span>
-                                </span>
-                              )}
-                              {isAssignment && block.deadlineDay !== undefined && (
-                                <span className="shrink-0 rounded bg-rose-200/90 px-1 py-0.2 text-[9px] font-bold text-rose-900 shadow-2xs">
-                                  期日:{WEEKDAY_NAMES[block.deadlineDay]}
-                                </span>
-                              )}
-                              {!isShort && !isAssignment && (
-                                <span className="hidden shrink-0 rounded bg-white/70 px-1 py-0.2 font-mono text-[9px] text-slate-600 xl:inline-block shadow-2xs">
-                                  {formatDuration(duration)}
-                                </span>
-                              )}
+                                )}
+                                {isAssignment && block.deadlineDay !== undefined && (
+                                  <span className="rounded bg-rose-200/90 px-1 py-0.2 text-[9px] font-bold text-rose-900 shadow-2xs">
+                                    期日:{WEEKDAY_NAMES[block.deadlineDay]}
+                                  </span>
+                                )}
+                                {!isShort && !isAssignment && (
+                                  <span className="hidden rounded bg-white/70 px-1 py-0.2 font-mono text-[9px] text-slate-600 xl:inline-block shadow-2xs">
+                                    {formatDuration(duration)}
+                                  </span>
+                                )}
+                              </div>
                             </div>
 
                             {!isShort && (
-                              <div className="flex items-center gap-1 font-mono text-[10px] opacity-80 sm:text-[11px]">
+                              <div className="mt-auto shrink-0 flex items-center gap-1 font-mono text-[10px] opacity-80 sm:text-[11px] pt-0.5">
                                 {isAssignment ? (
-                                  <BookOpen className="h-2.5 w-2.5 text-purple-700" />
+                                  <BookOpen className="h-2.5 w-2.5 text-purple-700 shrink-0" />
                                 ) : (
-                                  <Clock className="h-2.5 w-2.5 text-slate-500" />
+                                  <Clock className="h-2.5 w-2.5 text-slate-500 shrink-0" />
                                 )}
                                 <span className="truncate">
                                   {minutesToTimeString(block.startMinutes)} -{' '}
