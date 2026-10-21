@@ -23,6 +23,169 @@ interface Timeline24hProps {
 const TOTAL_HOURS = 24;
 const WEEKDAY_NAMES = ['月', '火', '水', '木', '金', '土', '日'];
 
+export interface TableColorScheme {
+  bg: string;
+  border: string;
+  text: string;
+  strip: string;
+  badgeBg: string;
+  badgeText: string;
+  badgeBorder: string;
+  accent: string;
+}
+
+// 参照元の表ごとに割り当てる調和の取れたリッチな付箋カラーパレット
+export const TABLE_PALETTES: TableColorScheme[] = [
+  // 1. スカイブルー / 講義・大学時間割系
+  {
+    bg: '#f0f9ff',
+    border: '#bae6fd',
+    text: '#0369a1',
+    strip: '#0284c7',
+    badgeBg: '#e0f2fe',
+    badgeText: '#0284c7',
+    badgeBorder: '#7dd3fc',
+    accent: '#38bdf8',
+  },
+  // 2. エメラルドグリーン / 筋トレ・健康・フィットネス系
+  {
+    bg: '#ecfdf5',
+    border: '#a7f3d0',
+    text: '#065f46',
+    strip: '#10b981',
+    badgeBg: '#d1fae5',
+    badgeText: '#047857',
+    badgeBorder: '#6ee7b7',
+    accent: '#34d399',
+  },
+  // 3. ウォームアンバー / ルーティン・日課表系
+  {
+    bg: '#fffbeb',
+    border: '#fde68a',
+    text: '#92400e',
+    strip: '#f59e0b',
+    badgeBg: '#fef3c7',
+    badgeText: '#b45309',
+    badgeBorder: '#fcd34d',
+    accent: '#fbbf24',
+  },
+  // 4. パープル・ラベンダー / 創作・プロジェクト系
+  {
+    bg: '#faf5ff',
+    border: '#e9d5ff',
+    text: '#6b21a8',
+    strip: '#a855f7',
+    badgeBg: '#f3e8ff',
+    badgeText: '#7e22ce',
+    badgeBorder: '#d8b4fe',
+    accent: '#c084fc',
+  },
+  // 5. ローズ・コーラル / 重点タスク・締切系
+  {
+    bg: '#fff1f2',
+    border: '#fecdd3',
+    text: '#9f1239',
+    strip: '#f43f5e',
+    badgeBg: '#ffe4e6',
+    badgeText: '#be123c',
+    badgeBorder: '#fda4af',
+    accent: '#fb7185',
+  },
+  // 6. インディゴ / 資格学習・研究系
+  {
+    bg: '#eef2ff',
+    border: '#c7d2fe',
+    text: '#3730a3',
+    strip: '#6366f1',
+    badgeBg: '#e0e7ff',
+    badgeText: '#4338ca',
+    badgeBorder: '#a5b4fc',
+    accent: '#818cf8',
+  },
+  // 7. ティール / 趣味・アクティビティ系
+  {
+    bg: '#f0fdfa',
+    border: '#99f6e4',
+    text: '#115e59',
+    strip: '#14b8a6',
+    badgeBg: '#ccfbf1',
+    badgeText: '#0f766e',
+    badgeBorder: '#5eead4',
+    accent: '#2dd4bf',
+  },
+  // 8. ウォームピーチ / その他業務系
+  {
+    bg: '#fff7ed',
+    border: '#fed7aa',
+    text: '#9a3412',
+    strip: '#f97316',
+    badgeBg: '#ffedd5',
+    badgeText: '#c2410c',
+    badgeBorder: '#fdba74',
+    accent: '#fb923c',
+  },
+];
+
+export function getBlockColorScheme(block: TheoreticalBlock): TableColorScheme {
+  // ① 休憩ブロック
+  if (block.isBreak) {
+    return {
+      bg: '#f0fdf4',
+      border: '#bbf7d0',
+      text: '#166534',
+      strip: '#22c55e',
+      badgeBg: '#dcfce7',
+      badgeText: '#15803d',
+      badgeBorder: '#86efac',
+      accent: '#4ade80',
+    };
+  }
+
+  // ② 参照元の表が指定されている場合は、その表ごとの固有カラーを割り当て
+  const tableName = block.sourceTableName || block.sourceTableId;
+  if (tableName) {
+    let hash = 0;
+    for (let i = 0; i < tableName.length; i++) {
+      hash = (hash << 5) - hash + tableName.charCodeAt(i);
+      hash |= 0;
+    }
+    const index = Math.abs(hash) % TABLE_PALETTES.length;
+    return TABLE_PALETTES[index];
+  }
+
+  // ③ 表指定がない固定枠（睡眠・生活リズム）
+  if (block.isFixed) {
+    if (block.category === 'lecture') {
+      return TABLE_PALETTES[0]; // スカイブルー
+    }
+    return {
+      bg: '#f4efe6',
+      border: '#dfd6c5',
+      text: '#475569',
+      strip: '#94a3b8',
+      badgeBg: '#e8e2d5',
+      badgeText: '#334155',
+      badgeBorder: '#cbd5e1',
+      accent: '#94a3b8',
+    };
+  }
+
+  // ④ 表指定がない通常タスク（基本設定のタスク）
+  if (block.taskType === 'assignment') {
+    return TABLE_PALETTES[3]; // ラベンダー（課題）
+  }
+  return {
+    bg: '#fef9c3',
+    border: '#fde047',
+    text: '#854d0e',
+    strip: '#eab308',
+    badgeBg: '#fef08a',
+    badgeText: '#a16207',
+    badgeBorder: '#facc15',
+    accent: '#facc15',
+  };
+}
+
 export function Timeline24h({
   blocks,
   unassignedTasks,
@@ -31,7 +194,7 @@ export function Timeline24h({
 }: Timeline24hProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [nowTimeString, setNowTimeString] = useState<string>('');
-  const [hourHeight, setHourHeight] = useState<number>(84); // デフォルト84px（縦に大きく表示）
+  const [hourHeight, setHourHeight] = useState<number>(126); // デフォルト126px（84pxの1.5倍に拡大）
 
   // LocalStorage から保存されたマス高さを復元
   useEffect(() => {
@@ -39,7 +202,7 @@ export function Timeline24h({
       const saved = localStorage.getItem('timeline_hour_height');
       if (saved) {
         const val = Number(saved);
-        if ([60, 84, 110].includes(val)) {
+        if ([60, 84, 110, 126, 150].includes(val)) {
           setHourHeight(val);
         }
       }
@@ -128,8 +291,66 @@ export function Timeline24h({
   // 時間軸の統一幅（ヘッダーとグリッドで完全一致させる）
   const timeAxisWidthClass = 'w-13 sm:w-15 shrink-0';
 
+  // 現在スケジュール内に存在する参照元テーブルの一覧（カラー凡例用）
+  const uniqueSourceTables = useMemo(() => {
+    const tableMap = new Map<string, { name: string; color: TableColorScheme }>();
+    const allCandidateBlocks: TheoreticalBlock[] = [];
+    if (dayBlocks) {
+      Object.values(dayBlocks).forEach((arr) => allCandidateBlocks.push(...arr));
+    } else {
+      allCandidateBlocks.push(...blocks);
+    }
+
+    for (const b of allCandidateBlocks) {
+      if (b.sourceTableName) {
+        if (!tableMap.has(b.sourceTableName)) {
+          tableMap.set(b.sourceTableName, {
+            name: b.sourceTableName,
+            color: getBlockColorScheme(b),
+          });
+        }
+      }
+    }
+    return Array.from(tableMap.values());
+  }, [blocks, dayBlocks]);
+
   return (
     <div className="flex flex-1 min-h-0 flex-col gap-1.5 rounded-xl border border-slate-200 bg-white p-1.5 sm:p-2 shadow-2xs">
+      {/* 参照元テーブルのカラー凡例（Legend） */}
+      {uniqueSourceTables.length > 0 && (
+        <div className="flex shrink-0 items-center justify-between gap-2 rounded-lg bg-slate-50/90 border border-slate-200/80 px-2.5 py-1.5 text-xs">
+          <div className="flex items-center gap-1.5 overflow-x-auto">
+            <span className="text-[11px] font-bold text-slate-600 shrink-0 flex items-center gap-1">
+              <FileSpreadsheet className="h-3 w-3 text-emerald-600" />
+              表ごとの色分け:
+            </span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {uniqueSourceTables.map((t) => (
+                <span
+                  key={`legend-${t.name}`}
+                  className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold border shadow-2xs transition hover:scale-105"
+                  style={{
+                    backgroundColor: t.color.badgeBg,
+                    color: t.color.badgeText,
+                    borderColor: t.color.badgeBorder,
+                  }}
+                  title={`表名: ${t.name}`}
+                >
+                  <span
+                    className="h-2 w-2 rounded-full ring-1 ring-white/60"
+                    style={{ backgroundColor: t.color.strip }}
+                  />
+                  {t.name}
+                </span>
+              ))}
+            </div>
+          </div>
+          <span className="hidden sm:inline text-[10px] text-slate-400 font-mono shrink-0">
+            1時間 = 126px (1.5倍) / 10分・30分目盛り
+          </span>
+        </div>
+      )}
+
       {/* Unassigned Warning Alert if any */}
       {unassignedTasks.length > 0 && (
         <div className="flex shrink-0 items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">
@@ -151,7 +372,7 @@ export function Timeline24h({
 
       {/* 7-Day Vertical Weekly Grid Container */}
       <div className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
-        {/* Sticky Weekday Header Row（スクロールバーの有無によるズレ防止のため overflow-y-scroll コンテナと左右幅完全同期） */}
+        {/* Sticky Weekday Header Row */}
         <div className="flex shrink-0 border-b border-slate-200 bg-slate-50/95 px-1 sm:px-1.5">
           {/* Time axis header space */}
           <div
@@ -260,51 +481,131 @@ export function Timeline24h({
             className={`relative flex ${focusMode === 'today' ? 'w-full min-w-0' : 'min-w-[700px]'}`}
             style={{ height: `${totalHeight}px` }}
           >
-            {/* 全幅共通の水平グリッド罫線レイヤー（時間軸から全曜日の右端まで1ピクセルも狂わず貫通） */}
+            {/* 全幅共通の水平グリッド罫線レイヤー（10分・30分・正時の目盛り線） */}
             <div className="pointer-events-none absolute inset-0 z-0">
-              {Array.from({ length: TOTAL_HOURS }).map((_, hour) => (
-                <div
-                  key={`h-line-${hour}`}
-                  className="absolute inset-x-0 border-b border-slate-200/70"
-                  style={{ top: `${(hour + 1) * hourHeight}px` }}
-                >
-                  {/* 30分ごとの破線 */}
-                  <div
-                    className="absolute inset-x-0 border-b border-dashed border-slate-200/40"
-                    style={{ top: `-${hourHeight / 2}px` }}
-                  />
-                </div>
-              ))}
+              {Array.from({ length: TOTAL_HOURS }).map((_, hour) => {
+                const hourBase = hour * hourHeight;
+                return (
+                  <div key={`h-layer-${hour}`} className="absolute inset-x-0" style={{ top: `${hourBase}px`, height: `${hourHeight}px` }}>
+                    {/* 10分刻みの点線 */}
+                    <div
+                      className="absolute inset-x-0 border-b border-dotted border-slate-200/50"
+                      style={{ top: `${(10 / 60) * hourHeight}px` }}
+                    />
+                    {/* 20分刻みの点線 */}
+                    <div
+                      className="absolute inset-x-0 border-b border-dotted border-slate-200/50"
+                      style={{ top: `${(20 / 60) * hourHeight}px` }}
+                    />
+                    {/* 30分ごとの目盛り線（破線で強調） */}
+                    <div
+                      className="absolute inset-x-0 border-b border-dashed border-slate-300/80"
+                      style={{ top: `${(30 / 60) * hourHeight}px` }}
+                    />
+                    {/* 40分刻みの点線 */}
+                    <div
+                      className="absolute inset-x-0 border-b border-dotted border-slate-200/50"
+                      style={{ top: `${(40 / 60) * hourHeight}px` }}
+                    />
+                    {/* 50分刻みの点線 */}
+                    <div
+                      className="absolute inset-x-0 border-b border-dotted border-slate-200/50"
+                      style={{ top: `${(50 / 60) * hourHeight}px` }}
+                    />
+                    {/* 60分（正時）の実線 */}
+                    <div
+                      className="absolute inset-x-0 border-b border-slate-300"
+                      style={{ top: `${hourHeight}px` }}
+                    />
+                  </div>
+                );
+              })}
             </div>
 
             {/* Left Time Axis (00:00 - 24:00) */}
             <div
               className={`relative ${timeAxisWidthClass} select-none border-r border-slate-200 bg-[#fbfaf5]/90 z-20`}
             >
-              {Array.from({ length: TOTAL_HOURS + 1 }).map((_, hour) => {
-                const isFirst = hour === 0;
-                const isLast = hour === TOTAL_HOURS;
-                const topPos = hour * hourHeight;
+              {Array.from({ length: TOTAL_HOURS }).map((_, hour) => {
+                const hourBase = hour * hourHeight;
 
                 return (
-                  <div
-                    key={`time-label-${hour}`}
-                    className="absolute inset-x-0 flex items-center justify-end pr-1 sm:pr-1.5"
-                    style={{
-                      top: isFirst ? '2px' : isLast ? `${totalHeight - 16}px` : `${topPos}px`,
-                      transform: isFirst || isLast ? 'none' : 'translateY(-50%)',
-                    }}
-                  >
-                    <span className="font-mono text-[10px] font-medium text-slate-400 sm:text-[11px]">
-                      {String(hour).padStart(2, '0')}:00
-                    </span>
-                    {/* 右端の目盛ティック（水平罫線とピタリ接続） */}
-                    {!isFirst && !isLast && (
-                      <span className="ml-1 h-px w-1 bg-slate-300 sm:w-1.5" />
-                    )}
-                  </div>
+                  <React.Fragment key={`axis-hour-${hour}`}>
+                    {/* 正時ラベル（00:00 〜 23:00） */}
+                    <div
+                      className="absolute inset-x-0 flex items-center justify-end pr-1 sm:pr-1.5"
+                      style={{
+                        top: hour === 0 ? '2px' : `${hourBase}px`,
+                        transform: hour === 0 ? 'none' : 'translateY(-50%)',
+                      }}
+                    >
+                      <span className="font-mono text-[10px] font-semibold text-slate-500 sm:text-[11px]">
+                        {String(hour).padStart(2, '0')}:00
+                      </span>
+                      {hour > 0 && <span className="ml-1 h-px w-2 bg-slate-400" />}
+                    </div>
+
+                    {/* 10分目盛りティック */}
+                    <div
+                      className="absolute right-0 flex items-center"
+                      style={{ top: `${hourBase + (10 / 60) * hourHeight}px` }}
+                    >
+                      <span className="h-px w-1 bg-slate-200" />
+                    </div>
+
+                    {/* 20分目盛りティック */}
+                    <div
+                      className="absolute right-0 flex items-center"
+                      style={{ top: `${hourBase + (20 / 60) * hourHeight}px` }}
+                    >
+                      <span className="h-px w-1 bg-slate-200" />
+                    </div>
+
+                    {/* 30分目盛り（ラベル + ティック） */}
+                    <div
+                      className="absolute inset-x-0 flex items-center justify-end pr-1 sm:pr-1.5"
+                      style={{
+                        top: `${hourBase + (30 / 60) * hourHeight}px`,
+                        transform: 'translateY(-50%)',
+                      }}
+                    >
+                      <span className="font-mono text-[9px] font-medium text-slate-400">
+                        :30
+                      </span>
+                      <span className="ml-1 h-px w-1.5 bg-slate-300" />
+                    </div>
+
+                    {/* 40分目盛りティック */}
+                    <div
+                      className="absolute right-0 flex items-center"
+                      style={{ top: `${hourBase + (40 / 60) * hourHeight}px` }}
+                    >
+                      <span className="h-px w-1 bg-slate-200" />
+                    </div>
+
+                    {/* 50分目盛りティック */}
+                    <div
+                      className="absolute right-0 flex items-center"
+                      style={{ top: `${hourBase + (50 / 60) * hourHeight}px` }}
+                    >
+                      <span className="h-px w-1 bg-slate-200" />
+                    </div>
+                  </React.Fragment>
                 );
               })}
+
+              {/* 24:00（終点ラベル） */}
+              <div
+                className="absolute inset-x-0 flex items-center justify-end pr-1 sm:pr-1.5"
+                style={{
+                  top: `${totalHeight - 14}px`,
+                }}
+              >
+                <span className="font-mono text-[10px] font-semibold text-slate-500 sm:text-[11px]">
+                  24:00
+                </span>
+                <span className="ml-1 h-px w-2 bg-slate-400" />
+              </div>
 
               {/* 現在時刻の赤いピルバッジ */}
               <div
@@ -324,7 +625,7 @@ export function Timeline24h({
               } z-10`}
             >
               {displayedDays.map((d, colIndex) => {
-                // その曜日に割り振られたブロック（dayBlocksがある場合はそれを使用、なければblocks）
+                // その曜日に割り振られたブロック
                 const currentDayBlocks = dayBlocks ? dayBlocks[d.dayIndex] || [] : blocks;
 
                 return (
@@ -352,28 +653,11 @@ export function Timeline24h({
                       const duration = block.endMinutes - block.startMinutes;
                       const rawHeight = (duration / 60) * hourHeight;
                       const height = Math.max(22, Math.round(rawHeight) - 2);
-                      const isShort = duration < 30 || height < 32;
+                      const isShort = duration < 25 || height < 30;
                       const isAssignment = block.taskType === 'assignment';
-                      const isLecture = block.isFixed && block.category === 'lecture';
-                      const isRoutineOrSleep = block.isFixed && !isLecture;
 
-                      // 付箋風カラーパレットの判定
-                      const stickyNoteClass = isAssignment
-                        ? 'bg-[#f5eeff] border-[#d8b4fe] text-[#581c87]' // ラベンダー付箋（課題）
-                        : isLecture
-                          ? 'bg-[#e0f2fe] border-[#7dd3fc] text-[#0369a1]' // スカイブルー付箋（講義）
-                          : isRoutineOrSleep
-                            ? 'bg-[#f4efe6] border-[#dfd6c5] text-[#475569]' // クラフトペーパー付箋（生活固定）
-                            : 'bg-[#fef9c3] border-[#fde047] text-[#854d0e]'; // イエロー付箋（目標タスク）
-
-                      // のり付けカラーストリップ
-                      const stripColor = isAssignment
-                        ? '#9333ea'
-                        : isLecture
-                          ? '#0284c7'
-                          : isRoutineOrSleep
-                            ? '#94a3b8'
-                            : '#eab308';
+                      // ★ 参照元の表ごとのカラーパレットを取得
+                      const colorScheme = getBlockColorScheme(block);
 
                       return (
                         <div
@@ -386,13 +670,16 @@ export function Timeline24h({
                           style={{
                             top: `${top}px`,
                             height: `${height}px`,
+                            backgroundColor: colorScheme.bg,
+                            borderColor: colorScheme.border,
+                            color: colorScheme.text,
                           }}
-                          className={`group !absolute inset-x-0.5 overflow-hidden rounded-md border sticky-note transition-all hover:z-20 sm:inset-x-1 ${stickyNoteClass}`}
+                          className="group !absolute inset-x-0.5 overflow-hidden rounded-md border sticky-note transition-all hover:z-20 sm:inset-x-1 shadow-2xs"
                         >
                           {/* 付箋のり付けストリップ (左端) */}
                           <div
                             className="absolute inset-y-0 left-0 w-1.5 opacity-90 shadow-2xs"
-                            style={{ backgroundColor: stripColor }}
+                            style={{ backgroundColor: colorScheme.strip }}
                           />
 
                           {/* Block Content */}
@@ -403,11 +690,16 @@ export function Timeline24h({
                               </span>
                               {block.sourceTableName && (
                                 <span
-                                  className="shrink-0 inline-flex items-center gap-0.5 rounded bg-emerald-100/90 border border-emerald-300 px-1 py-0.2 text-[8px] font-bold text-emerald-900 shadow-2xs"
+                                  className="shrink-0 inline-flex items-center gap-0.5 rounded px-1 py-0.2 text-[8px] font-bold shadow-2xs border"
+                                  style={{
+                                    backgroundColor: colorScheme.badgeBg,
+                                    color: colorScheme.badgeText,
+                                    borderColor: colorScheme.badgeBorder,
+                                  }}
                                   title={`参照元: ${block.sourceTableName}`}
                                 >
-                                  <FileSpreadsheet className="h-2 w-2 text-emerald-700" />
-                                  <span className="max-w-[65px] truncate hidden sm:inline">
+                                  <FileSpreadsheet className="h-2 w-2" />
+                                  <span className="max-w-[70px] truncate hidden sm:inline">
                                     {block.sourceTableName}
                                   </span>
                                 </span>
