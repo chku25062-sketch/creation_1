@@ -892,6 +892,66 @@ describe('Theoretical Scheduler Engine', () => {
       expect(breakBlocks[1].startMinutes).toBe(705);
       expect(breakBlocks[1].endMinutes).toBe(720);
     });
+
+    it('複数の自動タスクがある場合、1つ目の配置後も特定のタスクのみに偏らず、バランスよく交互・均等に配置されること', () => {
+      // 9:00〜18:00 (540分) の空きスロット
+      const fixedSlots: FixedSlot[] = [
+        {
+          id: 'sleep',
+          title: '睡眠',
+          category: 'sleep',
+          startMinutes: 0,
+          endMinutes: 540,
+          color: '#6366f1',
+        },
+        {
+          id: 'night',
+          title: '夜・睡眠',
+          category: 'sleep',
+          startMinutes: 1080,
+          endMinutes: 1440,
+          color: '#3b82f6',
+        },
+      ];
+
+      // 所要時間が異なる2つの自動タスク
+      const taskA: TaskItem = {
+        id: 'auto-task-a',
+        title: '自動タスクA (60分)',
+        durationMinutes: 60,
+        priority: 'high',
+        category: 'study',
+        period: 'day',
+        dailyRepeatMode: 'auto',
+      };
+
+      const taskB: TaskItem = {
+        id: 'auto-task-b',
+        title: '自動タスクB (45分)',
+        durationMinutes: 45,
+        priority: 'medium',
+        category: 'work',
+        period: 'day',
+        dailyRepeatMode: 'auto',
+      };
+
+      const result = generateTheoreticalSchedule(fixedSlots, [taskA, taskB]);
+      const mondayBlocks = result.dayBlocks[0].filter((b) => !b.isFixed);
+
+      const countA = mondayBlocks.filter((b) => b.taskId === 'auto-task-a').length;
+      const countB = mondayBlocks.filter((b) => b.taskId === 'auto-task-b').length;
+
+      // どちらかのタスクのみに偏らず、両方とも複数回配置され、回数差が最大でも1以内であること
+      expect(countA).toBeGreaterThan(1);
+      expect(countB).toBeGreaterThan(1);
+      expect(Math.abs(countA - countB)).toBeLessThanOrEqual(1);
+
+      // 時系列で見て、同じタスクが不当に連続せず交互に配置されていること
+      for (let i = 0; i < mondayBlocks.length - 1; i++) {
+        // 直前直後が同一タスク連続にならないこと
+        expect(mondayBlocks[i].taskId).not.toBe(mondayBlocks[i + 1].taskId);
+      }
+    });
   });
 });
 

@@ -432,10 +432,32 @@ export function generateTheoreticalSchedule(
         if (!ctx.isAuto && dayPlaced >= ctx.targetCountPerDay) continue;
 
         // 週タスクの場合、週目標回数に達していたらこの日はスキップ
-        if (!ctx.isAuto && (ctx.kind === 'assignment' || ctx.kind === 'weekly_specific' || ctx.kind === 'weekly_flexible')) {
+        if (
+          !ctx.isAuto &&
+          (ctx.kind === 'assignment' ||
+            ctx.kind === 'weekly_specific' ||
+            ctx.kind === 'weekly_flexible')
+        ) {
           if (ctx.placedCount >= ctx.targetCountWeekly) {
             ctx.isComplete = true;
             break;
+          }
+        }
+
+        // 自動タスクが複数ある場合、その日の中での配置回数の公平性を保つ
+        // (他の自動タスクの配置回数より多く先行して特定のタスクのみが独占配置されるのを防ぐ)
+        if (ctx.isAuto) {
+          const autoCtxsInDay = contexts.filter(
+            (c) => c.isAuto && c.candidateDays.includes(d),
+          );
+          if (autoCtxsInDay.length > 1) {
+            const minAutoPlaced = Math.min(
+              ...autoCtxsInDay.map((c) => c.placedCountPerDay[d] || 0),
+            );
+            // 最小配置回数よりすでに多く配置されている場合、他の自動タスクが追いつくまでこの日のこの巡ではスキップ
+            if (dayPlaced > minAutoPlaced) {
+              continue;
+            }
           }
         }
 
@@ -451,11 +473,21 @@ export function generateTheoreticalSchedule(
                 : ctx.task.durationMinutes || 30;
 
           // 休憩時間（分）
-          const breakMin = ctx.task.breakMinutes && ctx.task.breakMinutes > 0 ? ctx.task.breakMinutes : 0;
+          const breakMin =
+            ctx.task.breakMinutes && ctx.task.breakMinutes > 0 ? ctx.task.breakMinutes : 0;
           const minAcceptable = ctx.isAuto ? Math.min(requiredMin, 15) : requiredMin;
 
           if (slot.durationMinutes >= minAcceptable + breakMin) {
-            const effectiveDuration = getAdjustedDuration(ctx.task, slot.durationMinutes - breakMin);
+            // 自動タスクの場合は空き枠に合わせて柔軟に収める（所要時間より小さくても15分以上あればフィット）
+            const effectiveDuration = ctx.isAuto
+              ? Math.min(
+                  ctx.task.durationMinutes && ctx.task.durationMinutes > 0
+                    ? ctx.task.durationMinutes
+                    : 60,
+                  Math.max(15, slot.durationMinutes - breakMin),
+                )
+              : getAdjustedDuration(ctx.task, slot.durationMinutes - breakMin);
+
             const totalNeeded = effectiveDuration + breakMin;
 
             if (slot.durationMinutes >= totalNeeded) {
@@ -510,7 +542,11 @@ export function generateTheoreticalSchedule(
 
               // 目標回数の達成判定
               if (!ctx.isAuto) {
-                if (ctx.kind === 'assignment' || ctx.kind === 'weekly_flexible' || ctx.kind === 'weekly_specific') {
+                if (
+                  ctx.kind === 'assignment' ||
+                  ctx.kind === 'weekly_flexible' ||
+                  ctx.kind === 'weekly_specific'
+                ) {
                   if (ctx.placedCount >= ctx.targetCountWeekly) {
                     ctx.isComplete = true;
                   }
