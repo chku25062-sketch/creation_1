@@ -213,6 +213,7 @@ export function generateTheoreticalSchedule(
         startMinutes: slot.startMinutes,
         endMinutes: slot.endMinutes,
         isFixed: true,
+        breakMinutes: slot.breakMinutes,
         color: slot.color || getCategoryColor(slot.category),
         dayIndex: d,
         sourceTableId: slot.sourceTableId,
@@ -221,7 +222,7 @@ export function generateTheoreticalSchedule(
 
       slotsWithBreaks.push(slot);
 
-      // 固定枠に休憩時間が設定されている場合
+      // 固定枠に休憩時間が設定されている場合、余白として空き時間から除外（タスクを入れない）
       if (slot.breakMinutes && slot.breakMinutes > 0) {
         const nextSlot = normalized[i + 1];
         const maxBreakEnd = nextSlot
@@ -229,25 +230,10 @@ export function generateTheoreticalSchedule(
           : Math.min(slot.endMinutes + slot.breakMinutes, 1440);
         const breakDuration = maxBreakEnd - slot.endMinutes;
         if (breakDuration > 0) {
-          dayBlocks[d].push({
-            id: `block-break-fixed-${d}-${slot.id}`,
-            title: `☕ 休憩 (${slot.title})`,
-            category: 'routine',
-            startMinutes: slot.endMinutes,
-            endMinutes: maxBreakEnd,
-            isFixed: true,
-            isBreak: true,
-            breakForTaskId: slot.id,
-            color: '#10b981',
-            dayIndex: d,
-            sourceTableId: slot.sourceTableId,
-            sourceTableName: slot.sourceTableName,
-          });
-
-          // 空き時間スロット計算でも休憩時間帯を固定枠扱いで除外
+          // 空き時間スロット計算で休憩時間帯を固定枠扱いで除外（タスクが入らない余白にする）
           slotsWithBreaks.push({
             id: `${slot.id}-break`,
-            title: `休憩`,
+            title: `余白`,
             category: 'routine',
             color: '#10b981',
             startMinutes: slot.endMinutes,
@@ -577,7 +563,7 @@ export function generateTheoreticalSchedule(
               const taskStart = slot.startMinutes;
               const taskEnd = taskStart + effectiveDuration;
 
-              // ① タスク本体ブロックの配置
+              // ① タスク本体ブロックの配置（休憩・余白時間はタスク自身の属性として保持）
               dayBlocks[d].push({
                 id: `block-task-${d}-${ctx.task.id}-${ctx.placedCountInDay}`,
                 title: ctx.task.title,
@@ -586,6 +572,7 @@ export function generateTheoreticalSchedule(
                 endMinutes: taskEnd,
                 isFixed: false,
                 isBreak: false,
+                breakMinutes: breakMin > 0 ? breakMin : undefined,
                 color: getCategoryColor(ctx.task.category),
                 taskId: ctx.task.id,
                 priority: ctx.task.priority,
@@ -596,25 +583,8 @@ export function generateTheoreticalSchedule(
                 sourceTableName: ctx.task.sourceTableName,
               });
 
-              // ② 休憩ブロックの配置（休憩時間が設定されている場合）
-              if (breakMin > 0) {
-                dayBlocks[d].push({
-                  id: `block-break-${d}-${ctx.task.id}-${ctx.placedCountInDay}`,
-                  title: `☕ 休憩 (${ctx.task.title})`,
-                  category: 'routine',
-                  startMinutes: taskEnd,
-                  endMinutes: taskEnd + breakMin,
-                  isFixed: false,
-                  isBreak: true,
-                  breakForTaskId: ctx.task.id,
-                  color: '#10b981',
-                  dayIndex: d,
-                  sourceTableId: ctx.task.sourceTableId,
-                  sourceTableName: ctx.task.sourceTableName,
-                });
-              }
-
-              // スロット消費
+              // 休憩は独立したタスク/ブロックではなく各タスクが持つ余白のため、
+              // スロット消費で余白分を進め、次のタスクが入らない余白として空ける
               slot.startMinutes = taskEnd + breakMin;
               slot.durationMinutes = slot.endMinutes - (taskEnd + breakMin);
 
@@ -685,6 +655,7 @@ export function generateTheoreticalSchedule(
               endMinutes: taskEnd,
               isFixed: false,
               isBreak: false,
+              breakMinutes: breakMin > 0 ? breakMin : undefined,
               color: getCategoryColor(plan.task.category),
               taskId: plan.task.id,
               priority: plan.task.priority,
@@ -695,23 +666,7 @@ export function generateTheoreticalSchedule(
               sourceTableName: plan.task.sourceTableName,
             });
 
-            if (breakMin > 0) {
-              dayBlocks[d].push({
-                id: `block-break-${d}-${plan.task.id}-${plan.placedCount}`,
-                title: `☕ 休憩 (${plan.task.title})`,
-                category: 'routine',
-                startMinutes: taskEnd,
-                endMinutes: taskEnd + breakMin,
-                isFixed: false,
-                isBreak: true,
-                breakForTaskId: plan.task.id,
-                color: '#10b981',
-                dayIndex: d,
-                sourceTableId: plan.task.sourceTableId,
-                sourceTableName: plan.task.sourceTableName,
-              });
-            }
-
+            // 休憩は各タスクが持つ余白のため、スロット消費で余白分を進める
             slot.startMinutes = taskEnd + breakMin;
             slot.durationMinutes = slot.endMinutes - (taskEnd + breakMin);
 

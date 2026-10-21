@@ -64,6 +64,7 @@ export interface TheoreticalBlock {
   isFixed: boolean;
   isBreak?: boolean; // 休憩ブロックかどうか
   breakForTaskId?: string; // どのタスクに付随する休憩か
+  breakMinutes?: number; // タスク後の余白時間（分）
   color: string;
   taskId?: string;
   priority?: TaskPriority;

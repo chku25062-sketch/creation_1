@@ -819,23 +819,19 @@ describe('Theoretical Scheduler Engine', () => {
       const result = generateTheoreticalSchedule(fixedSlots, [taskWithBreak]);
       const mondayBlocks = result.dayBlocks[0];
 
-      // 作業ブロック
-      const workBlock = mondayBlocks.find((b) => b.taskId === 'study-with-break' && !b.isBreak);
+      // 作業ブロック本体
+      const workBlock = mondayBlocks.find((b) => b.taskId === 'study-with-break');
       expect(workBlock).toBeDefined();
       expect(workBlock?.startMinutes).toBe(600); // 10:00
       expect(workBlock?.endMinutes).toBe(645); // 10:45
+      expect(workBlock?.breakMinutes).toBe(15); // タスク自身が余白情報を保持
 
-      // 休憩ブロック（作業直後に15分間）
-      const breakBlock = mondayBlocks.find(
-        (b) => b.isBreak && b.breakForTaskId === 'study-with-break',
-      );
-      expect(breakBlock).toBeDefined();
-      expect(breakBlock?.startMinutes).toBe(645); // 10:45
-      expect(breakBlock?.endMinutes).toBe(660); // 11:00
-      expect(breakBlock?.title).toContain('休憩');
+      // 独立した休憩ブロックは生成されないこと（余白としてタスクを入れない空間になる）
+      const breakBlock = mondayBlocks.find((b) => b.isBreak);
+      expect(breakBlock).toBeUndefined();
     });
 
-    it('自動敷き詰め (dailyRepeatMode: auto) に breakMinutes がある場合、作業＋休憩のセットで空き枠に敷き詰められること', () => {
+    it('自動敷き詰め (dailyRepeatMode: auto) に breakMinutes がある場合、作業＋余白のセットで空き枠に敷き詰められること', () => {
       // 10:00〜12:00 (120分) の空きスロット
       const fixedSlots: FixedSlot[] = [
         {
@@ -856,7 +852,7 @@ describe('Theoretical Scheduler Engine', () => {
         },
       ];
 
-      // 45分作業 + 15分休憩 = 60分セット。120分空きに 2セット配置される
+      // 45分作業 + 15分余白 = 60分セット。120分空きに 2セット配置される
       const autoTask: TaskItem = {
         id: 'pomodoro-task',
         title: 'ポモドーロ作業',
@@ -871,26 +867,22 @@ describe('Theoretical Scheduler Engine', () => {
       const result = generateTheoreticalSchedule(fixedSlots, [autoTask]);
       const mondayBlocks = result.dayBlocks[0];
 
-      const workBlocks = mondayBlocks.filter((b) => b.taskId === 'pomodoro-task' && !b.isBreak);
-      const breakBlocks = mondayBlocks.filter(
-        (b) => b.isBreak && b.breakForTaskId === 'pomodoro-task',
-      );
+      const workBlocks = mondayBlocks.filter((b) => b.taskId === 'pomodoro-task');
+      const breakBlocks = mondayBlocks.filter((b) => b.isBreak);
 
-      // 2セット配置されていること
+      // 2セット配置され、独立した休憩ブロックは0件
       expect(workBlocks.length).toBe(2);
-      expect(breakBlocks.length).toBe(2);
+      expect(breakBlocks.length).toBe(0);
 
-      // セット1: 10:00〜10:45 (作業) + 10:45〜11:00 (休憩)
+      // セット1: 10:00〜10:45 (作業)
       expect(workBlocks[0].startMinutes).toBe(600);
       expect(workBlocks[0].endMinutes).toBe(645);
-      expect(breakBlocks[0].startMinutes).toBe(645);
-      expect(breakBlocks[0].endMinutes).toBe(660);
+      expect(workBlocks[0].breakMinutes).toBe(15);
 
-      // セット2: 11:00〜11:45 (作業) + 11:45〜12:00 (休憩)
-      expect(workBlocks[1].startMinutes).toBe(660);
+      // セット2: 11:00〜11:45 (余白15分空けた後に開始)
+      expect(workBlocks[1].startMinutes).toBe(660); // 10:45〜11:00 はタスクを入れない余白
       expect(workBlocks[1].endMinutes).toBe(705);
-      expect(breakBlocks[1].startMinutes).toBe(705);
-      expect(breakBlocks[1].endMinutes).toBe(720);
+      expect(workBlocks[1].breakMinutes).toBe(15);
     });
 
     it('複数の自動タスクがある場合、1つ目の配置後も特定のタスクのみに偏らず、バランスよく交互・均等に配置されること', () => {
@@ -1125,7 +1117,7 @@ describe('Theoretical Scheduler Engine', () => {
       }
     });
 
-    it('固定枠に breakMinutes が指定されている場合、固定枠直後に休憩ブロックが生成されること', () => {
+    it('固定枠に breakMinutes が指定されている場合、固定枠直後に休憩ブロックは生成されず余白として確保されること', () => {
       const fixedSlots: FixedSlot[] = [
         {
           id: 'slot-lecture-1',
@@ -1143,17 +1135,15 @@ describe('Theoretical Scheduler Engine', () => {
       const mondayBlocks = result.dayBlocks[0];
 
       const lectureBlock = mondayBlocks.find((b) => b.id === 'block-fixed-0-slot-lecture-1');
-      const breakBlock = mondayBlocks.find((b) => b.id === 'block-break-fixed-0-slot-lecture-1');
+      const breakBlock = mondayBlocks.find((b) => b.isBreak);
 
       expect(lectureBlock).toBeDefined();
       expect(lectureBlock?.startMinutes).toBe(540);
       expect(lectureBlock?.endMinutes).toBe(630);
+      expect(lectureBlock?.breakMinutes).toBe(10);
 
-      expect(breakBlock).toBeDefined();
-      expect(breakBlock?.isBreak).toBe(true);
-      expect(breakBlock?.startMinutes).toBe(630);
-      expect(breakBlock?.endMinutes).toBe(640);
-      expect(breakBlock?.title).toContain('休憩 (数学講義)');
+      // 独立した休憩ブロックは生成されないこと（余白として空く）
+      expect(breakBlock).toBeUndefined();
     });
   });
 });

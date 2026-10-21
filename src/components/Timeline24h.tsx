@@ -842,6 +842,14 @@ export function Timeline24h({
                                   {minutesToTimeString(block.startMinutes)} -{' '}
                                   {minutesToTimeString(block.endMinutes)}
                                 </span>
+                                {block.breakMinutes !== undefined && block.breakMinutes > 0 && (
+                                  <span
+                                    className="shrink-0 rounded bg-emerald-100/80 px-1 py-0.2 text-[9px] font-medium text-emerald-800"
+                                    title={`タスク後の余白（休憩）: ${block.breakMinutes}分`}
+                                  >
+                                    余白 {block.breakMinutes}m
+                                  </span>
+                                )}
                               </div>
                             )}
                           </div>
