@@ -240,7 +240,11 @@ export function generateTheoreticalSchedule(
 
   const contexts: TaskContext[] = schedulableTasks.map((task) => {
     const isDaily = task.period === 'day' || task.frequency === 'high';
-    const isAuto = isDaily && task.dailyRepeatMode === 'auto';
+    // 回数指定 (custom または dailyCount > 1) かどうか判定。指定がなければデフォルト「自動 (auto)」として何巡も敷き詰める
+    const isCustomDaily =
+      task.dailyRepeatMode === 'custom' ||
+      (task.dailyCount !== undefined && task.dailyCount > 1);
+    const isAuto = isDaily && !isCustomDaily;
 
     if (isAuto) {
       let candidateDays: number[];
