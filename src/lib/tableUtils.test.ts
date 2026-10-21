@@ -430,6 +430,43 @@ describe('tableUtils', () => {
     expect(res.tasks[0].dailyCount).toBe(1);
     expect(res.tasks[0].dailyRepeatMode).toBe('auto');
   });
+
+  it('表全体の intervalMinutes がタスクの breakMinutes に正しく反映されること', () => {
+    const table = createBaseTable(null);
+    table.classificationOverride = 'daily_task';
+    table.axisConfig.intervalMinutes = 10; // 表全体の休憩時間 10分
+    table.cells[0][0].title = '読書';
+
+    const res = generateScheduleItemsForTable(table);
+    expect(res.tasks.length).toBe(1);
+    expect(res.tasks[0].title).toBe('読書');
+    expect(res.tasks[0].breakMinutes).toBe(10);
+  });
+
+  it('セル個別の breakMinutes が表全体の intervalMinutes より優先して反映されること', () => {
+    const table = createBaseTable(null);
+    table.classificationOverride = 'weekly_task';
+    table.axisConfig.intervalMinutes = 10;
+    table.cells[0][0].title = 'プログラミング';
+    table.cells[0][0].breakMinutes = 20; // セル個別で20分
+
+    const res = generateScheduleItemsForTable(table);
+    expect(res.tasks.length).toBe(1);
+    expect(res.tasks[0].title).toBe('プログラミング');
+    expect(res.tasks[0].breakMinutes).toBe(20);
+  });
+
+  it('固定枠 (fixed_slot) にも intervalMinutes / breakMinutes が反映されること', () => {
+    const table = createBaseTable('09:00');
+    table.axisConfig.intervalMinutes = 15;
+    table.cells[0][0].title = '数学講義';
+
+    const res = generateScheduleItemsForTable(table);
+    expect(res.slots.length).toBe(1);
+    expect(res.slots[0].title).toBe('数学講義');
+    expect(res.slots[0].breakMinutes).toBe(15);
+  });
 });
+
 
 

@@ -201,10 +201,11 @@ export function generateTheoreticalSchedule(
     const slotsForThisDay = getFixedSlotsForDay(fixedSlots, d);
     const normalized = normalizeFixedSlots(slotsForThisDay);
     dayNormalizedFixed[d] = normalized;
-    dayAvailableSlots[d] = calculateFreeSlots(normalized);
 
-    // 固定枠ブロックを追加
-    for (const slot of normalized) {
+    // 固定枠ブロックおよび固定枠直後の休憩ブロックを追加
+    const slotsWithBreaks: FixedSlot[] = [];
+    for (let i = 0; i < normalized.length; i++) {
+      const slot = normalized[i];
       dayBlocks[d].push({
         id: `block-fixed-${d}-${slot.id}`,
         title: slot.title,
@@ -217,7 +218,47 @@ export function generateTheoreticalSchedule(
         sourceTableId: slot.sourceTableId,
         sourceTableName: slot.sourceTableName,
       });
+
+      slotsWithBreaks.push(slot);
+
+      // 固定枠に休憩時間が設定されている場合
+      if (slot.breakMinutes && slot.breakMinutes > 0) {
+        const nextSlot = normalized[i + 1];
+        const maxBreakEnd = nextSlot
+          ? Math.min(slot.endMinutes + slot.breakMinutes, nextSlot.startMinutes)
+          : Math.min(slot.endMinutes + slot.breakMinutes, 1440);
+        const breakDuration = maxBreakEnd - slot.endMinutes;
+        if (breakDuration > 0) {
+          dayBlocks[d].push({
+            id: `block-break-fixed-${d}-${slot.id}`,
+            title: `☕ 休憩 (${slot.title})`,
+            category: 'routine',
+            startMinutes: slot.endMinutes,
+            endMinutes: maxBreakEnd,
+            isFixed: true,
+            isBreak: true,
+            breakForTaskId: slot.id,
+            color: '#10b981',
+            dayIndex: d,
+            sourceTableId: slot.sourceTableId,
+            sourceTableName: slot.sourceTableName,
+          });
+
+          // 空き時間スロット計算でも休憩時間帯を固定枠扱いで除外
+          slotsWithBreaks.push({
+            id: `${slot.id}-break`,
+            title: `休憩`,
+            category: 'routine',
+            color: '#10b981',
+            startMinutes: slot.endMinutes,
+            endMinutes: maxBreakEnd,
+          });
+        }
+      }
     }
+
+    slotsWithBreaks.sort((a, b) => a.startMinutes - b.startMinutes);
+    dayAvailableSlots[d] = calculateFreeSlots(slotsWithBreaks);
   }
 
   // 2. タスクを分類（所要時間なしToDoは時間割に配置しない）

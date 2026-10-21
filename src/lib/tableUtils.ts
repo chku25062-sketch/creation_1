@@ -368,6 +368,17 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
       const isCycle = isCycleMode;
       const cycleIdx = colInfo.cycleIndex !== undefined ? colInfo.cycleIndex : c;
 
+      // ★ このセルまたは表全体の有効な休憩時間（分）
+      // セル個別の breakMinutes があれば優先、なければ表全体の axisConfig.intervalMinutes を採用
+      const effectiveBreakMinutes =
+        cell.breakMinutes !== undefined && cell.breakMinutes > 0
+          ? cell.breakMinutes
+          : table.axisConfig.intervalMinutes !== null &&
+              table.axisConfig.intervalMinutes !== undefined &&
+              table.axisConfig.intervalMinutes > 0
+            ? table.axisConfig.intervalMinutes
+            : undefined;
+
       if (classification === 'fixed_slot') {
         // 固定枠として生成 (開始時刻・終了時刻あり)
         // 同じ時限（時間帯）かつ同じタイトルのセルは、曜日（daysOfWeek）を結合して1つのスロットに集約
@@ -390,6 +401,9 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             existingSlot.daysOfWeek = Array.from(
               new Set([...(existingSlot.daysOfWeek || []), ...days]),
             ).sort((a, b) => a - b);
+            if (effectiveBreakMinutes !== undefined) {
+              existingSlot.breakMinutes = Math.max(existingSlot.breakMinutes || 0, effectiveBreakMinutes);
+            }
           } else {
             const slotId = `slot-table-${table.id}-${r}-${c}`;
             slotMap.set(slotKey, {
@@ -398,6 +412,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               category: tableCategory, // 表の名前でカテゴリを代用
               startMinutes: timeSlot.startMinutes,
               endMinutes: timeSlot.endMinutes,
+              breakMinutes: effectiveBreakMinutes,
               color: '#0284c7',
               daysOfWeek: days,
               sourceTableId: table.id,
@@ -424,8 +439,8 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             existing.dailyCount = tableDailyCount;
             existing.dailyRepeatMode = 'custom';
           }
-          if (cell.breakMinutes) {
-            existing.breakMinutes = Math.max(existing.breakMinutes || 0, cell.breakMinutes);
+          if (effectiveBreakMinutes !== undefined) {
+            existing.breakMinutes = Math.max(existing.breakMinutes || 0, effectiveBreakMinutes);
           }
           if (isWeekday && colInfo.dayIndex !== undefined) {
             const curDays = existing.targetDays || [];
@@ -448,7 +463,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             category: tableCategory, // 表の名前でカテゴリを代用
             durationSize: duration <= 25 ? 'small' : duration <= 60 ? 'medium' : 'large',
             durationMinutes: duration,
-            breakMinutes: cell.breakMinutes,
+            breakMinutes: effectiveBreakMinutes,
             frequency: 'high',
             period: 'day',
             dailyCount: tableDailyCount ?? 1,
@@ -472,8 +487,8 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
         const existing = taskMap.get(taskKey);
 
         if (existing) {
-          if (cell.breakMinutes) {
-            existing.breakMinutes = Math.max(existing.breakMinutes || 0, cell.breakMinutes);
+          if (effectiveBreakMinutes !== undefined) {
+            existing.breakMinutes = Math.max(existing.breakMinutes || 0, effectiveBreakMinutes);
           }
           if (isWeekday && colInfo.dayIndex !== undefined) {
             const curDays = existing.targetDays || [];
@@ -498,7 +513,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             category: tableCategory, // 表の名前でカテゴリを代用
             durationSize: duration <= 25 ? 'small' : duration <= 60 ? 'medium' : 'large',
             durationMinutes: duration,
-            breakMinutes: cell.breakMinutes,
+            breakMinutes: effectiveBreakMinutes,
             frequency: 'medium',
             period: 'week',
             targetDays: isWeekday ? [colInfo.dayIndex!] : (!isCycle ? [0, 1, 2, 3, 4, 5, 6] : undefined),

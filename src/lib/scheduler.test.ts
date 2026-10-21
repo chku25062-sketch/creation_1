@@ -1124,6 +1124,37 @@ describe('Theoretical Scheduler Engine', () => {
         expect(mondayBlocks[i].taskId).not.toBe(mondayBlocks[i + 1].taskId);
       }
     });
+
+    it('固定枠に breakMinutes が指定されている場合、固定枠直後に休憩ブロックが生成されること', () => {
+      const fixedSlots: FixedSlot[] = [
+        {
+          id: 'slot-lecture-1',
+          title: '数学講義',
+          category: 'lecture',
+          color: '#0284c7',
+          startMinutes: 540, // 09:00
+          endMinutes: 630, // 10:30
+          breakMinutes: 10, // 10分休憩
+          daysOfWeek: [0], // 月曜
+        },
+      ];
+
+      const result = generateTheoreticalSchedule(fixedSlots, []);
+      const mondayBlocks = result.dayBlocks[0];
+
+      const lectureBlock = mondayBlocks.find((b) => b.id === 'block-fixed-0-slot-lecture-1');
+      const breakBlock = mondayBlocks.find((b) => b.id === 'block-break-fixed-0-slot-lecture-1');
+
+      expect(lectureBlock).toBeDefined();
+      expect(lectureBlock?.startMinutes).toBe(540);
+      expect(lectureBlock?.endMinutes).toBe(630);
+
+      expect(breakBlock).toBeDefined();
+      expect(breakBlock?.isBreak).toBe(true);
+      expect(breakBlock?.startMinutes).toBe(630);
+      expect(breakBlock?.endMinutes).toBe(640);
+      expect(breakBlock?.title).toContain('休憩 (数学講義)');
+    });
   });
 });
 

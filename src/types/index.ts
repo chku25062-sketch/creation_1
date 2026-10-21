@@ -8,6 +8,7 @@ export interface FixedSlot {
   endMinutes: number;
   color: string;
   daysOfWeek?: number[]; // 0:月, 1:火, 2:水, 3:木, 4:金, 5:土, 6:日。未指定または空なら全日
+  breakMinutes?: number; // 固定枠後の休憩時間（分）
   sourceTableId?: string; // 参照元テーブルID
   sourceTableName?: string; // 参照元テーブル名
 }

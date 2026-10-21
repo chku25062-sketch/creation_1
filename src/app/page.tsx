@@ -109,6 +109,20 @@ export default function Home() {
 
         // 固定枠の同期 (開始時刻がある表の場合)
         if (generatedSlots.length > 0) {
+          const generatedSlotMap = new Map(generatedSlots.map((s) => [s.id, s]));
+          syncedFixed = syncedFixed.map((s) => {
+            if (s.sourceTableId === table.id) {
+              const gen =
+                generatedSlotMap.get(s.id) ||
+                generatedSlots.find((gs) => gs.title === s.title);
+              if (gen && gen.breakMinutes !== s.breakMinutes) {
+                isDataCleaned = true;
+                return { ...s, breakMinutes: gen.breakMinutes };
+              }
+            }
+            return s;
+          });
+
           const existingSlotIds = new Set(
             syncedFixed.filter((s) => s.sourceTableId === table.id).map((s) => s.id),
           );
@@ -121,6 +135,20 @@ export default function Home() {
 
         // タスクの同期 (開始時刻が未設定または付随タスクがある場合)
         if (generatedTasks.length > 0) {
+          const generatedTaskMap = new Map(generatedTasks.map((t) => [t.id, t]));
+          syncedTasks = syncedTasks.map((t) => {
+            if (t.sourceTableId === table.id) {
+              const gen =
+                generatedTaskMap.get(t.id) ||
+                generatedTasks.find((gt) => gt.title === t.title);
+              if (gen && gen.breakMinutes !== t.breakMinutes) {
+                isDataCleaned = true;
+                return { ...t, breakMinutes: gen.breakMinutes };
+              }
+            }
+            return t;
+          });
+
           const existingTaskIds = new Set(
             syncedTasks.filter((t) => t.sourceTableId === table.id).map((t) => t.id),
           );
