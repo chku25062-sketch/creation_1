@@ -239,73 +239,59 @@ export function generateTheoreticalSchedule(
   }
 
   const plans: TaskPlacementPlan[] = schedulableTasks.map((task) => {
-    const isDaily = task.period === 'day' || task.frequency === 'high';
+    // 課題タスク（提出物・締切制約）判定
+    const isAssignment = task.taskType === 'assignment' || task.deadlineDay !== undefined;
+
+    // 回数指定 (custom または dailyCount > 1) か判定
     const isCustomDaily =
-      task.dailyRepeatMode === 'custom' ||
-      (task.dailyCount !== undefined && task.dailyCount > 1);
-    const isAuto = isDaily && !isCustomDaily;
+      (task.dailyRepeatMode === 'custom' && task.dailyCount !== undefined && task.dailyCount > 0) ||
+      (task.dailyRepeatMode !== 'auto' && task.dailyCount !== undefined && task.dailyCount > 1);
 
-    if (isAuto) {
-      let candidateDays: number[];
-      if (task.targetDays && task.targetDays.length > 0) {
-        candidateDays = task.targetDays;
-      } else if (task.cycleDays && task.cycleDays.length > 0) {
-        const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
-        candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => task.cycleDays!.includes(d % cycleLength));
-      } else if (task.startDay !== undefined) {
-        candidateDays = [task.startDay];
-      } else if (task.cycleIndex !== undefined) {
-        const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
-        candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => d % cycleLength === (task.cycleIndex! % cycleLength));
-      } else {
-        candidateDays = [0, 1, 2, 3, 4, 5, 6];
-      }
+    // 分類（日 vs 週）による日の中の繰り返し回数の差別化を撤廃。
+    // 課題以外は、分類にかかわらず明示的な回数指定がなければ全タスク等しくデフォルト「自動（auto）」
+    const isAuto = !isAssignment && !isCustomDaily;
+    const targetCountPerDay = isAssignment
+      ? (task.dailyCount || 1)
+      : isAuto
+        ? Infinity
+        : (task.dailyCount || 1);
 
+    // 日ブロック（どの曜日の箱に割り振るか）の決定
+    // ① 曜日明示指定
+    if (task.targetDays && task.targetDays.length > 0) {
+      const candidateDays = [...task.targetDays];
       return {
         task,
-        kind: 'daily_auto',
+        kind: 'weekly_specific',
         candidateDays,
-        targetCountPerDay: Infinity,
-        targetCountWeekly: Infinity,
-        isAuto: true,
+        targetCountPerDay,
+        targetCountWeekly: candidateDays.length,
+        isAuto,
         placedCount: 0,
         placedCountPerDay: {},
         isComplete: false,
       };
     }
 
-    if (isDaily) {
-      let candidateDays: number[];
-      if (task.targetDays && task.targetDays.length > 0) {
-        candidateDays = task.targetDays;
-      } else if (task.cycleDays && task.cycleDays.length > 0) {
-        const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
-        candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => task.cycleDays!.includes(d % cycleLength));
-      } else if (task.startDay !== undefined) {
-        candidateDays = [task.startDay];
-      } else if (task.cycleIndex !== undefined) {
-        const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
-        candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => d % cycleLength === (task.cycleIndex! % cycleLength));
-      } else {
-        candidateDays = [0, 1, 2, 3, 4, 5, 6];
-      }
-
-      const dailyCount = task.dailyCount && task.dailyCount > 0 ? task.dailyCount : 1;
+    // ② 周期明示指定
+    if (task.cycleDays && task.cycleDays.length > 0) {
+      const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
+      const candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => task.cycleDays!.includes(d % cycleLength));
       return {
         task,
-        kind: 'daily_fixed',
+        kind: 'weekly_specific',
         candidateDays,
-        targetCountPerDay: dailyCount,
-        targetCountWeekly: dailyCount * candidateDays.length,
-        isAuto: false,
+        targetCountPerDay,
+        targetCountWeekly: candidateDays.length,
+        isAuto,
         placedCount: 0,
         placedCountPerDay: {},
         isComplete: false,
       };
     }
 
-    // 週タスク: 課題（assignment）または締切あり
-    if (task.taskType === 'assignment' || task.deadlineDay !== undefined) {
+    // ③ 課題タスク（出題日〜締切日の範囲）
+    if (isAssignment) {
       const startD = task.startDay !== undefined ? task.startDay : 0;
       const endD = task.deadlineDay !== undefined ? task.deadlineDay : 6;
       const candidateDays: number[] = [];
@@ -329,30 +315,31 @@ export function generateTheoreticalSchedule(
       };
     }
 
-    // 週タスク: 曜日または周期の明示指定あり
-    if ((task.targetDays && task.targetDays.length > 0) || (task.cycleDays && task.cycleDays.length > 0)) {
-      let candidateDays: number[];
-      if (task.targetDays && task.targetDays.length > 0) {
-        candidateDays = [...task.targetDays];
-      } else {
+    // ④ 日課タスク（毎日全曜日に適用）
+    const isDaily = task.period === 'day' || task.frequency === 'high';
+    if (isDaily) {
+      let candidateDays = [0, 1, 2, 3, 4, 5, 6];
+      if (task.startDay !== undefined) {
+        candidateDays = [task.startDay];
+      } else if (task.cycleIndex !== undefined) {
         const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
-        candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => task.cycleDays!.includes(d % cycleLength));
+        candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => d % cycleLength === (task.cycleIndex! % cycleLength));
       }
 
       return {
         task,
-        kind: 'weekly_specific',
+        kind: isAuto ? 'daily_auto' : 'daily_fixed',
         candidateDays,
-        targetCountPerDay: 1,
-        targetCountWeekly: candidateDays.length,
-        isAuto: false,
+        targetCountPerDay,
+        targetCountWeekly: isAuto ? Infinity : targetCountPerDay * candidateDays.length,
+        isAuto,
         placedCount: 0,
         placedCountPerDay: {},
         isComplete: false,
       };
     }
 
-    // 週タスク: 曜日自由（flexible）
+    // ⑤ 週次タスク（週N回を空き枠の多い曜日に分散配置）
     const targetDaysCount = getTargetPlacementDays(task);
     let candidateDays = [0, 1, 2, 3, 4, 5, 6].sort((a, b) => {
       const freeA = dayAvailableSlots[a].reduce((s, slot) => s + slot.durationMinutes, 0);
@@ -374,9 +361,9 @@ export function generateTheoreticalSchedule(
       task,
       kind: 'weekly_flexible',
       candidateDays,
-      targetCountPerDay: 1,
+      targetCountPerDay,
       targetCountWeekly: targetDaysCount,
-      isAuto: false,
+      isAuto,
       placedCount: 0,
       placedCountPerDay: {},
       isComplete: false,
@@ -442,8 +429,8 @@ export function generateTheoreticalSchedule(
           plan,
           task: plan.task,
           kind: plan.kind,
-          isAuto: false,
-          targetCount: 1,
+          isAuto: plan.isAuto, // ★ 分類で差別化せず、タスク自体の設定を引き継ぐ
+          targetCount: plan.targetCountPerDay, // ★ auto なら Infinity
           placedCountInDay: 0,
         });
       }
@@ -463,32 +450,33 @@ export function generateTheoreticalSchedule(
   }
 
   // 優先順位ソート（細かさ優先の絶対原則）
-  // 1. Must > Want
-  // 2. kind (assignment > weekly_specific > daily_fixed > weekly_flexible > daily_auto)
-  // 3. priority (high > medium > low)
-  // 4. 所要時間＋休憩時間（大きい順）
-  const kindWeight: Record<string, number> = {
-    assignment: 5,
-    weekly_specific: 4,
-    daily_fixed: 3,
-    weekly_flexible: 2,
-    daily_auto: 1,
-  };
+  // 分類（日 vs 週）による差別化を排除し、純粋なタスクプロパティ（課題 > Must > Priority > 回数指定 > 所要時間）で決定
   const priorityWeight: Record<string, number> = { high: 3, medium: 2, low: 1 };
 
   for (let d = 0; d < 7; d++) {
     dayTaskContexts[d].sort((a, b) => {
-      const isMustA = a.task.category === 'must' || a.task.taskType === 'assignment';
-      const isMustB = b.task.category === 'must' || b.task.taskType === 'assignment';
+      // ① 課題タスク（提出物・締切制約）は最優先
+      const isAssignA = a.task.taskType === 'assignment' || a.task.deadlineDay !== undefined;
+      const isAssignB = b.task.taskType === 'assignment' || b.task.deadlineDay !== undefined;
+      if (isAssignA && !isAssignB) return -1;
+      if (!isAssignA && isAssignB) return 1;
+
+      // ② Must > Want
+      const isMustA = a.task.category === 'must';
+      const isMustB = b.task.category === 'must';
       if (isMustA && !isMustB) return -1;
       if (!isMustA && isMustB) return 1;
 
-      const kwDiff = (kindWeight[b.kind] || 1) - (kindWeight[a.kind] || 1);
-      if (kwDiff !== 0) return kwDiff;
-
+      // ③ 優先度（High > Medium > Low）
       const pDiff = (priorityWeight[b.task.priority] || 1) - (priorityWeight[a.task.priority] || 1);
       if (pDiff !== 0) return pDiff;
 
+      // ④ 回数指定タスク（固定回数） > 自動タスク（auto）
+      //    （固定回数は必要回数を確実に確保させるため先行）
+      if (!a.isAuto && b.isAuto) return -1;
+      if (a.isAuto && !b.isAuto) return 1;
+
+      // ⑤ 所要時間＋休憩時間（大きい順）
       const totalA = (a.task.durationMinutes || 0) + (a.task.breakMinutes || 0);
       const totalB = (b.task.durationMinutes || 0) + (b.task.breakMinutes || 0);
       return totalB - totalA;

@@ -1060,6 +1060,70 @@ describe('Theoretical Scheduler Engine', () => {
         expect(tId).toBe('task-auto');
       }
     });
+
+    it('分類（日タスク vs 週タスク）による日の中の繰り返し回数の差別化がなく、どちらも均等に何巡も配置されること', () => {
+      // 9:00〜18:00 (540分) の空きスロット
+      const fixedSlots: FixedSlot[] = [
+        {
+          id: 'sleep',
+          title: '睡眠',
+          category: 'sleep',
+          startMinutes: 0,
+          endMinutes: 540,
+          color: '#6366f1',
+        },
+        {
+          id: 'night',
+          title: '夜',
+          category: 'sleep',
+          startMinutes: 1080,
+          endMinutes: 1440,
+          color: '#3b82f6',
+        },
+      ];
+
+      // 「日（day）」に分類されたタスク
+      const dailyTask: TaskItem = {
+        id: 'daily-task-study',
+        title: '資格学習（日タスク）',
+        durationMinutes: 60,
+        priority: 'high',
+        category: 'study',
+        period: 'day',
+        // dailyRepeatMode: 未指定（デフォルト自動）
+      };
+
+      // 「週（week）」に分類されたタスク（週3回目標、月曜に割り当てられる）
+      const weeklyTask: TaskItem = {
+        id: 'weekly-task-dev',
+        title: 'プロダクト開発（週タスク）',
+        durationMinutes: 60,
+        priority: 'high',
+        category: 'creative',
+        period: 'week',
+        frequency: 'medium', // 週3回
+        targetDays: [0, 2, 4], // 月・水・金
+        // dailyRepeatMode: 未指定（デフォルト自動）
+      };
+
+      const result = generateTheoreticalSchedule(fixedSlots, [dailyTask, weeklyTask]);
+      const mondayBlocks = result.dayBlocks[0].filter((b) => !b.isFixed && !b.isBreak);
+
+      const dailyCount = mondayBlocks.filter((b) => b.taskId === 'daily-task-study').length;
+      const weeklyCount = mondayBlocks.filter((b) => b.taskId === 'weekly-task-dev').length;
+
+      // 分類（日 vs 週）で差別化されず、どちらも複数回（何巡も）配置されていること
+      expect(dailyCount).toBeGreaterThanOrEqual(3);
+      expect(weeklyCount).toBeGreaterThanOrEqual(3);
+
+      // 回数差が1以内で均等であること
+      expect(Math.abs(dailyCount - weeklyCount)).toBeLessThanOrEqual(1);
+
+      // 交互に配置されていること（同じタスクが連続しない）
+      for (let i = 0; i < mondayBlocks.length - 1; i++) {
+        expect(mondayBlocks[i].taskId).not.toBe(mondayBlocks[i + 1].taskId);
+      }
+    });
   });
 });
 
