@@ -496,6 +496,37 @@ describe('tableUtils', () => {
       expect(shrunk.colHeaders.length).toBe(1);
     });
   });
+
+  describe('1列のDay 1指定による毎日の繰り返し', () => {
+    it('列1つでDay 1のみのタスク表はcycleCountが1（毎日繰り返し）になること', () => {
+      const table = createBaseTable(null);
+      table.numCols = 1;
+      table.colHeaders = ['Day 1'];
+      table.cells = [[{
+        ...table.cells[0][0],
+        title: '筋トレ',
+      }]];
+
+      const res = generateScheduleItemsForTable(table);
+      expect(res.tasks.length).toBe(1);
+      expect(res.tasks[0].cycleDays).toEqual([0]);
+      expect(res.tasks[0].cycleCount).toBe(1);
+    });
+
+    it('列1つでday1（小文字）のみの固定枠表は全曜日（毎日）に反映されること', () => {
+      const table = createBaseTable('09:00');
+      table.numCols = 1;
+      table.colHeaders = ['day1'];
+      table.cells = [[{
+        ...table.cells[0][0],
+        title: '朝礼',
+      }]];
+
+      const res = generateScheduleItemsForTable(table);
+      expect(res.slots.length).toBe(1);
+      expect(res.slots[0].daysOfWeek).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    });
+  });
 });
 
 

@@ -108,7 +108,8 @@ export function parseColHeader(header: string, defaultIndex: number): ParsedColH
   }
 
   // 3. 周期ローテーション: Day 1, Day 2, サイクル1, 周期1, A, B, C など
-  const dayMatch = hLower.match(/^day\s*(\d+)$/i);
+  const dayMatch =
+    hLower.match(/^(?:day|d)\s*[-_:]?\s*(\d+)$/i) || h.match(/^(\d+)\s*日目?$/);
   if (dayMatch) {
     const num = parseInt(dayMatch[1], 10);
     return { type: 'cycle', cycleIndex: Math.max(0, num - 1), label: h };
@@ -374,9 +375,10 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
 
   // 周期全体の長さ (cycleCount):
   // 周期管理モードの場合は空列（オフ日）も周期日数としてカウントするため、除外列以外の列総数とする
+  // 列が1つ（Day 1のみ等）の場合は1日周期（毎日繰り返し）とする
   const cycleCount = isCycleMode
-    ? Math.max(2, nonExcludedCols.length)
-    : (table.numCols > 1 ? table.numCols : 3);
+    ? Math.max(1, nonExcludedCols.length)
+    : (table.numCols > 1 ? table.numCols : 1);
 
   const tableCategory = table.name || '表タスク';
 
