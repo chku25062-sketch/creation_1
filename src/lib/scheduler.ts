@@ -537,6 +537,106 @@ export function generateTheoreticalSchedule(
     }
   }
 
+  // 3-D. 一日の繰り返し回数が自動（auto）な日次タスクを空き時間に敷き詰める（Fill）
+  const isAutoDailyTask = (task: TaskItem): boolean => {
+    const isDaily = task.period === 'day' || task.frequency === 'high';
+    if (!isDaily) return false;
+    // 明示的に dailyRepeatMode === 'auto' であること
+    return task.dailyRepeatMode === 'auto';
+  };
+
+  const autoDailyTasks = dailyTasks.filter(isAutoDailyTask);
+
+  if (autoDailyTasks.length > 0) {
+    for (let d = 0; d < 7; d++) {
+      // その曜日に有効な自動タスク
+      const tasksForDay = autoDailyTasks.filter((task) => {
+        if (task.targetDays && task.targetDays.length > 0) {
+          return task.targetDays.includes(d);
+        }
+        if (task.cycleDays && task.cycleDays.length > 0) {
+          const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
+          return task.cycleDays.includes(d % cycleLength);
+        }
+        if (task.startDay !== undefined) {
+          return task.startDay === d;
+        }
+        if (task.cycleIndex !== undefined) {
+          const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
+          return d % cycleLength === task.cycleIndex % cycleLength;
+        }
+        return true;
+      });
+
+      if (tasksForDay.length === 0) continue;
+
+      let fillPass = 0;
+      let taskIdx = 0;
+      const maxFillsPerDay = 50; // 安全上限
+
+      while (fillPass < maxFillsPerDay) {
+        let placedInPass = false;
+
+        for (const slot of dayAvailableSlots[d]) {
+          if (slot.durationMinutes < 15) continue;
+
+          // 候補タスクを順番に試行（ラウンドロビン）
+          for (let i = 0; i < tasksForDay.length; i++) {
+            const task = tasksForDay[(taskIdx + i) % tasksForDay.length];
+            const requiredMin =
+              task.durationSize === 'small'
+                ? 15
+                : task.durationSize === 'medium'
+                  ? 30
+                  : task.durationMinutes || 30;
+
+            const minAcceptable = Math.min(requiredMin, 15);
+            if (slot.durationMinutes >= minAcceptable) {
+              const effectiveDuration = getAdjustedDuration(task, slot.durationMinutes);
+              const taskStart = slot.startMinutes;
+              const taskEnd = taskStart + effectiveDuration;
+
+              dayBlocks[d].push({
+                id: `block-fill-${d}-${task.id}-${fillPass}`,
+                title: task.title,
+                category: task.category,
+                startMinutes: taskStart,
+                endMinutes: taskEnd,
+                isFixed: false,
+                color: getCategoryColor(task.category),
+                taskId: task.id,
+                priority: task.priority,
+                taskType: task.taskType || 'task',
+                dayIndex: d,
+                sourceTableId: task.sourceTableId,
+                sourceTableName: task.sourceTableName,
+              });
+
+              slot.startMinutes = taskEnd;
+              slot.durationMinutes = slot.endMinutes - taskEnd;
+              scheduledTaskMinutes += effectiveDuration;
+
+              const unassignedIdx = unassignedTasks.findIndex((u) => u.id === task.id);
+              if (unassignedIdx >= 0) {
+                unassignedTasks.splice(unassignedIdx, 1);
+                assignedTaskCount++;
+              }
+
+              fillPass++;
+              placedInPass = true;
+              taskIdx = (taskIdx + i + 1) % tasksForDay.length;
+              break;
+            }
+          }
+
+          if (placedInPass) break;
+        }
+
+        if (!placedInPass) break;
+      }
+    }
+  }
+
   // 4. 各曜日のブロックを時系列順に整頓
   const allBlocks: TheoreticalBlock[] = [];
   for (let d = 0; d < 7; d++) {
@@ -549,7 +649,17 @@ export function generateTheoreticalSchedule(
   const unassignedTaskMinutes = unassignedTasks.reduce((sum, t) => sum + t.durationMinutes, 0);
   const theoreticalScore =
     totalRequestedTaskMinutes > 0
-      ? Math.round((scheduledTaskMinutes / totalRequestedTaskMinutes) * 100)
+      ? unassignedTasks.length === 0
+        ? 100
+        : Math.min(
+            100,
+            Math.max(
+              0,
+              Math.round(
+                ((totalRequestedTaskMinutes - unassignedTaskMinutes) / totalRequestedTaskMinutes) * 100,
+              ),
+            ),
+          )
       : 100;
 
   const mondayNormalized = dayNormalizedFixed[0];

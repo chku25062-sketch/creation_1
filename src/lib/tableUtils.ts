@@ -418,9 +418,11 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
 
         if (existing) {
           if (!tableDailyCount) {
+            existing.dailyRepeatMode = 'auto';
             existing.dailyCount = (existing.dailyCount || 1) + 1;
           } else {
             existing.dailyCount = tableDailyCount;
+            existing.dailyRepeatMode = 'custom';
           }
           if (isWeekday && colInfo.dayIndex !== undefined) {
             const curDays = existing.targetDays || [];
@@ -445,7 +447,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             durationMinutes: duration,
             frequency: 'high',
             period: 'day',
-            dailyCount: tableDailyCount ?? 1, // 指定があればその回数、自動なら1(重複で加算)
+            dailyCount: tableDailyCount ?? 1,
             dailyRepeatMode: tableDailyCount ? 'custom' : 'auto',
             targetDays: isWeekday ? [colInfo.dayIndex!] : undefined,
             startDay: isWeekday ? colInfo.dayIndex : undefined,

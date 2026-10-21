@@ -734,6 +734,53 @@ describe('Theoretical Scheduler Engine', () => {
         expect(count).toBe(2);
       }
     });
+
+    it('一日の繰り返し回数が自動(dailyRepeatMode: auto)なタスクは、空き時間に敷き詰められること', () => {
+      // 10:00〜12:00 (120分) の空きスロットがある固定枠
+      const fixedSlots: FixedSlot[] = [
+        {
+          id: 'sleep',
+          title: '睡眠',
+          category: 'sleep',
+          startMinutes: 0,
+          endMinutes: 600, // 00:00〜10:00
+          color: '#6366f1',
+        },
+        {
+          id: 'work',
+          title: '仕事',
+          category: 'work',
+          startMinutes: 720, // 12:00〜24:00
+          endMinutes: 1440,
+          color: '#3b82f6',
+        },
+      ];
+
+      // 30分の自動日次タスク (10:00〜12:00の120分枠に4回敷き詰められるはず)
+      const autoTask: TaskItem = {
+        id: 'auto-study',
+        title: '自動: 読書・自習',
+        durationMinutes: 30,
+        priority: 'high',
+        category: 'routine',
+        period: 'day',
+        dailyRepeatMode: 'auto',
+      };
+
+      const result = generateTheoreticalSchedule(fixedSlots, [autoTask]);
+
+      // 月曜 (dayIndex: 0) の空き枠 10:00〜12:00 (120分) に 30分タスクが4回敷き詰められる
+      const mondayBlocks = result.dayBlocks[0].filter((b) => b.taskId === 'auto-study');
+      expect(mondayBlocks.length).toBe(4);
+      expect(mondayBlocks[0].startMinutes).toBe(600); // 10:00
+      expect(mondayBlocks[0].endMinutes).toBe(630); // 10:30
+      expect(mondayBlocks[1].startMinutes).toBe(630); // 10:30
+      expect(mondayBlocks[1].endMinutes).toBe(660); // 11:00
+      expect(mondayBlocks[2].startMinutes).toBe(660); // 11:00
+      expect(mondayBlocks[2].endMinutes).toBe(690); // 11:30
+      expect(mondayBlocks[3].startMinutes).toBe(690); // 11:30
+      expect(mondayBlocks[3].endMinutes).toBe(720); // 12:00
+    });
   });
 });
 
