@@ -527,6 +527,38 @@ describe('tableUtils', () => {
       expect(res.slots[0].daysOfWeek).toEqual([0, 1, 2, 3, 4, 5, 6]);
     });
   });
+
+  describe('週の回数 (weeklyRepeatCount) による分類とタスク生成', () => {
+    it('表名が日課風でも weeklyRepeatCount が指定されていれば weekly_task に分類されること', () => {
+      const table = createBaseTable(null);
+      table.name = '毎日のルーティン表'; // 日課系キーワードを含む表名
+      table.weeklyRepeatCount = 3;
+
+      const classification = getTableClassification(table);
+      expect(classification).toBe('weekly_task');
+    });
+
+    it('weeklyRepeatCount が指定された表から生成されたタスクに frequencyCount が反映されること', () => {
+      const table = createBaseTable(null);
+      table.weeklyRepeatCount = 4;
+      table.cells[0][0].title = 'ランニング';
+
+      const res = generateScheduleItemsForTable(table);
+      expect(res.tasks.length).toBe(1);
+      expect(res.tasks[0].frequency).toBe('custom');
+      expect(res.tasks[0].frequencyCount).toBe(4);
+    });
+
+    it('weeklyRepeatCount が auto の場合は表名やヘッダーによる通常判定に戻ること', () => {
+      const table = createBaseTable(null);
+      table.name = '毎日の朝ルーティン';
+      table.colHeaders = ['朝', '昼'];
+      table.weeklyRepeatCount = 'auto';
+
+      const classification = getTableClassification(table);
+      expect(classification).toBe('daily_task');
+    });
+  });
 });
 
 

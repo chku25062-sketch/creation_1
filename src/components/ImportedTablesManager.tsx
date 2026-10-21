@@ -20,6 +20,7 @@ import {
   Sun,
   CalendarDays,
   Calendar,
+  CalendarRange,
   Clock,
   Repeat,
   Upload,
@@ -1672,17 +1673,23 @@ export function ImportedTablesManager({
                 <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
                   <Repeat className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                   <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
-                    1日の繰り返し:
+                    1日:
                   </span>
                   <SemiInput
                     value={
                       activeTable.dailyRepeatCount === 'auto' || activeTable.dailyRepeatCount === undefined
-                        ? '自動'
+                        ? '指定なし'
                         : String(activeTable.dailyRepeatCount)
                     }
                     onChange={(val) => {
                       const trimmed = val.trim();
-                      if (trimmed === '自動' || trimmed === 'auto' || trimmed === '' || trimmed === '0') {
+                      if (
+                        trimmed === '指定なし' ||
+                        trimmed === '自動' ||
+                        trimmed === 'auto' ||
+                        trimmed === '' ||
+                        trimmed === '0'
+                      ) {
                         updateActiveTable((prev) => ({ ...prev, dailyRepeatCount: 'auto' }));
                       } else {
                         const num = parseInt(trimmed.replace(/[^0-9]/g, ''), 10);
@@ -1692,11 +1699,11 @@ export function ImportedTablesManager({
                         }));
                       }
                     }}
-                    placeholder="自動"
+                    placeholder="指定なし"
                     unit="回"
-                    inputClassName="w-10 text-center"
+                    inputClassName="w-13 text-center"
                     options={[
-                      { label: '🌟 自動', value: 'auto' },
+                      { label: '🌟 指定なし', value: 'auto' },
                       { label: '1回', value: '1' },
                       { label: '2回', value: '2' },
                       { label: '3回', value: '3' },
@@ -1708,6 +1715,53 @@ export function ImportedTablesManager({
                       { label: '10回', value: '10' },
                     ]}
                     title="1日の中での繰り返し回数（手入力または候補選択）"
+                  />
+                </div>
+
+                {/* 週に入れる日ブロックの量（半入力式） */}
+                <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
+                  <CalendarRange className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
+                    週:
+                  </span>
+                  <SemiInput
+                    value={
+                      activeTable.weeklyRepeatCount === 'auto' || activeTable.weeklyRepeatCount === undefined
+                        ? '指定なし'
+                        : String(activeTable.weeklyRepeatCount)
+                    }
+                    onChange={(val) => {
+                      const trimmed = val.trim();
+                      if (
+                        trimmed === '指定なし' ||
+                        trimmed === '自動' ||
+                        trimmed === 'auto' ||
+                        trimmed === '' ||
+                        trimmed === '0'
+                      ) {
+                        updateActiveTable((prev) => ({ ...prev, weeklyRepeatCount: 'auto' }));
+                      } else {
+                        const num = parseInt(trimmed.replace(/[^0-9]/g, ''), 10);
+                        updateActiveTable((prev) => ({
+                          ...prev,
+                          weeklyRepeatCount: isNaN(num) || num <= 0 ? 'auto' : Math.min(7, num),
+                        }));
+                      }
+                    }}
+                    placeholder="指定なし"
+                    unit="回"
+                    inputClassName="w-13 text-center"
+                    options={[
+                      { label: '🌟 指定なし', value: 'auto' },
+                      { label: '週1回 (週1日)', value: '1' },
+                      { label: '週2回 (週2日)', value: '2' },
+                      { label: '週3回 (週3日)', value: '3' },
+                      { label: '週4回 (週4日)', value: '4' },
+                      { label: '週5回 (週5日)', value: '5' },
+                      { label: '週6回 (週6日)', value: '6' },
+                      { label: '週7回 (毎日)', value: '7' },
+                    ]}
+                    title="週に入れる日ブロックの量（週何日行うか、手入力または候補選択）"
                   />
                 </div>
 

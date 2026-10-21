@@ -157,6 +157,26 @@ export function getTableClassification(table: ImportedTableData): TableClassific
     return 'fixed_slot';
   }
 
+  // ★ 週の回数（weeklyRepeatCount）が指定されている場合は「週タスク」
+  if (
+    table.weeklyRepeatCount !== undefined &&
+    table.weeklyRepeatCount !== 'auto' &&
+    typeof table.weeklyRepeatCount === 'number' &&
+    table.weeklyRepeatCount > 0
+  ) {
+    return 'weekly_task';
+  }
+
+  // ★ 1日の回数（dailyRepeatCount）が指定されている場合は「日課タスク」
+  if (
+    table.dailyRepeatCount !== undefined &&
+    table.dailyRepeatCount !== 'auto' &&
+    typeof table.dailyRepeatCount === 'number' &&
+    table.dailyRepeatCount > 0
+  ) {
+    return 'daily_task';
+  }
+
   const tableNameLower = table.name.toLowerCase();
   const hasDailyName = DAILY_TIMEFRAME_KEYWORDS.some((kw) => tableNameLower.includes(kw));
 
@@ -518,9 +538,27 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
         const taskKey = fullTitle;
         const existing = taskMap.get(taskKey);
 
+        const tableWeeklyCount =
+          table.weeklyRepeatCount && table.weeklyRepeatCount !== 'auto'
+            ? Number(table.weeklyRepeatCount)
+            : undefined;
+
+        const tableDailyCount =
+          table.dailyRepeatCount && table.dailyRepeatCount !== 'auto'
+            ? Number(table.dailyRepeatCount)
+            : undefined;
+
         if (existing) {
           if (effectiveBreakMinutes !== undefined) {
             existing.breakMinutes = Math.max(existing.breakMinutes || 0, effectiveBreakMinutes);
+          }
+          if (tableDailyCount) {
+            existing.dailyCount = tableDailyCount;
+            existing.dailyRepeatMode = 'custom';
+          }
+          if (tableWeeklyCount) {
+            existing.frequency = 'custom';
+            existing.frequencyCount = tableWeeklyCount;
           }
           if (isWeekday && colInfo.dayIndex !== undefined) {
             const curDays = existing.targetDays || [];
@@ -546,9 +584,14 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             durationSize: duration <= 25 ? 'small' : duration <= 60 ? 'medium' : 'large',
             durationMinutes: duration,
             breakMinutes: effectiveBreakMinutes,
-            frequency: 'medium',
+            frequency: tableWeeklyCount ? 'custom' : 'medium',
+            frequencyCount: tableWeeklyCount,
+            dailyCount: tableDailyCount ?? 1,
+            dailyRepeatMode: tableDailyCount ? 'custom' : 'auto',
             period: 'week',
-            targetDays: isWeekday ? [colInfo.dayIndex!] : (!isCycle ? [0, 1, 2, 3, 4, 5, 6] : undefined),
+            targetDays: isWeekday
+              ? [colInfo.dayIndex!]
+              : (!isCycle && !tableWeeklyCount ? [0, 1, 2, 3, 4, 5, 6] : undefined),
             cycleDays: isCycle ? [cycleIdx] : undefined,
             cycleCount: isCycle ? cycleCount : undefined,
             startDay: isWeekday ? colInfo.dayIndex : undefined,
@@ -641,9 +684,9 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
     });
   });
 
-  // 週次タスクの頻度をマージ結果に基づいて更新
+  // 週次タスクの頻度をマージ結果に基づいて更新（カスタム回数指定がない場合のみ）
   taskMap.forEach((task) => {
-    if (task.period === 'week') {
+    if (task.period === 'week' && task.frequency !== 'custom') {
       if (task.targetDays && task.targetDays.length > 0) {
         task.frequencyCount = task.targetDays.length;
         task.frequency =
