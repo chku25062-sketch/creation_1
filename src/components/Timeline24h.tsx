@@ -390,13 +390,16 @@ export function Timeline24h({
     return () => clearInterval(interval);
   }, []);
 
-  // 現在時刻を参照して初期スクロール位置を調整（現在時刻の約45分前を画面上部に持ってくる）
+  const hasInitialScrolledRef = useRef(false);
+
+  // 現在時刻を参照して初期スクロール位置を調整（初回のみ、即時スクロールでアニメーションなし）
   useEffect(() => {
-    if (scrollContainerRef.current) {
+    if (scrollContainerRef.current && !hasInitialScrolledRef.current) {
+      hasInitialScrolledRef.current = true;
       const targetScroll = Math.max(0, ((currentMinutes - 45) / 60) * hourHeight);
       scrollContainerRef.current.scrollTop = targetScroll;
     }
-  }, [hourHeight]);
+  }, [hourHeight, currentMinutes]);
 
   // 時間軸の統一幅（ヘッダーとグリッドで完全一致させる）
   const timeAxisWidthClass = 'w-13 sm:w-15 shrink-0';
@@ -554,7 +557,7 @@ export function Timeline24h({
               {weekDays.map((d) => (
                 <div
                   key={`weekday-header-${d.dayIndex}`}
-                  className={`flex flex-col items-center justify-center border-r border-slate-200 py-1.5 transition ${
+                  className={`flex flex-col items-center justify-center border-r border-slate-200 py-1.5 ${
                     d.dayIndex === 6 ? 'border-r-0' : ''
                   } ${d.isToday ? 'bg-amber-100/40 font-bold' : ''}`}
                 >
@@ -590,7 +593,7 @@ export function Timeline24h({
         {/* Scrollable 24-Hour Grid Area (ノート調方眼罫線) */}
         <div
           ref={scrollContainerRef}
-          className="relative flex-1 min-h-0 overflow-y-auto overflow-x-auto px-1 sm:px-1.5 bg-[#fdfcf9]"
+          className="relative flex-1 min-h-0 overflow-y-auto overflow-x-auto px-1 sm:px-1.5 bg-[#fdfcf9] scroll-instant"
         >
           <div
             className={`relative flex ${focusMode === 'today' ? 'w-full min-w-0' : 'min-w-[700px]'}`}
@@ -798,7 +801,7 @@ export function Timeline24h({
                             borderColor: colorScheme.border,
                             color: colorScheme.text,
                           }}
-                          className="group !absolute inset-x-0.5 overflow-hidden rounded-md border sticky-note transition-all hover:z-20 sm:inset-x-1 shadow-2xs"
+                          className="group !absolute inset-x-0.5 overflow-hidden rounded-md border sticky-note hover:z-20 sm:inset-x-1 shadow-2xs"
                         >
                           {/* 付箋のり付けストリップ (左端) */}
                           <div

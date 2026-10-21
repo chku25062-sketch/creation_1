@@ -340,40 +340,44 @@ export default function Home() {
     <div className="relative flex h-full h-[100dvh] w-full flex-col overflow-hidden bg-[#fbfaf5] bg-notebook-grid text-slate-800">
       <main className="mx-auto flex w-full flex-1 min-h-0 flex-col px-1.5 pt-1.5 pb-1 sm:px-3 sm:pt-2 sm:pb-1.5 max-w-full">
         {/* Sheet 1: 計画表 (メインタイムライン) */}
-        {activeTab === 'timeline' && (
-          <div className="flex flex-1 min-h-0 flex-col">
-            <Timeline24h
-              blocks={schedulingResult.blocks}
-              dayBlocks={schedulingResult.dayBlocks}
-              unassignedTasks={schedulingResult.unassignedTasks}
-              importedTables={importedTables}
-              focusMode={focusMode}
-              onToggleFocus={handleToggleFocus}
-            />
-          </div>
-        )}
+        <div
+          className={`flex flex-1 min-h-0 flex-col ${
+            activeTab === 'timeline' ? '' : 'hidden'
+          }`}
+        >
+          <Timeline24h
+            blocks={schedulingResult.blocks}
+            dayBlocks={schedulingResult.dayBlocks}
+            unassignedTasks={schedulingResult.unassignedTasks}
+            importedTables={importedTables}
+            focusMode={focusMode}
+            onToggleFocus={handleToggleFocus}
+          />
+        </div>
 
         {/* Sheet 2: データ管理 (読み込み時間割・軸定義・計画表反映) */}
-        {activeTab === 'data' && (
-          <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
-            <ImportedTablesManager
-              tables={importedTables}
-              onTablesChange={handleTablesChange}
-              fixedSlots={fixedSlots}
-              onSlotsChange={handleFixedSlotsChange}
-              tasks={tasks}
-              onTasksChange={handleTasksChange}
-              inclusionSettings={inclusionSettings}
-              onInclusionSettingsChange={handleInclusionSettingsChange}
-              onNavigateToTimeline={() => setActiveTab('timeline')}
-              onOpenImport={() => {
-                setImportInitialFile(null);
-                setIsImportOpen(true);
-              }}
-              onFileSelect={handleFileSelectFromSidebar}
-            />
-          </div>
-        )}
+        <div
+          className={`flex flex-1 min-h-0 flex-col overflow-hidden ${
+            activeTab === 'data' ? '' : 'hidden'
+          }`}
+        >
+          <ImportedTablesManager
+            tables={importedTables}
+            onTablesChange={handleTablesChange}
+            fixedSlots={fixedSlots}
+            onSlotsChange={handleFixedSlotsChange}
+            tasks={tasks}
+            onTasksChange={handleTasksChange}
+            inclusionSettings={inclusionSettings}
+            onInclusionSettingsChange={handleInclusionSettingsChange}
+            onNavigateToTimeline={() => setActiveTab('timeline')}
+            onOpenImport={() => {
+              setImportInitialFile(null);
+              setIsImportOpen(true);
+            }}
+            onFileSelect={handleFileSelectFromSidebar}
+          />
+        </div>
       </main>
 
       {/* Excel風 シート切り替えフッター */}
