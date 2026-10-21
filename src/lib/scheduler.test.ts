@@ -952,6 +952,114 @@ describe('Theoretical Scheduler Engine', () => {
         expect(mondayBlocks[i].taskId).not.toBe(mondayBlocks[i + 1].taskId);
       }
     });
+
+    it('1巡目は1回以上のタスク、2巡目は2回以上のタスク、3巡目は3回以上のタスクが順に配置されること', () => {
+      // 9:00〜19:00 (600分) の空きスロット
+      const fixedSlots: FixedSlot[] = [
+        {
+          id: 'sleep',
+          title: '睡眠',
+          category: 'sleep',
+          startMinutes: 0,
+          endMinutes: 540, // 09:00
+          color: '#6366f1',
+        },
+        {
+          id: 'night',
+          title: '夜',
+          category: 'sleep',
+          startMinutes: 1140, // 19:00
+          endMinutes: 1440,
+          color: '#3b82f6',
+        },
+      ];
+
+      // 4種類のタスク: 1回、2回、3回、自動(auto)
+      const task1: TaskItem = {
+        id: 'task-1-time',
+        title: '1回タスク',
+        durationMinutes: 30,
+        priority: 'high',
+        category: 'study',
+        period: 'day',
+        dailyCount: 1,
+        dailyRepeatMode: 'custom',
+      };
+
+      const task2: TaskItem = {
+        id: 'task-2-times',
+        title: '2回タスク',
+        durationMinutes: 30,
+        priority: 'high',
+        category: 'workout',
+        period: 'day',
+        dailyCount: 2,
+        dailyRepeatMode: 'custom',
+      };
+
+      const task3: TaskItem = {
+        id: 'task-3-times',
+        title: '3回タスク',
+        durationMinutes: 30,
+        priority: 'high',
+        category: 'routine',
+        period: 'day',
+        dailyCount: 3,
+        dailyRepeatMode: 'custom',
+      };
+
+      const taskAuto: TaskItem = {
+        id: 'task-auto',
+        title: '自動タスク',
+        durationMinutes: 30,
+        priority: 'high',
+        category: 'creative',
+        period: 'day',
+        dailyRepeatMode: 'auto',
+      };
+
+      const result = generateTheoreticalSchedule(fixedSlots, [task1, task2, task3, taskAuto]);
+      const mondayBlocks = result.dayBlocks[0].filter((b) => !b.isFixed && !b.isBreak);
+
+      // 各タスクの総配置回数
+      const count1 = mondayBlocks.filter((b) => b.taskId === 'task-1-time').length;
+      const count2 = mondayBlocks.filter((b) => b.taskId === 'task-2-times').length;
+      const count3 = mondayBlocks.filter((b) => b.taskId === 'task-3-times').length;
+      const countAuto = mondayBlocks.filter((b) => b.taskId === 'task-auto').length;
+
+      // 1回タスクは1回、2回タスクは2回、3回タスクは3回、自動タスクはそれ以上配置されていること
+      expect(count1).toBe(1);
+      expect(count2).toBe(2);
+      expect(count3).toBe(3);
+      expect(countAuto).toBeGreaterThanOrEqual(3);
+
+      // 最初の4ブロック（1巡目）には、全4種類のタスクが含まれていること
+      const firstPassTasks = mondayBlocks.slice(0, 4).map((b) => b.taskId);
+      expect(firstPassTasks).toContain('task-1-time');
+      expect(firstPassTasks).toContain('task-2-times');
+      expect(firstPassTasks).toContain('task-3-times');
+      expect(firstPassTasks).toContain('task-auto');
+
+      // 次の3ブロック（2巡目）には、2回以上繰り返す3種類のタスクが含まれ、1回タスクは含まれないこと
+      const secondPassTasks = mondayBlocks.slice(4, 7).map((b) => b.taskId);
+      expect(secondPassTasks).not.toContain('task-1-time');
+      expect(secondPassTasks).toContain('task-2-times');
+      expect(secondPassTasks).toContain('task-3-times');
+      expect(secondPassTasks).toContain('task-auto');
+
+      // その次の2ブロック（3巡目）には、3回以上繰り返す2種類のタスクが含まれ、1回・2回タスクは含まれないこと
+      const thirdPassTasks = mondayBlocks.slice(7, 9).map((b) => b.taskId);
+      expect(thirdPassTasks).not.toContain('task-1-time');
+      expect(thirdPassTasks).not.toContain('task-2-times');
+      expect(thirdPassTasks).toContain('task-3-times');
+      expect(thirdPassTasks).toContain('task-auto');
+
+      // それ以降（4巡目以降）は自動タスクのみが残りの空き枠を埋めていること
+      const remainingTasks = mondayBlocks.slice(9).map((b) => b.taskId);
+      for (const tId of remainingTasks) {
+        expect(tId).toBe('task-auto');
+      }
+    });
   });
 });
 

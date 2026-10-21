@@ -208,6 +208,7 @@ graph TD
 ### 5.2. 巡回配置（Pass 1, Pass 2, Pass 3...）の内部ループ
 
 時間ブロックの割り振りは、各日の空きスロット群に対して以下のループで実行されます。
+> **「1巡目ではその日に割り当てられた1回以上繰り返すタスクを配置して、2巡目では2回以上繰り返すタスクを配置、、、といった風に枠を埋めていく」**
 
 ```text
 [初期化]
@@ -218,11 +219,12 @@ graph TD
 [巡回ループ開始: Pass = 1, 2, 3...]
   while (その巡で新しく配置できたタスクが1件以上ある && 空きスロットが存在する) {
 
-    for (各時間ブロック T in ソート済みタスク群) {
-      // 終了判定: 固定回数タスクが規定回数を達成していればスキップ
-      if (!T.isAuto && T.placedCount >= T.targetCount) {
-        continue;
-      }
+    // ★ この巡の対象: 「目標繰り返し回数 >= Pass」のタスク群
+    // - Pass 1: 1回以上繰り返すタスク（その日の全タスク）
+    // - Pass 2: 2回以上繰り返すタスク（2回指定、3回指定、自動タスクなど）
+    // - Pass 3: 3回以上繰り返すタスク（3回指定、自動タスクなど）
+    // - Pass 4〜: 自動タスク（空き枠が尽きるまで何巡でも継続）
+    for (各時間ブロック T in ソート済みタスク群のうち targetCount >= Pass のもの) {
 
       totalNeededMinutes = T.durationMinutes + (T.breakMinutes || 0);
 
@@ -247,13 +249,13 @@ graph TD
 
           T.placedCount++;
           placedInCurrentPass = true;
-          break; // この巡でこのタスクは1回配置完了、次のタスクへ
+          break; // この巡でこのタスクは1回配置完了、次の対象タスクへ
         }
       }
     }
 
     Pass++;
-    if (!placedInCurrentPass) break; // 空き枠不足または全タスク完了
+    if (!placedInCurrentPass) break; // 空き枠不足または対象タスク終了
   }
 ```
 

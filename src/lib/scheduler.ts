@@ -225,22 +225,21 @@ export function generateTheoreticalSchedule(
     (t) => !t.hasNoDuration && (t.durationMinutes > 0 || t.durationSize !== undefined),
   );
 
-  // 3. タスクコンテキスト（TaskContext）の構築
-  interface TaskContext {
+  // 3. 各タスクの配置計画を策定（ステップ1: 日ブロックへの割り振り）
+  interface TaskPlacementPlan {
     task: TaskItem;
     kind: 'assignment' | 'weekly_specific' | 'daily_fixed' | 'weekly_flexible' | 'daily_auto';
-    candidateDays: number[];
+    isAuto: boolean;
     targetCountPerDay: number;
     targetCountWeekly: number;
-    isAuto: boolean;
+    candidateDays: number[];
     placedCount: number;
     placedCountPerDay: Record<number, number>;
     isComplete: boolean;
   }
 
-  const contexts: TaskContext[] = schedulableTasks.map((task) => {
+  const plans: TaskPlacementPlan[] = schedulableTasks.map((task) => {
     const isDaily = task.period === 'day' || task.frequency === 'high';
-    // 回数指定 (custom または dailyCount > 1) かどうか判定。指定がなければデフォルト「自動 (auto)」として何巡も敷き詰める
     const isCustomDaily =
       task.dailyRepeatMode === 'custom' ||
       (task.dailyCount !== undefined && task.dailyCount > 1);
@@ -384,6 +383,85 @@ export function generateTheoreticalSchedule(
     };
   });
 
+  // 日ブロックへの展開（各曜日の箱に入っているタスク群の構築）
+  interface DayTaskContext {
+    plan: TaskPlacementPlan;
+    task: TaskItem;
+    kind: string;
+    isAuto: boolean;
+    targetCount: number;
+    placedCountInDay: number;
+  }
+
+  const dayTaskContexts: Record<number, DayTaskContext[]> = {
+    0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: []
+  };
+
+  for (const plan of plans) {
+    if (plan.kind === 'assignment') {
+      // 課題タスク: 候補日のうち、空きスロットに収まる日を優先して1日選択
+      const bestDay = [...plan.candidateDays].sort((a, b) => {
+        const needed = (plan.task.durationMinutes || 30) + (plan.task.breakMinutes || 0);
+        const slotsA = dayAvailableSlots[a];
+        const slotsB = dayAvailableSlots[b];
+        const fitA = slotsA.some((s) => s.durationMinutes >= needed);
+        const fitB = slotsB.some((s) => s.durationMinutes >= needed);
+        if (fitA && !fitB) return -1;
+        if (!fitA && fitB) return 1;
+        const freeA = slotsA.reduce((s, slot) => s + slot.durationMinutes, 0);
+        const freeB = slotsB.reduce((s, slot) => s + slot.durationMinutes, 0);
+        return freeB - freeA;
+      })[0];
+      if (bestDay !== undefined) {
+        dayTaskContexts[bestDay].push({
+          plan,
+          task: plan.task,
+          kind: plan.kind,
+          isAuto: false,
+          targetCount: 1,
+          placedCountInDay: 0,
+        });
+      }
+    } else if (plan.kind === 'weekly_flexible') {
+      // 曜日自由な週タスク: 目標回数分、所要時間が収まりやすい空き時間の多い曜日の箱に入れる
+      const sortedDays = [...plan.candidateDays].sort((a, b) => {
+        const needed = (plan.task.durationMinutes || 30) + (plan.task.breakMinutes || 0);
+        const slotsA = dayAvailableSlots[a];
+        const slotsB = dayAvailableSlots[b];
+        const fitA = slotsA.some((s) => s.durationMinutes >= needed);
+        const fitB = slotsB.some((s) => s.durationMinutes >= needed);
+        if (fitA && !fitB) return -1;
+        if (!fitA && fitB) return 1;
+        const freeA = slotsA.reduce((s, slot) => s + slot.durationMinutes, 0);
+        const freeB = slotsB.reduce((s, slot) => s + slot.durationMinutes, 0);
+        return freeB - freeA;
+      });
+      const assignedDays = sortedDays.slice(0, plan.targetCountWeekly);
+      for (const d of assignedDays) {
+        dayTaskContexts[d].push({
+          plan,
+          task: plan.task,
+          kind: plan.kind,
+          isAuto: false,
+          targetCount: 1,
+          placedCountInDay: 0,
+        });
+      }
+    } else {
+      // daily_auto, daily_fixed, weekly_specific は candidateDays 全ての日に入れる
+      for (const d of plan.candidateDays) {
+        dayTaskContexts[d].push({
+          plan,
+          task: plan.task,
+          kind: plan.kind,
+          isAuto: plan.isAuto,
+          targetCount: plan.targetCountPerDay,
+          placedCountInDay: 0,
+        });
+      }
+    }
+  }
+
   // 優先順位ソート（細かさ優先の絶対原則）
   // 1. Must > Want
   // 2. kind (assignment > weekly_specific > daily_fixed > weekly_flexible > daily_auto)
@@ -398,74 +476,47 @@ export function generateTheoreticalSchedule(
   };
   const priorityWeight: Record<string, number> = { high: 3, medium: 2, low: 1 };
 
-  contexts.sort((a, b) => {
-    const isMustA = a.task.category === 'must' || a.task.taskType === 'assignment';
-    const isMustB = b.task.category === 'must' || b.task.taskType === 'assignment';
-    if (isMustA && !isMustB) return -1;
-    if (!isMustA && isMustB) return 1;
+  for (let d = 0; d < 7; d++) {
+    dayTaskContexts[d].sort((a, b) => {
+      const isMustA = a.task.category === 'must' || a.task.taskType === 'assignment';
+      const isMustB = b.task.category === 'must' || b.task.taskType === 'assignment';
+      if (isMustA && !isMustB) return -1;
+      if (!isMustA && isMustB) return 1;
 
-    const kwDiff = kindWeight[b.kind] - kindWeight[a.kind];
-    if (kwDiff !== 0) return kwDiff;
+      const kwDiff = (kindWeight[b.kind] || 1) - (kindWeight[a.kind] || 1);
+      if (kwDiff !== 0) return kwDiff;
 
-    const pDiff = (priorityWeight[b.task.priority] || 1) - (priorityWeight[a.task.priority] || 1);
-    if (pDiff !== 0) return pDiff;
+      const pDiff = (priorityWeight[b.task.priority] || 1) - (priorityWeight[a.task.priority] || 1);
+      if (pDiff !== 0) return pDiff;
 
-    const totalA = (a.task.durationMinutes || 0) + (a.task.breakMinutes || 0);
-    const totalB = (b.task.durationMinutes || 0) + (b.task.breakMinutes || 0);
-    return totalB - totalA;
-  });
+      const totalA = (a.task.durationMinutes || 0) + (a.task.breakMinutes || 0);
+      const totalB = (b.task.durationMinutes || 0) + (b.task.breakMinutes || 0);
+      return totalB - totalA;
+    });
+  }
 
   let scheduledTaskMinutes = 0;
 
-  // 4. ラウンド巡回配置ループ（Pass 1, Pass 2, Pass 3...）
-  let pass = 0;
-  const maxPasses = 100; // 安全上限
-  let anyPlaced = true;
+  // 4. 各日ごとの巡回配置ループ（ステップ2: 時間ブロックの割り振り）
+  // 「1巡目ではその日に割り当てられた1回以上繰り返すタスクを配置して、
+  //   2巡目では2回以上繰り返すタスクを配置、、、といった感じです」
+  for (let d = 0; d < 7; d++) {
+    const tasksInDay = dayTaskContexts[d];
+    const slots = dayAvailableSlots[d];
 
-  while (anyPlaced && pass < maxPasses) {
-    pass++;
-    anyPlaced = false;
+    let pass = 0;
+    const maxPasses = 100;
+    let anyPlacedInDay = true;
 
-    for (const ctx of contexts) {
-      if (ctx.isComplete && !ctx.isAuto) continue;
+    while (anyPlacedInDay && pass < maxPasses) {
+      pass++;
+      anyPlacedInDay = false;
 
-      for (const d of ctx.candidateDays) {
-        if (ctx.isComplete && !ctx.isAuto) break;
+      // pass巡目では「その日に割り当てられた pass 回以上繰り返すタスク」を配置対象とする
+      const eligibleTasks = tasksInDay.filter((ctx) => ctx.targetCount >= pass);
+      if (eligibleTasks.length === 0) break;
 
-        const dayPlaced = ctx.placedCountPerDay[d] || 0;
-        if (!ctx.isAuto && dayPlaced >= ctx.targetCountPerDay) continue;
-
-        // 週タスクの場合、週目標回数に達していたらこの日はスキップ
-        if (
-          !ctx.isAuto &&
-          (ctx.kind === 'assignment' ||
-            ctx.kind === 'weekly_specific' ||
-            ctx.kind === 'weekly_flexible')
-        ) {
-          if (ctx.placedCount >= ctx.targetCountWeekly) {
-            ctx.isComplete = true;
-            break;
-          }
-        }
-
-        // 自動タスクが複数ある場合、その日の中での配置回数の公平性を保つ
-        // (他の自動タスクの配置回数より多く先行して特定のタスクのみが独占配置されるのを防ぐ)
-        if (ctx.isAuto) {
-          const autoCtxsInDay = contexts.filter(
-            (c) => c.isAuto && c.candidateDays.includes(d),
-          );
-          if (autoCtxsInDay.length > 1) {
-            const minAutoPlaced = Math.min(
-              ...autoCtxsInDay.map((c) => c.placedCountPerDay[d] || 0),
-            );
-            // 最小配置回数よりすでに多く配置されている場合、他の自動タスクが追いつくまでこの日のこの巡ではスキップ
-            if (dayPlaced > minAutoPlaced) {
-              continue;
-            }
-          }
-        }
-
-        const slots = dayAvailableSlots[d];
+      for (const ctx of eligibleTasks) {
         for (const slot of slots) {
           if (slot.durationMinutes < 15) continue;
 
@@ -476,13 +527,12 @@ export function generateTheoreticalSchedule(
                 ? 30
                 : ctx.task.durationMinutes || 30;
 
-          // 休憩時間（分）
           const breakMin =
             ctx.task.breakMinutes && ctx.task.breakMinutes > 0 ? ctx.task.breakMinutes : 0;
           const minAcceptable = ctx.isAuto ? Math.min(requiredMin, 15) : requiredMin;
 
           if (slot.durationMinutes >= minAcceptable + breakMin) {
-            // 自動タスクの場合は空き枠に合わせて柔軟に収める（所要時間より小さくても15分以上あればフィット）
+            // 自動タスクの場合は空き枠に合わせて柔軟にフィット（最低15分以上あればフィット）
             const effectiveDuration = ctx.isAuto
               ? Math.min(
                   ctx.task.durationMinutes && ctx.task.durationMinutes > 0
@@ -500,7 +550,7 @@ export function generateTheoreticalSchedule(
 
               // ① タスク本体ブロックの配置
               dayBlocks[d].push({
-                id: `block-task-${d}-${ctx.task.id}-${ctx.placedCount}`,
+                id: `block-task-${d}-${ctx.task.id}-${ctx.placedCountInDay}`,
                 title: ctx.task.title,
                 category: ctx.task.category,
                 startMinutes: taskStart,
@@ -520,7 +570,7 @@ export function generateTheoreticalSchedule(
               // ② 休憩ブロックの配置（休憩時間が設定されている場合）
               if (breakMin > 0) {
                 dayBlocks[d].push({
-                  id: `block-break-${d}-${ctx.task.id}-${ctx.placedCount}`,
+                  id: `block-break-${d}-${ctx.task.id}-${ctx.placedCountInDay}`,
                   title: `☕ 休憩 (${ctx.task.title})`,
                   category: 'routine',
                   startMinutes: taskEnd,
@@ -539,9 +589,10 @@ export function generateTheoreticalSchedule(
               slot.startMinutes = taskEnd + breakMin;
               slot.durationMinutes = slot.endMinutes - (taskEnd + breakMin);
 
-              ctx.placedCount++;
-              ctx.placedCountPerDay[d] = dayPlaced + 1;
-              anyPlaced = true;
+              ctx.placedCountInDay++;
+              ctx.plan.placedCount++;
+              ctx.plan.placedCountPerDay[d] = (ctx.plan.placedCountPerDay[d] || 0) + 1;
+              anyPlacedInDay = true;
               scheduledTaskMinutes += effectiveDuration;
 
               // 目標回数の達成判定
@@ -551,22 +602,97 @@ export function generateTheoreticalSchedule(
                   ctx.kind === 'weekly_flexible' ||
                   ctx.kind === 'weekly_specific'
                 ) {
-                  if (ctx.placedCount >= ctx.targetCountWeekly) {
-                    ctx.isComplete = true;
+                  if (ctx.plan.placedCount >= ctx.plan.targetCountWeekly) {
+                    ctx.plan.isComplete = true;
                   }
                 } else if (ctx.kind === 'daily_fixed') {
-                  const allDone = ctx.candidateDays.every(
-                    (cd) => (ctx.placedCountPerDay[cd] || 0) >= ctx.targetCountPerDay,
+                  const allDone = ctx.plan.candidateDays.every(
+                    (cd) => (ctx.plan.placedCountPerDay[cd] || 0) >= ctx.plan.targetCountPerDay,
                   );
                   if (allDone) {
-                    ctx.isComplete = true;
+                    ctx.plan.isComplete = true;
                   }
                 }
               }
 
-              // 1巡につき1日1回配置できたら次の候補日へ
+              // この巡（pass）ではこのタスクは1回配置完了。次の対象タスクへ
               break;
             }
+          }
+        }
+      }
+    }
+  }
+
+  // フォールバック: 週タスクや課題タスクで目標未達のものがあれば、空き枠のある他の候補日へ配置
+  for (const plan of plans) {
+    if (plan.isAuto || plan.isComplete) continue;
+    if (plan.kind !== 'assignment' && plan.kind !== 'weekly_flexible') continue;
+
+    for (const d of plan.candidateDays) {
+      if (plan.placedCount >= plan.targetCountWeekly) {
+        plan.isComplete = true;
+        break;
+      }
+      if ((plan.placedCountPerDay[d] || 0) >= plan.targetCountPerDay) continue;
+
+      const slots = dayAvailableSlots[d];
+      for (const slot of slots) {
+        if (slot.durationMinutes < 15) continue;
+        const breakMin = plan.task.breakMinutes && plan.task.breakMinutes > 0 ? plan.task.breakMinutes : 0;
+        const requiredMin = plan.task.durationMinutes || 30;
+        if (slot.durationMinutes >= requiredMin + breakMin) {
+          const effectiveDuration = getAdjustedDuration(plan.task, slot.durationMinutes - breakMin);
+          const totalNeeded = effectiveDuration + breakMin;
+          if (slot.durationMinutes >= totalNeeded) {
+            const taskStart = slot.startMinutes;
+            const taskEnd = taskStart + effectiveDuration;
+
+            dayBlocks[d].push({
+              id: `block-task-${d}-${plan.task.id}-${plan.placedCount}`,
+              title: plan.task.title,
+              category: plan.task.category,
+              startMinutes: taskStart,
+              endMinutes: taskEnd,
+              isFixed: false,
+              isBreak: false,
+              color: getCategoryColor(plan.task.category),
+              taskId: plan.task.id,
+              priority: plan.task.priority,
+              taskType: plan.task.taskType || 'task',
+              deadlineDay: plan.task.deadlineDay,
+              dayIndex: d,
+              sourceTableId: plan.task.sourceTableId,
+              sourceTableName: plan.task.sourceTableName,
+            });
+
+            if (breakMin > 0) {
+              dayBlocks[d].push({
+                id: `block-break-${d}-${plan.task.id}-${plan.placedCount}`,
+                title: `☕ 休憩 (${plan.task.title})`,
+                category: 'routine',
+                startMinutes: taskEnd,
+                endMinutes: taskEnd + breakMin,
+                isFixed: false,
+                isBreak: true,
+                breakForTaskId: plan.task.id,
+                color: '#10b981',
+                dayIndex: d,
+                sourceTableId: plan.task.sourceTableId,
+                sourceTableName: plan.task.sourceTableName,
+              });
+            }
+
+            slot.startMinutes = taskEnd + breakMin;
+            slot.durationMinutes = slot.endMinutes - (taskEnd + breakMin);
+
+            plan.placedCount++;
+            plan.placedCountPerDay[d] = (plan.placedCountPerDay[d] || 0) + 1;
+            scheduledTaskMinutes += effectiveDuration;
+            if (plan.placedCount >= plan.targetCountWeekly) {
+              plan.isComplete = true;
+            }
+            break;
           }
         }
       }
@@ -577,15 +703,14 @@ export function generateTheoreticalSchedule(
   const unassignedTasks: TaskItem[] = [];
   let assignedTaskCount = 0;
 
-  for (const ctx of contexts) {
-    if (ctx.placedCount > 0) {
+  for (const plan of plans) {
+    if (plan.placedCount > 0) {
       assignedTaskCount++;
-      if (!ctx.isAuto && !ctx.isComplete) {
-        // 目標回数を満たせなかったタスクは未割り当てリストにも追加
-        unassignedTasks.push(ctx.task);
+      if (!plan.isAuto && !plan.isComplete) {
+        unassignedTasks.push(plan.task);
       }
     } else {
-      unassignedTasks.push(ctx.task);
+      unassignedTasks.push(plan.task);
     }
   }
 
