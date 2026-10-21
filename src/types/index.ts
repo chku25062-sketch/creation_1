@@ -177,6 +177,8 @@ export interface ImportedTableData {
   classificationOverride?: TableClassification; // 手動で日・週・固定枠を明示上書きしたい場合の設定
   columnMode?: TableColumnMode; // 列の管理方式: 曜日で管理 ('weekday') または 周期で管理 ('cycle')
   dailyRepeatCount?: number | 'auto'; // 1日の中の繰り返し回数 (未指定または 'auto' は自動)
+  colorIndex?: number; // 割り当てるカラーパレットの番号 (0〜11)
+  customColor?: string; // 任意のカスタムカラーHEX (例: '#0284c7')
 }
 
 export interface ScheduleInclusionSettings {

@@ -24,7 +24,9 @@ import {
   Repeat,
   Upload,
   X,
+  Palette,
 } from 'lucide-react';
+import { TABLE_PALETTE_OPTIONS, getTableColorSchemeByIndex } from '@/components/Timeline24h';
 import {
   ImportedTableData,
   FixedSlot,
@@ -214,6 +216,35 @@ export function ImportedTablesManager({
   // テーブル名編集モーダル/ステート
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempTableName, setTempTableName] = useState('');
+
+  // 表カラーピッカーの開閉ステート
+  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
+
+  // カラーピッカー外側クリックで閉じる
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+        setIsColorPickerOpen(false);
+      }
+    };
+    if (isColorPickerOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isColorPickerOpen]);
+
+  // 現在選択中の表の有効カラーインデックス
+  const activeTableColorIndex = useMemo(() => {
+    if (!activeTable) return 0;
+    if (activeTable.colorIndex !== undefined) return activeTable.colorIndex;
+    const idx = tables.findIndex((t) => t.id === activeTable.id);
+    return (idx >= 0 ? idx : 0) % TABLE_PALETTE_OPTIONS.length;
+  }, [activeTable, tables]);
+
+  const activeTablePalette = useMemo(() => {
+    return getTableColorSchemeByIndex(activeTableColorIndex);
+  }, [activeTableColorIndex]);
 
   // 時限個別調整アコーディオンの開閉
   const [showCustomTimes, setShowCustomTimes] = useState(false);
@@ -749,6 +780,7 @@ export function ImportedTablesManager({
       colHeaders: ['月曜', '火曜', '水曜', '木曜', '金曜'],
       rowHeaders: ['1', '2', '3', '4', '5'],
       dailyRepeatCount: 'auto',
+      colorIndex: tables.length % TABLE_PALETTE_OPTIONS.length,
       axisConfig: {
         startTime: '09:00',
         periodMinutes: 90,
@@ -902,7 +934,7 @@ export function ImportedTablesManager({
                     {isSidebarOpen ? '該当する表がありません' : 'なし'}
                   </div>
                 ) : (
-                  filteredTables.map((t) => {
+                  filteredTables.map((t, index) => {
                     const isSelected = t.id === selectedItemId;
                     const dateStr = t.updatedAt
                       ? new Date(t.updatedAt).toLocaleDateString('ja-JP', {
@@ -910,6 +942,9 @@ export function ImportedTablesManager({
                           day: 'numeric',
                         })
                       : '';
+                    const tColor = getTableColorSchemeByIndex(
+                      t.colorIndex !== undefined ? t.colorIndex : index,
+                    );
 
                     return (
                       <div
@@ -917,7 +952,7 @@ export function ImportedTablesManager({
                         onClick={() => {
                           handleSelectItem(t.id);
                         }}
-                        title={t.name}
+                        title={`${t.name} (カラー: ${tColor.strip})`}
                         className={`group relative flex items-center rounded-lg cursor-pointer transition ${
                           isSidebarOpen
                             ? 'justify-between px-2.5 py-2 text-xs'
@@ -930,11 +965,14 @@ export function ImportedTablesManager({
                       >
                         <div className="flex items-center gap-1.5 min-w-0 flex-1 pr-1">
                           <div
-                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-sm ${
-                              isSelected ? 'text-blue-700' : 'text-emerald-600'
-                            }`}
+                            className="relative flex h-5 w-5 shrink-0 items-center justify-center rounded-sm"
+                            style={{ color: tColor.strip }}
                           >
                             <FileSpreadsheet className="h-4 w-4" />
+                            <span
+                              className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-1 ring-white"
+                              style={{ backgroundColor: tColor.strip }}
+                            />
                           </div>
 
                           <div className="min-w-0 flex-1">
@@ -1338,6 +1376,24 @@ export function ImportedTablesManager({
                 <span className="font-medium text-slate-600 shrink-0">取り込み表データ</span>
                 <span className="text-slate-300">/</span>
                 <span className="font-bold text-slate-900 truncate">{activeTable.name}</span>
+                {/* 表カラーインジケーター（クリックで色変更） */}
+                <button
+                  type="button"
+                  onClick={() => setIsColorPickerOpen((prev) => !prev)}
+                  className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold border transition hover:scale-105 cursor-pointer shadow-2xs"
+                  style={{
+                    backgroundColor: activeTablePalette.badgeBg,
+                    color: activeTablePalette.badgeText,
+                    borderColor: activeTablePalette.badgeBorder,
+                  }}
+                  title="表のカラーを変更"
+                >
+                  <span
+                    className="h-2 w-2 rounded-full ring-1 ring-black/10"
+                    style={{ backgroundColor: activeTablePalette.strip }}
+                  />
+                  <span>{TABLE_PALETTE_OPTIONS[activeTableColorIndex]?.name || 'カラー'}</span>
+                </button>
                 {!isEditingName && (
                   <button
                     onClick={() => {
@@ -1480,6 +1536,92 @@ export function ImportedTablesManager({
                     </div>
                   );
                 })()}
+
+                {/* 表カラー選択ドロップダウン（ツールバー） */}
+                <div className="relative" ref={colorPickerRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsColorPickerOpen((prev) => !prev)}
+                    className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs hover:bg-slate-50 transition cursor-pointer"
+                    title="表のカラーを選択（計画表の付箋ブロックに反映されます）"
+                  >
+                    <span
+                      className="h-3 w-3 rounded-full ring-1 ring-black/10 shrink-0"
+                      style={{ backgroundColor: activeTablePalette.strip }}
+                    />
+                    <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
+                      カラー:
+                    </span>
+                    <span
+                      className="font-bold text-xs"
+                      style={{ color: activeTablePalette.text }}
+                    >
+                      {TABLE_PALETTE_OPTIONS[activeTableColorIndex]?.name || 'カスタム'}
+                    </span>
+                    <ChevronDown className="h-3 w-3 text-slate-400" />
+                  </button>
+
+                  {isColorPickerOpen && (
+                    <div className="absolute top-full left-0 mt-1 z-50 w-64 rounded-xl border border-slate-200 bg-white p-2.5 shadow-xl animate-in fade-in zoom-in-95 duration-100">
+                      <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-slate-100">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                          <Palette className="h-3.5 w-3.5 text-slate-500" />
+                          表のカラーを選択
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsColorPickerOpen(false)}
+                          className="text-slate-400 hover:text-slate-600 rounded p-0.5"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {TABLE_PALETTE_OPTIONS.map((opt) => {
+                          const isSelected = activeTableColorIndex === opt.index;
+                          return (
+                            <button
+                              key={`color-opt-${opt.index}`}
+                              type="button"
+                              onClick={() => {
+                                updateActiveTable((prev) => ({
+                                  ...prev,
+                                  colorIndex: opt.index,
+                                  updatedAt: new Date().toISOString(),
+                                }));
+                                setIsColorPickerOpen(false);
+                                setApplySuccessMsg(`表のカラーを「${opt.name}」に変更しました`);
+                                setTimeout(() => setApplySuccessMsg(null), 2500);
+                              }}
+                              className={`group relative flex flex-col items-center justify-center rounded-lg p-1.5 transition border ${
+                                isSelected
+                                  ? 'ring-2 ring-blue-500 border-blue-400 font-bold scale-105'
+                                  : 'hover:scale-105 border-slate-200/80 hover:border-slate-300'
+                              }`}
+                              style={{ backgroundColor: opt.color.bg }}
+                              title={opt.name}
+                            >
+                              <div
+                                className="h-4 w-4 rounded-full shadow-2xs ring-1 ring-white/80 flex items-center justify-center"
+                                style={{ backgroundColor: opt.color.strip }}
+                              >
+                                {isSelected && (
+                                  <Check className="h-2.5 w-2.5 text-white stroke-[3]" />
+                                )}
+                              </div>
+                              <span
+                                className="mt-1 text-[9px] truncate max-w-full leading-tight font-medium"
+                                style={{ color: opt.color.text }}
+                              >
+                                {opt.name}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* 1日の中の繰り返し回数 */}
                 <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">

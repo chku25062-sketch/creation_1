@@ -225,7 +225,17 @@ export default function Home() {
   };
 
   const handleSaveTableData = (table: ImportedTableData) => {
-    const updated = [table, ...importedTables.filter((t) => t.id !== table.id)];
+    const existing = importedTables.find((t) => t.id === table.id);
+    const tableWithColor: ImportedTableData = {
+      ...table,
+      colorIndex:
+        table.colorIndex !== undefined
+          ? table.colorIndex
+          : existing?.colorIndex !== undefined
+            ? existing.colorIndex
+            : importedTables.length % 12,
+    };
+    const updated = [tableWithColor, ...importedTables.filter((t) => t.id !== table.id)];
     setImportedTables(updated);
     saveImportedTables(updated);
     // 取り込んだ表の軸・インターバル定義を行えるようデータ管理Sheetへ遷移
@@ -308,6 +318,7 @@ export default function Home() {
               blocks={schedulingResult.blocks}
               dayBlocks={schedulingResult.dayBlocks}
               unassignedTasks={schedulingResult.unassignedTasks}
+              importedTables={importedTables}
               focusMode={focusMode}
               onToggleFocus={handleToggleFocus}
             />

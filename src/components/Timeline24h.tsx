@@ -9,13 +9,14 @@ import {
   ChevronRight,
   FileSpreadsheet,
 } from 'lucide-react';
-import { TheoreticalBlock, TaskItem } from '@/types';
+import { TheoreticalBlock, TaskItem, ImportedTableData } from '@/types';
 import { minutesToTimeString, formatDuration } from '@/lib/timeUtils';
 
 interface Timeline24hProps {
   blocks: TheoreticalBlock[];
   unassignedTasks: TaskItem[];
   dayBlocks?: Record<number, TheoreticalBlock[]>;
+  importedTables?: ImportedTableData[];
   focusMode?: 'week' | 'today';
   onToggleFocus?: () => void;
 }
@@ -34,7 +35,7 @@ export interface TableColorScheme {
   accent: string;
 }
 
-// 参照元の表ごとに割り当てる調和の取れたリッチな付箋カラーパレット
+// 参照元の表ごとに割り当てる調和の取れたリッチな付箋カラーパレット（12色）
 export const TABLE_PALETTES: TableColorScheme[] = [
   // 1. スカイブルー / 講義・大学時間割系
   {
@@ -47,56 +48,56 @@ export const TABLE_PALETTES: TableColorScheme[] = [
     badgeBorder: '#7dd3fc',
     accent: '#38bdf8',
   },
-  // 2. エメラルドグリーン / 筋トレ・健康・フィットネス系
+  // 2. ウォームコーラル / 重点タスク・プロジェクト系
+  {
+    bg: '#fff1f2',
+    border: '#fecdd3',
+    text: '#be123c',
+    strip: '#f43f5e',
+    badgeBg: '#ffe4e6',
+    badgeText: '#9f1239',
+    badgeBorder: '#fda4af',
+    accent: '#fb7185',
+  },
+  // 3. エメラルドグリーン / 筋トレ・健康・フィットネス系
   {
     bg: '#ecfdf5',
     border: '#a7f3d0',
     text: '#065f46',
-    strip: '#10b981',
+    strip: '#059669',
     badgeBg: '#d1fae5',
     badgeText: '#047857',
     badgeBorder: '#6ee7b7',
     accent: '#34d399',
   },
-  // 3. ウォームアンバー / ルーティン・日課表系
-  {
-    bg: '#fffbeb',
-    border: '#fde68a',
-    text: '#92400e',
-    strip: '#f59e0b',
-    badgeBg: '#fef3c7',
-    badgeText: '#b45309',
-    badgeBorder: '#fcd34d',
-    accent: '#fbbf24',
-  },
-  // 4. パープル・ラベンダー / 創作・プロジェクト系
+  // 4. リッチパープル / 創作・研究・執筆系
   {
     bg: '#faf5ff',
     border: '#e9d5ff',
     text: '#6b21a8',
-    strip: '#a855f7',
+    strip: '#9333ea',
     badgeBg: '#f3e8ff',
     badgeText: '#7e22ce',
     badgeBorder: '#d8b4fe',
     accent: '#c084fc',
   },
-  // 5. ローズ・コーラル / 重点タスク・締切系
+  // 5. ウォームアンバー・オレンジ / ルーティン・日課表系
   {
-    bg: '#fff1f2',
-    border: '#fecdd3',
-    text: '#9f1239',
-    strip: '#f43f5e',
-    badgeBg: '#ffe4e6',
-    badgeText: '#be123c',
-    badgeBorder: '#fda4af',
-    accent: '#fb7185',
+    bg: '#fff7ed',
+    border: '#fed7aa',
+    text: '#c2410c',
+    strip: '#ea580c',
+    badgeBg: '#ffedd5',
+    badgeText: '#9a3412',
+    badgeBorder: '#fdba74',
+    accent: '#fb923c',
   },
-  // 6. インディゴ / 資格学習・研究系
+  // 6. インディゴ / 資格学習・プログラミング系
   {
     bg: '#eef2ff',
     border: '#c7d2fe',
     text: '#3730a3',
-    strip: '#6366f1',
+    strip: '#4f46e5',
     badgeBg: '#e0e7ff',
     badgeText: '#4338ca',
     badgeBorder: '#a5b4fc',
@@ -106,44 +107,170 @@ export const TABLE_PALETTES: TableColorScheme[] = [
   {
     bg: '#f0fdfa',
     border: '#99f6e4',
-    text: '#115e59',
-    strip: '#14b8a6',
+    text: '#0f766e',
+    strip: '#0d9488',
     badgeBg: '#ccfbf1',
-    badgeText: '#0f766e',
+    badgeText: '#115e59',
     badgeBorder: '#5eead4',
     accent: '#2dd4bf',
   },
-  // 8. ウォームピーチ / その他業務系
+  // 8. フューシャピンク / イベント・対外活動系
   {
-    bg: '#fff7ed',
-    border: '#fed7aa',
-    text: '#9a3412',
-    strip: '#f97316',
-    badgeBg: '#ffedd5',
-    badgeText: '#c2410c',
-    badgeBorder: '#fdba74',
-    accent: '#fb923c',
+    bg: '#fdf4ff',
+    border: '#f5d0fe',
+    text: '#86198f',
+    strip: '#c026d3',
+    badgeBg: '#fae8ff',
+    badgeText: '#a21caf',
+    badgeBorder: '#f0abfc',
+    accent: '#e879f9',
+  },
+  // 9. シアンターコイズ / ミーティング・連絡系
+  {
+    bg: '#ecfeff',
+    border: '#a5f3fc',
+    text: '#0e7490',
+    strip: '#0891b2',
+    badgeBg: '#cffafe',
+    badgeText: '#155e75',
+    badgeBorder: '#67e8f9',
+    accent: '#22d3ee',
+  },
+  // 10. ライムシトラス / 自己啓発・読書系
+  {
+    bg: '#f7fee7',
+    border: '#d9f99d',
+    text: '#3f6212',
+    strip: '#65a30d',
+    badgeBg: '#ecfccb',
+    badgeText: '#4d7c0f',
+    badgeBorder: '#bef264',
+    accent: '#a3e635',
+  },
+  // 11. ウォームテラコッタ / 家事・生活管理系
+  {
+    bg: '#fffbeb',
+    border: '#fde68a',
+    text: '#92400e',
+    strip: '#b45309',
+    badgeBg: '#fef3c7',
+    badgeText: '#78350f',
+    badgeBorder: '#fcd34d',
+    accent: '#fbbf24',
+  },
+  // 12. ディープバイオレット / 集中ディープワーク系
+  {
+    bg: '#f5f3ff',
+    border: '#ddd6fe',
+    text: '#4c1d95',
+    strip: '#7c3aed',
+    badgeBg: '#ede9fe',
+    badgeText: '#5b21b6',
+    badgeBorder: '#c4b5fd',
+    accent: '#a78bfa',
   },
 ];
 
-export function getBlockColorScheme(block: TheoreticalBlock): TableColorScheme {
+export interface TablePaletteOption {
+  index: number;
+  name: string;
+  color: TableColorScheme;
+}
+
+export const TABLE_PALETTE_OPTIONS: TablePaletteOption[] = [
+  { index: 0, name: 'スカイブルー', color: TABLE_PALETTES[0] },
+  { index: 1, name: 'コーラルピンク', color: TABLE_PALETTES[1] },
+  { index: 2, name: 'エメラルド', color: TABLE_PALETTES[2] },
+  { index: 3, name: 'パープル', color: TABLE_PALETTES[3] },
+  { index: 4, name: 'オレンジ', color: TABLE_PALETTES[4] },
+  { index: 5, name: 'インディゴ', color: TABLE_PALETTES[5] },
+  { index: 6, name: 'ティール', color: TABLE_PALETTES[6] },
+  { index: 7, name: 'フューシャ', color: TABLE_PALETTES[7] },
+  { index: 8, name: 'シアン', color: TABLE_PALETTES[8] },
+  { index: 9, name: 'ライム', color: TABLE_PALETTES[9] },
+  { index: 10, name: 'テラコッタ', color: TABLE_PALETTES[10] },
+  { index: 11, name: 'バイオレット', color: TABLE_PALETTES[11] },
+];
+
+// 表を持たない特殊ブロック専用パレット
+export const REST_PALETTE: TableColorScheme = {
+  bg: '#f0fdf4',
+  border: '#bbf7d0',
+  text: '#166534',
+  strip: '#22c55e',
+  badgeBg: '#dcfce7',
+  badgeText: '#15803d',
+  badgeBorder: '#86efac',
+  accent: '#4ade80',
+};
+
+export const FIXED_PALETTE: TableColorScheme = {
+  bg: '#f4efe6',
+  border: '#dfd6c5',
+  text: '#475569',
+  strip: '#94a3b8',
+  badgeBg: '#e8e2d5',
+  badgeText: '#334155',
+  badgeBorder: '#cbd5e1',
+  accent: '#94a3b8',
+};
+
+export const DEFAULT_TASK_PALETTE: TableColorScheme = {
+  bg: '#fef9c3',
+  border: '#fde047',
+  text: '#854d0e',
+  strip: '#eab308',
+  badgeBg: '#fef08a',
+  badgeText: '#a16207',
+  badgeBorder: '#facc15',
+  accent: '#facc15',
+};
+
+export const LECTURE_PALETTE: TableColorScheme = TABLE_PALETTES[0];
+export const ASSIGNMENT_PALETTE: TableColorScheme = TABLE_PALETTES[3];
+
+/**
+ * 0, 1, 2... のインデックスに対して重複のないカラーパレットを取得・動的生成する
+ * 12個を超える表があっても黄金比アングル（137.508度）により完全に一意なカラーを算出
+ */
+export function getTableColorSchemeByIndex(index: number): TableColorScheme {
+  if (index >= 0 && index < TABLE_PALETTES.length) {
+    return TABLE_PALETTES[index];
+  }
+  // 12色を超える場合は、黄金比アングルで色相を分散させたHSLパステルカラーを動的生成（重複ゼロ）
+  const hue = Math.round((index * 137.5077) % 360);
+  return {
+    bg: `hsl(${hue}, 92%, 97%)`,
+    border: `hsl(${hue}, 70%, 82%)`,
+    text: `hsl(${hue}, 85%, 26%)`,
+    strip: `hsl(${hue}, 80%, 48%)`,
+    badgeBg: `hsl(${hue}, 90%, 93%)`,
+    badgeText: `hsl(${hue}, 90%, 24%)`,
+    badgeBorder: `hsl(${hue}, 65%, 72%)`,
+    accent: `hsl(${hue}, 80%, 55%)`,
+  };
+}
+
+/**
+ * ブロックから適切なカラーパレットを決定する関数
+ * tableColorMap が渡された場合は表ごとの固有カラーを確実に引き、重複を完全排除する
+ */
+export function getBlockColorScheme(
+  block: TheoreticalBlock,
+  tableColorMap?: Map<string, TableColorScheme>,
+): TableColorScheme {
   // ① 休憩ブロック
   if (block.isBreak) {
-    return {
-      bg: '#f0fdf4',
-      border: '#bbf7d0',
-      text: '#166534',
-      strip: '#22c55e',
-      badgeBg: '#dcfce7',
-      badgeText: '#15803d',
-      badgeBorder: '#86efac',
-      accent: '#4ade80',
-    };
+    return REST_PALETTE;
   }
 
-  // ② 参照元の表が指定されている場合は、その表ごとの固有カラーを割り当て
-  const tableName = block.sourceTableName || block.sourceTableId;
+  // ② 参照元の表が指定されている場合
+  const tableName = (block.sourceTableName || block.sourceTableId || '').trim();
   if (tableName) {
+    if (tableColorMap && tableColorMap.has(tableName)) {
+      return tableColorMap.get(tableName)!;
+    }
+    // マップ未指定時のフォールバック（文字列ハッシュで決定）
     let hash = 0;
     for (let i = 0; i < tableName.length; i++) {
       hash = (hash << 5) - hash + tableName.charCodeAt(i);
@@ -156,40 +283,23 @@ export function getBlockColorScheme(block: TheoreticalBlock): TableColorScheme {
   // ③ 表指定がない固定枠（睡眠・生活リズム）
   if (block.isFixed) {
     if (block.category === 'lecture') {
-      return TABLE_PALETTES[0]; // スカイブルー
+      return LECTURE_PALETTE;
     }
-    return {
-      bg: '#f4efe6',
-      border: '#dfd6c5',
-      text: '#475569',
-      strip: '#94a3b8',
-      badgeBg: '#e8e2d5',
-      badgeText: '#334155',
-      badgeBorder: '#cbd5e1',
-      accent: '#94a3b8',
-    };
+    return FIXED_PALETTE;
   }
 
   // ④ 表指定がない通常タスク（基本設定のタスク）
   if (block.taskType === 'assignment') {
-    return TABLE_PALETTES[3]; // ラベンダー（課題）
+    return ASSIGNMENT_PALETTE;
   }
-  return {
-    bg: '#fef9c3',
-    border: '#fde047',
-    text: '#854d0e',
-    strip: '#eab308',
-    badgeBg: '#fef08a',
-    badgeText: '#a16207',
-    badgeBorder: '#facc15',
-    accent: '#facc15',
-  };
+  return DEFAULT_TASK_PALETTE;
 }
 
 export function Timeline24h({
   blocks,
   unassignedTasks,
   dayBlocks,
+  importedTables,
   focusMode = 'today',
 }: Timeline24hProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -291,65 +401,70 @@ export function Timeline24h({
   // 時間軸の統一幅（ヘッダーとグリッドで完全一致させる）
   const timeAxisWidthClass = 'w-13 sm:w-15 shrink-0';
 
-  // 現在スケジュール内に存在する参照元テーブルの一覧（カラー凡例用）
-  const uniqueSourceTables = useMemo(() => {
-    const tableMap = new Map<string, { name: string; color: TableColorScheme }>();
+  // 参照元の表ごとにユニークなカラーを割り当てるマップ
+  // 1. ユーザーが表のツールで色を選択している場合 (colorIndex) はその色を最優先
+  // 2. 未指定の表には、まだ使われていないカラーインデックスを順次割り当てて重複を完全排除
+  const tableColorMap = useMemo(() => {
+    const colorMap = new Map<string, TableColorScheme>();
+    const usedIndices = new Set<number>();
+
+    // ① まず importedTables の中で明示的に colorIndex が設定されている表を登録
+    if (importedTables) {
+      for (const tbl of importedTables) {
+        if (tbl.colorIndex !== undefined) {
+          const color = getTableColorSchemeByIndex(tbl.colorIndex);
+          if (tbl.name.trim()) colorMap.set(tbl.name.trim(), color);
+          if (tbl.id) colorMap.set(tbl.id, color);
+          usedIndices.add(tbl.colorIndex % TABLE_PALETTES.length);
+        }
+      }
+    }
+
+    // ② 未指定の表を収集
+    const pendingNames: string[] = [];
+    if (importedTables) {
+      for (const tbl of importedTables) {
+        const name = tbl.name.trim();
+        if (name && !colorMap.has(name) && !pendingNames.includes(name)) {
+          pendingNames.push(name);
+        }
+      }
+    }
+
+    // ブロック内に登場する表名（未登録の表など）も収集
     const allCandidateBlocks: TheoreticalBlock[] = [];
     if (dayBlocks) {
       Object.values(dayBlocks).forEach((arr) => allCandidateBlocks.push(...arr));
     } else {
       allCandidateBlocks.push(...blocks);
     }
-
     for (const b of allCandidateBlocks) {
-      if (b.sourceTableName) {
-        if (!tableMap.has(b.sourceTableName)) {
-          tableMap.set(b.sourceTableName, {
-            name: b.sourceTableName,
-            color: getBlockColorScheme(b),
-          });
-        }
+      const name = (b.sourceTableName || b.sourceTableId || '').trim();
+      if (name && !colorMap.has(name) && !pendingNames.includes(name)) {
+        pendingNames.push(name);
       }
     }
-    return Array.from(tableMap.values());
-  }, [blocks, dayBlocks]);
+
+    // ③ 未使用のカラーインデックスを順番に割り当てて、重複を完全に防ぐ
+    let nextAvailableIdx = 0;
+    for (const name of pendingNames) {
+      while (
+        usedIndices.has(nextAvailableIdx % TABLE_PALETTES.length) &&
+        usedIndices.size < TABLE_PALETTES.length
+      ) {
+        nextAvailableIdx++;
+      }
+      const color = getTableColorSchemeByIndex(nextAvailableIdx);
+      colorMap.set(name, color);
+      usedIndices.add(nextAvailableIdx % TABLE_PALETTES.length);
+      nextAvailableIdx++;
+    }
+
+    return colorMap;
+  }, [importedTables, blocks, dayBlocks]);
 
   return (
     <div className="flex flex-1 min-h-0 flex-col gap-1.5 rounded-xl border border-slate-200 bg-white p-1.5 sm:p-2 shadow-2xs">
-      {/* 参照元テーブルのカラー凡例（Legend） */}
-      {uniqueSourceTables.length > 0 && (
-        <div className="flex shrink-0 items-center justify-between gap-2 rounded-lg bg-slate-50/90 border border-slate-200/80 px-2.5 py-1.5 text-xs">
-          <div className="flex items-center gap-1.5 overflow-x-auto">
-            <span className="text-[11px] font-bold text-slate-600 shrink-0 flex items-center gap-1">
-              <FileSpreadsheet className="h-3 w-3 text-emerald-600" />
-              表ごとの色分け:
-            </span>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {uniqueSourceTables.map((t) => (
-                <span
-                  key={`legend-${t.name}`}
-                  className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold border shadow-2xs transition hover:scale-105"
-                  style={{
-                    backgroundColor: t.color.badgeBg,
-                    color: t.color.badgeText,
-                    borderColor: t.color.badgeBorder,
-                  }}
-                  title={`表名: ${t.name}`}
-                >
-                  <span
-                    className="h-2 w-2 rounded-full ring-1 ring-white/60"
-                    style={{ backgroundColor: t.color.strip }}
-                  />
-                  {t.name}
-                </span>
-              ))}
-            </div>
-          </div>
-          <span className="hidden sm:inline text-[10px] text-slate-400 font-mono shrink-0">
-            1時間 = 126px (1.5倍) / 10分・30分目盛り
-          </span>
-        </div>
-      )}
 
       {/* Unassigned Warning Alert if any */}
       {unassignedTasks.length > 0 && (
@@ -656,8 +771,8 @@ export function Timeline24h({
                       const isShort = duration < 25 || height < 30;
                       const isAssignment = block.taskType === 'assignment';
 
-                      // ★ 参照元の表ごとのカラーパレットを取得
-                      const colorScheme = getBlockColorScheme(block);
+                      // ★ 参照元の表ごとのカラーパレットを取得（表ごとに重複のない一意カラー）
+                      const colorScheme = getBlockColorScheme(block, tableColorMap);
 
                       return (
                         <div
