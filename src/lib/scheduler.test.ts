@@ -781,6 +781,118 @@ describe('Theoretical Scheduler Engine', () => {
       expect(mondayBlocks[3].startMinutes).toBe(690); // 11:30
       expect(mondayBlocks[3].endMinutes).toBe(720); // 12:00
     });
+
+    it('タスク後の休憩時間 (breakMinutes) が設定されたタスクについて、タスク直後に休憩ブロックが自動生成されること', () => {
+      // 10:00〜12:00 (120分) の空きスロット
+      const fixedSlots: FixedSlot[] = [
+        {
+          id: 'sleep',
+          title: '睡眠',
+          category: 'sleep',
+          startMinutes: 0,
+          endMinutes: 600, // 00:00〜10:00
+          color: '#6366f1',
+        },
+        {
+          id: 'work',
+          title: '仕事',
+          category: 'work',
+          startMinutes: 720, // 12:00〜24:00
+          endMinutes: 1440,
+          color: '#3b82f6',
+        },
+      ];
+
+      // 45分作業 + 15分休憩 の日次タスク (1日1回)
+      const taskWithBreak: TaskItem = {
+        id: 'study-with-break',
+        title: '集中学習',
+        durationMinutes: 45,
+        breakMinutes: 15,
+        priority: 'high',
+        category: 'study',
+        period: 'day',
+        dailyCount: 1,
+        dailyRepeatMode: 'custom',
+      };
+
+      const result = generateTheoreticalSchedule(fixedSlots, [taskWithBreak]);
+      const mondayBlocks = result.dayBlocks[0];
+
+      // 作業ブロック
+      const workBlock = mondayBlocks.find((b) => b.taskId === 'study-with-break' && !b.isBreak);
+      expect(workBlock).toBeDefined();
+      expect(workBlock?.startMinutes).toBe(600); // 10:00
+      expect(workBlock?.endMinutes).toBe(645); // 10:45
+
+      // 休憩ブロック（作業直後に15分間）
+      const breakBlock = mondayBlocks.find(
+        (b) => b.isBreak && b.breakForTaskId === 'study-with-break',
+      );
+      expect(breakBlock).toBeDefined();
+      expect(breakBlock?.startMinutes).toBe(645); // 10:45
+      expect(breakBlock?.endMinutes).toBe(660); // 11:00
+      expect(breakBlock?.title).toContain('休憩');
+    });
+
+    it('自動敷き詰め (dailyRepeatMode: auto) に breakMinutes がある場合、作業＋休憩のセットで空き枠に敷き詰められること', () => {
+      // 10:00〜12:00 (120分) の空きスロット
+      const fixedSlots: FixedSlot[] = [
+        {
+          id: 'sleep',
+          title: '睡眠',
+          category: 'sleep',
+          startMinutes: 0,
+          endMinutes: 600,
+          color: '#6366f1',
+        },
+        {
+          id: 'work',
+          title: '仕事',
+          category: 'work',
+          startMinutes: 720,
+          endMinutes: 1440,
+          color: '#3b82f6',
+        },
+      ];
+
+      // 45分作業 + 15分休憩 = 60分セット。120分空きに 2セット配置される
+      const autoTask: TaskItem = {
+        id: 'pomodoro-task',
+        title: 'ポモドーロ作業',
+        durationMinutes: 45,
+        breakMinutes: 15,
+        priority: 'high',
+        category: 'routine',
+        period: 'day',
+        dailyRepeatMode: 'auto',
+      };
+
+      const result = generateTheoreticalSchedule(fixedSlots, [autoTask]);
+      const mondayBlocks = result.dayBlocks[0];
+
+      const workBlocks = mondayBlocks.filter((b) => b.taskId === 'pomodoro-task' && !b.isBreak);
+      const breakBlocks = mondayBlocks.filter(
+        (b) => b.isBreak && b.breakForTaskId === 'pomodoro-task',
+      );
+
+      // 2セット配置されていること
+      expect(workBlocks.length).toBe(2);
+      expect(breakBlocks.length).toBe(2);
+
+      // セット1: 10:00〜10:45 (作業) + 10:45〜11:00 (休憩)
+      expect(workBlocks[0].startMinutes).toBe(600);
+      expect(workBlocks[0].endMinutes).toBe(645);
+      expect(breakBlocks[0].startMinutes).toBe(645);
+      expect(breakBlocks[0].endMinutes).toBe(660);
+
+      // セット2: 11:00〜11:45 (作業) + 11:45〜12:00 (休憩)
+      expect(workBlocks[1].startMinutes).toBe(660);
+      expect(workBlocks[1].endMinutes).toBe(705);
+      expect(breakBlocks[1].startMinutes).toBe(705);
+      expect(breakBlocks[1].endMinutes).toBe(720);
+    });
   });
 });
+
 

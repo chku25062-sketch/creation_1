@@ -47,6 +47,7 @@ export interface TaskItem {
   cycleDays?: number[]; // 対象周期インデックス一覧 (0: Day 1, 1: Day 2, ...)。複数周期日の指定に対応
   dailyCount?: number; // 1日あたりの目標回数 (1, 2, 3...)
   dailyRepeatMode?: 'auto' | 'custom'; // 1日の中の繰り返し回数モード ('auto': 自動, 'custom': 回数指定)
+  breakMinutes?: number; // タスク後の休憩時間（分）。0または未指定は休憩なし
   cycleIndex?: number; // 3日周期などのローテーション番号 (単一または代表値)
   cycleCount?: number; // 周期全体の長さ (例: 3日周期なら3)
   sourceTableId?: string; // 参照元テーブルID
@@ -60,6 +61,8 @@ export interface TheoreticalBlock {
   startMinutes: number;
   endMinutes: number;
   isFixed: boolean;
+  isBreak?: boolean; // 休憩ブロックかどうか
+  breakForTaskId?: string; // どのタスクに付随する休憩か
   color: string;
   taskId?: string;
   priority?: TaskPriority;
@@ -136,6 +139,7 @@ export interface GridCell {
   startMinutes: number;
   endMinutes: number;
   category?: string; // "lecture", "workout", "routine", "work", "hobby", "study" 等の自由カテゴリ
+  breakMinutes?: number; // タスク後の休憩時間（分）
   attachedTask?: {
     enabled: boolean;
     title: string;

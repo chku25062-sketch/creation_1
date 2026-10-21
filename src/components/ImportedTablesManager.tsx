@@ -225,6 +225,7 @@ export function ImportedTablesManager({
   // セル編集ステート
   const [editingCell, setEditingCell] = useState<{ r: number; c: number } | null>(null);
   const [cellEditText, setCellEditText] = useState('');
+  const [cellBreakMinutes, setCellBreakMinutes] = useState<number>(0);
   const [cellAttachedEnabled, setCellAttachedEnabled] = useState<boolean>(false);
   const [cellAttachedTitle, setCellAttachedTitle] = useState<string>('');
   const [cellAttachedDuration, setCellAttachedDuration] = useState<number>(15);
@@ -650,6 +651,7 @@ export function ImportedTablesManager({
     const cell = activeTable.cells[r][c];
     setEditingCell({ r, c });
     setCellEditText(cell.text || cell.title || '');
+    setCellBreakMinutes(cell.breakMinutes || 0);
     setCellAttachedEnabled(
       cell.attachedTask?.enabled ?? activeTable.attachedTaskConfig?.enabled ?? false,
     );
@@ -684,6 +686,7 @@ export function ImportedTablesManager({
               roomOrNote,
               fullText: trimmed,
               rawLines: lines,
+              breakMinutes: cellBreakMinutes > 0 ? cellBreakMinutes : undefined,
               attachedTask: cellAttachedEnabled
                 ? {
                     enabled: true,
@@ -859,189 +862,16 @@ export function ImportedTablesManager({
           <div
             className={`flex-1 overflow-y-auto ${isSidebarOpen ? 'p-1.5 space-y-2' : 'p-1 space-y-1.5'}`}
           >
-            {/* Section 1: 基本設定ファイル (固定枠、日課、週次) */}
-            <div>
-              <div
-                className={`${
-                  isSidebarOpen
-                    ? 'px-2 py-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase'
-                    : 'px-1 py-0.5 text-[9px] font-bold text-slate-400 text-center uppercase tracking-tighter'
-                }`}
-              >
-                {isSidebarOpen ? '基本設定' : '基本'}
-              </div>
-              <div className="space-y-0.5">
-                {/* 固定枠 */}
-                {(!searchQuery.trim() ||
-                  '固定枠 生活リズム 睡眠 講義 勤務 fixed'
-                    .toLowerCase()
-                    .includes(searchQuery.toLowerCase())) && (
-                  <div
-                    onClick={() => handleSelectItem('sys-slots')}
-                    title="固定枠 (生活リズム)"
-                    className={`group relative flex items-center rounded-lg cursor-pointer transition ${
-                      isSidebarOpen
-                        ? 'justify-between px-2.5 py-2 text-xs'
-                        : 'px-1.5 py-1.5 text-xs gap-1.5'
-                    } ${
-                      selectedItemId === 'sys-slots'
-                        ? 'bg-blue-100/80 text-blue-950 font-bold shadow-2xs border-l-3 border-l-blue-600'
-                        : 'hover:bg-slate-200/50 text-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                      <div
-                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-sm ${
-                          selectedItemId === 'sys-slots' ? 'text-sky-700' : 'text-sky-600'
-                        }`}
-                      >
-                        <Shield className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div
-                          className={`truncate leading-tight ${
-                            isSidebarOpen ? 'text-xs' : 'text-[11px] font-medium max-w-[42px]'
-                          }`}
-                        >
-                          固定枠
-                        </div>
-                        {isSidebarOpen ? (
-                          <div className="mt-0.5 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                            <span>睡眠・講義・勤務等 ({fixedSlots.length}件)</span>
-                            {isSlotsApplied && (
-                              <span className="rounded bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-700">
-                                ON
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          isSlotsApplied && (
-                            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          )
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* 日 (1日に複数回) */}
-                {(!searchQuery.trim() ||
-                  '日 日課 毎日 日次 ルーティン daily'
-                    .toLowerCase()
-                    .includes(searchQuery.toLowerCase())) && (
-                  <div
-                    onClick={() => handleSelectItem('sys-daily')}
-                    title="日 (1日に複数回組み込まれるもの)"
-                    className={`group relative flex items-center rounded-lg cursor-pointer transition ${
-                      isSidebarOpen
-                        ? 'justify-between px-2.5 py-2 text-xs'
-                        : 'px-1.5 py-1.5 text-xs gap-1.5'
-                    } ${
-                      selectedItemId === 'sys-daily'
-                        ? 'bg-blue-100/80 text-blue-950 font-bold shadow-2xs border-l-3 border-l-blue-600'
-                        : 'hover:bg-slate-200/50 text-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                      <div
-                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-sm ${
-                          selectedItemId === 'sys-daily' ? 'text-amber-600' : 'text-amber-500'
-                        }`}
-                      >
-                        <Sun className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div
-                          className={`truncate leading-tight ${
-                            isSidebarOpen ? 'text-xs' : 'text-[11px] font-medium max-w-[42px]'
-                          }`}
-                        >
-                          {isSidebarOpen ? '日 (1日に複数回)' : '日次'}
-                        </div>
-                        {isSidebarOpen ? (
-                          <div className="mt-0.5 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                            <span>1日複数回・日課 ({dailyTasksCount}件)</span>
-                            {isDailyApplied && (
-                              <span className="rounded bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-700">
-                                ON
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          isDailyApplied && (
-                            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          )
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* 週 (週に複数回 / 周期) */}
-                {(!searchQuery.trim() ||
-                  '週 週次 目標 周期 課題 todo weekly'
-                    .toLowerCase()
-                    .includes(searchQuery.toLowerCase())) && (
-                  <div
-                    onClick={() => handleSelectItem('sys-weekly')}
-                    title="週 (週に複数回 / 周期など)"
-                    className={`group relative flex items-center rounded-lg cursor-pointer transition ${
-                      isSidebarOpen
-                        ? 'justify-between px-2.5 py-2 text-xs'
-                        : 'px-1.5 py-1.5 text-xs gap-1.5'
-                    } ${
-                      selectedItemId === 'sys-weekly'
-                        ? 'bg-blue-100/80 text-blue-950 font-bold shadow-2xs border-l-3 border-l-blue-600'
-                        : 'hover:bg-slate-200/50 text-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                      <div
-                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-sm ${
-                          selectedItemId === 'sys-weekly' ? 'text-purple-700' : 'text-purple-600'
-                        }`}
-                      >
-                        <CalendarDays className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div
-                          className={`truncate leading-tight ${
-                            isSidebarOpen ? 'text-xs' : 'text-[11px] font-medium max-w-[42px]'
-                          }`}
-                        >
-                          {isSidebarOpen ? '週 (週に複数回 / 周期)' : '週次'}
-                        </div>
-                        {isSidebarOpen ? (
-                          <div className="mt-0.5 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                            <span>週複数回・周期 ({weeklyTasksCount}件)</span>
-                            {isWeeklyApplied && (
-                              <span className="rounded bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-700">
-                                ON
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          isWeeklyApplied && (
-                            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          )
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Section 2: 取り込み表データ (外部時間割・シフト表等) */}
+            {/* Section 1: 取り込み表データ (主要入力装置 / Primary Input) */}
             <div>
               <div
                 className={`flex items-center justify-between ${
                   isSidebarOpen
-                    ? 'px-2 py-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase'
-                    : 'px-1 py-0.5 text-[9px] font-bold text-slate-400 justify-center uppercase tracking-tighter'
+                    ? 'px-2 py-1 text-[10px] font-bold tracking-wider text-slate-500 uppercase'
+                    : 'px-1 py-0.5 text-[9px] font-bold text-slate-500 justify-center uppercase tracking-tighter'
                 }`}
               >
-                <span>{isSidebarOpen ? '取り込み表データ' : '表'}</span>
+                <span>{isSidebarOpen ? '📊 表データ (主要入力)' : '表'}</span>
                 {isSidebarOpen && (
                   <div className="flex items-center gap-1.5">
                     <span className="font-mono text-slate-400">{filteredTables.length}</span>
@@ -1203,6 +1033,179 @@ export function ImportedTablesManager({
                 )}
               </div>
             </div>
+
+            {/* Section 2: 計画表インスペクター (可視化・点検サブツール) */}
+            <div className="pt-2 border-t border-slate-200">
+              <div
+                className={`${
+                  isSidebarOpen
+                    ? 'px-2 py-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase'
+                    : 'px-1 py-0.5 text-[9px] font-bold text-slate-400 text-center uppercase tracking-tighter'
+                }`}
+              >
+                {isSidebarOpen ? '🔍 計画表インスペクター' : '確認'}
+              </div>
+              <div className="space-y-0.5">
+                {/* 固定枠 */}
+                {(!searchQuery.trim() ||
+                  '固定枠 生活リズム 睡眠 講義 勤務 fixed'
+                    .toLowerCase()
+                    .includes(searchQuery.toLowerCase())) && (
+                  <div
+                    onClick={() => handleSelectItem('sys-slots')}
+                    title="固定枠 (生活リズム)"
+                    className={`group relative flex items-center rounded-lg cursor-pointer transition ${
+                      isSidebarOpen
+                        ? 'justify-between px-2.5 py-2 text-xs'
+                        : 'px-1.5 py-1.5 text-xs gap-1.5'
+                    } ${
+                      selectedItemId === 'sys-slots'
+                        ? 'bg-blue-100/80 text-blue-950 font-bold shadow-2xs border-l-3 border-l-blue-600'
+                        : 'hover:bg-slate-200/50 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                      <div
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-sm ${
+                          selectedItemId === 'sys-slots' ? 'text-sky-700' : 'text-sky-600'
+                        }`}
+                      >
+                        <Shield className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div
+                          className={`truncate leading-tight ${
+                            isSidebarOpen ? 'text-xs' : 'text-[11px] font-medium max-w-[42px]'
+                          }`}
+                        >
+                          固定枠
+                        </div>
+                        {isSidebarOpen ? (
+                          <div className="mt-0.5 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                            <span>睡眠・講義・勤務等 ({fixedSlots.length}件)</span>
+                            {isSlotsApplied && (
+                              <span className="rounded bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-700">
+                                ON
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          isSlotsApplied && (
+                            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          )
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 今日用いられているタスク */}
+                {(!searchQuery.trim() ||
+                  '今日 日 日課 毎日 日次 ルーティン daily today'
+                    .toLowerCase()
+                    .includes(searchQuery.toLowerCase())) && (
+                  <div
+                    onClick={() => handleSelectItem('sys-daily')}
+                    title="今日用いられているタスク一覧"
+                    className={`group relative flex items-center rounded-lg cursor-pointer transition ${
+                      isSidebarOpen
+                        ? 'justify-between px-2.5 py-2 text-xs'
+                        : 'px-1.5 py-1.5 text-xs gap-1.5'
+                    } ${
+                      selectedItemId === 'sys-daily'
+                        ? 'bg-blue-100/80 text-blue-950 font-bold shadow-2xs border-l-3 border-l-blue-600'
+                        : 'hover:bg-slate-200/50 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                      <div
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-sm ${
+                          selectedItemId === 'sys-daily' ? 'text-amber-600' : 'text-amber-500'
+                        }`}
+                      >
+                        <Sun className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div
+                          className={`truncate leading-tight ${
+                            isSidebarOpen ? 'text-xs' : 'text-[11px] font-medium max-w-[42px]'
+                          }`}
+                        >
+                          {isSidebarOpen ? '📅 今日のタスク' : '今日'}
+                        </div>
+                        {isSidebarOpen ? (
+                          <div className="mt-0.5 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                            <span>今日用いられているタスク</span>
+                            {isDailyApplied && (
+                              <span className="rounded bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-700">
+                                ON
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          isDailyApplied && (
+                            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          )
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 今週用いられているタスク */}
+                {(!searchQuery.trim() ||
+                  '今週 週 週次 目標 周期 課題 todo weekly this week'
+                    .toLowerCase()
+                    .includes(searchQuery.toLowerCase())) && (
+                  <div
+                    onClick={() => handleSelectItem('sys-weekly')}
+                    title="今週用いられているタスク一覧"
+                    className={`group relative flex items-center rounded-lg cursor-pointer transition ${
+                      isSidebarOpen
+                        ? 'justify-between px-2.5 py-2 text-xs'
+                        : 'px-1.5 py-1.5 text-xs gap-1.5'
+                    } ${
+                      selectedItemId === 'sys-weekly'
+                        ? 'bg-blue-100/80 text-blue-950 font-bold shadow-2xs border-l-3 border-l-blue-600'
+                        : 'hover:bg-slate-200/50 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                      <div
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-sm ${
+                          selectedItemId === 'sys-weekly' ? 'text-purple-700' : 'text-purple-600'
+                        }`}
+                      >
+                        <CalendarDays className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div
+                          className={`truncate leading-tight ${
+                            isSidebarOpen ? 'text-xs' : 'text-[11px] font-medium max-w-[42px]'
+                          }`}
+                        >
+                          {isSidebarOpen ? '🗓️ 今週のタスク' : '今週'}
+                        </div>
+                        {isSidebarOpen ? (
+                          <div className="mt-0.5 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                            <span>今週用いられているタスク ({tasks.length}件)</span>
+                            {isWeeklyApplied && (
+                              <span className="rounded bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-700">
+                                ON
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          isWeeklyApplied && (
+                            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                          )
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* 隠しファイル選択 input */}
@@ -1325,8 +1328,8 @@ export function ImportedTablesManager({
                   {selectedItemId === 'sys-slots'
                     ? '固定枠 (生活リズム)'
                     : selectedItemId === 'sys-daily'
-                      ? '日 (1日に複数回 / 日次)'
-                      : '週 (週に複数回 / 周期)'}
+                      ? '📅 今日用いられているタスク'
+                      : '🗓️ 今週用いられているタスク'}
                 </span>
               </div>
             ) : activeTable ? (
@@ -2194,6 +2197,31 @@ export function ImportedTablesManager({
               className="w-full rounded-lg border border-slate-300 p-2 text-xs focus:border-blue-500 focus:outline-hidden"
               autoFocus
             />
+
+            {/* タスク後の休憩時間 */}
+            <div className="mt-3 flex items-center justify-between rounded-lg border border-slate-200 bg-emerald-50/50 p-2.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-base">☕</span>
+                <div>
+                  <div className="text-xs font-bold text-slate-800">タスク後の休憩時間</div>
+                  <div className="text-[10px] text-slate-500">直後に確保する休憩</div>
+                </div>
+              </div>
+              <select
+                value={cellBreakMinutes}
+                onChange={(e) => setCellBreakMinutes(Number(e.target.value))}
+                className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-hidden"
+              >
+                <option value={0}>なし (0分)</option>
+                <option value={5}>5分</option>
+                <option value={10}>10分</option>
+                <option value={15}>15分 (おすすめ)</option>
+                <option value={20}>20分</option>
+                <option value={30}>30分</option>
+                <option value={45}>45分</option>
+                <option value={60}>60分</option>
+              </select>
+            </div>
 
 
             {/* 付随タスク（連動タスク）設定 */}

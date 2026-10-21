@@ -424,6 +424,9 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             existing.dailyCount = tableDailyCount;
             existing.dailyRepeatMode = 'custom';
           }
+          if (cell.breakMinutes) {
+            existing.breakMinutes = Math.max(existing.breakMinutes || 0, cell.breakMinutes);
+          }
           if (isWeekday && colInfo.dayIndex !== undefined) {
             const curDays = existing.targetDays || [];
             if (!curDays.includes(colInfo.dayIndex)) {
@@ -445,6 +448,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             category: tableCategory, // 表の名前でカテゴリを代用
             durationSize: duration <= 25 ? 'small' : duration <= 60 ? 'medium' : 'large',
             durationMinutes: duration,
+            breakMinutes: cell.breakMinutes,
             frequency: 'high',
             period: 'day',
             dailyCount: tableDailyCount ?? 1,
@@ -468,6 +472,9 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
         const existing = taskMap.get(taskKey);
 
         if (existing) {
+          if (cell.breakMinutes) {
+            existing.breakMinutes = Math.max(existing.breakMinutes || 0, cell.breakMinutes);
+          }
           if (isWeekday && colInfo.dayIndex !== undefined) {
             const curDays = existing.targetDays || [];
             if (!curDays.includes(colInfo.dayIndex)) {
@@ -491,6 +498,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             category: tableCategory, // 表の名前でカテゴリを代用
             durationSize: duration <= 25 ? 'small' : duration <= 60 ? 'medium' : 'large',
             durationMinutes: duration,
+            breakMinutes: cell.breakMinutes,
             frequency: 'medium',
             period: 'week',
             targetDays: isWeekday ? [colInfo.dayIndex!] : (!isCycle ? [0, 1, 2, 3, 4, 5, 6] : undefined),

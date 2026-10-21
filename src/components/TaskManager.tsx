@@ -202,10 +202,17 @@ export function TaskManager({
   const [taskPeriodScope, setTaskPeriodScope] = useState<'day' | 'week'>('week'); // 🏃 日(1日複数回/日課) vs 🎯 週(週複数回/周期)
   const [taskGroupName, setTaskGroupName] = useState<string>('基本設定'); // 表名またはグループ名
 
-  // 所要時間
+  // 所要時間 & 休憩時間
   const [durationSize, setDurationSize] = useState<TaskDurationSize>('medium'); // 3択: 小(15〜30m), 中(30m〜2h), 大(2h+)
   const [durationMinutes, setDurationMinutes] = useState<number>(60);
+  const [taskBreakMinutes, setTaskBreakMinutes] = useState<number>(0); // タスク後の休憩時間（分）
   const [isNoDurationTodo, setIsNoDurationTodo] = useState(false); // 時間枠なしToDo
+
+  // 今日ビューで選択中の曜日 (0:月 〜 6:日、初期値は今日の曜日)
+  const [selectedTodayDayIndex, setSelectedTodayDayIndex] = useState<number>(() => {
+    const today = new Date().getDay(); // 0:日, 1:月, ...
+    return (today + 6) % 7; // 0:月, ..., 6:日
+  });
 
   // 日の設定: 1日の中の回数 & 実施タイミング (曜日・毎日 vs 周期)
   const [dailyTimingMode, setDailyTimingMode] = useState<'weekday' | 'cycle'>('weekday');
@@ -317,6 +324,7 @@ export function TaskManager({
     setFlexibleCount(2);
     setDurationSize(options?.isTodo ? 'small' : 'medium');
     setDurationMinutes(options?.isTodo ? 0 : 60);
+    setTaskBreakMinutes(0);
     setIsNoDurationTodo(!!options?.isTodo);
     setHasDeadline(!!options?.isAssignment);
     setStartDay(0);
@@ -348,6 +356,7 @@ export function TaskManager({
     setFlexibleCount(1);
     setDurationSize('medium');
     setDurationMinutes(60);
+    setTaskBreakMinutes(15);
     setIsNoDurationTodo(false);
     setHasDeadline(true);
     setStartDay(lectureDay);
@@ -361,6 +370,7 @@ export function TaskManager({
   const openEditTask = (task: TaskItem) => {
     setEditingTaskId(task.id);
     setTaskTitle(task.title);
+    setTaskBreakMinutes(task.breakMinutes || 0);
     const isDaily = task.period === 'day' || task.frequency === 'high';
     setTaskPeriodScope(isDaily ? 'day' : 'week');
     setTaskGroupName(task.sourceTableName || task.category || '基本設定');
@@ -537,6 +547,7 @@ export function TaskManager({
       category: finalCategory,
       durationSize,
       durationMinutes: defaultMinutes,
+      breakMinutes: taskBreakMinutes > 0 ? taskBreakMinutes : undefined,
       hasNoDuration: isNoDurationTodo,
       frequency,
       frequencyCount,
@@ -851,14 +862,37 @@ export function TaskManager({
     return result;
   }, [slots, slotCategoryFilter, slotDayFilter, slotSortKey]);
 
-  // 絞り込み & 並び替えされた日課タスク
+  // 選択された曜日にタスクが該当・実行されるかの判定
+  const isTaskActiveOnDay = (t: TaskItem, day: number) => {
+    if (t.cycleDays && t.cycleDays.length > 0) {
+      const cCount = t.cycleCount || 3;
+      return t.cycleDays.includes(day % cCount);
+    }
+    if (t.targetDays && t.targetDays.length > 0) {
+      return t.targetDays.includes(day);
+    }
+    if (t.deadlineDay !== undefined && t.deadlineDay === day) return true;
+    if (t.startDay !== undefined && t.startDay === day) return true;
+    if (t.period === 'day' || t.frequency === 'high') return true;
+    return false;
+  };
+
+  // 絞り込み & 並び替えされた日課・今日タスク
   const filteredAndSortedDailyTasks = useMemo(() => {
-    let result = [...dailyTasks];
+    // viewMode === 'daily' のときは、今日（選択曜日）に用いられている全タスク（日課＋週タスク/課題）を対象にできる
+    let sourcePool =
+      viewMode === 'daily'
+        ? tasks.filter((t) => isTaskActiveOnDay(t, selectedTodayDayIndex))
+        : [...dailyTasks];
+
+    let result = sourcePool;
 
     // 1. カテゴリ/グループ絞り込み
     if (taskCategoryFilter !== 'all') {
       if (taskCategoryFilter === 'todo') {
         result = result.filter((t) => t.taskType === 'todo' || t.hasNoDuration);
+      } else if (taskCategoryFilter === 'assignment') {
+        result = result.filter((t) => t.taskType === 'assignment');
       } else {
         result = result.filter(
           (t) =>
@@ -869,20 +903,10 @@ export function TaskManager({
       }
     }
 
-    // 2. 曜日絞り込み
+    // 2. 曜日絞り込み（all時または補助フィルター）
     if (taskDayFilter !== 'all') {
       const targetDay = Number(taskDayFilter);
-      result = result.filter((t) => {
-        if (t.cycleDays && t.cycleDays.length > 0) {
-          const cCount = t.cycleCount || 3;
-          return t.cycleDays.includes(targetDay % cCount);
-        }
-        if (t.targetDays && t.targetDays.length > 0) {
-          return t.targetDays.includes(targetDay);
-        }
-        if (t.startDay !== undefined) return t.startDay === targetDay;
-        return true; // 毎日タスクはどの曜日にも該当
-      });
+      result = result.filter((t) => isTaskActiveOnDay(t, targetDay));
     }
 
     // 3. 並び替え
@@ -907,7 +931,15 @@ export function TaskManager({
     });
 
     return result;
-  }, [dailyTasks, taskCategoryFilter, taskDayFilter, taskSortKey]);
+  }, [
+    tasks,
+    dailyTasks,
+    viewMode,
+    selectedTodayDayIndex,
+    taskCategoryFilter,
+    taskDayFilter,
+    taskSortKey,
+  ]);
 
   // 絞り込み & 並び替えされた週次タスク
   const filteredAndSortedWeeklyTasks = useMemo(() => {
@@ -1150,8 +1182,71 @@ export function TaskManager({
           )}
         </div>
       ) : viewMode === 'daily' ? (
-        /* 日課タスク (高頻度・毎日) ツールバー */
-        <div className="flex flex-col gap-2 shrink-0 rounded-xl border border-slate-200/90 bg-white/80 backdrop-blur-xs p-2.5 shadow-2xs">
+        /* 📅 今日用いられているタスク（曜日切り替えセレクタ付き） */
+        <div className="flex flex-col gap-2 shrink-0 rounded-xl border border-amber-200/90 bg-white/90 backdrop-blur-xs p-2.5 shadow-2xs">
+          {/* サブツール案内バナー */}
+          <div className="flex items-center justify-between text-[11px] bg-amber-50/80 border border-amber-200/60 rounded-lg px-2.5 py-1 text-amber-900">
+            <span className="flex items-center gap-1.5 font-medium">
+              <span className="text-amber-600 font-bold">💡</span>
+              <span>表データ（時間割・週間計画等）がタスク登録の主役です。ここでは選択した曜日に割り振られるタスクの詳細確認・管理が行えます。</span>
+            </span>
+          </div>
+
+          {/* 曜日切り替えタブバー */}
+          <div className="flex items-center justify-between gap-1 bg-amber-100/40 p-1 rounded-lg border border-amber-200/60">
+            <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+              <span className="text-[11px] font-bold text-amber-900 px-1 shrink-0 flex items-center gap-1">
+                <Sun className="h-3.5 w-3.5 text-amber-600" />
+                <span>表示する曜日:</span>
+              </span>
+              {[
+                { day: 0, label: '月曜日' },
+                { day: 1, label: '火曜日' },
+                { day: 2, label: '水曜日' },
+                { day: 3, label: '木曜日' },
+                { day: 4, label: '金曜日' },
+                { day: 5, label: '土曜日' },
+                { day: 6, label: '日曜日' },
+              ].map((d) => {
+                const isSelected = selectedTodayDayIndex === d.day;
+                const isRealToday = ((new Date().getDay() + 6) % 7) === d.day;
+                return (
+                  <button
+                    key={d.day}
+                    type="button"
+                    onClick={() => setSelectedTodayDayIndex(d.day)}
+                    className={`relative px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1 shrink-0 ${
+                      isSelected
+                        ? 'bg-amber-600 text-white shadow-2xs'
+                        : isRealToday
+                          ? 'bg-amber-200/80 text-amber-900 hover:bg-amber-300'
+                          : 'bg-white/80 text-slate-700 hover:bg-white hover:text-slate-900'
+                    }`}
+                  >
+                    <span>{d.label}</span>
+                    {isRealToday && (
+                      <span
+                        className={`text-[9px] px-1 rounded-full font-black ${
+                          isSelected ? 'bg-amber-800 text-amber-100' : 'bg-amber-600 text-white'
+                        }`}
+                      >
+                        今日
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSelectedTodayDayIndex((new Date().getDay() + 6) % 7)}
+              className="text-[10px] font-bold text-amber-700 hover:text-amber-900 underline px-1 shrink-0"
+            >
+              今日に戻す
+            </button>
+          </div>
+
           <div className="flex flex-wrap items-center justify-between gap-2">
             {/* 追加ボタン & プリセット */}
             <div className="flex items-center gap-2">
@@ -1228,7 +1323,7 @@ export function TaskManager({
               </div>
 
               <span className="text-[11px] font-bold text-slate-500 font-mono bg-slate-100 rounded-md px-2 py-0.5">
-                {filteredAndSortedDailyTasks.length}/{dailyTasks.length}件
+                {filteredAndSortedDailyTasks.length}件
               </span>
             </div>
           </div>
@@ -1336,8 +1431,16 @@ export function TaskManager({
           )}
         </div>
       ) : viewMode === 'weekly' ? (
-        /* 週次タスク・課題・ToDo ツールバー */
-        <div className="flex flex-col gap-2 shrink-0 rounded-xl border border-slate-200/90 bg-white/80 backdrop-blur-xs p-2.5 shadow-2xs">
+        /* 🗓️ 今週用いられているタスク（週次タスク・課題・ToDo）ツールバー */
+        <div className="flex flex-col gap-2 shrink-0 rounded-xl border border-purple-200/90 bg-white/90 backdrop-blur-xs p-2.5 shadow-2xs">
+          {/* サブツール案内バナー */}
+          <div className="flex items-center justify-between text-[11px] bg-purple-50/80 border border-purple-200/60 rounded-lg px-2.5 py-1 text-purple-900">
+            <span className="flex items-center gap-1.5 font-medium">
+              <span className="text-purple-600 font-bold">💡</span>
+              <span>表データ（時間割・週間計画等）がタスク登録の主役です。ここでは今週用いられている全タスク（週次タスク・課題・ToDo）の詳細確認・管理が行えます。</span>
+            </span>
+          </div>
+
           <div className="flex flex-wrap items-center justify-between gap-2">
             {/* 追加ボタン & プリセット */}
             <div className="flex items-center gap-1.5">
@@ -1636,7 +1739,7 @@ export function TaskManager({
                     <Sun className="h-3.5 w-3.5" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-slate-900">日 (1日に複数回 / 日次)</h4>
+                    <h4 className="text-xs font-bold text-slate-900">📅 今日・日課タスク (今日用いられているタスク)</h4>
                   </div>
                   <span className="rounded-full bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
                     {dailyTasks.length}件
@@ -1683,9 +1786,9 @@ export function TaskManager({
                 </div>
               ) : filteredAndSortedDailyTasks.length === 0 ? (
                 <div className="col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-12 text-center text-xs text-slate-500 bg-white/40">
-                  <p className="font-semibold text-slate-700">条件に一致する日課タスクがありません</p>
+                  <p className="font-semibold text-slate-700">条件に一致するタスクがありません</p>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    カテゴリまたは曜日の絞り込み条件を変更してください
+                    選択中の曜日や絞り込み条件を変更してください
                   </p>
                   <button
                     type="button"
@@ -1772,6 +1875,13 @@ export function TaskManager({
                                     : '1日1回'}
                               </span>
 
+                              {task.breakMinutes !== undefined && task.breakMinutes > 0 && (
+                                <span className="shrink-0 rounded bg-emerald-50 border border-emerald-200 px-1 py-0.2 text-[9px] font-bold text-emerald-700 flex items-center gap-0.5">
+                                  <span>☕</span>
+                                  <span>休憩 {task.breakMinutes}分</span>
+                                </span>
+                              )}
+
                               {task.targetDays && task.targetDays.length > 0 && task.targetDays.length < 7 && (
                                 <span className="shrink-0 rounded bg-sky-50 border border-sky-200 px-1 py-0.2 text-[9px] font-bold text-sky-700">
                                   {task.targetDays.map((d) => WEEKDAY_SHORT[d]).join('・')}
@@ -1839,7 +1949,7 @@ export function TaskManager({
                     <CalendarDays className="h-3.5 w-3.5" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-slate-900">週 (週に複数回 / 周期)</h4>
+                    <h4 className="text-xs font-bold text-slate-900">🗓️ 今週タスク (今週用いられているタスク)</h4>
                   </div>
                   <span className="rounded-full bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
                     {weeklyTasks.length}件
@@ -1899,14 +2009,14 @@ export function TaskManager({
                   className="col-span-full flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-10 text-center text-xs text-slate-500 hover:border-purple-300 hover:text-purple-700 transition bg-white/40"
                 >
                   <CalendarDays className="h-8 w-8 text-purple-300 mb-2" />
-                  <span className="font-semibold text-slate-700">週単位のタスク・課題がありません</span>
+                  <span className="font-semibold text-slate-700">今週のタスク・課題がありません</span>
                   <span className="mt-1 text-xs font-bold text-purple-600">
                     + タップして追加
                   </span>
                 </div>
               ) : filteredAndSortedWeeklyTasks.length === 0 ? (
                 <div className="col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-12 text-center text-xs text-slate-500 bg-white/40">
-                  <p className="font-semibold text-slate-700">条件に一致する週次タスクがありません</p>
+                  <p className="font-semibold text-slate-700">条件に一致するタスクがありません</p>
                   <p className="text-[11px] text-slate-400 mt-0.5">
                     カテゴリまたは曜日の絞り込み条件を変更してください
                   </p>
@@ -2032,6 +2142,13 @@ export function TaskManager({
                                       ? `週${task.frequencyCount}回`
                                       : '週枠'}
                               </span>
+
+                              {task.breakMinutes !== undefined && task.breakMinutes > 0 && (
+                                <span className="shrink-0 rounded bg-emerald-50 border border-emerald-200 px-1 py-0.2 text-[9px] font-bold text-emerald-700 flex items-center gap-0.5">
+                                  <span>☕</span>
+                                  <span>休憩 {task.breakMinutes}分</span>
+                                </span>
+                              )}
 
                               {isAssign &&
                                 task.startDay !== undefined &&
@@ -2868,6 +2985,35 @@ export function TaskManager({
                   </div>
                 )}
               </div>
+
+              {/* タスク後の休憩時間 */}
+              {!isNoDurationTodo && (
+                <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">☕</span>
+                    <div>
+                      <span className="text-xs font-bold text-slate-800">タスク後の休憩時間</span>
+                      <p className="text-[10px] text-slate-500">
+                        作業直後にスケジュールへ自動確保される休憩枠
+                      </p>
+                    </div>
+                  </div>
+                  <select
+                    value={taskBreakMinutes}
+                    onChange={(e) => setTaskBreakMinutes(Number(e.target.value))}
+                    className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-500 focus:outline-none cursor-pointer"
+                  >
+                    <option value={0}>なし (0分)</option>
+                    <option value={5}>5分</option>
+                    <option value={10}>10分</option>
+                    <option value={15}>15分 (おすすめ)</option>
+                    <option value={20}>20分</option>
+                    <option value={30}>30分</option>
+                    <option value={45}>45分</option>
+                    <option value={60}>60分</option>
+                  </select>
+                </div>
+              )}
 
               {/* 6. オプション: 締切・提出期日の設定（週のタスクで必要な場合） */}
               {taskPeriodScope === 'week' && (
