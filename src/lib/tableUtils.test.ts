@@ -98,14 +98,20 @@ describe('tableUtils', () => {
     expect(getTableClassification(table)).toBe('daily_task');
   });
 
-  it('correctly classifies weekly_task for 3-day cycle tables and weekdays', () => {
+  it('correctly classifies daily_task when weeklyRepeatCount is not specified', () => {
     const table = createBaseTable(null);
     table.colHeaders = ['Day 1', 'Day 2', 'Day 3'];
-    expect(getTableClassification(table)).toBe('weekly_task');
+    expect(getTableClassification(table)).toBe('daily_task');
 
     const weekdayTable = createBaseTable(null);
     weekdayTable.colHeaders = ['月曜', '火曜'];
-    expect(getTableClassification(weekdayTable)).toBe('weekly_task');
+    expect(getTableClassification(weekdayTable)).toBe('daily_task');
+  });
+
+  it('correctly classifies weekly_task only when weeklyRepeatCount is explicitly set (> 0)', () => {
+    const table = createBaseTable(null);
+    table.weeklyRepeatCount = 3;
+    expect(getTableClassification(table)).toBe('weekly_task');
   });
 
   it('honors classificationOverride when specified', () => {
@@ -177,6 +183,7 @@ describe('tableUtils', () => {
   it('generates weekly tasks with cycleIndex when classified as weekly_task (3-day cycle)', () => {
     const table = createBaseTable(null);
     table.colHeaders = ['Day 1', 'Day 2'];
+    table.weeklyRepeatCount = 3;
     const res = generateScheduleItemsForTable(table);
     expect(res.slots.length).toBe(0);
     expect(res.tasks.length).toBe(1);
@@ -322,6 +329,7 @@ describe('tableUtils', () => {
     // 週のタスク: 表の列の要素が日ごとに繰り返される
     // 月曜と木曜（2列）に「胸トレ」
     const table = createBaseTable(null);
+    table.weeklyRepeatCount = 2;
     table.numCols = 4;
     table.colHeaders = ['月曜', '火曜', '水曜', '木曜'];
     table.cells = [
@@ -344,6 +352,7 @@ describe('tableUtils', () => {
   it('aggregates same-title weekly tasks across multiple cycle days into a single task with cycleDays', () => {
     // 3日周期表: Day 1 と Day 3 に「腹筋」
     const table = createBaseTable(null);
+    table.weeklyRepeatCount = 2;
     table.columnMode = 'cycle';
     table.numCols = 3;
     table.colHeaders = ['Day 1', 'Day 2', 'Day 3'];

@@ -11,7 +11,6 @@ import {
 import { calculatePeriodTimes } from './timeUtils';
 
 const WEEKDAY_NAMES = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜', '月', '火', '水', '木', '金', '土', '日'];
-const DAILY_TIMEFRAME_KEYWORDS = ['朝', '昼', '夕', '夜', '午前', '午後', '起床', '就寝', 'タイムテーブル', '日課', 'ルーティン', '1日'];
 const CYCLE_KEYWORDS = ['day', 'サイクル', '周期', '分割', 'rot', 'part'];
 
 /**
@@ -142,10 +141,10 @@ export function parseColHeader(header: string, defaultIndex: number): ParsedColH
 }
 
 /**
- * 表データが「固定枠」「日（日次タスク）」「週（週次タスク/周期）」のどれに分類されるかを判定
+ * 表データが「固定枠」「日課タスク」「週タスク」のどれに分類されるかを判定
  * - 固定枠: 開始時刻が設定されているもの
- * - 日（日次）: 1日に複数回組み込まれる可能性があるもの (1日メニュー、朝昼晩ルーティン等)
- * - 週（週次）: 週に複数回組み込まれる可能性があるもの (3日周期筋トレ表、週次タスク等)
+ * - 週タスク: 週の回数（weeklyRepeatCount）が指定されているもの「のみ」
+ * - 日課タスク: 週の回数が指定されていないもの（未指定・auto）
  */
 export function getTableClassification(table: ImportedTableData): TableClassification {
   if (table.classificationOverride) {
@@ -157,7 +156,7 @@ export function getTableClassification(table: ImportedTableData): TableClassific
     return 'fixed_slot';
   }
 
-  // ★ 週の回数（weeklyRepeatCount）が指定されている場合は「週タスク」
+  // ★ 週の回数（weeklyRepeatCount）が指定されているもの「のみ」を週タスクとして定義
   if (
     table.weeklyRepeatCount !== undefined &&
     table.weeklyRepeatCount !== 'auto' &&
@@ -167,30 +166,8 @@ export function getTableClassification(table: ImportedTableData): TableClassific
     return 'weekly_task';
   }
 
-  // ★ 1日の回数（dailyRepeatCount）が指定されている場合は「日課タスク」
-  if (
-    table.dailyRepeatCount !== undefined &&
-    table.dailyRepeatCount !== 'auto' &&
-    typeof table.dailyRepeatCount === 'number' &&
-    table.dailyRepeatCount > 0
-  ) {
-    return 'daily_task';
-  }
-
-  const tableNameLower = table.name.toLowerCase();
-  const hasDailyName = DAILY_TIMEFRAME_KEYWORDS.some((kw) => tableNameLower.includes(kw));
-
-  const hasDailyHeaders = table.colHeaders.some((h) =>
-    DAILY_TIMEFRAME_KEYWORDS.some((kw) => h.toLowerCase().includes(kw)),
-  );
-
-  // 1日の区分ヘッダーがある、または表名が1日向けで曜日指定がない場合 ➔ 日次タスク (1日に複数回)
-  if (hasDailyHeaders || (hasDailyName && !table.colHeaders.some((h) => WEEKDAY_NAMES.includes(h)))) {
-    return 'daily_task';
-  }
-
-  // 3日周期や曜日ヘッダー、一般の表 ➔ 週次タスク (週に複数回組み込む)
-  return 'weekly_task';
+  // ★ 週の回数が指定されていないものはすべて日課タスク
+  return 'daily_task';
 }
 
 /**
