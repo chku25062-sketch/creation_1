@@ -35,139 +35,139 @@ export interface TableColorScheme {
   accent: string;
 }
 
-// 参照元の表ごとに割り当てる調和の取れたリッチな付箋カラーパレット（12色）
+// 参照元の表ごとに割り当てる柔らかなパステル＆くすみカラーパレット（12色）
 export const TABLE_PALETTES: TableColorScheme[] = [
-  // 1. スカイブルー / 講義・大学時間割系
+  // 1. ペールブルー（薄水）
   {
-    bg: '#f0f9ff',
-    border: '#bae6fd',
-    text: '#0369a1',
-    strip: '#0284c7',
-    badgeBg: '#e0f2fe',
-    badgeText: '#0284c7',
-    badgeBorder: '#7dd3fc',
-    accent: '#38bdf8',
+    bg: '#f4f9fd',
+    border: '#cfe2f3',
+    text: '#335c7d',
+    strip: '#6ba3cf',
+    badgeBg: '#e5f0f9',
+    badgeText: '#2c5270',
+    badgeBorder: '#bdd5ea',
+    accent: '#8ebde3',
   },
-  // 2. ウォームコーラル / 重点タスク・プロジェクト系
+  // 2. さくらピンク（桜色）
   {
-    bg: '#fff1f2',
-    border: '#fecdd3',
-    text: '#be123c',
-    strip: '#f43f5e',
-    badgeBg: '#ffe4e6',
-    badgeText: '#9f1239',
-    badgeBorder: '#fda4af',
-    accent: '#fb7185',
+    bg: '#fdf5f6',
+    border: '#f5d5da',
+    text: '#844853',
+    strip: '#d9828e',
+    badgeBg: '#fbe6e9',
+    badgeText: '#783c46',
+    badgeBorder: '#eec0c7',
+    accent: '#e59ca6',
   },
-  // 3. エメラルドグリーン / 筋トレ・健康・フィットネス系
+  // 3. セージグリーン（若草）
   {
-    bg: '#ecfdf5',
-    border: '#a7f3d0',
-    text: '#065f46',
-    strip: '#059669',
-    badgeBg: '#d1fae5',
-    badgeText: '#047857',
-    badgeBorder: '#6ee7b7',
-    accent: '#34d399',
+    bg: '#f4f8f5',
+    border: '#cde2d3',
+    text: '#385e45',
+    strip: '#6ea680',
+    badgeBg: '#e4f0e7',
+    badgeText: '#30533d',
+    badgeBorder: '#bed9c6',
+    accent: '#8bc49e',
   },
-  // 4. リッチパープル / 創作・研究・執筆系
+  // 4. ラベンダー（藤色）
   {
-    bg: '#faf5ff',
-    border: '#e9d5ff',
-    text: '#6b21a8',
-    strip: '#9333ea',
-    badgeBg: '#f3e8ff',
-    badgeText: '#7e22ce',
-    badgeBorder: '#d8b4fe',
-    accent: '#c084fc',
+    bg: '#f8f6fc',
+    border: '#dfd7f2',
+    text: '#594c74',
+    strip: '#9683bf',
+    badgeBg: '#ede8fa',
+    badgeText: '#4e4169',
+    badgeBorder: '#d1c5ea',
+    accent: '#ab99d4',
   },
-  // 5. ウォームアンバー・オレンジ / ルーティン・日課表系
+  // 5. アプリコット（杏色）
   {
-    bg: '#fff7ed',
-    border: '#fed7aa',
-    text: '#c2410c',
-    strip: '#ea580c',
-    badgeBg: '#ffedd5',
-    badgeText: '#9a3412',
-    badgeBorder: '#fdba74',
-    accent: '#fb923c',
+    bg: '#fdf7f2',
+    border: '#f5dccb',
+    text: '#7a4d33',
+    strip: '#d88f67',
+    badgeBg: '#fce9dd',
+    badgeText: '#6e432a',
+    badgeBorder: '#ecc9b3',
+    accent: '#e2a582',
   },
-  // 6. インディゴ / 資格学習・プログラミング系
+  // 6. スレートブルー（藍白）
   {
-    bg: '#eef2ff',
-    border: '#c7d2fe',
-    text: '#3730a3',
-    strip: '#4f46e5',
-    badgeBg: '#e0e7ff',
-    badgeText: '#4338ca',
-    badgeBorder: '#a5b4fc',
-    accent: '#818cf8',
+    bg: '#f3f6f9',
+    border: '#ccd8e4',
+    text: '#3c4f65',
+    strip: '#6f8ca8',
+    badgeBg: '#e3ebf3',
+    badgeText: '#324255',
+    badgeBorder: '#bdcddc',
+    accent: '#8ba5be',
   },
-  // 7. ティール / 趣味・アクティビティ系
+  // 7. シーフォーム（浅葱）
   {
-    bg: '#f0fdfa',
-    border: '#99f6e4',
-    text: '#0f766e',
-    strip: '#0d9488',
-    badgeBg: '#ccfbf1',
-    badgeText: '#115e59',
-    badgeBorder: '#5eead4',
-    accent: '#2dd4bf',
+    bg: '#f3f9f8',
+    border: '#cae6e3',
+    text: '#2e5b56',
+    strip: '#5fa8a0',
+    badgeBg: '#deefec',
+    badgeText: '#254d48',
+    badgeBorder: '#b8deda',
+    accent: '#7bc0b8',
   },
-  // 8. フューシャピンク / イベント・対外活動系
+  // 8. ダスティローズ（灰桜）
   {
-    bg: '#fdf4ff',
-    border: '#f5d0fe',
-    text: '#86198f',
-    strip: '#c026d3',
-    badgeBg: '#fae8ff',
-    badgeText: '#a21caf',
-    badgeBorder: '#f0abfc',
-    accent: '#e879f9',
+    bg: '#faf5f7',
+    border: '#eed4de',
+    text: '#744558',
+    strip: '#c27a96',
+    badgeBg: '#f6e4ec',
+    badgeText: '#663b4d',
+    badgeBorder: '#e3bfce',
+    accent: '#cf8fa7',
   },
-  // 9. シアンターコイズ / ミーティング・連絡系
+  // 9. アイスブルー（空色）
   {
-    bg: '#ecfeff',
-    border: '#a5f3fc',
-    text: '#0e7490',
-    strip: '#0891b2',
-    badgeBg: '#cffafe',
-    badgeText: '#155e75',
-    badgeBorder: '#67e8f9',
-    accent: '#22d3ee',
+    bg: '#f3fafb',
+    border: '#c8e8ed',
+    text: '#2b5a63',
+    strip: '#5aa6b5',
+    badgeBg: '#dcf1f4',
+    badgeText: '#224b53',
+    badgeBorder: '#b6e0e7',
+    accent: '#77bcc8',
   },
-  // 10. ライムシトラス / 自己啓発・読書系
+  // 10. オリーブグリーン（萌黄）
   {
-    bg: '#f7fee7',
-    border: '#d9f99d',
-    text: '#3f6212',
-    strip: '#65a30d',
-    badgeBg: '#ecfccb',
-    badgeText: '#4d7c0f',
-    badgeBorder: '#bef264',
-    accent: '#a3e635',
+    bg: '#f7f8f2',
+    border: '#d8dec3',
+    text: '#4a5530',
+    strip: '#829656',
+    badgeBg: '#eaeed8',
+    badgeText: '#3e4727',
+    badgeBorder: '#c7cfad',
+    accent: '#9cb071',
   },
-  // 11. ウォームテラコッタ / 家事・生活管理系
+  // 11. ミルクティー（薄香）
   {
-    bg: '#fffbeb',
-    border: '#fde68a',
-    text: '#92400e',
-    strip: '#b45309',
-    badgeBg: '#fef3c7',
-    badgeText: '#78350f',
-    badgeBorder: '#fcd34d',
-    accent: '#fbbf24',
+    bg: '#f9f6f2',
+    border: '#e4dad0',
+    text: '#5e4e42',
+    strip: '#a68d77',
+    badgeBg: '#ede4db',
+    badgeText: '#504136',
+    badgeBorder: '#d8cac0',
+    accent: '#baa592',
   },
-  // 12. ディープバイオレット / 集中ディープワーク系
+  // 12. ペールバイオレット（紫苑）
   {
-    bg: '#f5f3ff',
-    border: '#ddd6fe',
-    text: '#4c1d95',
-    strip: '#7c3aed',
-    badgeBg: '#ede9fe',
-    badgeText: '#5b21b6',
-    badgeBorder: '#c4b5fd',
-    accent: '#a78bfa',
+    bg: '#f7f5fa',
+    border: '#dbd3ea',
+    text: '#4e4266',
+    strip: '#8875a8',
+    badgeBg: '#ebe4f5',
+    badgeText: '#423757',
+    badgeBorder: '#ccc2df',
+    accent: '#9d8cb9',
   },
 ];
 
@@ -178,52 +178,52 @@ export interface TablePaletteOption {
 }
 
 export const TABLE_PALETTE_OPTIONS: TablePaletteOption[] = [
-  { index: 0, name: 'スカイブルー', color: TABLE_PALETTES[0] },
-  { index: 1, name: 'コーラルピンク', color: TABLE_PALETTES[1] },
-  { index: 2, name: 'エメラルド', color: TABLE_PALETTES[2] },
-  { index: 3, name: 'パープル', color: TABLE_PALETTES[3] },
-  { index: 4, name: 'オレンジ', color: TABLE_PALETTES[4] },
-  { index: 5, name: 'インディゴ', color: TABLE_PALETTES[5] },
-  { index: 6, name: 'ティール', color: TABLE_PALETTES[6] },
-  { index: 7, name: 'フューシャ', color: TABLE_PALETTES[7] },
-  { index: 8, name: 'シアン', color: TABLE_PALETTES[8] },
-  { index: 9, name: 'ライム', color: TABLE_PALETTES[9] },
-  { index: 10, name: 'テラコッタ', color: TABLE_PALETTES[10] },
-  { index: 11, name: 'バイオレット', color: TABLE_PALETTES[11] },
+  { index: 0, name: 'ペールブルー (薄水)', color: TABLE_PALETTES[0] },
+  { index: 1, name: 'さくらピンク (桜色)', color: TABLE_PALETTES[1] },
+  { index: 2, name: 'セージグリーン (若草)', color: TABLE_PALETTES[2] },
+  { index: 3, name: 'ラベンダー (藤色)', color: TABLE_PALETTES[3] },
+  { index: 4, name: 'アプリコット (杏色)', color: TABLE_PALETTES[4] },
+  { index: 5, name: 'スレートブルー (藍白)', color: TABLE_PALETTES[5] },
+  { index: 6, name: 'シーフォーム (浅葱)', color: TABLE_PALETTES[6] },
+  { index: 7, name: 'ダスティローズ (灰桜)', color: TABLE_PALETTES[7] },
+  { index: 8, name: 'アイスブルー (空色)', color: TABLE_PALETTES[8] },
+  { index: 9, name: 'オリーブグリーン (萌黄)', color: TABLE_PALETTES[9] },
+  { index: 10, name: 'ミルクティー (薄香)', color: TABLE_PALETTES[10] },
+  { index: 11, name: 'ペールバイオレット (紫苑)', color: TABLE_PALETTES[11] },
 ];
 
-// 表を持たない特殊ブロック専用パレット
+// 表を持たない特殊ブロック専用パレット（柔らかなトーン）
 export const REST_PALETTE: TableColorScheme = {
-  bg: '#f0fdf4',
-  border: '#bbf7d0',
-  text: '#166534',
-  strip: '#22c55e',
-  badgeBg: '#dcfce7',
-  badgeText: '#15803d',
-  badgeBorder: '#86efac',
-  accent: '#4ade80',
+  bg: '#f3f9f5',
+  border: '#cde4d4',
+  text: '#356346',
+  strip: '#6cb083',
+  badgeBg: '#e2f0e6',
+  badgeText: '#2d543b',
+  badgeBorder: '#bcd9c5',
+  accent: '#82c097',
 };
 
 export const FIXED_PALETTE: TableColorScheme = {
-  bg: '#f4efe6',
-  border: '#dfd6c5',
-  text: '#475569',
-  strip: '#94a3b8',
-  badgeBg: '#e8e2d5',
-  badgeText: '#334155',
-  badgeBorder: '#cbd5e1',
-  accent: '#94a3b8',
+  bg: '#f7f4ef',
+  border: '#ded7cb',
+  text: '#555e69',
+  strip: '#9ea8b5',
+  badgeBg: '#ece6dc',
+  badgeText: '#464f59',
+  badgeBorder: '#cec6ba',
+  accent: '#adb6c2',
 };
 
 export const DEFAULT_TASK_PALETTE: TableColorScheme = {
-  bg: '#fef9c3',
-  border: '#fde047',
-  text: '#854d0e',
-  strip: '#eab308',
-  badgeBg: '#fef08a',
-  badgeText: '#a16207',
-  badgeBorder: '#facc15',
-  accent: '#facc15',
+  bg: '#fefcf0',
+  border: '#f7ecc2',
+  text: '#715822',
+  strip: '#dfbf65',
+  badgeBg: '#fcf4d7',
+  badgeText: '#624b1a',
+  badgeBorder: '#eddca3',
+  accent: '#e6cb7e',
 };
 
 export const LECTURE_PALETTE: TableColorScheme = TABLE_PALETTES[0];
@@ -231,23 +231,23 @@ export const ASSIGNMENT_PALETTE: TableColorScheme = TABLE_PALETTES[3];
 
 /**
  * 0, 1, 2... のインデックスに対して重複のないカラーパレットを取得・動的生成する
- * 12個を超える表があっても黄金比アングル（137.508度）により完全に一意なカラーを算出
+ * 12個を超える表があっても黄金比アングル（137.508度）により完全に一意なくすみパステルを算出
  */
 export function getTableColorSchemeByIndex(index: number): TableColorScheme {
   if (index >= 0 && index < TABLE_PALETTES.length) {
     return TABLE_PALETTES[index];
   }
-  // 12色を超える場合は、黄金比アングルで色相を分散させたHSLパステルカラーを動的生成（重複ゼロ）
+  // 12色を超える場合も、彩度を45%程度に抑えた上質なくすみパステルを動的生成（重複ゼロ）
   const hue = Math.round((index * 137.5077) % 360);
   return {
-    bg: `hsl(${hue}, 92%, 97%)`,
-    border: `hsl(${hue}, 70%, 82%)`,
-    text: `hsl(${hue}, 85%, 26%)`,
-    strip: `hsl(${hue}, 80%, 48%)`,
-    badgeBg: `hsl(${hue}, 90%, 93%)`,
-    badgeText: `hsl(${hue}, 90%, 24%)`,
-    badgeBorder: `hsl(${hue}, 65%, 72%)`,
-    accent: `hsl(${hue}, 80%, 55%)`,
+    bg: `hsl(${hue}, 48%, 97%)`,
+    border: `hsl(${hue}, 40%, 84%)`,
+    text: `hsl(${hue}, 38%, 32%)`,
+    strip: `hsl(${hue}, 46%, 62%)`,
+    badgeBg: `hsl(${hue}, 42%, 93%)`,
+    badgeText: `hsl(${hue}, 42%, 28%)`,
+    badgeBorder: `hsl(${hue}, 36%, 78%)`,
+    accent: `hsl(${hue}, 46%, 68%)`,
   };
 }
 
