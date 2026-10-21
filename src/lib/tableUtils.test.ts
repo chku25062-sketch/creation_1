@@ -568,6 +568,42 @@ describe('tableUtils', () => {
       expect(classification).toBe('daily_task');
     });
   });
+
+  describe('終了時刻 (endTime / latestEndTime) の反映と制限', () => {
+    it('固定枠で endTime が指定された場合、終了時刻を超えるコマ（行）は配置されないこと', () => {
+      // 09:00開始、1コマ90分、休憩10分 ➔
+      // 1コマ目: 09:00〜10:30 (540〜630分)
+      // 2コマ目: 10:40〜12:10 (640〜730分)
+      const table = createBaseTable('09:00');
+      // 終了時刻を 11:00 (660分) に指定 ➔ 2コマ目 (終了12:10) は除外される
+      table.axisConfig.endTime = '11:00';
+
+      const res = generateScheduleItemsForTable(table);
+      // 1コマ目のみ配置される
+      expect(res.slots.length).toBe(1);
+      expect(res.slots[0].title).toBe('胸トレ');
+      expect(res.slots[0].endMinutes).toBe(630);
+    });
+
+    it('日のタスク・週のタスクで endTime が指定された場合、生成されるタスクに latestEndTime が設定されること', () => {
+      const table = createBaseTable(null);
+      table.axisConfig.endTime = '18:00'; // 18:00 = 1080分
+      table.weeklyRepeatCount = 3;
+
+      const res = generateScheduleItemsForTable(table);
+      expect(res.tasks.length).toBe(1);
+      expect(res.tasks[0].latestEndTime).toBe(1080);
+    });
+
+    it('endTime が未設定または auto の場合、latestEndTime は undefined（24:00最大値まで）になること', () => {
+      const table = createBaseTable(null);
+      table.axisConfig.endTime = 'unset';
+
+      const res = generateScheduleItemsForTable(table);
+      expect(res.tasks.length).toBe(1);
+      expect(res.tasks[0].latestEndTime).toBeUndefined();
+    });
+  });
 });
 
 

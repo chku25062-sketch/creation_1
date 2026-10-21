@@ -53,6 +53,7 @@ export interface TaskItem {
   cycleCount?: number; // 周期全体の長さ (例: 3日周期なら3)
   sourceTableId?: string; // 参照元テーブルID
   sourceTableName?: string; // 参照元テーブル名
+  latestEndTime?: number; // これ以上先の時刻にはタスク配置を行わない上限時刻（分。未設定時は1440=24:00）
 }
 
 export interface TheoreticalBlock {
@@ -151,6 +152,7 @@ export interface GridCell {
 
 export interface TableAxisConfig {
   startTime: string | null; // "09:00" または null (未設定: アルゴリズム組み込み)
+  endTime?: string | null; // "18:00" または null (未設定: 自動・24:00最大値まで)
   periodMinutes: number | null; // 90 または null (未設定: アルゴリズムおまかせ伸縮)
   intervalMinutes: number | null; // 10 または null (未設定: アルゴリズムおまかせ)
   hasLunch: boolean; // true

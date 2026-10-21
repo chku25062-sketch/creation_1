@@ -546,20 +546,29 @@ export function generateTheoreticalSchedule(
             ctx.task.breakMinutes && ctx.task.breakMinutes > 0 ? ctx.task.breakMinutes : 0;
           const minAcceptable = ctx.isAuto ? Math.min(requiredMin, 15) : requiredMin;
 
-          if (slot.durationMinutes >= minAcceptable + breakMin) {
+          // ★ 終了時刻上限（latestEndTime）の制約
+          // これ以上先の時刻にはタスク配置を行わない（自動・未設定時は最大値1440=24:00）
+          const taskLatestEndTime = ctx.task.latestEndTime ?? 1440;
+          if (slot.startMinutes >= taskLatestEndTime) continue;
+
+          const maxAllowedEnd = Math.min(slot.endMinutes, taskLatestEndTime);
+          const availableDuration = maxAllowedEnd - slot.startMinutes;
+          if (availableDuration < minAcceptable + breakMin) continue;
+
+          if (availableDuration >= minAcceptable + breakMin) {
             // 自動タスクの場合は空き枠に合わせて柔軟にフィット（最低15分以上あればフィット）
             const effectiveDuration = ctx.isAuto
               ? Math.min(
                   ctx.task.durationMinutes && ctx.task.durationMinutes > 0
                     ? ctx.task.durationMinutes
                     : 60,
-                  Math.max(15, slot.durationMinutes - breakMin),
+                  Math.max(15, availableDuration - breakMin),
                 )
-              : getAdjustedDuration(ctx.task, slot.durationMinutes - breakMin);
+              : getAdjustedDuration(ctx.task, availableDuration - breakMin);
 
             const totalNeeded = effectiveDuration + breakMin;
 
-            if (slot.durationMinutes >= totalNeeded) {
+            if (availableDuration >= totalNeeded) {
               const taskStart = slot.startMinutes;
               const taskEnd = taskStart + effectiveDuration;
 

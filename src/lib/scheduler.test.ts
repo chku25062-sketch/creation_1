@@ -436,6 +436,64 @@ describe('Theoretical Scheduler Engine', () => {
       );
       expect(daysWithFitness.length).toBe(3);
     });
+
+    it('タスクの latestEndTime（終了上限時刻）を超えない空き時間にのみタスクが配置されること', () => {
+      // 00:00〜08:00 (0〜480分) 睡眠、12:00〜24:00 (720〜1440分) 仕事
+      // 空き時間は 08:00〜12:00 (480〜720分) のみ
+      const fixedSlots: FixedSlot[] = [
+        {
+          id: 'sleep',
+          title: '睡眠',
+          category: 'sleep',
+          startMinutes: 0,
+          endMinutes: 480,
+          color: '#6366f1',
+        },
+        {
+          id: 'work',
+          title: '仕事',
+          category: 'work',
+          startMinutes: 720,
+          endMinutes: 1440,
+          color: '#0284c7',
+        },
+      ];
+
+      // タスクの終了上限が 10:00 (600分) の場合、08:00〜09:00 に配置可能
+      const taskWithLimit: TaskItem = {
+        id: 'task-morning',
+        title: '朝の学習',
+        durationMinutes: 60,
+        priority: 'high',
+        category: 'study',
+        period: 'day',
+        dailyCount: 1,
+        latestEndTime: 600, // 10:00 まで
+      };
+
+      // タスクの終了上限が 08:30 (510分) で所要時間60分の場合、空き時間は480から始まるため510までに完了できず配置不可
+      const taskCannotFit: TaskItem = {
+        id: 'task-too-late',
+        title: '入り切らないタスク',
+        durationMinutes: 60,
+        priority: 'high',
+        category: 'study',
+        period: 'day',
+        dailyCount: 1,
+        latestEndTime: 510, // 08:30 まで (480+60=540分でオーバー)
+      };
+
+      const result = generateTheoreticalSchedule(fixedSlots, [taskWithLimit, taskCannotFit]);
+      
+      // taskWithLimit は 08:00〜09:00 (480〜540分) に配置され、10:00 (600分) 以内に収まる
+      const placedMorning = result.blocks.find((b) => b.title === '朝の学習');
+      expect(placedMorning).toBeDefined();
+      expect(placedMorning!.endMinutes).toBeLessThanOrEqual(600);
+
+      // taskCannotFit は上限時間を超えてしまうため配置されない
+      const placedCannotFit = result.blocks.find((b) => b.title === '入り切らないタスク');
+      expect(placedCannotFit).toBeUndefined();
+    });
   });
 
   describe('getAdjustedDuration', () => {

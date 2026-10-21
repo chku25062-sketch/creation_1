@@ -8,7 +8,7 @@ import {
   FixedCategory,
   TaskCategory,
 } from '@/types';
-import { calculatePeriodTimes } from './timeUtils';
+import { calculatePeriodTimes, timeStringToMinutes } from './timeUtils';
 
 const WEEKDAY_NAMES = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜', '月', '火', '水', '木', '金', '土', '日'];
 const CYCLE_KEYWORDS = ['day', 'サイクル', '周期', '分割', 'rot', 'part'];
@@ -379,6 +379,14 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
 
   const tableCategory = table.name || '表タスク';
 
+  const tableEndTimeMinutes =
+    table.axisConfig.endTime &&
+    table.axisConfig.endTime !== 'unset' &&
+    table.axisConfig.endTime !== '自動' &&
+    table.axisConfig.endTime !== 'auto'
+      ? timeStringToMinutes(table.axisConfig.endTime)
+      : undefined;
+
   table.cells.forEach((row, r) => {
     const timeSlot = tablePeriodTimes[r];
 
@@ -410,6 +418,15 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
 
       if (classification === 'fixed_slot') {
         // 固定枠として生成 (開始時刻・終了時刻あり)
+        // 終了時刻上限チェック: コマの終了時刻が表の終了時刻（tableEndTimeMinutes）を超える場合は配置しない
+        if (
+          tableEndTimeMinutes !== undefined &&
+          timeSlot &&
+          timeSlot.endMinutes > tableEndTimeMinutes
+        ) {
+          return;
+        }
+
         // 同じ時限（時間帯）かつ同じタイトルのセルは、曜日（daysOfWeek）を結合して1つのスロットに集約
         if (timeSlot && (timeSlot.startMinutes > 0 || timeSlot.endMinutes > 0)) {
           let days: number[] = [];
@@ -468,6 +485,9 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             existing.dailyCount = tableDailyCount;
             existing.dailyRepeatMode = 'custom';
           }
+          if (tableEndTimeMinutes !== undefined) {
+            existing.latestEndTime = tableEndTimeMinutes;
+          }
           if (effectiveBreakMinutes !== undefined) {
             existing.breakMinutes = Math.max(existing.breakMinutes || 0, effectiveBreakMinutes);
           }
@@ -503,6 +523,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             cycleDays: isCycle ? [cycleIdx] : undefined,
             cycleIndex: isCycle ? cycleIdx : undefined,
             cycleCount: isCycle ? cycleCount : undefined,
+            latestEndTime: tableEndTimeMinutes,
             priority: 'medium',
             completed: false,
             sourceTableId: table.id,
@@ -526,6 +547,9 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             : undefined;
 
         if (existing) {
+          if (tableEndTimeMinutes !== undefined) {
+            existing.latestEndTime = tableEndTimeMinutes;
+          }
           if (effectiveBreakMinutes !== undefined) {
             existing.breakMinutes = Math.max(existing.breakMinutes || 0, effectiveBreakMinutes);
           }
@@ -574,6 +598,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             startDay: isWeekday ? colInfo.dayIndex : undefined,
             deadlineDay: isWeekday ? colInfo.dayIndex : undefined,
             cycleIndex: isCycle ? cycleIdx : undefined,
+            latestEndTime: tableEndTimeMinutes,
             priority: 'medium',
             completed: false,
             sourceTableId: table.id,
@@ -632,6 +657,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               cycleDays: isCycle ? [cycleIdx] : undefined,
               cycleIndex: isCycle ? cycleIdx : undefined,
               cycleCount: isCycle ? cycleCount : undefined,
+              latestEndTime: tableEndTimeMinutes,
               priority: 'medium',
               completed: false,
               sourceTableId: table.id,

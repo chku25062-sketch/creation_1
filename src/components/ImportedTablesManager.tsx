@@ -1802,6 +1802,49 @@ export function ImportedTablesManager({
                   />
                 </div>
 
+                {/* 終了上限時刻（半入力式） */}
+                <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
+                  <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
+                    終了:
+                  </span>
+                  <SemiInput
+                    value={activeTable.axisConfig.endTime ?? ''}
+                    onChange={(val) => {
+                      const trimmed = val.trim();
+                      if (
+                        !trimmed ||
+                        trimmed === 'unset' ||
+                        trimmed === '未設定' ||
+                        trimmed === '自動' ||
+                        trimmed === '最大値' ||
+                        trimmed === '自動 (最大値)'
+                      ) {
+                        handleAxisConfigChange('endTime', null);
+                      } else {
+                        handleAxisConfigChange('endTime', trimmed);
+                      }
+                    }}
+                    placeholder="自動 (最大値)"
+                    inputClassName="w-24 text-center"
+                    options={[
+                      { label: '🌟 自動 (最大値)', value: 'unset' },
+                      { label: '12:00', value: '12:00' },
+                      { label: '13:00', value: '13:00' },
+                      { label: '15:00', value: '15:00' },
+                      { label: '17:00', value: '17:00' },
+                      { label: '18:00', value: '18:00' },
+                      { label: '19:00', value: '19:00' },
+                      { label: '20:00', value: '20:00' },
+                      { label: '21:00', value: '21:00' },
+                      { label: '22:00', value: '22:00' },
+                      { label: '23:00', value: '23:00' },
+                      { label: '24:00', value: '24:00' },
+                    ]}
+                    title="終了上限時刻（これ以上先の時刻には配置しない。手入力または候補選択）"
+                  />
+                </div>
+
                 {/* 1コマ分数（半入力式） */}
                 <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
                   <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
