@@ -325,21 +325,58 @@ export function generateTheoreticalSchedule(
     const isAssignment =
       !task.isAttachedTask && (task.taskType === 'assignment' || task.deadlineDay !== undefined);
 
-    // 回数指定 (custom または dailyCount > 1) か判定
+    // 回数指定 (custom または dailyCount >= 1) か判定
     const isCustomDaily =
       (task.dailyRepeatMode === 'custom' && task.dailyCount !== undefined && task.dailyCount > 0) ||
-      (task.dailyRepeatMode !== 'auto' && task.dailyCount !== undefined && task.dailyCount > 1);
+      (task.dailyRepeatMode !== 'auto' && task.dailyCount !== undefined && task.dailyCount >= 1);
 
-    // 分類（日 vs 週）による日の中の繰り返し回数の差別化を撤廃。
-    // 課題以外は、分類にかかわらず明示的な回数指定がなければ全タスク等しくデフォルト「自動（auto）」
-    const isAuto = !isAssignment && !isCustomDaily;
+    // 特定曜日指定 (targetDays) や周期指定 (cycleDays) の有無
+    const hasSpecificDays =
+      (task.targetDays && task.targetDays.length > 0) ||
+      (task.cycleDays && task.cycleDays.length > 0) ||
+      task.startDay !== undefined;
+
+    // 自動敷き詰め (isAuto) の判定:
+    // 1. 課題タスクは自動敷き詰めしない
+    // 2. 回数指定があるタスクは自動敷き詰めしない
+    // 3. 明示的に dailyRepeatMode === 'auto' のタスク、または特定曜日指定がなく回数指定もないフリー日課タスクを自動敷き詰めとする
+    const isAuto =
+      !isAssignment &&
+      !isCustomDaily &&
+      (task.dailyRepeatMode === 'auto' || (!hasSpecificDays && task.dailyCount === undefined));
+
     const targetCountPerDay = isAssignment
       ? (task.dailyCount || 1)
       : isAuto
         ? Infinity
         : (task.dailyCount || 1);
 
-    // 付随タスク判定（週1回・日の繰り返しなし・同一日優先＆別日フォールバック）
+    // ① 課題タスク（出題日〜締切日の範囲）判定（付随タスクは課題扱いしない）
+    if (isAssignment) {
+      const startD = task.startDay !== undefined ? task.startDay : 0;
+      const endD = task.deadlineDay !== undefined ? task.deadlineDay : 6;
+      const candidateDays: number[] = [];
+      if (startD <= endD) {
+        for (let d = startD; d <= endD; d++) candidateDays.push(d);
+      } else {
+        for (let d = startD; d < 7; d++) candidateDays.push(d);
+        for (let d = 0; d <= endD; d++) candidateDays.push(d);
+      }
+
+      return {
+        task,
+        kind: 'assignment',
+        candidateDays,
+        targetCountPerDay: 1,
+        targetCountWeekly: 1,
+        isAuto: false,
+        placedCount: 0,
+        placedCountPerDay: {},
+        isComplete: false,
+      };
+    }
+
+    // ② 付随タスク判定（週1回・日の繰り返しなし・同一日優先＆別日フォールバック）
     if (task.isAttachedTask) {
       const preferredDays =
         task.parentEndMinutesByDay && Object.keys(task.parentEndMinutesByDay).length > 0
@@ -367,70 +404,20 @@ export function generateTheoreticalSchedule(
       };
     }
 
-    // 日ブロック（どの曜日の箱に割り振るか）の決定
-    // ① 曜日明示指定
-    if (task.targetDays && task.targetDays.length > 0) {
-      const candidateDays = [...task.targetDays];
-      return {
-        task,
-        kind: 'weekly_specific',
-        candidateDays,
-        targetCountPerDay,
-        targetCountWeekly: candidateDays.length,
-        isAuto,
-        placedCount: 0,
-        placedCountPerDay: {},
-        isComplete: false,
-      };
-    }
-
-    // ② 周期明示指定
-    if (task.cycleDays && task.cycleDays.length > 0) {
-      const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
-      const candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => task.cycleDays!.includes(d % cycleLength));
-      return {
-        task,
-        kind: 'weekly_specific',
-        candidateDays,
-        targetCountPerDay,
-        targetCountWeekly: candidateDays.length,
-        isAuto,
-        placedCount: 0,
-        placedCountPerDay: {},
-        isComplete: false,
-      };
-    }
-
-    // ③ 課題タスク（出題日〜締切日の範囲）
-    if (isAssignment) {
-      const startD = task.startDay !== undefined ? task.startDay : 0;
-      const endD = task.deadlineDay !== undefined ? task.deadlineDay : 6;
-      const candidateDays: number[] = [];
-      if (startD <= endD) {
-        for (let d = startD; d <= endD; d++) candidateDays.push(d);
-      } else {
-        for (let d = startD; d < 7; d++) candidateDays.push(d);
-        for (let d = 0; d <= endD; d++) candidateDays.push(d);
-      }
-
-      return {
-        task,
-        kind: 'assignment',
-        candidateDays,
-        targetCountPerDay: 1,
-        targetCountWeekly: 1,
-        isAuto: false,
-        placedCount: 0,
-        placedCountPerDay: {},
-        isComplete: false,
-      };
-    }
-
-    // ④ 日課タスク（毎日全曜日に適用）
+    // ③ 日課タスク（日タスク: period === 'day' または frequency === 'high'）
+    // ★ 表からインポートされた日課タスクや、特定曜日・周期指定の日課タスクを100%確実に日タスクとして生成
     const isDaily = task.period === 'day' || task.frequency === 'high';
     if (isDaily) {
-      let candidateDays = [0, 1, 2, 3, 4, 5, 6];
-      if (task.startDay !== undefined) {
+      let candidateDays: number[] = [0, 1, 2, 3, 4, 5, 6];
+
+      if (task.targetDays && task.targetDays.length > 0) {
+        // 曜日指定の日課（例: 月水金の朝ルーティン）
+        candidateDays = [...task.targetDays];
+      } else if (task.cycleDays && task.cycleDays.length > 0) {
+        // 周期指定の日課（例: 3日周期の筋トレ日課）
+        const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
+        candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => task.cycleDays!.includes(d % cycleLength));
+      } else if (task.startDay !== undefined) {
         candidateDays = [task.startDay];
       } else if (task.cycleIndex !== undefined) {
         const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
@@ -450,7 +437,40 @@ export function generateTheoreticalSchedule(
       };
     }
 
-    // ⑤ 週次タスク（週N回を空き枠の多い曜日に分散配置）
+    // ④ 週次タスク: 曜日明示指定
+    if (task.targetDays && task.targetDays.length > 0) {
+      const candidateDays = [...task.targetDays];
+      return {
+        task,
+        kind: 'weekly_specific',
+        candidateDays,
+        targetCountPerDay,
+        targetCountWeekly: candidateDays.length,
+        isAuto,
+        placedCount: 0,
+        placedCountPerDay: {},
+        isComplete: false,
+      };
+    }
+
+    // ⑤ 週次タスク: 周期明示指定
+    if (task.cycleDays && task.cycleDays.length > 0) {
+      const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
+      const candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => task.cycleDays!.includes(d % cycleLength));
+      return {
+        task,
+        kind: 'weekly_specific',
+        candidateDays,
+        targetCountPerDay,
+        targetCountWeekly: candidateDays.length,
+        isAuto,
+        placedCount: 0,
+        placedCountPerDay: {},
+        isComplete: false,
+      };
+    }
+
+    // ⑥ 柔軟週次タスク（週N回を空き枠の多い曜日に分散配置）
     const targetDaysCount = getTargetPlacementDays(task);
     let candidateDays = [0, 1, 2, 3, 4, 5, 6].sort((a, b) => {
       const freeA = dayAvailableSlots[a].reduce((s, slot) => s + slot.durationMinutes, 0);
@@ -581,10 +601,10 @@ export function generateTheoreticalSchedule(
   // ★ 要件2: 空きを見つけるロジックとして、日タスクはいったん除外し、
   // 週タスク（再配置含む）を先に空き枠に配置したうえで、その上から日タスクを再配置する（二段階配置）
   const weeklyPlans = plans.filter(
-    (p) => p.isRescheduledPlan || isWeeklyTaskItem(p.task) || p.kind === 'weekly_specific',
+    (p) => p.isRescheduledPlan || isWeeklyTaskItem(p.task),
   );
   const dailyPlans = plans.filter(
-    (p) => !p.isRescheduledPlan && !isWeeklyTaskItem(p.task) && p.kind !== 'weekly_specific',
+    (p) => !p.isRescheduledPlan && !isWeeklyTaskItem(p.task),
   );
 
   // 日ブロックへの展開コンテキスト
@@ -924,6 +944,9 @@ export function generateTheoreticalSchedule(
 
       const eligibleTasks = tasksInDay.filter((ctx) => {
         if (ctx.plan.kind === 'attached_task' && ctx.plan.placedCount >= 1) return false;
+        // ★ 別日に回された付随タスク（!isSameDayAsParent）は Phase 1 では配置しない
+        // （その別日の通常タスク・日タスクの枠を奪わないよう、Phase 2 の後にフォールバック配置する）
+        if (ctx.task.isAttachedTask && !ctx.isSameDayAsParent) return false;
         if (ctx.placedCountInDay >= ctx.targetCount) return false;
         if (ctx.plan.isComplete) return false;
         return ctx.targetCount >= pass;
@@ -944,9 +967,10 @@ export function generateTheoreticalSchedule(
       .sort((a, b) => a.startMinutes - b.startMinutes);
   }
 
-  // Phase 1 フォールバック: 週タスク・課題・付随タスク・再配置プランで未達成のもの
+  // Phase 1 フォールバック: 週タスク・課題・再配置プランで未達成のもの（付随タスク別日以外）
   for (const plan of weeklyPlans) {
     if (plan.isAuto || plan.isComplete) continue;
+    if (plan.kind === 'attached_task') continue;
 
     for (const d of plan.candidateDays) {
       if (plan.placedCount >= plan.targetCountWeekly) {
@@ -984,7 +1008,7 @@ export function generateTheoreticalSchedule(
   for (let d = 0; d < 7; d++) {
     const dayContexts: DayTaskContext[] = [];
 
-    // ① 日課タスク（その曜日に対象日が含まれるもの）
+    // 日課タスク（その曜日に対象日が含まれるもの）のみを投入
     for (const plan of dailyPlans) {
       if (plan.candidateDays.includes(d)) {
         dayContexts.push({
@@ -998,26 +1022,12 @@ export function generateTheoreticalSchedule(
       }
     }
 
-    // ② その曜日に割り当てられている週タスクで、自動敷き詰め（isAuto: true）のもの
-    // （※その曜日に割り当てられていない他曜日の週タスクが漏れ出さないように制限）
-    for (const ctx of weeklyDayTaskContexts[d]) {
-      if (ctx.plan.isAuto) {
-        dayContexts.push({
-          plan: ctx.plan,
-          task: ctx.task,
-          kind: ctx.kind,
-          isAuto: true,
-          targetCount: Infinity,
-          placedCountInDay: ctx.plan.placedCountPerDay[d] || 0,
-        });
-      }
-    }
-
     sortDayTaskContexts(dayContexts);
     dailyDayTaskContexts[d] = dayContexts;
   }
 
   // Phase 2 配置ループ（日タスク巡回 & 自動敷き詰め）
+  // ★ Plan9: 1巡目は1回以上、2巡目は2回以上、3巡目は3回以上のタスク＋自動タスクを公平巡回配置
   for (let d = 0; d < 7; d++) {
     const tasksInDay = dailyDayTaskContexts[d];
     let pass = 0;
@@ -1029,15 +1039,7 @@ export function generateTheoreticalSchedule(
       anyPlacedInDay = false;
 
       const eligibleTasks = tasksInDay.filter((ctx) => {
-        // 週あたりの目標回数（例: 週1回など）が設定されているタスクは、目標達成済みならこれ以上敷き詰めない
-        if (
-          ctx.plan.targetCountWeekly !== Infinity &&
-          ctx.plan.placedCount >= ctx.plan.targetCountWeekly
-        ) {
-          return false;
-        }
-        if (!ctx.isAuto && ctx.plan.isComplete) return false;
-        if (ctx.placedCountInDay >= ctx.targetCount) return false;
+        if (!ctx.isAuto && ctx.placedCountInDay >= ctx.targetCount) return false;
         return ctx.targetCount >= pass;
       });
       if (eligibleTasks.length === 0) break;
@@ -1054,6 +1056,33 @@ export function generateTheoreticalSchedule(
     dayAvailableSlots[d] = dayAvailableSlots[d]
       .filter((s) => s.durationMinutes >= 15)
       .sort((a, b) => a.startMinutes - b.startMinutes);
+  }
+
+  // Phase 3: 付随タスクの別日フォールバック（親の日に配置できず、別日に回された付随タスクの配置）
+  // ★ 別日ではその別日の日課タスク・通常タスクが優先された後の空き枠に配置
+  for (const plan of weeklyPlans) {
+    if (plan.kind !== 'attached_task' || plan.placedCount >= 1) continue;
+
+    for (const d of plan.candidateDays) {
+      if (plan.placedCount >= 1) break;
+
+      const dummyCtx: DayTaskContext = {
+        plan,
+        task: plan.task,
+        kind: plan.kind,
+        isAuto: false,
+        targetCount: 1,
+        placedCountInDay: 0,
+        isSameDayAsParent: false,
+      };
+
+      const placed = tryPlaceContextInDay(d, dummyCtx, true);
+      if (placed) {
+        dayAvailableSlots[d] = dayAvailableSlots[d]
+          .filter((s) => s.durationMinutes >= 15)
+          .sort((a, b) => a.startMinutes - b.startMinutes);
+      }
+    }
   }
 
   // =========================================================================

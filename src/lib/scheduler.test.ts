@@ -1973,6 +1973,91 @@ describe('Theoretical Scheduler Engine', () => {
         const weeklyBlock = result.allBlocks.find((b) => b.title === '週末の統計学レポート');
         expect(weeklyBlock?.isWeeklyTask).toBe(true);
       });
+
+      it('曜日指定または周期指定された日課タスクでも isWeeklyTask: false となり、該当曜日にのみ日タスクとして配置されること', () => {
+        // 月水金の日課
+        const mwfDailyTask: TaskItem = {
+          id: 'daily-mwf',
+          title: '月水金のストレッチ',
+          category: 'workout',
+          priority: 'medium',
+          durationMinutes: 30,
+          period: 'day',
+          frequency: 'high',
+          targetDays: [0, 2, 4],
+          dailyCount: 1,
+          dailyRepeatMode: 'custom',
+        };
+
+        // 3日周期の日課 (0:月, 3:木, 6:日)
+        const cycleDailyTask: TaskItem = {
+          id: 'daily-cycle-1',
+          title: '周期別筋トレ',
+          category: 'workout',
+          priority: 'medium',
+          durationMinutes: 45,
+          period: 'day',
+          frequency: 'high',
+          cycleDays: [0],
+          cycleCount: 3,
+          dailyCount: 1,
+          dailyRepeatMode: 'custom',
+        };
+
+        const result = generateTheoreticalSchedule([], [mwfDailyTask, cycleDailyTask]);
+
+        // 月曜(0): 両方配置され、isWeeklyTask: false であること
+        const monMwf = result.dayBlocks[0].find((b) => b.title === '月水金のストレッチ');
+        const monCycle = result.dayBlocks[0].find((b) => b.title === '周期別筋トレ');
+        expect(monMwf).toBeDefined();
+        expect(monMwf?.isWeeklyTask).toBe(false);
+        expect(monCycle).toBeDefined();
+        expect(monCycle?.isWeeklyTask).toBe(false);
+
+        // 火曜(1): どちらも配置されないこと
+        expect(result.dayBlocks[1].some((b) => b.title === '月水金のストレッチ')).toBe(false);
+        expect(result.dayBlocks[1].some((b) => b.title === '周期別筋トレ')).toBe(false);
+
+        // 水曜(2): 月水金ストレッチのみ配置されること
+        expect(result.dayBlocks[2].some((b) => b.title === '月水金のストレッチ')).toBe(true);
+        expect(result.dayBlocks[2].some((b) => b.title === '周期別筋トレ')).toBe(false);
+
+        // 木曜(3): 周期別筋トレのみ配置されること
+        expect(result.dayBlocks[3].some((b) => b.title === '月水金のストレッチ')).toBe(false);
+        expect(result.dayBlocks[3].some((b) => b.title === '周期別筋トレ')).toBe(true);
+      });
+
+      it('回数指定 (dailyCount: 1, dailyRepeatMode: custom) の日課タスクが空き枠に敷き詰められず1日1回のみ配置されること', () => {
+        const fixedSlot: FixedSlot = {
+          id: 'sleep',
+          title: '睡眠',
+          category: 'sleep',
+          startMinutes: 0,
+          endMinutes: 360, // 06:00
+          color: '#6366f1',
+        };
+
+        const onceDailyTask: TaskItem = {
+          id: 'daily-walk',
+          title: '朝の散歩',
+          category: 'routine',
+          priority: 'medium',
+          durationMinutes: 30,
+          period: 'day',
+          frequency: 'high',
+          dailyCount: 1,
+          dailyRepeatMode: 'custom',
+        };
+
+        const result = generateTheoreticalSchedule([fixedSlot], [onceDailyTask]);
+
+        // 各曜日において1回のみ配置されていること（48回などの誤った敷き詰めにならないこと）
+        for (let d = 0; d < 7; d++) {
+          const walkBlocks = result.dayBlocks[d].filter((b) => b.title === '朝の散歩');
+          expect(walkBlocks).toHaveLength(1);
+          expect(walkBlocks[0].isWeeklyTask).toBe(false);
+        }
+      });
     });
   });
 });
