@@ -323,6 +323,7 @@ export function Timeline24h({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [nowTimeString, setNowTimeString] = useState<string>('');
   const [hourHeight, setHourHeight] = useState<number>(126); // デフォルト126px（84pxの1.5倍に拡大）
+  const [isUnassignedAlertExpanded, setIsUnassignedAlertExpanded] = useState<boolean>(false);
 
   // LocalStorage から保存されたマス高さを復元
   useEffect(() => {
@@ -487,22 +488,41 @@ export function Timeline24h({
   return (
     <div className="flex flex-1 min-h-0 flex-col gap-1.5 rounded-xl border border-slate-200 bg-white p-1.5 sm:p-2 shadow-2xs">
 
-      {/* Unassigned Warning Alert if any */}
+      {/* Unassigned Warning Alert if any (折りたたみ可能な洗練されたアコーディオン表示) */}
       {unassignedTasks.length > 0 && (
-        <div className="flex shrink-0 items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
-          <div>
-            <span className="font-semibold text-amber-900">
-              枠不足により本日未配置のタスクがあります（{unassignedTasks.length}件）:
-            </span>
-            <ul className="mt-0.5 list-inside list-disc text-amber-800">
-              {unassignedTasks.map((t) => (
-                <li key={t.id}>
-                  {t.title} ({formatDuration(t.durationMinutes)}) - 優先度: {t.priority}
-                </li>
-              ))}
-            </ul>
-          </div>
+        <div className="flex shrink-0 flex-col rounded-lg border border-amber-200/90 bg-amber-50/90 text-xs text-amber-900 shadow-2xs overflow-hidden transition-all duration-200">
+          <button
+            type="button"
+            onClick={() => setIsUnassignedAlertExpanded((prev) => !prev)}
+            className="flex items-center justify-between w-full p-2 px-3 hover:bg-amber-100/60 transition text-left cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+              <span className="font-semibold text-amber-950">
+                枠不足により今週未配置のタスクがあります（{unassignedTasks.length}件）
+              </span>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] font-medium text-amber-800">
+              <span>{isUnassignedAlertExpanded ? '閉じる' : '詳細を表示'}</span>
+              <span className={`transform transition-transform text-[10px] ${isUnassignedAlertExpanded ? 'rotate-180' : ''}`}>▼</span>
+            </div>
+          </button>
+
+          {isUnassignedAlertExpanded && (
+            <div className="px-3 pb-2.5 pt-0.5 border-t border-amber-200/60 bg-amber-50/50">
+              <ul className="mt-1 space-y-1 list-inside list-disc text-amber-800 text-[11px]">
+                {unassignedTasks.map((t) => (
+                  <li key={t.id}>
+                    <span className="font-medium text-amber-900">{t.title}</span>
+                    <span className="ml-1 text-amber-700 font-mono">({formatDuration(t.durationMinutes)})</span>
+                    <span className="ml-1.5 text-[10px] text-amber-600">
+                      [優先度: {t.priority === 'high' ? '高' : t.priority === 'medium' ? '中' : '低'}]
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 

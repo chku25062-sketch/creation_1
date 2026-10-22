@@ -2132,6 +2132,34 @@ describe('Theoretical Scheduler Engine', () => {
         expect(result.unassignedTasks).toHaveLength(0);
         expect(result.metrics.theoreticalScore).toBe(100);
       });
+
+      it('特定曜日の日跨ぎ固定枠（例: 日曜23:00〜07:00）が翌日（月曜）の早朝00:00〜07:00に正しく持ち越され、日曜朝には入らないこと', () => {
+        // 日曜日（dayIndex: 6）のみの夜間睡眠スロット (23:00〜07:00)
+        const sundayNightSleep: FixedSlot = {
+          id: 'sun-sleep',
+          title: '日曜夜の睡眠',
+          category: 'sleep',
+          startMinutes: 23 * 60, // 1380
+          endMinutes: 7 * 60, // 420
+          daysOfWeek: [6], // 日曜日のみ
+          color: '#6366f1',
+        };
+
+        const result = generateTheoreticalSchedule([sundayNightSleep], []);
+
+        // 日曜（dayIndex: 6）には夜（23:00〜24:00）のみが存在し、朝（00:00〜07:00）は存在しないこと
+        const sundayBlocks = result.dayBlocks[6];
+        const sunMorningBlock = sundayBlocks.find((b) => b.startMinutes === 0 && b.endMinutes === 420);
+        const sunNightBlock = sundayBlocks.find((b) => b.startMinutes === 1380 && b.endMinutes === 1440);
+        expect(sunMorningBlock).toBeUndefined();
+        expect(sunNightBlock).toBeDefined();
+
+        // 翌日の月曜（dayIndex: 0）の朝（00:00〜07:00）に睡眠ブロックが存在すること
+        const mondayBlocks = result.dayBlocks[0];
+        const monMorningBlock = mondayBlocks.find((b) => b.startMinutes === 0 && b.endMinutes === 420);
+        expect(monMorningBlock).toBeDefined();
+        expect(monMorningBlock?.title).toBe('日曜夜の睡眠');
+      });
     });
   });
 });
