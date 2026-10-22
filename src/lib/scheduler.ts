@@ -482,6 +482,10 @@ export function generateTheoreticalSchedule(
 
   for (let d = 0; d < 7; d++) {
     dayTaskContexts[d].sort((a, b) => {
+      // ⓪ 付随タスク（本タスクの直後・同じ日に配置）は最優先
+      if (a.task.isAttachedTask && !b.task.isAttachedTask) return -1;
+      if (!a.task.isAttachedTask && b.task.isAttachedTask) return 1;
+
       // ① 課題タスク（提出物・締切制約）は最優先
       const isAssignA = a.task.taskType === 'assignment' || a.task.deadlineDay !== undefined;
       const isAssignB = b.task.taskType === 'assignment' || b.task.deadlineDay !== undefined;
@@ -535,6 +539,24 @@ export function generateTheoreticalSchedule(
         for (const slot of slots) {
           if (slot.durationMinutes < 15) continue;
 
+          // ★ 付随タスク（本タスクの直後に優先配置）の開始時刻制約
+          let minStartMinutes = 0;
+          if (ctx.task.isAttachedTask) {
+            if (ctx.task.parentEndMinutesByDay && ctx.task.parentEndMinutesByDay[d] !== undefined) {
+              minStartMinutes = ctx.task.parentEndMinutesByDay[d];
+            } else if (ctx.task.parentTitle) {
+              const parentBlock = dayBlocks[d]
+                .filter((b) => b.title === ctx.task.parentTitle)
+                .sort((a, b) => b.endMinutes - a.endMinutes)[0];
+              if (parentBlock) {
+                minStartMinutes = parentBlock.endMinutes + (parentBlock.breakMinutes || 0);
+              }
+            }
+          }
+
+          // 本タスク終了時刻より前のスロットはスキップ
+          if (slot.endMinutes <= minStartMinutes) continue;
+
           const requiredMin =
             ctx.task.durationSize === 'small'
               ? 15
@@ -549,10 +571,11 @@ export function generateTheoreticalSchedule(
           // ★ 終了時刻上限（latestEndTime）の制約
           // これ以上先の時刻にはタスク配置を行わない（自動・未設定時は最大値1440=24:00）
           const taskLatestEndTime = ctx.task.latestEndTime ?? 1440;
-          if (slot.startMinutes >= taskLatestEndTime) continue;
+          const effectiveSlotStart = Math.max(slot.startMinutes, minStartMinutes);
+          if (effectiveSlotStart >= taskLatestEndTime) continue;
 
           const maxAllowedEnd = Math.min(slot.endMinutes, taskLatestEndTime);
-          const availableDuration = maxAllowedEnd - slot.startMinutes;
+          const availableDuration = maxAllowedEnd - effectiveSlotStart;
           if (availableDuration < minAcceptable + breakMin) continue;
 
           if (availableDuration >= minAcceptable + breakMin) {
@@ -569,7 +592,7 @@ export function generateTheoreticalSchedule(
             const totalNeeded = effectiveDuration + breakMin;
 
             if (availableDuration >= totalNeeded) {
-              const taskStart = slot.startMinutes;
+              const taskStart = effectiveSlotStart;
               const taskEnd = taskStart + effectiveDuration;
 
               // ① タスク本体ブロックの配置（休憩・余白時間はタスク自身の属性として保持）
@@ -592,10 +615,24 @@ export function generateTheoreticalSchedule(
                 sourceTableName: ctx.task.sourceTableName,
               });
 
-              // 休憩は独立したタスク/ブロックではなく各タスクが持つ余白のため、
-              // スロット消費で余白分を進め、次のタスクが入らない余白として空ける
-              slot.startMinutes = taskEnd + breakMin;
-              slot.durationMinutes = slot.endMinutes - (taskEnd + breakMin);
+              // スロット消費:
+              if (effectiveSlotStart > slot.startMinutes) {
+                const consumedEnd = taskEnd + breakMin;
+                const remainingAfter = slot.endMinutes - consumedEnd;
+                slot.endMinutes = effectiveSlotStart;
+                slot.durationMinutes = slot.endMinutes - slot.startMinutes;
+                if (remainingAfter >= 15) {
+                  slots.push({
+                    startMinutes: consumedEnd,
+                    endMinutes: consumedEnd + remainingAfter,
+                    durationMinutes: remainingAfter,
+                  });
+                  slots.sort((a, b) => a.startMinutes - b.startMinutes);
+                }
+              } else {
+                slot.startMinutes = taskEnd + breakMin;
+                slot.durationMinutes = slot.endMinutes - (taskEnd + breakMin);
+              }
 
               ctx.placedCountInDay++;
               ctx.plan.placedCount++;

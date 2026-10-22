@@ -54,6 +54,9 @@ export interface TaskItem {
   sourceTableId?: string; // 参照元テーブルID
   sourceTableName?: string; // 参照元テーブル名
   latestEndTime?: number; // これ以上先の時刻にはタスク配置を行わない上限時刻（分。未設定時は1440=24:00）
+  isAttachedTask?: boolean; // 本タスクに付随するタスクかどうか
+  parentTitle?: string; // 付随先の本タスク名
+  parentEndMinutesByDay?: Record<number, number>; // 各曜日における本タスクの終了時刻（分）
 }
 
 export interface TheoreticalBlock {

@@ -494,6 +494,80 @@ describe('Theoretical Scheduler Engine', () => {
       const placedCannotFit = result.blocks.find((b) => b.title === '入り切らないタスク');
       expect(placedCannotFit).toBeUndefined();
     });
+
+    it('付随タスク（isAttachedTask）が同じ日の本タスク（固定枠）の終了時刻直後に優先配置されること', () => {
+      // 月曜:
+      // 00:00〜07:00 睡眠
+      // 07:00〜09:00 空き枠（本コマの前）
+      // 09:00〜10:30 固定枠「線形代数」
+      // 10:30〜12:00 空き枠（本コマの直後）
+      // 12:00〜24:00 その他固定枠
+      const fixedSlots: FixedSlot[] = [
+        {
+          id: 'sleep',
+          title: '睡眠',
+          category: 'sleep',
+          startMinutes: 0,
+          endMinutes: 420,
+          color: '#6366f1',
+          daysOfWeek: [0],
+        },
+        {
+          id: 'slot-math',
+          title: '線形代数',
+          category: 'lecture',
+          startMinutes: 540,
+          endMinutes: 630, // 10:30
+          color: '#0369a1',
+          daysOfWeek: [0],
+        },
+        {
+          id: 'slot-other',
+          title: 'アルバイト',
+          category: 'work',
+          startMinutes: 720,
+          endMinutes: 1440,
+          color: '#0284c7',
+          daysOfWeek: [0],
+        },
+      ];
+
+      // 一般の日常タスク（優先度高）
+      const normalTask: TaskItem = {
+        id: 'task-normal',
+        title: '一般タスク',
+        durationMinutes: 30,
+        priority: 'high',
+        category: 'want',
+        period: 'day',
+        targetDays: [0],
+      };
+
+      // 「線形代数」の付随タスク（所要時間15分、親タスク終了は10:30=630分）
+      const attachedTask: TaskItem = {
+        id: 'task-attached-math',
+        title: '線形代数 のタスク',
+        durationMinutes: 15,
+        priority: 'high',
+        category: 'lecture',
+        period: 'day',
+        isAttachedTask: true,
+        parentTitle: '線形代数',
+        parentEndMinutesByDay: { 0: 630 },
+        targetDays: [0],
+      };
+
+      const result = generateTheoreticalSchedule(fixedSlots, [normalTask, attachedTask]);
+
+      // 月曜日の配置ブロックを確認
+      const mondayBlocks = result.dayBlocks[0];
+      const placedAttached = mondayBlocks.find((b) => b.title === '線形代数 のタスク');
+      expect(placedAttached).toBeDefined();
+
+      // 朝の空き枠（07:00〜09:00 = 420〜540分）ではなく、本タスク終了（630分）の直後（630分〜）に配置されること
+      expect(placedAttached!.startMinutes).toBe(630);
+      expect(placedAttached!.endMinutes).toBe(645);
+    });
   });
 
   describe('getAdjustedDuration', () => {

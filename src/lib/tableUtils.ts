@@ -613,7 +613,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
 
       if (isAttachedEnabled) {
         const attachedTitleTemplate =
-          cellAttached?.title || attachedConfig?.titleTemplate || '{title} の記録・確認';
+          cellAttached?.title || attachedConfig?.titleTemplate || '{title} のタスク';
         const attachedDuration =
           cellAttached?.durationMinutes || attachedConfig?.durationMinutes || 15;
         const attachedTaskTitle = attachedTitleTemplate.replace('{title}', title);
@@ -623,20 +623,28 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
           const attachedTaskId = `task-attached-${table.id}-${r}-${c}`;
 
           if (classification === 'fixed_slot') {
-            const deadlineDay = isWeekday ? (colInfo.dayIndex! - 1 + 7) % 7 : undefined;
+            const parentEndMinutesByDay: Record<number, number> = {};
+            if (isWeekday && colInfo.dayIndex !== undefined && timeSlot) {
+              parentEndMinutesByDay[colInfo.dayIndex] =
+                timeSlot.endMinutes + (effectiveBreakMinutes || 0);
+            }
+
             attachedTaskMap.set(attachedKey, {
               id: attachedTaskId,
               title: attachedTaskTitle,
               category: tableCategory, // 表の名前でカテゴリを代用
               durationSize: attachedDuration <= 25 ? 'small' : 'medium',
               durationMinutes: attachedDuration,
-              frequency: 'low',
-              taskType: 'assignment',
-              startDay: isWeekday ? colInfo.dayIndex : undefined,
-              targetDays: isWeekday ? [colInfo.dayIndex!] : undefined,
-              deadlineDay,
+              frequency: 'high',
+              taskType: 'task', // 提出物課題ではなく同じ日のタスク
+              isAttachedTask: true,
+              parentTitle: title,
+              parentEndMinutesByDay,
+              targetDays: isWeekday && colInfo.dayIndex !== undefined ? [colInfo.dayIndex] : undefined,
+              latestEndTime: tableEndTimeMinutes,
               priority: 'high',
-              period: 'week',
+              period: 'day',
+              dailyCount: 1,
               completed: false,
               sourceTableId: table.id,
               sourceTableName: table.name,
@@ -657,8 +665,10 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               cycleDays: isCycle ? [cycleIdx] : undefined,
               cycleIndex: isCycle ? cycleIdx : undefined,
               cycleCount: isCycle ? cycleCount : undefined,
+              isAttachedTask: true,
+              parentTitle: fullTitle,
               latestEndTime: tableEndTimeMinutes,
-              priority: 'medium',
+              priority: 'high',
               completed: false,
               sourceTableId: table.id,
               sourceTableName: table.name,
@@ -667,7 +677,21 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
         } else {
           // 既存付随タスクの日程情報をマージ
           const existingAttached = attachedTaskMap.get(attachedKey)!;
-          if (classification === 'daily_task') {
+          if (classification === 'fixed_slot') {
+            if (isWeekday && colInfo.dayIndex !== undefined) {
+              const curDays = existingAttached.targetDays || [];
+              if (!curDays.includes(colInfo.dayIndex)) {
+                existingAttached.targetDays = [...curDays, colInfo.dayIndex].sort((a, b) => a - b);
+              }
+              if (timeSlot) {
+                if (!existingAttached.parentEndMinutesByDay) existingAttached.parentEndMinutesByDay = {};
+                existingAttached.parentEndMinutesByDay[colInfo.dayIndex] = Math.max(
+                  existingAttached.parentEndMinutesByDay[colInfo.dayIndex] || 0,
+                  timeSlot.endMinutes + (effectiveBreakMinutes || 0),
+                );
+              }
+            }
+          } else if (classification === 'daily_task') {
             existingAttached.dailyCount = (existingAttached.dailyCount || 1) + 1;
           } else {
             if (isWeekday && colInfo.dayIndex !== undefined) {

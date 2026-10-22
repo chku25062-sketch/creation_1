@@ -604,6 +604,24 @@ describe('tableUtils', () => {
       expect(res.tasks[0].latestEndTime).toBeUndefined();
     });
   });
+
+  describe('付随タスクの名称統一と同一日連動', () => {
+    it('付随タスクの名称はデフォルトで "{title} のタスク" に統一されること', () => {
+      const table = createBaseTable('09:00');
+      table.attachedTaskConfig = {
+        enabled: true,
+        titleTemplate: '', // 未指定
+        durationMinutes: 15,
+      };
+
+      const res = generateScheduleItemsForTable(table);
+      const attached = res.tasks.find((t) => t.isAttachedTask);
+      expect(attached).toBeDefined();
+      expect(attached!.title).toBe('胸トレ のタスク');
+      expect(attached!.targetDays).toEqual([0]); // 月曜（胸トレと同じ曜日）
+      expect(attached!.parentEndMinutesByDay).toEqual({ 0: 640 }); // コマ終了630分 + 休憩10分 = 640分
+    });
+  });
 });
 
 

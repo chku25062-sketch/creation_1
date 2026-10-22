@@ -756,7 +756,7 @@ export function ImportedTablesManager({
     setCellAttachedTitle(
       cell.attachedTask?.title ||
         activeTable.attachedTaskConfig?.titleTemplate ||
-        '{title} の記録・確認',
+        '{title} のタスク',
     );
     setCellAttachedDuration(
       cell.attachedTask?.durationMinutes ||
@@ -2015,7 +2015,7 @@ export function ImportedTablesManager({
                           attachedTaskConfig: {
                             enabled,
                             titleTemplate:
-                              prev.attachedTaskConfig?.titleTemplate || '{title} の記録・確認',
+                              prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
                             durationMinutes:
                               prev.attachedTaskConfig?.durationMinutes || 15,
                           },
@@ -2030,7 +2030,7 @@ export function ImportedTablesManager({
                   {activeTable.attachedTaskConfig?.enabled && (
                     <div className="flex items-center gap-1">
                       <select
-                        value={activeTable.attachedTaskConfig.titleTemplate}
+                        value={activeTable.attachedTaskConfig.titleTemplate || '{title} のタスク'}
                         onChange={(e) => {
                           const val = e.target.value;
                           updateActiveTable((prev) => ({
@@ -2045,11 +2045,7 @@ export function ImportedTablesManager({
                         }}
                         className="text-[11px] font-bold text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
                       >
-                        <option value="{title} の記録・確認">記録・確認</option>
-                        <option value="{title} のプロテイン・記録">プロテイン・記録</option>
-                        <option value="{title} の課題レポート">課題レポート</option>
-                        <option value="{title} の予習・復習">予習・復習</option>
-                        <option value="{title} の前日準備">前日準備</option>
+                        <option value="{title} のタスク">〜のタスク</option>
                       </select>
                       <select
                         value={activeTable.attachedTaskConfig.durationMinutes}
@@ -2060,7 +2056,7 @@ export function ImportedTablesManager({
                             attachedTaskConfig: {
                               enabled: true,
                               titleTemplate:
-                                prev.attachedTaskConfig?.titleTemplate || '{title} の記録・確認',
+                                prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
                               durationMinutes: val,
                             },
                           }));
@@ -2587,7 +2583,7 @@ export function ImportedTablesManager({
                       type="text"
                       value={cellAttachedTitle}
                       onChange={(e) => setCellAttachedTitle(e.target.value)}
-                      placeholder="{title} の記録・確認"
+                      placeholder="{title} のタスク"
                       className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs focus:border-blue-500 focus:outline-hidden"
                     />
                   </div>
