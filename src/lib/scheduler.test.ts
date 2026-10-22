@@ -2907,6 +2907,67 @@ describe('Theoretical Scheduler Engine', () => {
         // 未配置タスクに含まれていないこと
         expect(result.unassignedTasks || []).not.toContain('マクロ経済学 課題');
       });
+
+      it('週タスクは週タスク独自の色（WEEKLY_TASK_COLOR / #8b5cf6）で統一されてブロックが生成されること', () => {
+        const weeklyTask: TaskItem = {
+          id: 'task-weekly-custom',
+          title: '週次プログラミング演習',
+          category: 'must', // カテゴリは must でも週タスク独自色で統一
+          priority: 'high',
+          durationMinutes: 60,
+          period: 'week',
+          completed: false,
+        };
+
+        const result = generateTheoreticalSchedule([], [weeklyTask]);
+        const allBlocks = Object.values(result.dayBlocks).flat();
+        const block = allBlocks.find((b) => b.title === '週次プログラミング演習');
+        expect(block).toBeDefined();
+        expect(block!.isWeeklyTask).toBe(true);
+        expect(block!.color).toBe('#8b5cf6');
+      });
+
+      it('早期完了された枠において、新タスク（isSubstitute: true）が奥(先)、手前に透明度を上げた完了タスクが後になる順序でソートされること', () => {
+        const taskA: TaskItem = {
+          id: 'task-a',
+          title: '木曜のタスクA',
+          category: 'must',
+          priority: 'high',
+          durationMinutes: 60,
+          period: 'week',
+          targetDays: [3],
+          completed: false,
+        };
+        const taskB: TaskItem = {
+          id: 'task-b',
+          title: '金曜のタスクB',
+          category: 'must',
+          priority: 'high',
+          durationMinutes: 60,
+          period: 'week',
+          targetDays: [4],
+          completed: false,
+        };
+
+        const initial = generateTheoreticalSchedule([], [taskA, taskB]);
+        const aBlock = initial.dayBlocks[3].find((b) => b.title === '木曜のタスクA')!;
+
+        // タスクAを早期完了
+        const adapted = generateTheoreticalSchedule([], [taskA, taskB], {
+          todayIndex: 1, // 火曜
+          currentMinutes: 600,
+          completedBlockIds: new Set([aBlock.id]),
+        });
+
+        const thuBlocks = adapted.dayBlocks[3];
+        const subIdx = thuBlocks.findIndex((b) => b.isSubstitute);
+        const origIdx = thuBlocks.findIndex((b) => b.id === aBlock.id);
+
+        expect(subIdx).toBeGreaterThanOrEqual(0);
+        expect(origIdx).toBeGreaterThanOrEqual(0);
+        // 新タスク（代行タスク）が奥（インデックスが小さい）に配置され、完了タスクが手前に重なること
+        expect(subIdx).toBeLessThan(origIdx);
+      });
     });
   });
 });

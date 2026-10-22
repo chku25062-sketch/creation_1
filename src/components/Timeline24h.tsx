@@ -231,6 +231,18 @@ export const DEFAULT_TASK_PALETTE: TableColorScheme = {
   accent: '#e6cb7e',
 };
 
+// ★ 週タスク独自色専用パレット（知性と集中を促す洗練されたインディゴ・バイオレットトーン）
+export const WEEKLY_TASK_PALETTE: TableColorScheme = {
+  bg: '#f5f3ff', // Violet-50
+  border: '#ddd6fe', // Violet-200
+  text: '#5b21b6', // Violet-800
+  strip: '#8b5cf6', // Violet-500
+  badgeBg: '#ede9fe', // Violet-100
+  badgeText: '#4c1d95', // Violet-900
+  badgeBorder: '#c4b5fd',
+  accent: '#a78bfa',
+};
+
 // Plan11: 完了状態専用の上品なグレートーンパレット
 export const COMPLETED_PALETTE: TableColorScheme = {
   bg: '#f1f5f9', // Slate-100
@@ -281,7 +293,20 @@ export function getBlockColorScheme(
     return REST_PALETTE;
   }
 
-  // ② 参照元の表が指定されている場合
+  // ② 固定枠
+  if (block.isFixed) {
+    if (block.category === 'lecture') {
+      return LECTURE_PALETTE;
+    }
+    return FIXED_PALETTE;
+  }
+
+  // ③ ★ 週タスク独自色で統一（isWeeklyTask === true のタスクはすべて統一カラー）
+  if (block.isWeeklyTask) {
+    return WEEKLY_TASK_PALETTE;
+  }
+
+  // ④ 参照元の表が指定されている場合
   const tableName = (block.sourceTableName || block.sourceTableId || '').trim();
   if (tableName) {
     if (tableColorMap && tableColorMap.has(tableName)) {
@@ -297,15 +322,7 @@ export function getBlockColorScheme(
     return TABLE_PALETTES[index];
   }
 
-  // ③ 表指定がない固定枠（睡眠・生活リズム）
-  if (block.isFixed) {
-    if (block.category === 'lecture') {
-      return LECTURE_PALETTE;
-    }
-    return FIXED_PALETTE;
-  }
-
-  // ④ 表指定がない通常タスク（基本設定のタスク）
+  // ⑤ 表指定がない通常タスク（基本設定のタスク）
   if (block.taskType === 'assignment') {
     return ASSIGNMENT_PALETTE;
   }
@@ -831,27 +848,33 @@ export function Timeline24h({
                         ? COMPLETED_PALETTE
                         : getBlockColorScheme(block, tableColorMap);
 
-                      // ★ Plan11: 代替タスクの「代わりのタスク感」オーバーレイ表現
-                      // 新タスク（代行タスク）は元のタスクの上に重ね、横幅を86%にし、影とリングを付けて浮かび上がらせる
+                      // ★ Plan11 & ユーザー指示:
+                      // 「完了タスクの上に重ねて新タスクを配置するデザインを逆にして、手前に透明度を上げた完了タスクを持ってくる」
+                      // 奥の新タスク（isSubstitute）: z-10、フル幅（土台としてしっかり描画）
+                      // 手前の完了タスク（isEarlyCompleted）: z-20、透明度向上（backdrop-blur & 半透明すりガラス）、幅92%で浮かび上がらせる
                       const isSubstitute = !!block.isSubstitute;
                       const isEarlyCompleted = !!block.isEarlyCompleted;
 
-                      const positioningClass = isSubstitute
-                        ? 'z-20 shadow-md ring-2 ring-blue-500/40'
-                        : isEarlyCompleted
-                          ? 'z-10 opacity-60 inset-x-0.5 sm:inset-x-1 shadow-2xs'
+                      const positioningClass = isEarlyCompleted
+                        ? 'z-20 shadow-sm backdrop-blur-[2px] border-dashed hover:opacity-35 transition-all ring-1 ring-slate-400/40'
+                        : isSubstitute
+                          ? 'z-10 shadow-2xs inset-x-0.5 sm:inset-x-1 ring-1 ring-blue-400/40'
                           : 'z-10 inset-x-0.5 sm:inset-x-1 shadow-2xs';
 
                       const positioningStyle: React.CSSProperties = {
                         top: `${top}px`,
                         height: `${height}px`,
-                        backgroundColor: colorScheme.bg,
-                        borderColor: colorScheme.border,
+                        backgroundColor: isEarlyCompleted
+                          ? 'rgba(241, 245, 249, 0.74)' // 半透明グレートーン（奥の新タスクが透ける）
+                          : colorScheme.bg,
+                        borderColor: isEarlyCompleted
+                          ? 'rgba(203, 213, 225, 0.85)'
+                          : colorScheme.border,
                         color: colorScheme.text,
-                        ...(isSubstitute
+                        ...(isEarlyCompleted
                           ? {
-                              left: '7%',
-                              width: '86%',
+                              left: '4%',
+                              width: '92%',
                             }
                           : {}),
                       };
@@ -863,7 +886,7 @@ export function Timeline24h({
                             isSubstitute
                               ? `【代行タスク】${block.title} (元のタスク「${block.substitutedForTitle || ''}」の代わりに前倒し配置)`
                               : block.isEarlyCompleted
-                                ? `【前倒し完了済み】${block.title}`
+                                ? `【前倒し完了済み】${block.title} (奥に代行タスクが配置されています)`
                                 : block.sourceTableName
                                   ? `${block.title} (参照元: ${block.sourceTableName})`
                                   : block.title
@@ -875,7 +898,11 @@ export function Timeline24h({
                           <div
                             className="absolute inset-y-0 left-0 w-1.5 opacity-90 shadow-2xs"
                             style={{
-                              backgroundColor: isSubstitute ? '#3b82f6' : colorScheme.strip,
+                              backgroundColor: isSubstitute
+                                ? '#3b82f6'
+                                : isEarlyCompleted
+                                  ? '#94a3b8'
+                                  : colorScheme.strip,
                             }}
                           />
 
@@ -890,6 +917,23 @@ export function Timeline24h({
                                   >
                                     <Sparkles className="h-2 w-2" />
                                     代行
+                                  </span>
+                                )}
+                                {isEarlyCompleted && (
+                                  <span
+                                    className="shrink-0 inline-flex items-center gap-0.5 rounded bg-emerald-600/90 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs"
+                                    title="前倒し完了済み（奥に代行タスクが配置されています）"
+                                  >
+                                    <CheckCircle2 className="h-2 w-2" />
+                                    完了
+                                  </span>
+                                )}
+                                {isWeeklyTask && !isSubstitute && !block.isCompleted && (
+                                  <span
+                                    className="shrink-0 inline-flex items-center gap-0.5 rounded bg-violet-600 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs"
+                                    title="週タスク"
+                                  >
+                                    週
                                   </span>
                                 )}
                                 {block.isRescheduled && (

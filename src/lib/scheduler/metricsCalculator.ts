@@ -44,15 +44,16 @@ export function calculateScheduleMetrics(
     }
   }
 
-  // 2. 各曜日のブロックを時系列順に整頓（元タスクが前、代替タスクが後になるよう安定ソート）
+  // 2. 各曜日のブロックを時系列順に整頓（新タスク/代行タスクが奥(前)、手前に透明度を上げた完了タスクが後になるようソート）
   const allBlocks: TheoreticalBlock[] = [];
   for (let d = 0; d < 7; d++) {
     dayBlocks[d].sort((a, b) => {
       if (a.startMinutes !== b.startMinutes) {
         return a.startMinutes - b.startMinutes;
       }
-      if (a.isSubstitute && !b.isSubstitute) return 1;
-      if (!a.isSubstitute && b.isSubstitute) return -1;
+      // 新タスク（代行タスク）を奥（先）、完了タスクを手前（後）に配置
+      if (a.isSubstitute && !b.isSubstitute) return -1;
+      if (!a.isSubstitute && b.isSubstitute) return 1;
       return a.endMinutes - b.endMinutes;
     });
     allBlocks.push(...dayBlocks[d]);

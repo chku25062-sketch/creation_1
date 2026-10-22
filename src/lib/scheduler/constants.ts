@@ -15,6 +15,9 @@ export const CATEGORY_COLORS: Record<string, string> = {
   other: '#64748b',
 };
 
+// ★ 週タスク独自色（カレンダー全体で週タスクを一目で識別できる統一バイオレット）
+export const WEEKLY_TASK_COLOR = '#8b5cf6';
+
 export const DYNAMIC_PALETTE = [
   '#0284c7', // Sky
   '#0d9488', // Teal

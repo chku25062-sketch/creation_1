@@ -1,5 +1,5 @@
 import { PlacementPhase, SchedulingExecutionContext, DayTaskContext } from './types';
-import { getAdjustedDuration, getCategoryColor } from './constants';
+import { getAdjustedDuration, getCategoryColor, WEEKLY_TASK_COLOR } from './constants';
 import { timeStringToMinutes } from '../timeUtils';
 import { WeeklyPlacementPhase } from './phases/weeklyPlacementPhase';
 import { DailyFairPlacementPhase } from './phases/dailyFairPlacementPhase';
@@ -158,7 +158,7 @@ export function createPlaceContextHelper(ctx: SchedulingExecutionContext) {
         isFixed: false,
         isBreak: false,
         breakMinutes: effectiveBreak > 0 ? effectiveBreak : undefined,
-        color: getCategoryColor(taskCtx.task.category),
+        color: isWeekly ? WEEKLY_TASK_COLOR : getCategoryColor(taskCtx.task.category),
         taskId: taskCtx.plan.origTaskId || taskCtx.task.id,
         priority: taskCtx.task.priority,
         taskType: taskCtx.task.taskType || 'task',
