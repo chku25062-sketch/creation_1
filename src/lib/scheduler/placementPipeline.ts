@@ -4,6 +4,7 @@ import { timeStringToMinutes } from '../timeUtils';
 import { WeeklyPlacementPhase } from './phases/weeklyPlacementPhase';
 import { DailyFairPlacementPhase } from './phases/dailyFairPlacementPhase';
 import { AttachedFallbackPhase } from './phases/attachedFallbackPhase';
+import { DailyAutoPlacementPhase } from './phases/dailyAutoPlacementPhase';
 import { RescuePlacementPhase } from './phases/rescuePlacementPhase';
 
 /**
@@ -75,11 +76,10 @@ export function createPlaceContextHelper(ctx: SchedulingExecutionContext) {
             taskEarliestStartTime = Math.max(taskEarliestStartTime, scheduleAfterMinutes);
           }
         } else if (d > scheduleAfterDay) {
-          // 指定曜日の翌日以降なら、同日指定時刻に縛られず朝から配置可能
-          if (taskCtx.task.scheduleAfterEnabled && !taskCtx.task.autoPlaceWithinRange) {
-            if (scheduleAfterMinutes !== undefined && taskCtx.task.earliestStartTime === scheduleAfterMinutes) {
-              taskEarliestStartTime = 0;
-            }
+          // 指定曜日の翌日以降なら、元タスクの終了時刻（同日用の scheduleAfterTime / parentEnd）に縛られず、
+          // 朝から夜まで1日の全空き時間をフルに使って配置可能！
+          if (taskCtx.task.scheduleAfterEnabled || taskCtx.task.isAttachedTask) {
+            taskEarliestStartTime = 0;
           }
         }
       }
@@ -311,8 +311,9 @@ export class PlacementPipeline {
 export function createDefaultPlacementPipeline(): PlacementPipeline {
   return new PlacementPipeline([
     new WeeklyPlacementPhase(),     // 1. 週タスクの直接優先配置＆柔軟配置（同日付随、条件合致週タスク、繰り越し、柔軟週タスク）
-    new DailyFairPlacementPhase(),  // 2. 日タスクの公平巡回＆自動敷き詰め（残りの空き枠のみ）
-    new AttachedFallbackPhase(),   // 3. 当日に入り切らなかった付随タスクの別日フォールバック
-    new RescuePlacementPhase(),    // 4. 最終救済フェーズ
+    new DailyFairPlacementPhase(),  // 2. 回数指定日タスクの公平巡回配置（各曜日の日課を確保）
+    new AttachedFallbackPhase(),   // 3. 当日に入り切らなかった付随タスクの別日フォールバック（自動日タスクが枠を埋める前に最優先確保！）
+    new DailyAutoPlacementPhase(),  // 4. 自動敷き詰め日タスク（すべての固定枠・週タスク・日課タスク配置後の残りの空き枠のみ）
+    new RescuePlacementPhase(),    // 5. 最終救済フェーズ
   ]);
 }

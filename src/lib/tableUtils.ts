@@ -632,7 +632,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             cycleDays: isCycle ? [cycleIdx] : undefined,
             cycleCount: isCycle ? cycleCount : undefined,
             startDay: isWeekday ? colInfo.dayIndex : undefined,
-            deadlineDay: isWeekday ? colInfo.dayIndex : undefined,
+            deadlineDay: undefined, // 表の列は開始/対象曜日であり、週タスクの締切ではない（他曜日への柔軟配置を許可）
             cycleIndex: isCycle ? cycleIdx : undefined,
             earliestStartTime: tableStartTimeMinutes,
             latestEndTime: tableEndTimeMinutes,

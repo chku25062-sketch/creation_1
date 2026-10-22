@@ -35,14 +35,21 @@ export class DailyFairPlacementPhase implements PlacementPhase {
       dailyDayTaskContexts[d] = dayContexts;
     }
 
-    // Phase 2 配置ループ（日タスク巡回 & 自動敷き詰め）
+    // Phase 2 配置ループ（日課タスクの公平巡回）
+    // ★ 回数指定日タスクが存在する場合、その最大回数（maxPassesInDay）まで isAuto と公平に巡回配置。
+    // 回数指定タスクがない場合は1巡目のみ配置（週タスク・付随タスクの枠を食い潰さない）。
+    // 余白の無限敷き詰めは付随タスクフォールバック後の DailyAutoPlacementPhase に委ねる！
     for (let d = 0; d < 7; d++) {
       const tasksInDay = dailyDayTaskContexts[d];
+      const fixedTasks = tasksInDay.filter((t) => !t.isAuto);
+      const maxPassesInDay = fixedTasks.length > 0
+        ? Math.max(...fixedTasks.map((t) => t.targetCount))
+        : 1;
+
       let pass = 0;
-      const maxPasses = 100;
       let anyPlacedInDay = true;
 
-      while (anyPlacedInDay && pass < maxPasses) {
+      while (anyPlacedInDay && pass < maxPassesInDay) {
         pass++;
         anyPlacedInDay = false;
 

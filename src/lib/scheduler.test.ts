@@ -2833,6 +2833,80 @@ describe('Theoretical Scheduler Engine', () => {
           expect(placedWeekly!.endMinutes).toBe(600);
         }
       });
+
+      it('同日夜に空き枠がない付随タスク（週タスク）が、自動敷き詰め日タスクが存在する環境でも枠を食い潰されず翌日以降へ確実にフォールバック配置されること', () => {
+        // 金曜: 09:00〜18:00講義、18:00〜23:30夜固定枠（60分枠が残っていない）
+        const fixedSlots: FixedSlot[] = [
+          {
+            id: 'slot-lecture-fri',
+            title: '金曜マクロ経済学',
+            daysOfWeek: [4],
+            startMinutes: 9 * 60,
+            endMinutes: 18 * 60,
+            category: 'lecture',
+            color: '#6366f1',
+          },
+          {
+            id: 'slot-fri-night',
+            title: '金曜夜固定枠',
+            daysOfWeek: [4],
+            startMinutes: 18 * 60,
+            endMinutes: 23 * 60 + 30,
+            category: 'fixed',
+            color: '#0284c7',
+          },
+        ];
+
+        // 金曜マクロ経済学の付随タスク（所要時間60分、週1回）
+        const attachedTask: TaskItem = {
+          id: 'attached-fri',
+          title: 'マクロ経済学 課題',
+          category: 'must',
+          priority: 'high',
+          durationMinutes: 60,
+          period: 'week',
+          frequency: 'low',
+          isAttachedTask: true,
+          parentTitle: '金曜マクロ経済学',
+          parentEndMinutesByDay: { 4: 18 * 60 },
+          scheduleAfterEnabled: true,
+          scheduleAfterDay: 4,
+          scheduleAfterTime: '18:00',
+          earliestStartTime: 18 * 60,
+          targetDays: [4],
+          completed: false,
+        };
+
+        // 自動敷き詰め日タスク（空き枠を全て埋めようとするタスク）
+        const dailyAutoTask: TaskItem = {
+          id: 'daily-task-auto',
+          title: '毎日の勉強',
+          category: 'must',
+          priority: 'medium',
+          durationMinutes: 120,
+          period: 'day',
+          dailyRepeatMode: 'auto',
+          completed: false,
+        };
+
+        const result = generateTheoreticalSchedule(fixedSlots, [attachedTask, dailyAutoTask], {
+          todayIndex: 0,
+          currentMinutes: 0,
+        });
+
+        // 金曜日には枠が足りないため入らない
+        const friBlocks = result.dayBlocks[4];
+        expect(friBlocks.some((b) => b.title === 'マクロ経済学 課題')).toBe(false);
+
+        // 自動敷き詰めタスクに枠を埋め尽くされず、翌日（土曜日）に確実に配置されること！
+        const satBlocks = result.dayBlocks[5];
+        const placedAttached = satBlocks.find((b) => b.title === 'マクロ経済学 課題');
+        expect(placedAttached).toBeDefined();
+        expect(placedAttached!.isWeeklyTask).toBe(true);
+
+        // 未配置タスクに含まれていないこと
+        expect(result.unassignedTasks || []).not.toContain('マクロ経済学 課題');
+      });
     });
   });
 });

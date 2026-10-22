@@ -222,21 +222,33 @@ export class WeeklyPlacementPhase implements PlacementPhase {
               : 30);
 
       // 探索曜日のソート：
+      // 付随タスク（attached_task）は親の日に近い直近順（candidateDaysの並び順）
+      // 通常週タスクは：
       // ① スロットが設定時間を満たす他曜日（空き時間順）
       // ② それ以外の日（空き時間順）
-      const sortedSearchDays = [...eligibleDays].sort((a, b) => {
-        const slotsA = slotManager.getAvailableSlots(a);
-        const slotsB = slotManager.getAvailableSlots(b);
-        const fitA = slotsA.some((s) => s.durationMinutes >= neededDuration);
-        const fitB = slotsB.some((s) => s.durationMinutes >= neededDuration);
+      let sortedSearchDays: number[];
+      if (plan.kind === 'attached_task') {
+        const candidateOrder = plan.candidateDays || [0, 1, 2, 3, 4, 5, 6];
+        sortedSearchDays = [...eligibleDays].sort((a, b) => {
+          const idxA = candidateOrder.indexOf(a);
+          const idxB = candidateOrder.indexOf(b);
+          return (idxA !== -1 ? idxA : 999) - (idxB !== -1 ? idxB : 999);
+        });
+      } else {
+        sortedSearchDays = [...eligibleDays].sort((a, b) => {
+          const slotsA = slotManager.getAvailableSlots(a);
+          const slotsB = slotManager.getAvailableSlots(b);
+          const fitA = slotsA.some((s) => s.durationMinutes >= neededDuration);
+          const fitB = slotsB.some((s) => s.durationMinutes >= neededDuration);
 
-        if (fitA && !fitB) return -1;
-        if (!fitA && fitB) return 1;
+          if (fitA && !fitB) return -1;
+          if (!fitA && fitB) return 1;
 
-        const freeA = slotManager.getTotalFreeMinutes(a);
-        const freeB = slotManager.getTotalFreeMinutes(b);
-        return freeB - freeA;
-      });
+          const freeA = slotManager.getTotalFreeMinutes(a);
+          const freeB = slotManager.getTotalFreeMinutes(b);
+          return freeB - freeA;
+        });
+      }
 
       // 目標配置回数に達するまで順次配置
       for (const d of sortedSearchDays) {
