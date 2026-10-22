@@ -292,10 +292,10 @@ export function generateTheoreticalSchedule(
           : (task.targetDays && task.targetDays.length > 0 ? [...task.targetDays].sort((a, b) => a - b) : [0]);
 
       const primaryDay = preferredDays[0];
-      // 第一候補日(primaryDay)から順にその週の終わりまでの曜日を候補日とする（同日に入らない場合の翌日以降フォールバック用）
+      // 第一候補日(primaryDay)から順に1週間の曜日を候補日とする（同日に入らない場合の別日フォールバック用）
       const candidateDays: number[] = [];
-      for (let d = primaryDay; d < 7; d++) {
-        candidateDays.push(d);
+      for (let i = 0; i < 7; i++) {
+        candidateDays.push((primaryDay + i) % 7);
       }
 
       return {
@@ -619,6 +619,8 @@ export function generateTheoreticalSchedule(
           // ★ 付随タスク（isAttachedTask）の開始・終了時刻仕様:
           // 「付随タスクの開始時間は、元タスクの終了時間以降で、終了時間は設定なしでお願いします。別日にずれ込む場合は開始時間はなくて大丈夫です」
           if (ctx.task.isAttachedTask) {
+            taskLatestEndTime = 1440; // 終了時間は設定なし（深夜制限なし、24:00まで配置可能）
+
             if (ctx.isSameDayAsParent) {
               // 同じ日の場合: 元タスクの終了時間以降
               let parentEnd = 0;
@@ -639,12 +641,9 @@ export function generateTheoreticalSchedule(
               if (parentEnd > 0) {
                 taskEarliestStartTime = Math.max(taskEarliestStartTime, parentEnd);
               }
-              // 同日の終了時間: 夜22:00（1320分）までに開始可能な枠がなければ無理に深夜に入れず別日へ回す
-              taskLatestEndTime = 1320;
             } else {
-              // 別日にずれ込む場合: 開始時間はなくて大丈夫（00:00から配置可能）、深夜帯は避ける（23:00まで）
+              // 別日にずれ込む場合: 開始時間はなくて大丈夫（00:00から配置可能）
               taskEarliestStartTime = 0;
-              taskLatestEndTime = 1380;
             }
           }
 
@@ -787,9 +786,9 @@ export function generateTheoreticalSchedule(
         let taskLatestEndTime = plan.task.latestEndTime ?? 1440;
 
         if (plan.kind === 'attached_task') {
-          // 付随タスクのフォールバック配置（別日等の空き枠へ通常時間帯に収める）
+          // 付随タスクのフォールバック配置（別日にずれ込む場合は開始時間はなくて大丈夫、終了時間も設定なし）
           taskEarliestStartTime = 0;
-          taskLatestEndTime = 1380; // 23:00まで
+          taskLatestEndTime = 1440;
         }
 
         const effectiveSlotStart = Math.max(slot.startMinutes, taskEarliestStartTime);

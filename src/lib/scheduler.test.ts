@@ -742,43 +742,34 @@ describe('Theoretical Scheduler Engine', () => {
       }
     });
 
-    it('同日に深夜帯（22:00以降）しか空きがない場合、無理に深夜に入れず翌日に回されること', () => {
-      // 月曜: 09:00〜18:00 本タスク、18:00〜22:00 予定埋まり、23:00〜24:00 (1380〜1440) のみ空き
-      // 火曜: 10:00〜12:00 (600〜720) に昼の空き枠
+    it('付随タスクは元タスクより後の時間帯に配置される週タスクとして、終了時間制限なしで配置されること', () => {
+      // 月曜: 09:00〜10:30 (540〜630分) に本タスク「ゼミ」
+      // 10:30〜22:00 (630〜1320分) は予定埋まり
+      // 22:30〜24:00 (1350〜1440分) に夜の空き枠
       const fixedSlots: FixedSlot[] = [
         {
-          id: 'slot-mon-day',
-          title: '日中予定',
-          category: 'work',
-          startMinutes: 0,
-          endMinutes: 1380, // 23:00まで埋まっている
+          id: 'slot-mon-seminar',
+          title: 'ゼミ',
+          category: 'lecture',
+          startMinutes: 540,
+          endMinutes: 630,
           color: '#0284c7',
           daysOfWeek: [0],
         },
-        // 火曜は午前10:00〜12:00が空いている
         {
-          id: 'slot-tue-busy',
-          title: '火曜予定',
+          id: 'slot-mon-busy',
+          title: 'アルバイト',
           category: 'work',
-          startMinutes: 0,
-          endMinutes: 600,
+          startMinutes: 630,
+          endMinutes: 1350, // 22:30まで埋まっている
           color: '#0284c7',
-          daysOfWeek: [1],
-        },
-        {
-          id: 'slot-tue-busy2',
-          title: '火曜午後予定',
-          category: 'work',
-          startMinutes: 720,
-          endMinutes: 1440,
-          color: '#0284c7',
-          daysOfWeek: [1],
+          daysOfWeek: [0],
         },
       ];
 
       const attachedTask: TaskItem = {
-        id: 'task-attached-night',
-        title: '講義 のタスク',
+        id: 'task-attached-seminar',
+        title: 'ゼミ のタスク',
         durationMinutes: 15,
         priority: 'high',
         category: 'lecture',
@@ -786,22 +777,19 @@ describe('Theoretical Scheduler Engine', () => {
         frequencyCount: 1,
         dailyCount: 1,
         isAttachedTask: true,
-        parentTitle: '講義',
-        parentEndMinutesByDay: { 0: 600 },
+        parentTitle: 'ゼミ',
+        parentEndMinutesByDay: { 0: 630 },
         targetDays: [0],
       };
 
       const result = generateTheoreticalSchedule(fixedSlots, [attachedTask]);
 
-      // 月曜の深夜23:00〜24:00には無理に配置されないこと
-      expect(result.dayBlocks[0].some((b) => b.title === '講義 のタスク')).toBe(false);
-
-      // 翌日（火曜）の健全な日中空き枠（10:00〜12:00 = 600〜720分）に配置されること
-      const tueBlocks = result.dayBlocks[1];
-      const placed = tueBlocks.find((b) => b.title === '講義 のタスク');
+      // 元タスク終了以降の夜間枠（1350分〜）に終了時刻制限なしで配置されること
+      const monBlocks = result.dayBlocks[0];
+      const placed = monBlocks.find((b) => b.title === 'ゼミ のタスク');
       expect(placed).toBeDefined();
-      expect(placed!.startMinutes).toBe(600);
-      expect(placed!.endMinutes).toBe(615);
+      expect(placed!.startMinutes).toBe(1350); // 22:30〜
+      expect(placed!.endMinutes).toBe(1365); // 22:45
     });
   });
 
