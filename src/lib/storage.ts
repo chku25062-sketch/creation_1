@@ -58,17 +58,21 @@ export const INITIAL_FIXED_SLOTS: FixedSlot[] = [
 
 export const INITIAL_TASKS: TaskItem[] = [
   {
-    id: 'task-assignment-1',
-    title: '大学講義 (2限・3限) レポート課題',
-    taskType: 'assignment',
-    startDay: 0, // 月曜出題 (授業日)
-    deadlineDay: 6, // 日曜締切 (授業日前日)
-    durationMinutes: 90,
-    durationSize: 'medium',
-    frequency: 'low',
+    id: 'task-attached-lecture',
+    title: '大学講義 (2限・3限) のタスク',
+    taskType: 'task',
+    isAttachedTask: true,
+    parentTitle: '大学講義 (2限・3限)',
+    parentEndMinutesByDay: { 0: 880, 2: 880 }, // 14:40
+    durationMinutes: 15,
+    durationSize: 'small',
+    frequency: 'custom',
+    frequencyCount: 1,
     priority: 'high',
-    category: 'must',
+    category: 'lecture',
     period: 'week',
+    dailyCount: 1,
+    dailyRepeatMode: 'custom',
     sourceTableId: 'sample-table-1',
     sourceTableName: 'サンプル時間割 (前期)',
   },
@@ -133,7 +137,35 @@ export function loadLocalData(): { fixedSlots: FixedSlot[]; tasks: TaskItem[] } 
     const rawTasks = localStorage.getItem(LOCAL_STORAGE_KEY_TASKS);
 
     const fixedSlots: FixedSlot[] = rawFixed ? JSON.parse(rawFixed) : INITIAL_FIXED_SLOTS;
-    const tasks: TaskItem[] = rawTasks ? JSON.parse(rawTasks) : INITIAL_TASKS;
+    const rawParsedTasks: TaskItem[] = rawTasks ? JSON.parse(rawTasks) : INITIAL_TASKS;
+
+    // ★ 付随タスク名称の自動マイグレーション:
+    // 過去のローカルストレージデータにある「〇〇 の課題レポート」「〇〇 レポート課題」を「〇〇 のタスク」に自動正規化
+    const tasks: TaskItem[] = rawParsedTasks.map((t) => {
+      if (
+        t.title.includes('の課題レポート') ||
+        t.title.includes('レポート課題') ||
+        (t.isAttachedTask && t.title.includes('レポート'))
+      ) {
+        const cleanedTitle = t.title
+          .replace(' の課題レポート', ' のタスク')
+          .replace(' レポート課題', ' のタスク')
+          .replace(' の記録・確認', ' のタスク');
+        return {
+          ...t,
+          title: cleanedTitle.endsWith(' のタスク')
+            ? cleanedTitle
+            : `${t.parentTitle || '講義'} のタスク`,
+          taskType: 'task' as const,
+          isAttachedTask: true,
+          durationMinutes: t.durationMinutes > 30 ? 15 : t.durationMinutes || 15,
+          durationSize: 'small' as const,
+          deadlineDay: undefined,
+          startDay: undefined,
+        };
+      }
+      return t;
+    });
 
     return { fixedSlots, tasks };
   } catch (err) {
@@ -470,7 +502,58 @@ export function loadImportedTables(): ImportedTableData[] {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY_IMPORTED_TABLES);
     if (!raw) return [INITIAL_IMPORTED_TABLE];
     const parsed: ImportedTableData[] = JSON.parse(raw);
-    return parsed.length > 0 ? parsed : [INITIAL_IMPORTED_TABLE];
+    const migratedTables = parsed.map((table) => {
+      // 表全体の付随タスク設定の正規化
+      let attachedConfig = table.attachedTaskConfig;
+      if (attachedConfig) {
+        if (
+          !attachedConfig.titleTemplate ||
+          attachedConfig.titleTemplate.includes('課題レポート') ||
+          attachedConfig.titleTemplate.includes('記録') ||
+          attachedConfig.titleTemplate.includes('準備') ||
+          attachedConfig.titleTemplate.includes('確認')
+        ) {
+          attachedConfig = {
+            ...attachedConfig,
+            titleTemplate: '{title} のタスク',
+          };
+        }
+      }
+
+      // 各セルの付随タスク設定の正規化
+      const cells = table.cells.map((row) =>
+        row.map((cell) => {
+          if (cell.attachedTask) {
+            let title = cell.attachedTask.title;
+            if (
+              !title ||
+              title.includes('課題レポート') ||
+              title.includes('記録') ||
+              title.includes('準備') ||
+              title.includes('確認')
+            ) {
+              title = '{title} のタスク';
+            }
+            return {
+              ...cell,
+              attachedTask: {
+                ...cell.attachedTask,
+                title,
+              },
+            };
+          }
+          return cell;
+        }),
+      );
+
+      return {
+        ...table,
+        attachedTaskConfig: attachedConfig,
+        cells,
+      };
+    });
+
+    return migratedTables.length > 0 ? migratedTables : [INITIAL_IMPORTED_TABLE];
   } catch (err) {
     console.error('Failed to load imported tables from localStorage', err);
     return [INITIAL_IMPORTED_TABLE];

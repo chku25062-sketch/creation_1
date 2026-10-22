@@ -618,8 +618,23 @@ describe('tableUtils', () => {
       const attached = res.tasks.find((t) => t.isAttachedTask);
       expect(attached).toBeDefined();
       expect(attached!.title).toBe('胸トレ のタスク');
+      expect(attached!.parentTitle).toBe('胸トレ');
       expect(attached!.targetDays).toEqual([0]); // 月曜（胸トレと同じ曜日）
       expect(attached!.parentEndMinutesByDay).toEqual({ 0: 640 }); // コマ終了630分 + 休憩10分 = 640分
+    });
+
+    it('古いテンプレート（課題レポート等）が設定されていても "{title} のタスク" に自動正規化されること', () => {
+      const table = createBaseTable('09:00');
+      table.attachedTaskConfig = {
+        enabled: true,
+        titleTemplate: '{title} の課題レポート',
+        durationMinutes: 15,
+      };
+
+      const res = generateScheduleItemsForTable(table);
+      const attached = res.tasks.find((t) => t.isAttachedTask);
+      expect(attached).toBeDefined();
+      expect(attached!.title).toBe('胸トレ のタスク');
     });
   });
 

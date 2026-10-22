@@ -530,8 +530,16 @@ export function generateTheoreticalSchedule(
   for (let d = 0; d < 7; d++) {
     dayTaskContexts[d].sort((a, b) => {
       // 親タスクと付随タスクの関係：親タスクは自身の付随タスクより先に配置されるべき
-      if (a.task.isAttachedTask && a.task.parentTitle === b.task.title) return 1;
-      if (b.task.isAttachedTask && b.task.parentTitle === a.task.title) return -1;
+      const isAParentOfB =
+        b.task.isAttachedTask &&
+        (b.task.parentTitle === a.task.title ||
+          (b.task.parentTitle && a.task.title.startsWith(b.task.parentTitle)));
+      const isBParentOfA =
+        a.task.isAttachedTask &&
+        (a.task.parentTitle === b.task.title ||
+          (a.task.parentTitle && b.task.title.startsWith(a.task.parentTitle)));
+      if (isBParentOfA) return 1;
+      if (isAParentOfB) return -1;
 
       // ⓪ 付随タスク（本タスクと同じ日の付随タスク）は最優先！
       const isAttachedSameDayA = a.task.isAttachedTask && a.isSameDayAsParent;
@@ -611,8 +619,6 @@ export function generateTheoreticalSchedule(
           // ★ 付随タスク（isAttachedTask）の開始・終了時刻仕様:
           // 「付随タスクの開始時間は、元タスクの終了時間以降で、終了時間は設定なしでお願いします。別日にずれ込む場合は開始時間はなくて大丈夫です」
           if (ctx.task.isAttachedTask) {
-            taskLatestEndTime = 1440; // 終了時間は設定なし（24:00まで配置可能）
-
             if (ctx.isSameDayAsParent) {
               // 同じ日の場合: 元タスクの終了時間以降
               let parentEnd = 0;
@@ -620,7 +626,11 @@ export function generateTheoreticalSchedule(
                 parentEnd = ctx.task.parentEndMinutesByDay[d];
               } else if (ctx.task.parentTitle) {
                 const parentBlock = dayBlocks[d]
-                  .filter((b) => b.title === ctx.task.parentTitle)
+                  .filter(
+                    (b) =>
+                      b.title === ctx.task.parentTitle ||
+                      (ctx.task.parentTitle && b.title.startsWith(ctx.task.parentTitle)),
+                  )
                   .sort((a, b) => b.endMinutes - a.endMinutes)[0];
                 if (parentBlock) {
                   parentEnd = parentBlock.endMinutes + (parentBlock.breakMinutes || 0);
@@ -629,9 +639,12 @@ export function generateTheoreticalSchedule(
               if (parentEnd > 0) {
                 taskEarliestStartTime = Math.max(taskEarliestStartTime, parentEnd);
               }
+              // 同日の終了時間: 夜22:00（1320分）までに開始可能な枠がなければ無理に深夜に入れず別日へ回す
+              taskLatestEndTime = 1320;
             } else {
-              // 別日にずれ込む場合: 開始時間はなくて大丈夫（00:00から配置可能）
+              // 別日にずれ込む場合: 開始時間はなくて大丈夫（00:00から配置可能）、深夜帯は避ける（23:00まで）
               taskEarliestStartTime = 0;
+              taskLatestEndTime = 1380;
             }
           }
 
@@ -742,12 +755,22 @@ export function generateTheoreticalSchedule(
         }
       }
     }
+
+    // 各日の最新空きスロット状態を確定（15分以上の有効枠のみを時系列昇順で保持）
+    dayAvailableSlots[d] = slots
+      .filter((s) => s.durationMinutes >= 15)
+      .sort((a, b) => a.startMinutes - b.startMinutes);
   }
 
-  // フォールバック: 週タスクや課題タスクで目標未達のものがあれば、空き枠のある他の候補日へ配置
+  // フォールバック: 週タスクや課題タスク・付随タスクで目標未達のものがあれば、空き枠のある他の候補日へ配置
   for (const plan of plans) {
     if (plan.isAuto || plan.isComplete) continue;
-    if (plan.kind !== 'assignment' && plan.kind !== 'weekly_flexible') continue;
+    if (
+      plan.kind !== 'assignment' &&
+      plan.kind !== 'weekly_flexible' &&
+      plan.kind !== 'attached_task'
+    )
+      continue;
 
     for (const d of plan.candidateDays) {
       if (plan.placedCount >= plan.targetCountWeekly) {
@@ -759,13 +782,30 @@ export function generateTheoreticalSchedule(
       const slots = dayAvailableSlots[d];
       for (const slot of slots) {
         if (slot.durationMinutes < 15) continue;
-        const breakMin = plan.task.breakMinutes && plan.task.breakMinutes > 0 ? plan.task.breakMinutes : 0;
+
+        let taskEarliestStartTime = plan.task.earliestStartTime ?? 0;
+        let taskLatestEndTime = plan.task.latestEndTime ?? 1440;
+
+        if (plan.kind === 'attached_task') {
+          // 付随タスクのフォールバック配置（別日等の空き枠へ通常時間帯に収める）
+          taskEarliestStartTime = 0;
+          taskLatestEndTime = 1380; // 23:00まで
+        }
+
+        const effectiveSlotStart = Math.max(slot.startMinutes, taskEarliestStartTime);
+        if (effectiveSlotStart >= taskLatestEndTime) continue;
+
+        const breakMin =
+          plan.task.breakMinutes && plan.task.breakMinutes > 0 ? plan.task.breakMinutes : 0;
         const requiredMin = plan.task.durationMinutes || 30;
-        if (slot.durationMinutes >= requiredMin + breakMin) {
-          const effectiveDuration = getAdjustedDuration(plan.task, slot.durationMinutes - breakMin);
+        const maxAllowedEnd = Math.min(slot.endMinutes, taskLatestEndTime);
+        const availableDuration = maxAllowedEnd - effectiveSlotStart;
+
+        if (availableDuration >= requiredMin + breakMin) {
+          const effectiveDuration = getAdjustedDuration(plan.task, availableDuration - breakMin);
           const totalNeeded = effectiveDuration + breakMin;
-          if (slot.durationMinutes >= totalNeeded) {
-            const taskStart = slot.startMinutes;
+          if (availableDuration >= totalNeeded) {
+            const taskStart = effectiveSlotStart;
             const taskEnd = taskStart + effectiveDuration;
 
             dayBlocks[d].push({
@@ -787,9 +827,24 @@ export function generateTheoreticalSchedule(
               sourceTableName: plan.task.sourceTableName,
             });
 
-            // 休憩は各タスクが持つ余白のため、スロット消費で余白分を進める
-            slot.startMinutes = taskEnd + breakMin;
-            slot.durationMinutes = slot.endMinutes - (taskEnd + breakMin);
+            // スロット消費 & 分割（指定時刻制約でスロット途中から開始する場合に対応）
+            if (effectiveSlotStart > slot.startMinutes) {
+              const consumedEnd = taskEnd + breakMin;
+              const remainingAfter = slot.endMinutes - consumedEnd;
+              slot.endMinutes = effectiveSlotStart;
+              slot.durationMinutes = slot.endMinutes - slot.startMinutes;
+              if (remainingAfter >= 15) {
+                slots.push({
+                  startMinutes: consumedEnd,
+                  endMinutes: consumedEnd + remainingAfter,
+                  durationMinutes: remainingAfter,
+                });
+                slots.sort((a, b) => a.startMinutes - b.startMinutes);
+              }
+            } else {
+              slot.startMinutes = taskEnd + breakMin;
+              slot.durationMinutes = slot.endMinutes - (taskEnd + breakMin);
+            }
 
             plan.placedCount++;
             plan.placedCountPerDay[d] = (plan.placedCountPerDay[d] || 0) + 1;

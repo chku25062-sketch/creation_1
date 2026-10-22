@@ -648,13 +648,26 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
       // 付随タスク（セル個別設定 または 表全体設定）の生成
       const cellAttached = cell.attachedTask;
       const isAttachedEnabled = cellAttached?.enabled ?? attachedConfig?.enabled ?? false;
-
       if (isAttachedEnabled) {
-        const attachedTitleTemplate =
+        let attachedTitleTemplate =
           cellAttached?.title || attachedConfig?.titleTemplate || '{title} のタスク';
+
+        // ★ 付随タスクの名称は「〜のタスク」に統一
+        // 過去の保存データ等に「課題レポート」「記録」「準備」等が含まれていた場合でも "{title} のタスク" に自動正規化
+        if (
+          !attachedTitleTemplate ||
+          attachedTitleTemplate.includes('課題レポート') ||
+          attachedTitleTemplate.includes('記録') ||
+          attachedTitleTemplate.includes('準備') ||
+          attachedTitleTemplate.includes('確認') ||
+          attachedTitleTemplate.trim() === ''
+        ) {
+          attachedTitleTemplate = '{title} のタスク';
+        }
+
         const attachedDuration =
           cellAttached?.durationMinutes || attachedConfig?.durationMinutes || 15;
-        const attachedTaskTitle = attachedTitleTemplate.replace('{title}', title);
+        const attachedTaskTitle = attachedTitleTemplate.replace('{title}', fullTitle);
         const attachedKey = `${classification}_${attachedTaskTitle}`;
 
         if (!attachedTaskMap.has(attachedKey)) {
@@ -677,7 +690,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               frequencyCount: 1, // 週1回
               taskType: 'task',
               isAttachedTask: true,
-              parentTitle: title,
+              parentTitle: fullTitle,
               parentEndMinutesByDay,
               targetDays: isWeekday && colInfo.dayIndex !== undefined ? [colInfo.dayIndex] : undefined,
               priority: 'high',

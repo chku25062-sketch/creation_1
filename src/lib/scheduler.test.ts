@@ -741,6 +741,68 @@ describe('Theoretical Scheduler Engine', () => {
         expect(result.dayBlocks[d].some((b) => b.title === '物理学 のタスク')).toBe(false);
       }
     });
+
+    it('同日に深夜帯（22:00以降）しか空きがない場合、無理に深夜に入れず翌日に回されること', () => {
+      // 月曜: 09:00〜18:00 本タスク、18:00〜22:00 予定埋まり、23:00〜24:00 (1380〜1440) のみ空き
+      // 火曜: 10:00〜12:00 (600〜720) に昼の空き枠
+      const fixedSlots: FixedSlot[] = [
+        {
+          id: 'slot-mon-day',
+          title: '日中予定',
+          category: 'work',
+          startMinutes: 0,
+          endMinutes: 1380, // 23:00まで埋まっている
+          color: '#0284c7',
+          daysOfWeek: [0],
+        },
+        // 火曜は午前10:00〜12:00が空いている
+        {
+          id: 'slot-tue-busy',
+          title: '火曜予定',
+          category: 'work',
+          startMinutes: 0,
+          endMinutes: 600,
+          color: '#0284c7',
+          daysOfWeek: [1],
+        },
+        {
+          id: 'slot-tue-busy2',
+          title: '火曜午後予定',
+          category: 'work',
+          startMinutes: 720,
+          endMinutes: 1440,
+          color: '#0284c7',
+          daysOfWeek: [1],
+        },
+      ];
+
+      const attachedTask: TaskItem = {
+        id: 'task-attached-night',
+        title: '講義 のタスク',
+        durationMinutes: 15,
+        priority: 'high',
+        category: 'lecture',
+        period: 'week',
+        frequencyCount: 1,
+        dailyCount: 1,
+        isAttachedTask: true,
+        parentTitle: '講義',
+        parentEndMinutesByDay: { 0: 600 },
+        targetDays: [0],
+      };
+
+      const result = generateTheoreticalSchedule(fixedSlots, [attachedTask]);
+
+      // 月曜の深夜23:00〜24:00には無理に配置されないこと
+      expect(result.dayBlocks[0].some((b) => b.title === '講義 のタスク')).toBe(false);
+
+      // 翌日（火曜）の健全な日中空き枠（10:00〜12:00 = 600〜720分）に配置されること
+      const tueBlocks = result.dayBlocks[1];
+      const placed = tueBlocks.find((b) => b.title === '講義 のタスク');
+      expect(placed).toBeDefined();
+      expect(placed!.startMinutes).toBe(600);
+      expect(placed!.endMinutes).toBe(615);
+    });
   });
 
   describe('getAdjustedDuration', () => {
