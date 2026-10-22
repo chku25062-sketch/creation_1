@@ -1549,7 +1549,7 @@ describe('Theoretical Scheduler Engine', () => {
       }
     });
 
-    it('分類（日タスク vs 週タスク）による日の中の繰り返し回数の差別化がなく、どちらも均等に何巡も配置されること', () => {
+    it('空き枠配置において週タスクが優先配置されたうえで、残りの枠に日タスクが再配置されること', () => {
       // 9:00〜18:00 (540分) の空きスロット
       const fixedSlots: FixedSlot[] = [
         {
@@ -1578,7 +1578,6 @@ describe('Theoretical Scheduler Engine', () => {
         priority: 'high',
         category: 'study',
         period: 'day',
-        // dailyRepeatMode: 未指定（デフォルト自動）
       };
 
       // 「週（week）」に分類されたタスク（週3回目標、月曜に割り当てられる）
@@ -1591,7 +1590,6 @@ describe('Theoretical Scheduler Engine', () => {
         period: 'week',
         frequency: 'medium', // 週3回
         targetDays: [0, 2, 4], // 月・水・金
-        // dailyRepeatMode: 未指定（デフォルト自動）
       };
 
       const result = generateTheoreticalSchedule(fixedSlots, [dailyTask, weeklyTask]);
@@ -1600,17 +1598,12 @@ describe('Theoretical Scheduler Engine', () => {
       const dailyCount = mondayBlocks.filter((b) => b.taskId === 'daily-task-study').length;
       const weeklyCount = mondayBlocks.filter((b) => b.taskId === 'weekly-task-dev').length;
 
-      // 分類（日 vs 週）で差別化されず、どちらも複数回（何巡も）配置されていること
+      // 週タスクがまず確実に配置され、残りの空き枠に日タスクが再配置・敷き詰められること
+      expect(weeklyCount).toBe(1);
       expect(dailyCount).toBeGreaterThanOrEqual(3);
-      expect(weeklyCount).toBeGreaterThanOrEqual(3);
 
-      // 回数差が1以内で均等であること
-      expect(Math.abs(dailyCount - weeklyCount)).toBeLessThanOrEqual(1);
-
-      // 交互に配置されていること（同じタスクが連続しない）
-      for (let i = 0; i < mondayBlocks.length - 1; i++) {
-        expect(mondayBlocks[i].taskId).not.toBe(mondayBlocks[i + 1].taskId);
-      }
+      // 最初のブロックは優先配置された週タスクであること
+      expect(mondayBlocks[0].taskId).toBe('weekly-task-dev');
     });
 
     it('固定枠に breakMinutes が指定されている場合、固定枠直後に休憩ブロックは生成されず余白として確保されること', () => {
@@ -1890,6 +1883,95 @@ describe('Theoretical Scheduler Engine', () => {
         if (rescheduled?.dayIndex === 2) {
           expect(rescheduled.startMinutes).toBeGreaterThanOrEqual(600);
         }
+      });
+
+      it('未来の週タスクが未完了の場合でも、再配置プランが作成されず余計な再配置ブロックが増殖しないこと', () => {
+        // 今日は火曜（dayIndex: 1, 10:00）とする
+        const futureFridayTask: TaskItem = {
+          id: 'task-friday-report',
+          title: '金曜の課題提出',
+          category: 'must',
+          durationMinutes: 60,
+          period: 'week',
+          frequencyCount: 1,
+          targetDays: [4], // 金曜（未来）
+          priority: 'high',
+        };
+
+        const result = generateTheoreticalSchedule([], [futureFridayTask], {
+          todayIndex: 1, // 火曜
+          currentMinutes: 600,
+        });
+
+        // 金曜の枠に予定されていること
+        const friBlocks = result.dayBlocks[4];
+        const friBlock = friBlocks.find((b) => b.title === '金曜の課題提出');
+        expect(friBlock).toBeDefined();
+        // 未来なので未完了
+        expect(friBlock?.isCompleted).toBe(false);
+        expect(friBlock?.isWeeklyTask).toBe(true);
+
+        // もし金曜のブロックIDが未完了リストに入っていたとしても、未来タスクなので再配置（リスケジュール）されないこと
+        const toggledResult = generateTheoreticalSchedule([], [futureFridayTask], {
+          todayIndex: 1,
+          currentMinutes: 600,
+          uncompletedBlockIds: new Set([friBlock!.id]),
+        });
+
+        // 再スケジュールブロック（isRescheduled: true）が存在しないこと
+        const allBlocks = Object.values(toggledResult.dayBlocks).flat();
+        const rescheduledBlocks = allBlocks.filter((b) => b.isRescheduled);
+        expect(rescheduledBlocks).toHaveLength(0);
+
+        // タスクの総数が1個のままで、二重化・増殖していないこと
+        const taskBlocks = allBlocks.filter((b) => b.title === '金曜の課題提出');
+        expect(taskBlocks).toHaveLength(1);
+      });
+
+      it('日課タスクや固定枠には isWeeklyTask: false が付与され、週タスクのみ isWeeklyTask: true となること', () => {
+        const fixed: FixedSlot = {
+          id: 'fix-1',
+          title: '講義',
+          category: 'lecture',
+          startMinutes: 540,
+          endMinutes: 630,
+          color: '#3b82f6',
+        };
+
+        const dailyTask: TaskItem = {
+          id: 'daily-1',
+          title: '毎日の単語暗記',
+          category: 'study',
+          durationMinutes: 30,
+          period: 'day',
+          frequency: 'high',
+          priority: 'medium',
+        };
+
+        const weeklyTask: TaskItem = {
+          id: 'weekly-1',
+          title: '週末の統計学レポート',
+          category: 'must',
+          durationMinutes: 90,
+          period: 'week',
+          frequency: 'low',
+          targetDays: [5], // 土曜
+          priority: 'high',
+        };
+
+        const result = generateTheoreticalSchedule([fixed], [dailyTask, weeklyTask]);
+
+        // 固定枠は isWeeklyTask: false
+        const fixedBlock = result.allBlocks.find((b) => b.isFixed);
+        expect(fixedBlock?.isWeeklyTask).toBe(false);
+
+        // 日課タスクは isWeeklyTask: false
+        const dailyBlock = result.allBlocks.find((b) => b.title === '毎日の単語暗記');
+        expect(dailyBlock?.isWeeklyTask).toBe(false);
+
+        // 週タスクは isWeeklyTask: true
+        const weeklyBlock = result.allBlocks.find((b) => b.title === '週末の統計学レポート');
+        expect(weeklyBlock?.isWeeklyTask).toBe(true);
       });
     });
   });

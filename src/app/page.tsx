@@ -321,15 +321,22 @@ export default function Home() {
 
   // Plan11: 週タスクの完了状態トグルハンドラ
   const handleToggleBlockComplete = (block: import('@/types').TheoreticalBlock) => {
+    // 週タスク以外は操作させない安全ガード
+    if (!block.isWeeklyTask) return;
+
     const blockKey = block.id;
-    const taskIdKey = block.taskId;
+    const now = new Date();
+    const todayIdx = (now.getDay() + 6) % 7;
+    const currMinutes = now.getHours() * 60 + now.getMinutes();
+    const isPast =
+      block.dayIndex !== undefined &&
+      (block.dayIndex < todayIdx || (block.dayIndex === todayIdx && block.endMinutes <= currMinutes));
 
     if (block.isCompleted) {
       // 現在完了 -> 未完了に戻す（「まだ終わってないよ」）
       setCompletedBlockIds((prev) => {
         const next = new Set(prev);
         next.delete(blockKey);
-        if (taskIdKey) next.delete(taskIdKey);
         try {
           localStorage.setItem('app_completed_block_ids', JSON.stringify(Array.from(next)));
         } catch {
@@ -338,23 +345,25 @@ export default function Home() {
         return next;
       });
 
-      setUncompletedBlockIds((prev) => {
-        const next = new Set(prev);
-        next.add(blockKey);
-        if (taskIdKey) next.add(taskIdKey);
-        try {
-          localStorage.setItem('app_uncompleted_block_ids', JSON.stringify(Array.from(next)));
-        } catch {
-          // ignore
-        }
-        return next;
-      });
+      // 過去の枠の場合のみ「やり残し（未完了）」として再配置対象リストへ登録
+      // 未来の枠の場合は元々未完了がデフォルトなので登録不要（再配置・増殖を防止）
+      if (isPast) {
+        setUncompletedBlockIds((prev) => {
+          const next = new Set(prev);
+          next.add(blockKey);
+          try {
+            localStorage.setItem('app_uncompleted_block_ids', JSON.stringify(Array.from(next)));
+          } catch {
+            // ignore
+          }
+          return next;
+        });
+      }
     } else {
       // 現在未完了 -> 完了にする（「これはもう終わっている」）
       setUncompletedBlockIds((prev) => {
         const next = new Set(prev);
         next.delete(blockKey);
-        if (taskIdKey) next.delete(taskIdKey);
         try {
           localStorage.setItem('app_uncompleted_block_ids', JSON.stringify(Array.from(next)));
         } catch {
@@ -366,7 +375,6 @@ export default function Home() {
       setCompletedBlockIds((prev) => {
         const next = new Set(prev);
         next.add(blockKey);
-        if (taskIdKey) next.add(taskIdKey);
         try {
           localStorage.setItem('app_completed_block_ids', JSON.stringify(Array.from(next)));
         } catch {

@@ -791,10 +791,12 @@ export function Timeline24h({
                       const height = Math.max(22, Math.round(rawHeight) - 2);
                       const isShort = duration < 25 || height < 30;
                       const isAssignment = block.taskType === 'assignment';
+                      // ★ Plan11: 週タスクのみ完了トグル可能（日課タスクや固定枠にはトグルを表示しない）
                       const isWeeklyTask =
                         !block.isFixed &&
                         !block.isBreak &&
-                        (block.taskType === 'assignment' || block.taskType === 'task');
+                        !block.isSubstitute &&
+                        block.isWeeklyTask === true;
 
                       // ★ 枠の高さ（所要時間）に応じて、タスク名を表示できる最大行数を動的に算出
                       const hasTimeRow = !isShort;
