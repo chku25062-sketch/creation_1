@@ -568,6 +568,44 @@ describe('Theoretical Scheduler Engine', () => {
       expect(placedAttached!.startMinutes).toBe(630);
       expect(placedAttached!.endMinutes).toBe(645);
     });
+
+    it('付随タスク（isAttachedTask）は表の終了時刻（latestEndTime）に縛られず、本タスク以降の空き枠に配置できること', () => {
+      // 16:30〜18:00 (990〜1080分) に固定枠「ゼミ」
+      // 空き枠は 18:00〜19:00 (1080〜1140分) に存在
+      const fixedSlots: FixedSlot[] = [
+        {
+          id: 'slot-seminar',
+          title: 'ゼミ',
+          category: 'lecture',
+          startMinutes: 990,
+          endMinutes: 1080, // 18:00
+          color: '#0369a1',
+          daysOfWeek: [1], // 火曜
+        },
+      ];
+
+      // 元の表の終了時刻が 18:00 (1080分) であったとしても、付随タスクは 18:00 以降に配置できる
+      const attachedTask: TaskItem = {
+        id: 'task-attached-seminar',
+        title: 'ゼミ のタスク',
+        durationMinutes: 30,
+        priority: 'high',
+        category: 'lecture',
+        period: 'day',
+        isAttachedTask: true,
+        parentTitle: 'ゼミ',
+        parentEndMinutesByDay: { 1: 1080 },
+        targetDays: [1],
+        latestEndTime: 1080, // 表から引き継がれていたとしても免除される
+      };
+
+      const result = generateTheoreticalSchedule(fixedSlots, [attachedTask]);
+      const tuesdayBlocks = result.dayBlocks[1];
+      const placed = tuesdayBlocks.find((b) => b.title === 'ゼミ のタスク');
+      expect(placed).toBeDefined();
+      expect(placed!.startMinutes).toBe(1080); // 18:00から配置される
+      expect(placed!.endMinutes).toBe(1110); // 18:30まで
+    });
   });
 
   describe('getAdjustedDuration', () => {

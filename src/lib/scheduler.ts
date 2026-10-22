@@ -266,8 +266,9 @@ export function generateTheoreticalSchedule(
   }
 
   const plans: TaskPlacementPlan[] = schedulableTasks.map((task) => {
-    // 課題タスク（提出物・締切制約）判定
-    const isAssignment = task.taskType === 'assignment' || task.deadlineDay !== undefined;
+    // 課題タスク（提出物・締切制約）判定（付随タスクは課題扱いしない）
+    const isAssignment =
+      !task.isAttachedTask && (task.taskType === 'assignment' || task.deadlineDay !== undefined);
 
     // 回数指定 (custom または dailyCount > 1) か判定
     const isCustomDaily =
@@ -570,7 +571,8 @@ export function generateTheoreticalSchedule(
 
           // ★ 終了時刻上限（latestEndTime）の制約
           // これ以上先の時刻にはタスク配置を行わない（自動・未設定時は最大値1440=24:00）
-          const taskLatestEndTime = ctx.task.latestEndTime ?? 1440;
+          // 付随タスク（isAttachedTask）は元の表の終了時刻に縛られず、常に24:00最大値まで配置可能
+          const taskLatestEndTime = ctx.task.isAttachedTask ? 1440 : (ctx.task.latestEndTime ?? 1440);
           const effectiveSlotStart = Math.max(slot.startMinutes, minStartMinutes);
           if (effectiveSlotStart >= taskLatestEndTime) continue;
 
