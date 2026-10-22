@@ -255,7 +255,7 @@ export function generateTheoreticalSchedule(
   // 3. 各タスクの配置計画を策定（ステップ1: 日ブロックへの割り振り）
   interface TaskPlacementPlan {
     task: TaskItem;
-    kind: 'assignment' | 'weekly_specific' | 'daily_fixed' | 'weekly_flexible' | 'daily_auto';
+    kind: 'assignment' | 'weekly_specific' | 'daily_fixed' | 'weekly_flexible' | 'daily_auto' | 'attached_task';
     isAuto: boolean;
     targetCountPerDay: number;
     targetCountWeekly: number;
@@ -283,6 +283,33 @@ export function generateTheoreticalSchedule(
       : isAuto
         ? Infinity
         : (task.dailyCount || 1);
+
+    // 付随タスク判定（週1回・日の繰り返しなし・同一日優先＆別日フォールバック）
+    if (task.isAttachedTask) {
+      const preferredDays =
+        task.parentEndMinutesByDay && Object.keys(task.parentEndMinutesByDay).length > 0
+          ? Object.keys(task.parentEndMinutesByDay).map(Number).sort((a, b) => a - b)
+          : (task.targetDays && task.targetDays.length > 0 ? [...task.targetDays].sort((a, b) => a - b) : [0]);
+
+      const primaryDay = preferredDays[0];
+      // 第一候補日(primaryDay)から順にその週の終わりまでの曜日を候補日とする（同日に入らない場合の翌日以降フォールバック用）
+      const candidateDays: number[] = [];
+      for (let d = primaryDay; d < 7; d++) {
+        candidateDays.push(d);
+      }
+
+      return {
+        task,
+        kind: 'attached_task',
+        candidateDays,
+        targetCountPerDay: 1,
+        targetCountWeekly: 1, // 週1回
+        isAuto: false,
+        placedCount: 0,
+        placedCountPerDay: {},
+        isComplete: false,
+      };
+    }
 
     // 日ブロック（どの曜日の箱に割り振るか）の決定
     // ① 曜日明示指定
@@ -406,6 +433,7 @@ export function generateTheoreticalSchedule(
     isAuto: boolean;
     targetCount: number;
     placedCountInDay: number;
+    isSameDayAsParent?: boolean;
   }
 
   const dayTaskContexts: Record<number, DayTaskContext[]> = {
@@ -413,7 +441,25 @@ export function generateTheoreticalSchedule(
   };
 
   for (const plan of plans) {
-    if (plan.kind === 'assignment') {
+    if (plan.kind === 'attached_task') {
+      const preferredDays =
+        plan.task.parentEndMinutesByDay && Object.keys(plan.task.parentEndMinutesByDay).length > 0
+          ? Object.keys(plan.task.parentEndMinutesByDay).map(Number)
+          : (plan.task.targetDays || [0]);
+
+      for (const d of plan.candidateDays) {
+        const isSameDay = preferredDays.includes(d);
+        dayTaskContexts[d].push({
+          plan,
+          task: plan.task,
+          kind: plan.kind,
+          isAuto: false,
+          targetCount: 1,
+          placedCountInDay: 0,
+          isSameDayAsParent: isSameDay,
+        });
+      }
+    } else if (plan.kind === 'assignment') {
       // 課題タスク: 候補日のうち、空きスロットに収まる日を優先して1日選択
       const bestDay = [...plan.candidateDays].sort((a, b) => {
         const needed = (plan.task.durationMinutes || 30) + (plan.task.breakMinutes || 0);
@@ -483,9 +529,18 @@ export function generateTheoreticalSchedule(
 
   for (let d = 0; d < 7; d++) {
     dayTaskContexts[d].sort((a, b) => {
-      // ⓪ 付随タスク（本タスクの直後・同じ日に配置）は最優先
-      if (a.task.isAttachedTask && !b.task.isAttachedTask) return -1;
-      if (!a.task.isAttachedTask && b.task.isAttachedTask) return 1;
+      // ⓪ 付随タスク（本タスクと同じ日の付随タスク）は最優先！
+      const isAttachedSameDayA = a.task.isAttachedTask && a.isSameDayAsParent;
+      const isAttachedSameDayB = b.task.isAttachedTask && b.isSameDayAsParent;
+      if (isAttachedSameDayA && !isAttachedSameDayB) return -1;
+      if (!isAttachedSameDayA && isAttachedSameDayB) return 1;
+
+      // ★ 付随タスクで「別日に回されたもの（!isSameDayAsParent）」は、
+      //    その別日のタスクを優先させるため最下位（末尾）にする！
+      const isAttachedOtherDayA = a.task.isAttachedTask && !a.isSameDayAsParent;
+      const isAttachedOtherDayB = b.task.isAttachedTask && !b.isSameDayAsParent;
+      if (isAttachedOtherDayA && !isAttachedOtherDayB) return 1;
+      if (!isAttachedOtherDayA && isAttachedOtherDayB) return -1;
 
       // ① 課題タスク（提出物・締切制約）は最優先
       const isAssignA = a.task.taskType === 'assignment' || a.task.deadlineDay !== undefined;
@@ -533,16 +588,21 @@ export function generateTheoreticalSchedule(
       anyPlacedInDay = false;
 
       // pass巡目では「その日に割り当てられた pass 回以上繰り返すタスク」を配置対象とする
-      const eligibleTasks = tasksInDay.filter((ctx) => ctx.targetCount >= pass);
+      const eligibleTasks = tasksInDay.filter((ctx) => {
+        // 付随タスクは週1回配置済みなら以降の日・パスでは配置しない
+        if (ctx.plan.kind === 'attached_task' && ctx.plan.placedCount >= 1) return false;
+        if (ctx.placedCountInDay >= ctx.targetCount) return false;
+        return ctx.targetCount >= pass;
+      });
       if (eligibleTasks.length === 0) break;
 
       for (const ctx of eligibleTasks) {
         for (const slot of slots) {
           if (slot.durationMinutes < 15) continue;
 
-          // ★ 付随タスク（本タスクの直後に優先配置）の開始時刻制約
+          // ★ 付随タスク（本タスクと同じ日なら直後に優先配置）の開始時刻制約
           let minStartMinutes = 0;
-          if (ctx.task.isAttachedTask) {
+          if (ctx.task.isAttachedTask && ctx.isSameDayAsParent) {
             if (ctx.task.parentEndMinutesByDay && ctx.task.parentEndMinutesByDay[d] !== undefined) {
               minStartMinutes = ctx.task.parentEndMinutesByDay[d];
             } else if (ctx.task.parentTitle) {

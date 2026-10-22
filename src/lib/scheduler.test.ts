@@ -606,6 +606,119 @@ describe('Theoretical Scheduler Engine', () => {
       expect(placed!.startMinutes).toBe(1080); // 18:00から配置される
       expect(placed!.endMinutes).toBe(1110); // 18:30まで
     });
+
+    it('同一日に空き枠がない場合、別日に回され、その別日ではその日のタスクが優先されること（週1回・日繰り返しなし）', () => {
+      // 月曜 (dayIndex: 0):
+      // 00:00〜07:00 睡眠
+      // 09:00〜10:30 固定枠「物理学」
+      // 10:30〜24:00 アルバイト等で月曜日は完全に満杯（空き時間なし）
+      // 火曜 (dayIndex: 1):
+      // 00:00〜07:00 睡眠
+      // 08:00〜09:00 (480〜540分) に火曜の空き枠
+      // 09:00〜10:00 (540〜600分) に火曜の通常タスク「火曜レポート」
+      const fixedSlots: FixedSlot[] = [
+        {
+          id: 'sleep-mon',
+          title: '睡眠',
+          category: 'sleep',
+          startMinutes: 0,
+          endMinutes: 540,
+          color: '#6366f1',
+          daysOfWeek: [0],
+        },
+        {
+          id: 'slot-physics',
+          title: '物理学',
+          category: 'lecture',
+          startMinutes: 540,
+          endMinutes: 630, // 09:00〜10:30
+          color: '#0369a1',
+          daysOfWeek: [0],
+        },
+        {
+          id: 'work-mon',
+          title: 'バイト',
+          category: 'work',
+          startMinutes: 630,
+          endMinutes: 1440, // 10:30以降隙間なし
+          color: '#0284c7',
+          daysOfWeek: [0],
+        },
+        // 火曜
+        {
+          id: 'sleep-tue',
+          title: '睡眠',
+          category: 'sleep',
+          startMinutes: 0,
+          endMinutes: 480,
+          color: '#6366f1',
+          daysOfWeek: [1],
+        },
+        {
+          id: 'work-tue',
+          title: '火曜午後予定',
+          category: 'work',
+          startMinutes: 540,
+          endMinutes: 1440, // 09:00以降埋まり
+          color: '#0284c7',
+          daysOfWeek: [1],
+        },
+      ];
+
+      // 火曜日の通常タスク（30分）
+      const tuesdayNativeTask: TaskItem = {
+        id: 'tue-task',
+        title: '火曜の予習',
+        durationMinutes: 30,
+        priority: 'medium',
+        category: 'study',
+        period: 'day',
+        targetDays: [1],
+      };
+
+      // 月曜の「物理学」の付随タスク（所要時間15分、週1回）
+      const attachedTask: TaskItem = {
+        id: 'task-attached-physics',
+        title: '物理学 のタスク',
+        durationMinutes: 15,
+        priority: 'high',
+        category: 'lecture',
+        period: 'week',
+        frequency: 'custom',
+        frequencyCount: 1,
+        dailyCount: 1,
+        dailyRepeatMode: 'custom',
+        isAttachedTask: true,
+        parentTitle: '物理学',
+        parentEndMinutesByDay: { 0: 630 },
+        targetDays: [0],
+      };
+
+      const result = generateTheoreticalSchedule(fixedSlots, [tuesdayNativeTask, attachedTask]);
+
+      // 月曜には空きがないため物理学のタスクは入らない
+      expect(result.dayBlocks[0].some((b) => b.title === '物理学 のタスク')).toBe(false);
+
+      // 火曜日にフォールバックして配置される
+      const tueBlocks = result.dayBlocks[1];
+      const placedAttached = tueBlocks.find((b) => b.title === '物理学 のタスク');
+      expect(placedAttached).toBeDefined();
+
+      // ★ 別日（火曜）では「その別日のタスク（火曜の予習）」が優先される！
+      // 火曜の空き時間は 480〜540分 (08:00〜09:00)。
+      // 先に火曜の予習 (30分: 480〜510分) が入り、その後に物理学のタスク (15分: 510〜525分) が入ること！
+      const placedTueNative = tueBlocks.find((b) => b.title === '火曜の予習');
+      expect(placedTueNative).toBeDefined();
+      expect(placedTueNative!.startMinutes).toBe(480);
+      expect(placedTueNative!.endMinutes).toBe(510);
+      expect(placedAttached!.startMinutes).toBe(510);
+      expect(placedAttached!.endMinutes).toBe(525);
+
+      // ★ 週1回のみで、水曜以降には配置されないこと
+      for (let d = 2; d < 7; d++) {
+        expect(result.dayBlocks[d].some((b) => b.title === '物理学 のタスク')).toBe(false);
+      }
+    });
   });
 
   describe('getAdjustedDuration', () => {

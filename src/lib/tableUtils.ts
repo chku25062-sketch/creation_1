@@ -635,15 +635,17 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               category: tableCategory, // 表の名前でカテゴリを代用
               durationSize: attachedDuration <= 25 ? 'small' : 'medium',
               durationMinutes: attachedDuration,
-              frequency: 'high',
-              taskType: 'task', // 提出物課題ではなく同じ日のタスク
+              frequency: 'custom',
+              frequencyCount: 1, // 週1回
+              taskType: 'task',
               isAttachedTask: true,
               parentTitle: title,
               parentEndMinutesByDay,
               targetDays: isWeekday && colInfo.dayIndex !== undefined ? [colInfo.dayIndex] : undefined,
               priority: 'high',
-              period: 'day',
-              dailyCount: 1,
+              period: 'week', // 週のタスク
+              dailyCount: 1, // 1日の中の繰り返しなし
+              dailyRepeatMode: 'custom',
               completed: false,
               sourceTableId: table.id,
               sourceTableName: table.name,
@@ -655,9 +657,11 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               category: tableCategory, // 表の名前でカテゴリを代用
               durationSize: 'small',
               durationMinutes: attachedDuration,
-              frequency: classification === 'daily_task' ? 'high' : 'medium',
-              period: classification === 'daily_task' ? 'day' : 'week',
-              dailyCount: classification === 'daily_task' ? 1 : undefined,
+              frequency: 'custom',
+              frequencyCount: 1, // 週1回
+              period: 'week', // 週のタスク
+              dailyCount: 1, // 1日の中の繰り返しなし
+              dailyRepeatMode: 'custom',
               targetDays: isWeekday ? [colInfo.dayIndex!] : undefined,
               cycleDays: isCycle ? [cycleIdx] : undefined,
               cycleIndex: isCycle ? cycleIdx : undefined,
@@ -672,7 +676,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             });
           }
         } else {
-          // 既存付随タスクの日程情報をマージ
+          // 既存付随タスクの日程情報をマージ（週1回・日の繰り返しなしは維持）
           const existingAttached = attachedTaskMap.get(attachedKey)!;
           if (classification === 'fixed_slot') {
             if (isWeekday && colInfo.dayIndex !== undefined) {
@@ -689,7 +693,11 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               }
             }
           } else if (classification === 'daily_task') {
-            existingAttached.dailyCount = (existingAttached.dailyCount || 1) + 1;
+            // 週1・日繰り返しなしを維持
+            existingAttached.dailyCount = 1;
+            existingAttached.dailyRepeatMode = 'custom';
+            existingAttached.frequencyCount = 1;
+            existingAttached.period = 'week';
           } else {
             if (isWeekday && colInfo.dayIndex !== undefined) {
               const curDays = existingAttached.targetDays || [];
