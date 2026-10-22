@@ -529,6 +529,10 @@ export function generateTheoreticalSchedule(
 
   for (let d = 0; d < 7; d++) {
     dayTaskContexts[d].sort((a, b) => {
+      // 親タスクと付随タスクの関係：親タスクは自身の付随タスクより先に配置されるべき
+      if (a.task.isAttachedTask && a.task.parentTitle === b.task.title) return 1;
+      if (b.task.isAttachedTask && b.task.parentTitle === a.task.title) return -1;
+
       // ⓪ 付随タスク（本タスクと同じ日の付随タスク）は最優先！
       const isAttachedSameDayA = a.task.isAttachedTask && a.isSameDayAsParent;
       const isAttachedSameDayB = b.task.isAttachedTask && b.isSameDayAsParent;
@@ -601,10 +605,35 @@ export function generateTheoreticalSchedule(
           if (slot.durationMinutes < 15) continue;
 
           // ★ 指定区間の自動配置（earliestStartTime 〜 latestEndTime）制約
-          // これより前、またはこれ以上先の時刻にはタスク配置を行わない（未設定時は 0 〜 1440=24:00）
-          // 付随タスク（isAttachedTask）は直後である必要はなく、その日（または別日）の空き枠に柔軟に配置可能
-          const taskEarliestStartTime = ctx.task.earliestStartTime ?? 0;
-          const taskLatestEndTime = ctx.task.isAttachedTask ? 1440 : (ctx.task.latestEndTime ?? 1440);
+          let taskEarliestStartTime = ctx.task.earliestStartTime ?? 0;
+          let taskLatestEndTime = ctx.task.latestEndTime ?? 1440;
+
+          // ★ 付随タスク（isAttachedTask）の開始・終了時刻仕様:
+          // 「付随タスクの開始時間は、元タスクの終了時間以降で、終了時間は設定なしでお願いします。別日にずれ込む場合は開始時間はなくて大丈夫です」
+          if (ctx.task.isAttachedTask) {
+            taskLatestEndTime = 1440; // 終了時間は設定なし（24:00まで配置可能）
+
+            if (ctx.isSameDayAsParent) {
+              // 同じ日の場合: 元タスクの終了時間以降
+              let parentEnd = 0;
+              if (ctx.task.parentEndMinutesByDay && ctx.task.parentEndMinutesByDay[d] !== undefined) {
+                parentEnd = ctx.task.parentEndMinutesByDay[d];
+              } else if (ctx.task.parentTitle) {
+                const parentBlock = dayBlocks[d]
+                  .filter((b) => b.title === ctx.task.parentTitle)
+                  .sort((a, b) => b.endMinutes - a.endMinutes)[0];
+                if (parentBlock) {
+                  parentEnd = parentBlock.endMinutes + (parentBlock.breakMinutes || 0);
+                }
+              }
+              if (parentEnd > 0) {
+                taskEarliestStartTime = Math.max(taskEarliestStartTime, parentEnd);
+              }
+            } else {
+              // 別日にずれ込む場合: 開始時間はなくて大丈夫（00:00から配置可能）
+              taskEarliestStartTime = 0;
+            }
+          }
 
           const effectiveSlotStart = Math.max(slot.startMinutes, taskEarliestStartTime);
           if (effectiveSlotStart >= taskLatestEndTime) continue;

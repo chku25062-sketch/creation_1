@@ -684,9 +684,6 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               period: 'week', // 週のタスク
               dailyCount: 1, // 1日の中の繰り返しなし
               dailyRepeatMode: 'custom',
-              earliestStartTime: tableStartTimeMinutes,
-              latestEndTime: tableEndTimeMinutes,
-              autoPlaceWithinRange: isAutoRange,
               completed: false,
               sourceTableId: table.id,
               sourceTableName: table.name,
@@ -711,9 +708,6 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               parentTitle: fullTitle,
               taskType: 'task',
               priority: 'high',
-              earliestStartTime: tableStartTimeMinutes,
-              latestEndTime: tableEndTimeMinutes,
-              autoPlaceWithinRange: isAutoRange,
               completed: false,
               sourceTableId: table.id,
               sourceTableName: table.name,
@@ -722,15 +716,6 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
         } else {
           // 既存付随タスクの日程情報をマージ（週1回・日の繰り返しなしは維持）
           const existingAttached = attachedTaskMap.get(attachedKey)!;
-          if (tableStartTimeMinutes !== undefined) {
-            existingAttached.earliestStartTime = tableStartTimeMinutes;
-          }
-          if (tableEndTimeMinutes !== undefined) {
-            existingAttached.latestEndTime = tableEndTimeMinutes;
-          }
-          if (isAutoRange) {
-            existingAttached.autoPlaceWithinRange = true;
-          }
           if (classification === 'fixed_slot') {
             if (isWeekday && colInfo.dayIndex !== undefined) {
               const curDays = existingAttached.targetDays || [];

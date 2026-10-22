@@ -564,8 +564,8 @@ describe('Theoretical Scheduler Engine', () => {
       const mondayBlocks = result.dayBlocks[0];
       const placedAttached = mondayBlocks.find((b) => b.title === '線形代数 のタスク');
       expect(placedAttached).toBeDefined();
-      // 直後でなくても、月曜日の空き枠に配置されていること
-      expect(placedAttached!.startMinutes).toBeGreaterThanOrEqual(420);
+      // 朝の空き枠（07:00〜09:00 = 420〜540分）ではなく、元タスク終了（630分）以降の空き枠に配置されること
+      expect(placedAttached!.startMinutes).toBeGreaterThanOrEqual(630);
       expect(placedAttached!.endMinutes).toBeLessThanOrEqual(720);
     });
 
