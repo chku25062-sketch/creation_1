@@ -67,7 +67,8 @@ export function createPlaceContextHelper(ctx: SchedulingExecutionContext) {
 
       const breakMin =
         taskCtx.task.breakMinutes && taskCtx.task.breakMinutes > 0 ? taskCtx.task.breakMinutes : 0;
-      const minAcceptable = taskCtx.isAuto ? Math.min(requiredMin, 15) : requiredMin;
+      // 最低15分の空き枠があれば、タスクを枠サイズに合わせて柔軟にフィット配置（枠不足を防止）
+      const minAcceptable = Math.min(requiredMin, 15);
 
       const maxAllowedEnd = Math.min(slot.endMinutes, taskLatestEndTime);
       const availableDuration = maxAllowedEnd - effectiveSlotStart;
