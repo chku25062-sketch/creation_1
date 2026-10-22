@@ -61,14 +61,33 @@ export class WeeklyPlacementPhase implements PlacementPhase {
           });
         }
       } else if (plan.kind === 'weekly_flexible') {
+        const preferred =
+          plan.task.targetDays && plan.task.targetDays.length > 0
+            ? plan.task.targetDays
+            : [];
+
         const sortedDays = [...plan.candidateDays].sort((a, b) => {
           const needed = (plan.task.durationMinutes || 30) + (plan.task.breakMinutes || 0);
           const slotsA = slotManager.getAvailableSlots(a);
           const slotsB = slotManager.getAvailableSlots(b);
           const fitA = slotsA.some((s) => s.durationMinutes >= needed);
           const fitB = slotsB.some((s) => s.durationMinutes >= needed);
-          if (fitA && !fitB) return -1;
-          if (!fitA && fitB) return 1;
+
+          // 枠に収まる日の中で希望曜日を最優先
+          if (fitA && fitB) {
+            const isPrefA = preferred.includes(a);
+            const isPrefB = preferred.includes(b);
+            if (isPrefA && !isPrefB) return -1;
+            if (!isPrefA && isPrefB) return 1;
+          } else {
+            if (fitA && !fitB) return -1;
+            if (!fitA && fitB) return 1;
+            const isPrefA = preferred.includes(a);
+            const isPrefB = preferred.includes(b);
+            if (isPrefA && !isPrefB) return -1;
+            if (!isPrefA && isPrefB) return 1;
+          }
+
           const freeA = slotManager.getTotalFreeMinutes(a);
           const freeB = slotManager.getTotalFreeMinutes(b);
           return freeB - freeA;

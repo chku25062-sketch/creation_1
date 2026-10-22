@@ -132,23 +132,8 @@ export function generatePlacementPlans(
       };
     }
 
-    // ④ 週次タスク: 曜日明示指定
-    if (task.targetDays && task.targetDays.length > 0) {
-      const candidateDays = [...task.targetDays];
-      return {
-        task,
-        kind: 'weekly_specific',
-        candidateDays,
-        targetCountPerDay,
-        targetCountWeekly: candidateDays.length,
-        isAuto,
-        placedCount: 0,
-        placedCountPerDay: {},
-        isComplete: false,
-      };
-    }
-
-    // ⑤ 週次タスク: 周期明示指定
+    // ④ 週次タスク: 周期明示指定 (cycleDays)
+    // 周期指定タスク（例: 3日周期の特定日）は、指定された周期日のみに配置し、オフ日には配置しない
     if (task.cycleDays && task.cycleDays.length > 0) {
       const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
       const candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => task.cycleDays!.includes(d % cycleLength));
@@ -165,18 +150,35 @@ export function generatePlacementPlans(
       };
     }
 
-    // ⑥ 柔軟週次タスク（週N回を空き枠の多い曜日に分散配置）
-    const targetDaysCount = getTargetPlacementDays(task);
-    let candidateDays = slotManager.getDaysSortedByFreeTime([0, 1, 2, 3, 4, 5, 6]);
+    // ⑤ 週次タスク（曜日指定または柔軟週タスク）
+    // ★ ユーザー指示: 元の表データの曜日の範囲（targetDays）を週タスクの配置制限として採用しない！
+    // 週タスクは週の中でやりくりするものなので、全曜日 [0..6] を配置対象とする。
+    // targetDays がある場合は「第一希望として優先探索する曜日」として先頭に並べるが、
+    // 候補日自体は全曜日を対象とし、空きのある他曜日へ柔軟に配置して枠不足を防止する。
+    const targetDaysCount =
+      task.frequencyCount ||
+      (task.targetDays && task.targetDays.length > 0
+        ? task.targetDays.length
+        : getTargetPlacementDays(task));
 
-    if (task.startDay !== undefined) {
-      candidateDays = [task.startDay, ...candidateDays.filter((d) => d !== task.startDay)];
+    const allDaysByFree = slotManager.getDaysSortedByFreeTime([0, 1, 2, 3, 4, 5, 6]);
+
+    let candidateDays: number[];
+    if (task.targetDays && task.targetDays.length > 0) {
+      // 表データ由来等の指定曜日を最優先としつつ、残りの全曜日を候補日として追加
+      const preferred = [...task.targetDays];
+      const others = allDaysByFree.filter((d) => !preferred.includes(d));
+      candidateDays = [...preferred, ...others];
+    } else if (task.startDay !== undefined) {
+      candidateDays = [task.startDay, ...allDaysByFree.filter((d) => d !== task.startDay)];
     } else if (task.cycleIndex !== undefined) {
       const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
       const cyclePrimary = task.cycleIndex % cycleLength;
       const cycleDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => d % cycleLength === cyclePrimary);
-      const otherDays = candidateDays.filter((d) => !cycleDays.includes(d));
-      candidateDays = [...cycleDays, ...otherDays];
+      const others = allDaysByFree.filter((d) => !cycleDays.includes(d));
+      candidateDays = [...cycleDays, ...others];
+    } else {
+      candidateDays = allDaysByFree;
     }
 
     return {

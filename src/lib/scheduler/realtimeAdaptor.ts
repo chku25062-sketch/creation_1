@@ -109,25 +109,88 @@ export function applyRealtimeAdaptation(params: RealtimeAdaptationParams): {
     const earlyBlock = early.block;
     const earlyDuration = earlyBlock.endMinutes - earlyBlock.startMinutes;
 
+    // 代替として割り振る候補タスクを探す
+    // ★ ユーザー指示: 代行のタスクはその日の日ブロックに割り当てられたものを最優先で入れる！
     let substituteTask: TaskItem | undefined;
-    for (const plan of plans) {
-      if (
-        plan.task.id === earlyBlock.taskId ||
-        plan.origTaskId === earlyBlock.taskId ||
-        plan.task.title === earlyBlock.title
-      ) {
-        continue;
-      }
-      if (!plan.isComplete) {
-        substituteTask = plan.task;
-        plan.placedCount++;
-        if (plan.placedCount >= plan.targetCountWeekly) {
-          plan.isComplete = true;
-        }
-        break;
+    const sameDayBlocks = dayBlocks[early.day] || [];
+
+    // ① 最優先: その日（early.day）のブロックの中で、早期完了枠以降に予定されている未完了タスク（前倒し）
+    const futureSameDayBlock = sameDayBlocks.find(
+      (b) =>
+        !b.isFixed &&
+        !b.isBreak &&
+        !b.isSubstitute &&
+        b.id !== earlyBlock.id &&
+        b.taskId !== earlyBlock.taskId &&
+        b.title !== earlyBlock.title &&
+        !b.isCompleted &&
+        b.startMinutes >= earlyBlock.endMinutes,
+    );
+
+    if (futureSameDayBlock && futureSameDayBlock.taskId) {
+      substituteTask = tasks.find((t) => t.id === futureSameDayBlock.taskId);
+    }
+
+    // ② 次点: その日（early.day）のブロックに割り当てられている他の未完了タスク
+    if (!substituteTask) {
+      const anySameDayBlock = sameDayBlocks.find(
+        (b) =>
+          !b.isFixed &&
+          !b.isBreak &&
+          !b.isSubstitute &&
+          b.id !== earlyBlock.id &&
+          b.taskId !== earlyBlock.taskId &&
+          b.title !== earlyBlock.title &&
+          !b.isCompleted,
+      );
+      if (anySameDayBlock && anySameDayBlock.taskId) {
+        substituteTask = tasks.find((t) => t.id === anySameDayBlock.taskId);
       }
     }
 
+    // ③ 次点: その日（early.day）を候補日に含む未完了プラン
+    if (!substituteTask) {
+      for (const plan of plans) {
+        if (
+          plan.task.id === earlyBlock.taskId ||
+          plan.origTaskId === earlyBlock.taskId ||
+          plan.task.title === earlyBlock.title
+        ) {
+          continue;
+        }
+        if (plan.candidateDays.includes(early.day) && !plan.isComplete) {
+          substituteTask = plan.task;
+          plan.placedCount++;
+          if (plan.placedCount >= plan.targetCountWeekly) {
+            plan.isComplete = true;
+          }
+          break;
+        }
+      }
+    }
+
+    // ④ フォールバック: 全体の中で未完了のプラン
+    if (!substituteTask) {
+      for (const plan of plans) {
+        if (
+          plan.task.id === earlyBlock.taskId ||
+          plan.origTaskId === earlyBlock.taskId ||
+          plan.task.title === earlyBlock.title
+        ) {
+          continue;
+        }
+        if (!plan.isComplete) {
+          substituteTask = plan.task;
+          plan.placedCount++;
+          if (plan.placedCount >= plan.targetCountWeekly) {
+            plan.isComplete = true;
+          }
+          break;
+        }
+      }
+    }
+
+    // ⑤ 最終フォールバック: 未完了がなければ他のタスク
     if (!substituteTask) {
       const otherPlan = plans.find(
         (p) =>

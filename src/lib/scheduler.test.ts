@@ -2160,6 +2160,107 @@ describe('Theoretical Scheduler Engine', () => {
         expect(monMorningBlock).toBeDefined();
         expect(monMorningBlock?.title).toBe('日曜夜の睡眠');
       });
+
+      it('代行タスクは早期完了された日と同じ日ブロックに割り当てられたタスク（未来予定）が最優先で前倒し配置されること', () => {
+        // 火曜（dayIndex: 1）に配置されるタスクA（午前: 09:00〜10:00）とタスクB（午後: 13:00〜14:00）
+        const morningTask: TaskItem = {
+          id: 'task-morning',
+          title: '火曜午前のレポート',
+          category: 'must',
+          durationMinutes: 60,
+          period: 'week',
+          frequencyCount: 1,
+          targetDays: [1],
+          earliestStartTime: 540, // 09:00〜
+          priority: 'high',
+        };
+
+        const afternoonTask: TaskItem = {
+          id: 'task-afternoon',
+          title: '火曜午後のプログラミング学習',
+          category: 'study',
+          durationMinutes: 60,
+          period: 'day',
+          dailyCount: 1,
+          targetDays: [1],
+          earliestStartTime: 780, // 13:00〜
+          priority: 'medium',
+        };
+
+        // 水曜に配置される別タスクC
+        const wednesdayTask: TaskItem = {
+          id: 'task-wed',
+          title: '水曜の数学演習',
+          category: 'study',
+          durationMinutes: 60,
+          period: 'week',
+          frequencyCount: 1,
+          targetDays: [2],
+          priority: 'high',
+        };
+
+        // 通常実行
+        const normalResult = generateTheoreticalSchedule([], [morningTask, afternoonTask, wednesdayTask], {
+          todayIndex: 1, // 火曜
+          currentMinutes: 480, // 08:00
+        });
+
+        const tueBlocks = normalResult.dayBlocks[1];
+        const morningBlock = tueBlocks.find((b) => b.title === '火曜午前のレポート');
+        expect(morningBlock).toBeDefined();
+
+        // ユーザーが火曜午前のレポートを早期完了
+        const earlyResult = generateTheoreticalSchedule([], [morningTask, afternoonTask, wednesdayTask], {
+          todayIndex: 1,
+          currentMinutes: 480,
+          completedBlockIds: new Set([morningBlock!.id]),
+        });
+
+        // 代替タスクとして、水曜のタスクではなく同じ火曜日の日ブロックに割り当てられている「火曜午後のプログラミング学習」が選ばれること
+        const updatedTueBlocks = earlyResult.dayBlocks[1];
+        const substituteBlock = updatedTueBlocks.find((b) => b.isSubstitute);
+        expect(substituteBlock).toBeDefined();
+        expect(substituteBlock?.title).toBe('火曜午後のプログラミング学習');
+        expect(substituteBlock?.substitutedForTitle).toBe('火曜午前のレポート');
+      });
+
+      it('元の表データの曜日（targetDays）に空き枠がなくても、週タスクが週内の他曜日へ柔軟に配置され枠不足にならないこと', () => {
+        // 月曜（0）が24時間固定枠で完全に埋まっている
+        const fullMondaySlot: FixedSlot = {
+          id: 'fixed-mon-full',
+          title: '月曜終日イベント',
+          category: 'work',
+          startMinutes: 0,
+          endMinutes: 1440,
+          daysOfWeek: [0],
+          color: '#3b82f6',
+        };
+
+        // 元の表データでは月曜（0）に存在していた週タスク（レポート）
+        const tableImportedWeeklyTask: TaskItem = {
+          id: 'table-task-report',
+          title: 'インポートされた講義レポート',
+          category: 'must',
+          durationMinutes: 90,
+          period: 'week',
+          frequencyCount: 1,
+          targetDays: [0], // 表の月曜列にあった
+          sourceTableId: 'timetable-1',
+          priority: 'high',
+        };
+
+        const result = generateTheoreticalSchedule([fullMondaySlot], [tableImportedWeeklyTask]);
+
+        // 月曜は埋まっているが、火曜〜日曜の空いている曜日に自動配置されること
+        const placedBlocks = Object.values(result.dayBlocks)
+          .flat()
+          .filter((b) => b.title === 'インポートされた講義レポート');
+        expect(placedBlocks.length).toBe(1);
+        expect(placedBlocks[0].dayIndex).not.toBe(0); // 月曜以外
+        // 枠不足（未配置）タスクが0件であること
+        expect(result.unassignedTasks).toHaveLength(0);
+        expect(result.metrics.theoreticalScore).toBe(100);
+      });
     });
   });
 });
