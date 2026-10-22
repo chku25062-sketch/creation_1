@@ -391,6 +391,39 @@ stateDiagram-v2
 
 ---
 
+### 2.14. 週タスクの指定日時以降配置オプション ＆ 付随タスクの元タスク後配置仕様
+
+ユーザー要望：
+> 「週タスクの設定項目に指定日時以降にタスクを配置という設定を設け、付随タスクの作成の際に、元タスクより後に時間を設定することで、週タスクの挙動を意図通りにしてください。」
+
+#### ① 課題と目的
+- **付随タスク（講義の課題・レポート等）の開始タイミング問題**:
+  - 講義の付随タスク（例: 火曜 10:40〜12:10）が、講義前の空き枠（例: 09:00〜10:40）に配置されてしまう事象があった。
+  - 時間割表由来の `sourceTableId` を持つ週タスクにおいて、配置パイプラインが表全体の時間枠制限を解除する際に、タスク固有の `earliestStartTime` までリセットしてしまい、指定時刻前に入り込んでしまう不具合が存在した。
+- **週タスクにおける日時制約の欠如**:
+  - 週タスクの設定項目に「指定日時（曜日・時刻）以降に配置する」オプションが存在しなかったため、ユーザーが「水曜の講義後」や「木曜午後以降」にやりたいタスクを明示的に指定できなかった。
+
+#### ② 実装内容
+1. **データ構造と型定義の拡張 (`src/types/index.ts`)**:
+   - `TaskItem` に以下のプロパティを追加：
+     - `scheduleAfterEnabled?: boolean;`（指定日時以降にタスクを配置するかどうかのフラグ）
+     - `scheduleAfterDay?: number;`（指定曜日: 0:月〜6:日）
+     - `scheduleAfterTime?: string | number;`（指定時刻: "HH:mm" または 分）
+     - `scheduleAfterDateTime?: string;`（特定日時: ISO文字列 / "YYYY-MM-DDTHH:mm"）
+2. **付随タスク作成時の元タスク後自動時間設定 (`src/lib/tableUtils.ts` & `src/components/TaskManager.tsx`)**:
+   - 表データから付随タスクを生成・マージする際、および固定枠追加時に授業課題を自動生成する際、元タスクの終了時刻（+休憩余白）を取得し、`scheduleAfterEnabled: true`、`scheduleAfterDay`、`scheduleAfterTime`、`earliestStartTime` を設定。
+   - これにより、付随タスクは必ず元タスクの終了時刻より後に配置される。
+3. **週タスクUIでの指定日時以降配置設定 (`src/components/TaskManager.tsx`)**:
+   - タスク追加・編集モーダル（週タスク時）に「指定日時以降にタスクを配置する (授業後・指定時刻以降)」設定欄を新設。
+   - チェックボックスONで、指定曜日および指定時刻（`<input type="time">`）をユーザーが直接入力・保存可能に。
+4. **スケジューラコアでの厳格な日時制約適用 (`placementPipeline.ts`, `planGenerator.ts`, `weeklyPlacementPhase.ts`)**:
+   - **曜日制約**: `d < scheduleAfterDay` の曜日は候補日およびスロット探索から完全除外（指定曜日より前には配置されない）。
+   - **同日時刻制約**: `d === scheduleAfterDay` の日は、指定時刻（元タスク終了時刻）より前のスロットには配置されない（`candidateStart >= scheduleAfterMinutes`）。
+   - **翌日以降の解放**: `d > scheduleAfterDay` の日は、指定日時の翌日以降であるため朝から配置可能。
+   - **個別開始下限時刻の保護**: `placementPipeline.ts` において、表全体の枠時間制限（09:00〜18:00等）を夜間24:00まで解放しつつも、タスク個別の開始下限時刻（`taskEarliestStartTime`）は絶対にゼロで上書きせず厳格に維持。
+
+---
+
 ## 3. 実装ステップと作業計画
 
 1. **ステップ1: データ型の拡張 (`src/types/index.ts`)**:

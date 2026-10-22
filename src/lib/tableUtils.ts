@@ -8,7 +8,7 @@ import {
   FixedCategory,
   TaskCategory,
 } from '@/types';
-import { calculatePeriodTimes, timeStringToMinutes } from './timeUtils';
+import { calculatePeriodTimes, timeStringToMinutes, minutesToTimeString } from './timeUtils';
 
 const WEEKDAY_NAMES = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜', '月', '火', '水', '木', '金', '土', '日'];
 const CYCLE_KEYWORDS = ['day', 'サイクル', '周期', '分割', 'rot', 'part'];
@@ -676,9 +676,10 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
 
           if (classification === 'fixed_slot') {
             const parentEndMinutesByDay: Record<number, number> = {};
+            let parentEnd: number | undefined = undefined;
             if (isWeekday && colInfo.dayIndex !== undefined && timeSlot) {
-              parentEndMinutesByDay[colInfo.dayIndex] =
-                timeSlot.endMinutes + (effectiveBreakMinutes || 0);
+              parentEnd = timeSlot.endMinutes + (effectiveBreakMinutes || 0);
+              parentEndMinutesByDay[colInfo.dayIndex] = parentEnd;
             }
 
             attachedTaskMap.set(attachedKey, {
@@ -694,6 +695,12 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               parentTitle: fullTitle,
               parentEndMinutesByDay,
               targetDays: isWeekday && colInfo.dayIndex !== undefined ? [colInfo.dayIndex] : undefined,
+              startDay: isWeekday && colInfo.dayIndex !== undefined ? colInfo.dayIndex : undefined,
+              // ★ 指定日時以降に配置（元タスクより後に時間を設定）
+              scheduleAfterEnabled: true,
+              scheduleAfterDay: isWeekday && colInfo.dayIndex !== undefined ? colInfo.dayIndex : undefined,
+              scheduleAfterTime: parentEnd !== undefined ? minutesToTimeString(parentEnd) : undefined,
+              earliestStartTime: parentEnd,
               priority: 'high',
               period: 'week', // 週のタスク
               dailyCount: 1, // 1日の中の繰り返しなし
@@ -716,6 +723,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               dailyCount: 1, // 1日の中の繰り返しなし
               dailyRepeatMode: 'custom',
               targetDays: isWeekday ? [colInfo.dayIndex!] : undefined,
+              startDay: isWeekday ? colInfo.dayIndex! : undefined,
               cycleDays: isCycle ? [cycleIdx] : undefined,
               cycleIndex: isCycle ? cycleIdx : undefined,
               cycleCount: isCycle ? cycleCount : undefined,
@@ -742,10 +750,19 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               }
               if (timeSlot) {
                 if (!existingAttached.parentEndMinutesByDay) existingAttached.parentEndMinutesByDay = {};
+                const endWithBreak = timeSlot.endMinutes + (effectiveBreakMinutes || 0);
                 existingAttached.parentEndMinutesByDay[colInfo.dayIndex] = Math.max(
                   existingAttached.parentEndMinutesByDay[colInfo.dayIndex] || 0,
-                  timeSlot.endMinutes + (effectiveBreakMinutes || 0),
+                  endWithBreak,
                 );
+                existingAttached.scheduleAfterEnabled = true;
+                if (existingAttached.scheduleAfterDay === undefined) {
+                  existingAttached.scheduleAfterDay = colInfo.dayIndex;
+                }
+                if (existingAttached.earliestStartTime === undefined || endWithBreak > existingAttached.earliestStartTime) {
+                  existingAttached.earliestStartTime = endWithBreak;
+                  existingAttached.scheduleAfterTime = minutesToTimeString(endWithBreak);
+                }
               }
             }
           } else if (classification === 'daily_task') {

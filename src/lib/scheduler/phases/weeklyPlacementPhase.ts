@@ -80,6 +80,11 @@ export class WeeklyPlacementPhase implements PlacementPhase {
     for (let d = 0; d < 7; d++) {
       const plansForThisDay = normalWeeklyPlans.filter((plan) => {
         if (plan.isComplete) return false;
+        const scheduleAfterDay =
+          plan.task.scheduleAfterDay ??
+          (plan.task.scheduleAfterEnabled ? plan.task.startDay : undefined);
+        if (scheduleAfterDay !== undefined && d < scheduleAfterDay) return false;
+
         const targetDays = plan.task.targetDays || [];
         const isTarget = targetDays.includes(d);
         const isStart = plan.task.startDay === d;

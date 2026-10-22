@@ -2533,6 +2533,173 @@ describe('Theoretical Scheduler Engine', () => {
         expect(result.unassignedTasks).toHaveLength(0);
       });
     });
+
+    describe('週タスクの指定日時以降配置オプション（元タスクより後の時間に配置）', () => {
+      it('付随タスク（attached_task）作成時に元タスクより後の時間が設定され、講義前の空き枠ではなく講義後に配置されること', () => {
+        // 火曜（day 1）
+        // 00:00〜09:00 睡眠
+        // 09:00〜10:30 空き枠（講義前）
+        // 10:30〜12:00 固定枠「人工知能論」（630〜720分）
+        // 12:00〜15:00 空き枠（講義後）
+        const fixedSlots: FixedSlot[] = [
+          {
+            id: 'sleep-tue',
+            title: '睡眠',
+            category: 'sleep',
+            startMinutes: 0,
+            endMinutes: 540,
+            color: '#6366f1',
+            daysOfWeek: [1],
+          },
+          {
+            id: 'slot-ai',
+            title: '人工知能論',
+            category: 'lecture',
+            startMinutes: 630, // 10:30
+            endMinutes: 720,   // 12:00
+            color: '#0284c7',
+            daysOfWeek: [1],
+          },
+        ];
+
+        // 人工知能論の付随タスク（60分、元タスクより後に時間を設定）
+        const attachedTask: TaskItem = {
+          id: 'task-attached-ai',
+          title: '人工知能論 のタスク',
+          category: 'lecture',
+          durationMinutes: 60,
+          period: 'week',
+          isAttachedTask: true,
+          parentTitle: '人工知能論',
+          parentEndMinutesByDay: { 1: 720 },
+          scheduleAfterEnabled: true,
+          scheduleAfterDay: 1,
+          scheduleAfterTime: '12:00',
+          earliestStartTime: 720,
+          startDay: 1,
+          targetDays: [1],
+          priority: 'high',
+          completed: false,
+          sourceTableId: 'table-ai',
+        };
+
+        const result = generateTheoreticalSchedule(fixedSlots, [attachedTask], {
+          todayIndex: 0,
+          currentMinutes: 0,
+        });
+
+        const tueBlocks = result.dayBlocks[1];
+        const placed = tueBlocks.find((b) => b.title === '人工知能論 のタスク');
+        expect(placed).toBeDefined();
+
+        // 講義前（09:00〜10:30 = 540〜630分）ではなく、講義終了（720分）以降に配置されていること！
+        expect(placed!.startMinutes).toBeGreaterThanOrEqual(720);
+        expect(placed!.endMinutes - placed!.startMinutes).toBe(60);
+      });
+
+      it('週タスクに指定日時以降（scheduleAfterDay & scheduleAfterTime）が設定された場合、指定日時より前には配置されないこと', () => {
+        // 水曜（day 2）の 15:00 以降に配置したい週タスク
+        // 月曜（day 0）と火曜（day 1）に広大な空き枠がある
+        const fixedSlots: FixedSlot[] = [
+          {
+            id: 'sleep-all',
+            title: '睡眠',
+            category: 'sleep',
+            startMinutes: 0,
+            endMinutes: 480, // 08:00
+            color: '#6366f1',
+            daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+          },
+        ];
+
+        const weeklyTaskWithScheduleAfter: TaskItem = {
+          id: 'task-after-wed-15',
+          title: '水曜午後からの集中課題',
+          category: 'study',
+          durationMinutes: 90,
+          period: 'week',
+          scheduleAfterEnabled: true,
+          scheduleAfterDay: 2, // 水曜
+          scheduleAfterTime: '15:00', // 15:00（900分）以降
+          earliestStartTime: 900,
+          startDay: 2,
+          priority: 'high',
+          completed: false,
+        };
+
+        const result = generateTheoreticalSchedule(fixedSlots, [weeklyTaskWithScheduleAfter], {
+          todayIndex: 0,
+          currentMinutes: 0,
+        });
+
+        // 月曜（day 0）および火曜（day 1）には配置されていないこと
+        const monBlock = result.dayBlocks[0].find((b) => b.title === '水曜午後からの集中課題');
+        const tueBlock = result.dayBlocks[1].find((b) => b.title === '水曜午後からの集中課題');
+        expect(monBlock).toBeUndefined();
+        expect(tueBlock).toBeUndefined();
+
+        // 水曜（day 2）の 15:00（900分）以降に配置されていること
+        const wedBlock = result.dayBlocks[2].find((b) => b.title === '水曜午後からの集中課題');
+        expect(wedBlock).toBeDefined();
+        expect(wedBlock!.startMinutes).toBeGreaterThanOrEqual(900);
+        expect(wedBlock!.endMinutes - wedBlock!.startMinutes).toBe(90);
+      });
+
+      it('sourceTableIdを持つ週タスクでも、指定日時以降（earliestStartTime）が厳格に守られること', () => {
+        // 木曜（day 3）
+        // 09:00〜11:00 空き枠
+        // 13:00〜17:00 空き枠
+        // 13:00（780分）以降に配置設定された表由来の週タスク
+        const fixedSlots: FixedSlot[] = [
+          {
+            id: 'sleep-thu',
+            title: '睡眠',
+            category: 'sleep',
+            startMinutes: 0,
+            endMinutes: 540, // 09:00
+            color: '#6366f1',
+            daysOfWeek: [3],
+          },
+          {
+            id: 'lunch-thu',
+            title: '昼食',
+            category: 'meal',
+            startMinutes: 660, // 11:00
+            endMinutes: 780,   // 13:00
+            color: '#10b981',
+            daysOfWeek: [3],
+          },
+        ];
+
+        const tableWeeklyTask: TaskItem = {
+          id: 'task-table-weekly',
+          title: '木曜午後演習タスク',
+          category: 'study',
+          priority: 'medium',
+          durationMinutes: 60,
+          period: 'week',
+          sourceTableId: 'timetable-1',
+          autoPlaceWithinRange: true,
+          scheduleAfterEnabled: true,
+          scheduleAfterDay: 3,
+          scheduleAfterTime: '13:00',
+          earliestStartTime: 780, // 13:00以降
+          startDay: 3,
+          targetDays: [3],
+          completed: false,
+        };
+
+        const result = generateTheoreticalSchedule(fixedSlots, [tableWeeklyTask], {
+          todayIndex: 0,
+          currentMinutes: 0,
+        });
+
+        const thuBlock = result.dayBlocks[3].find((b) => b.title === '木曜午後演習タスク');
+        expect(thuBlock).toBeDefined();
+        // 午前中の空き枠（09:00〜11:00）ではなく、13:00（780分）以降に配置されていること！
+        expect(thuBlock!.startMinutes).toBeGreaterThanOrEqual(780);
+      });
+    });
   });
 });
 

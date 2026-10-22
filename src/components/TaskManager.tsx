@@ -234,6 +234,11 @@ export function TaskManager({
   const [startDay, setStartDay] = useState<number>(0);
   const [deadlineDay, setDeadlineDay] = useState<number>(4);
 
+  // 指定日時以降に配置オプション（週タスク用）
+  const [scheduleAfterEnabled, setScheduleAfterEnabled] = useState(false);
+  const [scheduleAfterDay, setScheduleAfterDay] = useState<number>(0);
+  const [scheduleAfterTime, setScheduleAfterTime] = useState<string>('12:10');
+
   // 表データ参照元情報
   const [taskSourceTableId, setTaskSourceTableId] = useState<string | undefined>(undefined);
   const [taskSourceTableName, setTaskSourceTableName] = useState<string | undefined>(undefined);
@@ -329,12 +334,15 @@ export function TaskManager({
     setHasDeadline(!!options?.isAssignment);
     setStartDay(0);
     setDeadlineDay(4);
+    setScheduleAfterEnabled(false);
+    setScheduleAfterDay(0);
+    setScheduleAfterTime('12:10');
     setTaskSourceTableId(undefined);
     setTaskSourceTableName(undefined);
     setModalType('task');
   };
 
-  // 授業枠から課題タスク追加モーダルを開く（出題日=授業日、締切日=授業日前日）
+  // 授業枠から課題タスク追加モーダルを開く（出題日=授業日、締切日=授業日前日、元タスクより後に時間設定）
   const openAddAssignmentFromLecture = (slot: FixedSlot) => {
     const lectureDay = slot.daysOfWeek && slot.daysOfWeek.length > 0 ? slot.daysOfWeek[0] : 0;
     const calcDeadlineDay = (lectureDay - 1 + 7) % 7; // 前日
@@ -361,6 +369,9 @@ export function TaskManager({
     setHasDeadline(true);
     setStartDay(lectureDay);
     setDeadlineDay(calcDeadlineDay);
+    setScheduleAfterEnabled(true);
+    setScheduleAfterDay(lectureDay);
+    setScheduleAfterTime(minutesToTimeString(slot.endMinutes));
     setTaskSourceTableId(slot.sourceTableId);
     setTaskSourceTableName(slot.sourceTableName);
     setModalType('task');
@@ -446,6 +457,25 @@ export function TaskManager({
     setHasDeadline(hasDl);
     setStartDay(task.startDay ?? 0);
     setDeadlineDay(task.deadlineDay ?? 4);
+
+    // 指定日時以降オプション復元
+    const isScheduleAfter =
+      !!task.scheduleAfterEnabled ||
+      (task.period === 'week' &&
+        task.earliestStartTime !== undefined &&
+        !task.autoPlaceWithinRange &&
+        task.earliestStartTime > 0);
+    setScheduleAfterEnabled(isScheduleAfter);
+    setScheduleAfterDay(task.scheduleAfterDay ?? task.startDay ?? 0);
+    const formattedTime =
+      typeof task.scheduleAfterTime === 'string'
+        ? task.scheduleAfterTime
+        : task.scheduleAfterTime !== undefined
+          ? minutesToTimeString(task.scheduleAfterTime)
+          : task.earliestStartTime !== undefined && task.earliestStartTime > 0
+            ? minutesToTimeString(task.earliestStartTime)
+            : '12:10';
+    setScheduleAfterTime(formattedTime);
 
     setTaskSourceTableId(task.sourceTableId);
     setTaskSourceTableName(task.sourceTableName);
@@ -542,6 +572,11 @@ export function TaskManager({
       }
     }
 
+    const scheduleAfterMinutes =
+      taskPeriodScope === 'week' && scheduleAfterEnabled
+        ? timeStringToMinutes(scheduleAfterTime)
+        : undefined;
+
     const taskPayload = {
       title: taskTitle.trim(),
       category: finalCategory,
@@ -559,8 +594,17 @@ export function TaskManager({
       cycleCount,
       taskType,
       priority,
-      startDay: hasDeadline ? startDay : (targetDays && targetDays[0] !== undefined ? targetDays[0] : undefined),
+      startDay:
+        taskPeriodScope === 'week' && scheduleAfterEnabled
+          ? scheduleAfterDay
+          : hasDeadline
+            ? startDay
+            : (targetDays && targetDays[0] !== undefined ? targetDays[0] : undefined),
       deadlineDay: hasDeadline ? deadlineDay : undefined,
+      scheduleAfterEnabled: taskPeriodScope === 'week' ? scheduleAfterEnabled : undefined,
+      scheduleAfterDay: taskPeriodScope === 'week' && scheduleAfterEnabled ? scheduleAfterDay : undefined,
+      scheduleAfterTime: taskPeriodScope === 'week' && scheduleAfterEnabled ? scheduleAfterTime : undefined,
+      earliestStartTime: scheduleAfterMinutes,
       cycleIndex: cycleDays && cycleDays.length > 0 ? cycleDays[0] : undefined,
       sourceTableId: taskSourceTableId,
       sourceTableName: taskSourceTableName || (taskSourceTableId ? finalCategory : undefined),
@@ -660,6 +704,13 @@ export function TaskManager({
           taskType: 'assignment',
           startDay: lectureDay,
           deadlineDay: calcDeadlineDay,
+          // ★ 元タスクより後に時間を設定
+          scheduleAfterEnabled: true,
+          scheduleAfterDay: lectureDay,
+          scheduleAfterTime: slotEndTime,
+          earliestStartTime: endMinutes,
+          parentTitle: slotTitle.trim(),
+          parentEndMinutesByDay: { [lectureDay]: endMinutes },
           priority: 'high',
           period: 'week',
           completed: false,
@@ -3064,6 +3115,56 @@ export function TaskManager({
                             </option>
                           ))}
                         </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 7. オプション: 指定日時以降にタスクを配置の設定（週のタスクで必要な場合） */}
+              {taskPeriodScope === 'week' && (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-2.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                      <Clock className="h-4 w-4 text-indigo-600" />
+                      <span>指定日時以降にタスクを配置する (授業後・指定時刻以降)</span>
+                    </label>
+                    <input
+                      type="checkbox"
+                      checked={scheduleAfterEnabled}
+                      onChange={(e) => setScheduleAfterEnabled(e.target.checked)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  {scheduleAfterEnabled && (
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-indigo-100">
+                      <div>
+                        <label className="text-[10px] font-semibold text-indigo-950">
+                          指定曜日 (この曜日以降)
+                        </label>
+                        <select
+                          value={scheduleAfterDay}
+                          onChange={(e) => setScheduleAfterDay(parseInt(e.target.value, 10))}
+                          className="mt-0.5 w-full rounded border border-indigo-200 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none"
+                        >
+                          {DAY_LABELS.map((label, idx) => (
+                            <option key={idx} value={idx}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-indigo-950">
+                          指定時刻 (この時刻以降)
+                        </label>
+                        <input
+                          type="time"
+                          value={scheduleAfterTime}
+                          onChange={(e) => setScheduleAfterTime(e.target.value)}
+                          className="mt-0.5 w-full rounded border border-indigo-200 bg-white px-2 py-1 text-xs font-bold text-indigo-900 focus:outline-none"
+                        />
                       </div>
                     </div>
                   )}

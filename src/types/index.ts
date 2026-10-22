@@ -56,6 +56,11 @@ export interface TaskItem {
   earliestStartTime?: number; // これより前の時刻にはタスク配置を行わない下限時刻（分。未設定時は0=00:00）
   latestEndTime?: number; // これ以上先の時刻にはタスク配置を行わない上限時刻（分。未設定時は1440=24:00）
   autoPlaceWithinRange?: boolean; // 指定区間内での自動配置オプション
+  // Plan11 / 週タスク: 指定日時以降にタスクを配置するオプション
+  scheduleAfterEnabled?: boolean; // 指定日時以降にタスクを配置するかどうか
+  scheduleAfterDay?: number; // 指定曜日 (0:月〜6:日)
+  scheduleAfterTime?: string | number; // 指定時刻 ("HH:mm" または 分)
+  scheduleAfterDateTime?: string; // 特定日時 (ISO文字列 / "YYYY-MM-DDTHH:mm")
   isAttachedTask?: boolean; // 本タスクに付随するタスクかどうか
   parentTitle?: string; // 付随先の本タスク名
   parentEndMinutesByDay?: Record<number, number>; // 各曜日における本タスクの終了時刻（分）

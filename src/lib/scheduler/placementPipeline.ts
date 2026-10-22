@@ -1,5 +1,6 @@
 import { PlacementPhase, SchedulingExecutionContext, DayTaskContext } from './types';
 import { getAdjustedDuration, getCategoryColor } from './constants';
+import { timeStringToMinutes } from '../timeUtils';
 import { WeeklyPlacementPhase } from './phases/weeklyPlacementPhase';
 import { DailyFairPlacementPhase } from './phases/dailyFairPlacementPhase';
 import { AttachedFallbackPhase } from './phases/attachedFallbackPhase';
@@ -10,6 +11,24 @@ import { RescuePlacementPhase } from './phases/rescuePlacementPhase';
  */
 export function createPlaceContextHelper(ctx: SchedulingExecutionContext) {
   return (d: number, taskCtx: DayTaskContext, isWeekly: boolean): boolean => {
+    // 指定日時以降の設定
+    const scheduleAfterDay =
+      taskCtx.task.scheduleAfterDay ??
+      (taskCtx.task.scheduleAfterEnabled ? taskCtx.task.startDay : undefined);
+
+    // 曜日制約: 指定曜日より前の曜日には絶対に配置しない
+    if (scheduleAfterDay !== undefined && d < scheduleAfterDay) {
+      return false;
+    }
+
+    let scheduleAfterMinutes: number | undefined = undefined;
+    if (taskCtx.task.scheduleAfterTime !== undefined) {
+      scheduleAfterMinutes =
+        typeof taskCtx.task.scheduleAfterTime === 'string'
+          ? timeStringToMinutes(taskCtx.task.scheduleAfterTime)
+          : taskCtx.task.scheduleAfterTime;
+    }
+
     const slots = ctx.slotManager.getAvailableSlots(d);
     if (!slots || slots.length === 0) return false;
 
@@ -48,14 +67,32 @@ export function createPlaceContextHelper(ctx: SchedulingExecutionContext) {
         }
       }
 
+      // 指定日時以降オプションが有効な場合
+      if (scheduleAfterDay !== undefined) {
+        if (d === scheduleAfterDay) {
+          // 指定曜日と同日の場合: 指定時刻以降（元タスク終了時刻等）に配置を制限
+          if (scheduleAfterMinutes !== undefined && scheduleAfterMinutes > 0) {
+            taskEarliestStartTime = Math.max(taskEarliestStartTime, scheduleAfterMinutes);
+          }
+        } else if (d > scheduleAfterDay) {
+          // 指定曜日の翌日以降なら、同日指定時刻に縛られず朝から配置可能
+          if (taskCtx.task.scheduleAfterEnabled && !taskCtx.task.autoPlaceWithinRange) {
+            if (scheduleAfterMinutes !== undefined && taskCtx.task.earliestStartTime === scheduleAfterMinutes) {
+              taskEarliestStartTime = 0;
+            }
+          }
+        }
+      }
+
       let effectiveLatestEnd = taskLatestEndTime;
       let effectiveEarliestStart = taskEarliestStartTime;
 
       // 週タスク（課題・レポート・自習等）は、時間割表の枠時間（09:00〜18:00等）に縛られず、
       // 早朝や夜間（18:00〜23:00等）も含めた1日の全空き時間をフルに使って配置できるようにする！
+      // ただし、タスク自身が持つ「指定日時以降（taskEarliestStartTime）」は絶対に破壊・リセットしない！
       if (isWeekly) {
         if (taskCtx.task.autoPlaceWithinRange || taskCtx.task.sourceTableId) {
-          effectiveEarliestStart = 0;
+          effectiveEarliestStart = taskEarliestStartTime;
           effectiveLatestEnd = 1440;
         }
       }

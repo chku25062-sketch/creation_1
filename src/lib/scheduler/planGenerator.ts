@@ -181,6 +181,14 @@ export function generatePlacementPlans(
       candidateDays = allDaysByFree;
     }
 
+    // 指定日時以降オプションが有効な場合、指定曜日より前の曜日を候補日から除外
+    const scheduleAfterDay =
+      task.scheduleAfterDay ??
+      (task.scheduleAfterEnabled ? task.startDay : undefined);
+    if (scheduleAfterDay !== undefined) {
+      candidateDays = candidateDays.filter((d) => d >= scheduleAfterDay);
+    }
+
     return {
       task,
       kind: 'weekly_flexible',
