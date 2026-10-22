@@ -185,12 +185,21 @@ export function getFixedSlotsForDay(fixedSlots: FixedSlot[], dayIndex: number): 
   });
 }
 
+export interface SchedulingRealtimeContext {
+  todayIndex?: number; // 0:月〜6:日 (未指定時は実行時のシステム曜日)
+  currentMinutes?: number; // 0〜1440 (未指定時は実行時のシステム時刻)
+  completedBlockIds?: Set<string>; // ユーザーが手動で完了にしたブロックID（早期完了含む）
+  uncompletedBlockIds?: Set<string>; // ユーザーが手動で未完了にしたブロックID（過去自動完了の解除含む）
+}
+
 /**
  * 1週間（7日間: 月曜=0 〜 日曜=6）の自律的理論値スケジューリングエンジン
+ * Plan11: リアルタイム完了状態判定、未完了週タスクの動的再配置、早期完了枠への代行タスク配置に対応
  */
 export function generateTheoreticalSchedule(
   fixedSlots: FixedSlot[],
   tasks: TaskItem[],
+  realtimeContext?: SchedulingRealtimeContext,
 ): WeeklySchedulingResult & { blocks: TheoreticalBlock[] } {
   const dayBlocks: Record<number, TheoreticalBlock[]> = {
     0: [],
@@ -201,6 +210,20 @@ export function generateTheoreticalSchedule(
     5: [],
     6: [],
   };
+
+  // リアルタイム基準日時（現在時刻・現在の曜日）
+  const now = new Date();
+  const todayIdx =
+    realtimeContext?.todayIndex !== undefined
+      ? realtimeContext.todayIndex
+      : (now.getDay() + 6) % 7;
+  const currMinutes =
+    realtimeContext?.currentMinutes !== undefined
+      ? realtimeContext.currentMinutes
+      : now.getHours() * 60 + now.getMinutes();
+
+  const userCompletedIds = realtimeContext?.completedBlockIds || new Set<string>();
+  const userUncompletedIds = realtimeContext?.uncompletedBlockIds || new Set<string>();
 
   // 1. 各曜日の固定枠と空き時間スロットを初期化
   const dayAvailableSlots: Record<number, FreeSlot[]> = {};
@@ -872,6 +895,217 @@ export function generateTheoreticalSchedule(
     }
   }
 
+  // =========================================================================
+  // Plan11: リアルタイム完了状態判定 ＆ 未完了週タスク動的再配置 ＆ 代行タスク生成
+  // =========================================================================
+
+  // 過去時刻かどうかの判定ヘルパー
+  const isTimePast = (d: number, endMinutes: number): boolean => {
+    if (d < todayIdx) return true;
+    if (d === todayIdx && endMinutes <= currMinutes) return true;
+    return false;
+  };
+
+  const taskById = new Map<string, TaskItem>();
+  for (const t of tasks) {
+    taskById.set(t.id, t);
+  }
+
+  // 週タスクかどうかの判定（日課・固定枠以外）
+  const isWeeklyTaskBlock = (block: TheoreticalBlock): boolean => {
+    if (block.isFixed || block.isBreak) return false;
+    if (block.taskId) {
+      const task = taskById.get(block.taskId);
+      if (task) {
+        if (task.period === 'day' || task.frequency === 'high') return false; // 日課
+        return true; // 週タスク
+      }
+    }
+    return block.taskType === 'assignment';
+  };
+
+  // 1. 各曜日の全ブロックについて完了状態の初期判定
+  const earlyCompletedBlocks: { day: number; block: TheoreticalBlock }[] = [];
+  const uncompletedWeeklyBlocks: { day: number; block: TheoreticalBlock }[] = [];
+
+  for (let d = 0; d < 7; d++) {
+    for (const block of dayBlocks[d]) {
+      const isPast = isTimePast(d, block.endMinutes);
+      const isWeekly = isWeeklyTaskBlock(block);
+
+      if (!isWeekly) {
+        // 週タスク以外（固定枠、講義、生活リズム、日課タスク）：過去なら自動完了
+        if (isPast) {
+          block.isCompleted = true;
+          block.isAutoCompleted = true;
+        } else {
+          block.isCompleted = false;
+        }
+      } else {
+        // 週タスク
+        const isExplicitUncompleted =
+          userUncompletedIds.has(block.id) || (block.taskId ? userUncompletedIds.has(block.taskId) : false);
+        const isExplicitCompleted =
+          userCompletedIds.has(block.id) || (block.taskId ? userCompletedIds.has(block.taskId) : false);
+
+        if (isExplicitUncompleted) {
+          // ユーザーが「まだ終わってないよ」とトグル（未完了化）
+          block.isCompleted = false;
+          block.isUserToggled = true;
+          if (isPast) {
+            uncompletedWeeklyBlocks.push({ day: d, block });
+          }
+        } else if (isExplicitCompleted) {
+          // ユーザーが「もう終わった」と早期完了
+          block.isCompleted = true;
+          block.isUserToggled = true;
+          if (!isPast) {
+            block.isEarlyCompleted = true;
+            earlyCompletedBlocks.push({ day: d, block });
+          }
+        } else {
+          // デフォルト: 過去なら自動完了、未来なら未完了
+          if (isPast) {
+            block.isCompleted = true;
+            block.isAutoCompleted = true;
+          } else {
+            block.isCompleted = false;
+          }
+        }
+      }
+    }
+  }
+
+  // 2. 未完了週タスクの動的再配置（現在時刻以降の空きスロットへリスケジュール）
+  for (const item of uncompletedWeeklyBlocks) {
+    const origBlock = item.block;
+    const task = origBlock.taskId ? taskById.get(origBlock.taskId) : undefined;
+    if (!task) continue;
+
+    const neededDuration = origBlock.endMinutes - origBlock.startMinutes;
+    let placedRescheduled = false;
+
+    // 今日（現在時刻以降）から日曜日（6）までの空き枠を探索
+    for (let targetDay = todayIdx; targetDay < 7; targetDay++) {
+      const slots = dayAvailableSlots[targetDay] || [];
+      for (const slot of slots) {
+        // 今日の場合は現在時刻以降の枠のみ
+        const effectiveSlotStart =
+          targetDay === todayIdx ? Math.max(slot.startMinutes, currMinutes) : slot.startMinutes;
+        const availableDuration = slot.endMinutes - effectiveSlotStart;
+
+        if (availableDuration >= neededDuration) {
+          const taskStart = effectiveSlotStart;
+          const taskEnd = taskStart + neededDuration;
+
+          const rescheduledBlock: TheoreticalBlock = {
+            id: `block-rescheduled-${targetDay}-${origBlock.id}`,
+            title: origBlock.title,
+            category: origBlock.category,
+            startMinutes: taskStart,
+            endMinutes: taskEnd,
+            isFixed: false,
+            isBreak: false,
+            breakMinutes: origBlock.breakMinutes,
+            color: origBlock.color,
+            taskId: origBlock.taskId,
+            priority: origBlock.priority,
+            taskType: origBlock.taskType,
+            deadlineDay: origBlock.deadlineDay,
+            dayIndex: targetDay,
+            sourceTableId: origBlock.sourceTableId,
+            sourceTableName: origBlock.sourceTableName,
+            isRescheduled: true,
+            rescheduledFromDay: item.day,
+            isCompleted: false,
+          };
+
+          dayBlocks[targetDay].push(rescheduledBlock);
+
+          // スロット消費
+          if (effectiveSlotStart > slot.startMinutes) {
+            const consumedEnd = taskEnd;
+            const remainingAfter = slot.endMinutes - consumedEnd;
+            slot.endMinutes = effectiveSlotStart;
+            slot.durationMinutes = slot.endMinutes - slot.startMinutes;
+            if (remainingAfter >= 15) {
+              slots.push({
+                startMinutes: consumedEnd,
+                endMinutes: consumedEnd + remainingAfter,
+                durationMinutes: remainingAfter,
+              });
+              slots.sort((a, b) => a.startMinutes - b.startMinutes);
+            }
+          } else {
+            slot.startMinutes = taskEnd;
+            slot.durationMinutes = slot.endMinutes - taskEnd;
+          }
+
+          placedRescheduled = true;
+          break;
+        }
+      }
+      if (placedRescheduled) break;
+    }
+  }
+
+  // 3. 早期完了された枠への代替タスク（重ね合わせ）配置
+  for (const early of earlyCompletedBlocks) {
+    const earlyBlock = early.block;
+    const earlyDuration = earlyBlock.endMinutes - earlyBlock.startMinutes;
+
+    // 代替として割り振る候補タスクを探す
+    // ① 目標回数未達のプラン（未完了タスク）
+    // ② 自動敷き詰めタスク
+    let substituteTask: TaskItem | undefined;
+    for (const plan of plans) {
+      if (plan.task.id === earlyBlock.taskId) continue;
+      if (!plan.isComplete) {
+        substituteTask = plan.task;
+        plan.placedCount++;
+        if (plan.placedCount >= plan.targetCountWeekly) {
+          plan.isComplete = true;
+        }
+        break;
+      }
+    }
+
+    if (!substituteTask) {
+      // 未配置がなければ、自動敷き詰めタスクを探す
+      const autoPlan = plans.find((p) => p.isAuto);
+      if (autoPlan) {
+        substituteTask = autoPlan.task;
+      }
+    }
+
+    if (substituteTask) {
+      const substituteBlock: TheoreticalBlock = {
+        id: `block-substitute-${early.day}-${substituteTask.id}-${earlyBlock.id}`,
+        title: substituteTask.title,
+        category: substituteTask.category,
+        startMinutes: earlyBlock.startMinutes,
+        endMinutes: earlyBlock.endMinutes,
+        isFixed: false,
+        isBreak: false,
+        color: getCategoryColor(substituteTask.category),
+        taskId: substituteTask.id,
+        priority: substituteTask.priority,
+        taskType: substituteTask.taskType || 'task',
+        dayIndex: early.day,
+        sourceTableId: substituteTask.sourceTableId,
+        sourceTableName: substituteTask.sourceTableName,
+        isSubstitute: true, // 代替タスクフラグ
+        substitutedForTitle: earlyBlock.title, // 元のタスク名
+        substitutedForBlockId: earlyBlock.id,
+        isCompleted: false,
+      };
+
+      // 元のブロックと同じ曜日の配列に追加（ソート時に元ブロックの後ろに来る）
+      dayBlocks[early.day].push(substituteBlock);
+      scheduledTaskMinutes += earlyDuration;
+    }
+  }
+
   // 5. 配置実績の集計
   const unassignedTasks: TaskItem[] = [];
   let assignedTaskCount = 0;
@@ -887,10 +1121,18 @@ export function generateTheoreticalSchedule(
     }
   }
 
-  // 4. 各曜日のブロックを時系列順に整頓
+  // 4. 各曜日のブロックを時系列順に整頓（元タスクが前、代替タスクが後になるよう安定ソート）
   const allBlocks: TheoreticalBlock[] = [];
   for (let d = 0; d < 7; d++) {
-    dayBlocks[d].sort((a, b) => a.startMinutes - b.startMinutes);
+    dayBlocks[d].sort((a, b) => {
+      if (a.startMinutes !== b.startMinutes) {
+        return a.startMinutes - b.startMinutes;
+      }
+      // 同じ開始時刻の場合、代替タスク（isSubstitute）を後に配置（DOM上で前面レイヤーへ）
+      if (a.isSubstitute && !b.isSubstitute) return 1;
+      if (!a.isSubstitute && b.isSubstitute) return -1;
+      return a.endMinutes - b.endMinutes;
+    });
     allBlocks.push(...dayBlocks[d]);
   }
 

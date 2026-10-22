@@ -37,6 +37,25 @@ export default function Home() {
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [focusMode, setFocusMode] = useState<'week' | 'today'>('today');
+  // Plan11: ユーザー手動による完了/未完了トグル状態の管理
+  const [completedBlockIds, setCompletedBlockIds] = useState<Set<string>>(new Set());
+  const [uncompletedBlockIds, setUncompletedBlockIds] = useState<Set<string>>(new Set());
+
+  // 完了トグル状態の復元
+  useEffect(() => {
+    try {
+      const savedCompleted = localStorage.getItem('app_completed_block_ids');
+      if (savedCompleted) {
+        setCompletedBlockIds(new Set(JSON.parse(savedCompleted)));
+      }
+      const savedUncompleted = localStorage.getItem('app_uncompleted_block_ids');
+      if (savedUncompleted) {
+        setUncompletedBlockIds(new Set(JSON.parse(savedUncompleted)));
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   // フォーカスモードの復元
   useEffect(() => {
@@ -300,6 +319,59 @@ export default function Home() {
     });
   }, [tasks, inclusionSettings.enableDailyTasks, inclusionSettings.enableWeeklyTasks]);
 
+  // Plan11: 週タスクの完了状態トグルハンドラ
+  const handleToggleBlockComplete = (block: import('@/types').TheoreticalBlock) => {
+    const blockKey = block.id;
+
+    if (block.isCompleted) {
+      // 現在完了 -> 未完了に戻す（「まだ終わってないよ」）
+      setCompletedBlockIds((prev) => {
+        const next = new Set(prev);
+        next.delete(blockKey);
+        try {
+          localStorage.setItem('app_completed_block_ids', JSON.stringify(Array.from(next)));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+
+      setUncompletedBlockIds((prev) => {
+        const next = new Set(prev);
+        next.add(blockKey);
+        try {
+          localStorage.setItem('app_uncompleted_block_ids', JSON.stringify(Array.from(next)));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    } else {
+      // 現在未完了 -> 完了にする（「これはもう終わっている」）
+      setUncompletedBlockIds((prev) => {
+        const next = new Set(prev);
+        next.delete(blockKey);
+        try {
+          localStorage.setItem('app_uncompleted_block_ids', JSON.stringify(Array.from(next)));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+
+      setCompletedBlockIds((prev) => {
+        const next = new Set(prev);
+        next.add(blockKey);
+        try {
+          localStorage.setItem('app_completed_block_ids', JSON.stringify(Array.from(next)));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    }
+  };
+
   // 理論値スケジュールの自動算出
   const schedulingResult = useMemo(() => {
     if (!isInitialized) {
@@ -322,8 +394,11 @@ export default function Home() {
         categorySummaries: [],
       };
     }
-    return generateTheoreticalSchedule(effectiveFixedSlots, effectiveTasks);
-  }, [effectiveFixedSlots, effectiveTasks, isInitialized]);
+    return generateTheoreticalSchedule(effectiveFixedSlots, effectiveTasks, {
+      completedBlockIds,
+      uncompletedBlockIds,
+    });
+  }, [effectiveFixedSlots, effectiveTasks, isInitialized, completedBlockIds, uncompletedBlockIds]);
 
   if (!isInitialized) {
     return (
@@ -352,6 +427,7 @@ export default function Home() {
             importedTables={importedTables}
             focusMode={focusMode}
             onToggleFocus={handleToggleFocus}
+            onToggleBlockComplete={handleToggleBlockComplete}
           />
         </div>
 

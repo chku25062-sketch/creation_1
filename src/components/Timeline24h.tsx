@@ -8,6 +8,10 @@ import {
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
+  CheckCircle2,
+  Circle,
+  Sparkles,
+  RotateCcw,
 } from 'lucide-react';
 import { TheoreticalBlock, TaskItem, ImportedTableData } from '@/types';
 import { minutesToTimeString, formatDuration } from '@/lib/timeUtils';
@@ -19,6 +23,7 @@ interface Timeline24hProps {
   importedTables?: ImportedTableData[];
   focusMode?: 'week' | 'today';
   onToggleFocus?: () => void;
+  onToggleBlockComplete?: (block: TheoreticalBlock) => void;
 }
 
 const TOTAL_HOURS = 24;
@@ -226,6 +231,18 @@ export const DEFAULT_TASK_PALETTE: TableColorScheme = {
   accent: '#e6cb7e',
 };
 
+// Plan11: 完了状態専用の上品なグレートーンパレット
+export const COMPLETED_PALETTE: TableColorScheme = {
+  bg: '#f1f5f9', // Slate-100
+  border: '#cbd5e1', // Slate-300
+  text: '#64748b', // Slate-500
+  strip: '#94a3b8', // Slate-400
+  badgeBg: '#e2e8f0', // Slate-200
+  badgeText: '#475569', // Slate-600
+  badgeBorder: '#cbd5e1',
+  accent: '#94a3b8',
+};
+
 export const LECTURE_PALETTE: TableColorScheme = TABLE_PALETTES[0];
 export const ASSIGNMENT_PALETTE: TableColorScheme = TABLE_PALETTES[3];
 
@@ -301,6 +318,7 @@ export function Timeline24h({
   dayBlocks,
   importedTables,
   focusMode = 'today',
+  onToggleBlockComplete,
 }: Timeline24hProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [nowTimeString, setNowTimeString] = useState<string>('');
@@ -773,9 +791,12 @@ export function Timeline24h({
                       const height = Math.max(22, Math.round(rawHeight) - 2);
                       const isShort = duration < 25 || height < 30;
                       const isAssignment = block.taskType === 'assignment';
+                      const isWeeklyTask =
+                        !block.isFixed &&
+                        !block.isBreak &&
+                        (block.taskType === 'assignment' || block.taskType === 'task');
 
                       // ★ 枠の高さ（所要時間）に応じて、タスク名を表示できる最大行数を動的に算出
-                      // 1時間96px基準: 30分=46px, 45分=70px, 60分=94px, 90分=142px
                       const hasTimeRow = !isShort;
                       const availableHeightForTitle = hasTimeRow ? height - 20 : height - 8;
                       const calculatedLines = Math.max(
@@ -783,47 +804,130 @@ export function Timeline24h({
                         Math.min(6, Math.floor(availableHeightForTitle / 15)),
                       );
 
-                      // ★ 参照元の表ごとのカラーパレットを取得（表ごとに重複のない一意カラー）
-                      const colorScheme = getBlockColorScheme(block, tableColorMap);
+                      // ★ 完了状態の場合は洗練されたグレートーンパレットを適用
+                      const colorScheme = block.isCompleted
+                        ? COMPLETED_PALETTE
+                        : getBlockColorScheme(block, tableColorMap);
+
+                      // ★ Plan11: 代替タスクの「代わりのタスク感」オーバーレイ表現
+                      // 新タスク（代行タスク）は元のタスクの上に重ね、横幅を86%にし、影とリングを付けて浮かび上がらせる
+                      const isSubstitute = !!block.isSubstitute;
+                      const isEarlyCompleted = !!block.isEarlyCompleted;
+
+                      const positioningClass = isSubstitute
+                        ? 'z-20 shadow-md ring-2 ring-blue-500/40'
+                        : isEarlyCompleted
+                          ? 'z-10 opacity-60 inset-x-0.5 sm:inset-x-1 shadow-2xs'
+                          : 'z-10 inset-x-0.5 sm:inset-x-1 shadow-2xs';
+
+                      const positioningStyle: React.CSSProperties = {
+                        top: `${top}px`,
+                        height: `${height}px`,
+                        backgroundColor: colorScheme.bg,
+                        borderColor: colorScheme.border,
+                        color: colorScheme.text,
+                        ...(isSubstitute
+                          ? {
+                              left: '7%',
+                              width: '86%',
+                            }
+                          : {}),
+                      };
 
                       return (
                         <div
                           key={`block-${d.dayIndex}-${block.id}`}
                           title={
-                            block.sourceTableName
-                              ? `${block.title} (参照元: ${block.sourceTableName})`
-                              : block.title
+                            isSubstitute
+                              ? `【代行タスク】${block.title} (元のタスク「${block.substitutedForTitle || ''}」の代わりに前倒し配置)`
+                              : block.isEarlyCompleted
+                                ? `【前倒し完了済み】${block.title}`
+                                : block.sourceTableName
+                                  ? `${block.title} (参照元: ${block.sourceTableName})`
+                                  : block.title
                           }
-                          style={{
-                            top: `${top}px`,
-                            height: `${height}px`,
-                            backgroundColor: colorScheme.bg,
-                            borderColor: colorScheme.border,
-                            color: colorScheme.text,
-                          }}
-                          className="group !absolute inset-x-0.5 overflow-hidden rounded-md border sticky-note hover:z-20 sm:inset-x-1 shadow-2xs"
+                          style={positioningStyle}
+                          className={`group !absolute overflow-hidden rounded-md border sticky-note hover:z-30 transition-all duration-150 ${positioningClass}`}
                         >
                           {/* 付箋のり付けストリップ (左端) */}
                           <div
                             className="absolute inset-y-0 left-0 w-1.5 opacity-90 shadow-2xs"
-                            style={{ backgroundColor: colorScheme.strip }}
+                            style={{
+                              backgroundColor: isSubstitute ? '#3b82f6' : colorScheme.strip,
+                            }}
                           />
 
                           {/* Block Content */}
                           <div className="flex h-full flex-col justify-between p-1 pl-2.5 overflow-hidden">
                             <div className="flex items-start justify-between gap-1 min-w-0 overflow-hidden">
-                              <span
-                                className="min-w-0 flex-1 font-bold leading-snug break-words [overflow-wrap:anywhere] text-xs sm:text-[13px]"
-                                style={{
-                                  display: '-webkit-box',
-                                  WebkitBoxOrient: 'vertical',
-                                  WebkitLineClamp: calculatedLines,
-                                  overflow: 'hidden',
-                                }}
-                              >
-                                {block.title}
-                              </span>
+                              <div className="min-w-0 flex-1 flex items-center gap-1">
+                                {isSubstitute && (
+                                  <span
+                                    className="shrink-0 inline-flex items-center gap-0.5 rounded bg-blue-600 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs animate-pulse"
+                                    title={`元の予定「${block.substitutedForTitle}」の早期完了に伴い代行配置`}
+                                  >
+                                    <Sparkles className="h-2 w-2" />
+                                    代行
+                                  </span>
+                                )}
+                                {block.isRescheduled && (
+                                  <span
+                                    className="shrink-0 inline-flex items-center gap-0.5 rounded bg-amber-500 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs"
+                                    title="やり残しのため未来の空き枠へ自動再スケジュール"
+                                  >
+                                    <RotateCcw className="h-2 w-2" />
+                                    再配置
+                                  </span>
+                                )}
+                                <span
+                                  className={`min-w-0 flex-1 font-bold leading-snug break-words [overflow-wrap:anywhere] text-xs sm:text-[13px] ${
+                                    block.isCompleted ? 'line-through opacity-75' : ''
+                                  }`}
+                                  style={{
+                                    display: '-webkit-box',
+                                    WebkitBoxOrient: 'vertical',
+                                    WebkitLineClamp: calculatedLines,
+                                    overflow: 'hidden',
+                                  }}
+                                >
+                                  {block.title}
+                                </span>
+                              </div>
+
                               <div className="shrink-0 flex items-center gap-1">
+                                {/* 週タスク完了トグルボタン (オン/オフ) */}
+                                {isWeeklyTask && onToggleBlockComplete && !isSubstitute && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onToggleBlockComplete(block);
+                                    }}
+                                    className={`shrink-0 flex items-center gap-0.5 rounded px-1 py-0.2 text-[9px] font-bold transition cursor-pointer shadow-2xs border ${
+                                      block.isCompleted
+                                        ? 'bg-slate-200/90 text-slate-700 border-slate-300 hover:bg-slate-300'
+                                        : 'bg-white/90 text-slate-600 border-slate-200 hover:bg-blue-50 hover:text-blue-600'
+                                    }`}
+                                    title={
+                                      block.isCompleted
+                                        ? '完了状態です（クリックで「まだ終わってないよ」と未完了に戻し未来枠へ自動再配置）'
+                                        : '未完了です（クリックで「これはもう終わっている」と早期完了にし代行タスクを割り振る）'
+                                    }
+                                  >
+                                    {block.isCompleted ? (
+                                      <>
+                                        <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 fill-emerald-100" />
+                                        <span className="hidden sm:inline">済</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Circle className="h-2.5 w-2.5 text-slate-400" />
+                                        <span className="hidden sm:inline">未</span>
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+
                                 {block.sourceTableName && (
                                   <span
                                     className="inline-flex items-center gap-0.5 rounded px-1 py-0.2 text-[8px] font-bold shadow-2xs border"
@@ -864,6 +968,14 @@ export function Timeline24h({
                                   {minutesToTimeString(block.startMinutes)} -{' '}
                                   {minutesToTimeString(block.endMinutes)}
                                 </span>
+                                {isSubstitute && block.substitutedForTitle && (
+                                  <span
+                                    className="shrink-0 rounded bg-blue-100/90 px-1 py-0.2 text-[8px] font-bold text-blue-900 truncate max-w-[110px]"
+                                    title={`代行元: ${block.substitutedForTitle}`}
+                                  >
+                                    ⇄ {block.substitutedForTitle}
+                                  </span>
+                                )}
                                 {block.breakMinutes !== undefined && block.breakMinutes > 0 && (
                                   <span
                                     className="shrink-0 rounded bg-emerald-100/80 px-1 py-0.2 text-[9px] font-medium text-emerald-800"

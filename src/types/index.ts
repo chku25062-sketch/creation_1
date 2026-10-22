@@ -59,6 +59,7 @@ export interface TaskItem {
   isAttachedTask?: boolean; // 本タスクに付随するタスクかどうか
   parentTitle?: string; // 付随先の本タスク名
   parentEndMinutesByDay?: Record<number, number>; // 各曜日における本タスクの終了時刻（分）
+  expiryWeeks?: number | 'none'; // 週タスク有効期限（週数）
 }
 
 export interface TheoreticalBlock {
@@ -79,6 +80,16 @@ export interface TheoreticalBlock {
   dayIndex?: number; // 0:月〜6:日
   sourceTableId?: string; // 参照元テーブルID
   sourceTableName?: string; // 参照元テーブル名
+  // Plan11: リアルタイム完了状態・動的再配置・代行タスク用プロパティ
+  isCompleted?: boolean; // 完了状態（過去タスクまたは早期完了）
+  isAutoCompleted?: boolean; // 過去時刻到達による自動完了か
+  isUserToggled?: boolean; // ユーザーによる手動トグル操作か
+  isEarlyCompleted?: boolean; // 予定より早くユーザーが完了トグルしたか
+  isSubstitute?: boolean; // 早期完了枠に代わりに割り振られた新タスクか
+  substitutedForTitle?: string; // 代替元のタスクタイトル
+  substitutedForBlockId?: string; // 代替元のブロックID
+  isRescheduled?: boolean; // 未完了のため現在時刻以降に再スケジュールされたタスクか
+  rescheduledFromDay?: number; // 再スケジュール元の曜日
 }
 
 export interface FreeSlot {
@@ -166,6 +177,7 @@ export interface TableAxisConfig {
   lunchAfterPeriod: number; // 2
   lunchMinutes: number; // 50
   customRowTimes?: Record<number, { startMinutes?: number; endMinutes?: number }>;
+  weeklyTaskExpiryWeeks?: number | 'none'; // 週タスクの有効期限（1: 1週間/当週・推奨, 2: 2週間, 'none': 期限なし）
 }
 
 export type TableColumnMode = 'weekday' | 'cycle';
@@ -190,6 +202,7 @@ export interface ImportedTableData {
   placementMode?: TablePlacementMode; // 配置方法: 固定枠として固定時間帯に配置 ('fixed') または タスクとして空き枠・指定区間に自動配置 ('auto')
   dailyRepeatCount?: number | 'auto'; // 1日の中の繰り返し回数 (未指定または 'auto' は指定なし)
   weeklyRepeatCount?: number | 'auto'; // 週に入れる日ブロックの量 (週あたりの日数・回数、未指定または 'auto' は指定なし)
+  weeklyTaskExpiryWeeks?: number | 'none'; // 週タスクの有効期限（1: 1週間・基本, 2: 2週間, 'none': 期限なし）
   colorIndex?: number; // 割り当てるカラーパレットの番号 (0〜11)
   customColor?: string; // 任意のカスタムカラーHEX (例: '#0284c7')
 }

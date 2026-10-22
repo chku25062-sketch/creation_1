@@ -641,6 +641,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             completed: false,
             sourceTableId: table.id,
             sourceTableName: table.name,
+            expiryWeeks: table.weeklyTaskExpiryWeeks ?? table.axisConfig?.weeklyTaskExpiryWeeks ?? 1,
           });
         }
       }
@@ -700,6 +701,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               completed: false,
               sourceTableId: table.id,
               sourceTableName: table.name,
+              expiryWeeks: table.weeklyTaskExpiryWeeks ?? table.axisConfig?.weeklyTaskExpiryWeeks ?? 1,
             });
           } else {
             attachedTaskMap.set(attachedKey, {
@@ -724,6 +726,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               completed: false,
               sourceTableId: table.id,
               sourceTableName: table.name,
+              expiryWeeks: table.weeklyTaskExpiryWeeks ?? table.axisConfig?.weeklyTaskExpiryWeeks ?? 1,
             });
           }
         } else {

@@ -1641,6 +1641,199 @@ describe('Theoretical Scheduler Engine', () => {
       // 独立した休憩ブロックは生成されないこと（余白として空く）
       expect(breakBlock).toBeUndefined();
     });
+
+    // =========================================================================
+    // Plan11: リアルタイム完了状態 ＆ 動的再配置 ＆ 代行タスク（重ね合わせ）テスト
+    // =========================================================================
+    describe('Plan11: リアルタイム完了状態判定 ＆ 動的再配置 ＆ 代替タスク配置', () => {
+      it('今の日付・時刻より前のタスクは週タスク以外は自動で完了状態（isCompleted: true, isAutoCompleted: true）となること', () => {
+        // 水曜（dayIndex: 2）の 12:00（720分）を現在時刻コンテキストとする
+        const realtimeContext = {
+          todayIndex: 2, // 水曜
+          currentMinutes: 720, // 12:00
+        };
+
+        const fixedSlots: FixedSlot[] = [
+          {
+            id: 'slot-mon-lecture',
+            title: '月曜講義',
+            category: 'lecture',
+            startMinutes: 540,
+            endMinutes: 630,
+            color: '#0284c7',
+            daysOfWeek: [0], // 月曜（過去）
+          },
+          {
+            id: 'slot-wed-morning',
+            title: '水曜午前講義',
+            category: 'lecture',
+            startMinutes: 540,
+            endMinutes: 630,
+            color: '#0284c7',
+            daysOfWeek: [2], // 水曜（12:00より前 = 過去）
+          },
+          {
+            id: 'slot-wed-afternoon',
+            title: '水曜午後講義',
+            category: 'lecture',
+            startMinutes: 780,
+            endMinutes: 870,
+            color: '#0284c7',
+            daysOfWeek: [2], // 水曜（12:00より後 = 未来）
+          },
+          {
+            id: 'slot-fri-lecture',
+            title: '金曜講義',
+            category: 'lecture',
+            startMinutes: 540,
+            endMinutes: 630,
+            color: '#0284c7',
+            daysOfWeek: [4], // 金曜（未来）
+          },
+        ];
+
+        // 日課タスク（毎日）
+        const dailyRoutineTask: TaskItem = {
+          id: 'task-daily-routine',
+          title: 'ストレッチ・身支度',
+          category: 'routine',
+          durationMinutes: 30,
+          period: 'day',
+          frequency: 'high',
+          priority: 'high',
+        };
+
+        const result = generateTheoreticalSchedule(fixedSlots, [dailyRoutineTask], realtimeContext);
+
+        // 1. 月曜（過去曜日）の固定枠は自動完了
+        const monLecture = result.dayBlocks[0].find((b) => b.title === '月曜講義');
+        expect(monLecture).toBeDefined();
+        expect(monLecture?.isCompleted).toBe(true);
+        expect(monLecture?.isAutoCompleted).toBe(true);
+
+        // 2. 水曜（今日）の12:00より前の固定枠は自動完了
+        const wedMorning = result.dayBlocks[2].find((b) => b.title === '水曜午前講義');
+        expect(wedMorning).toBeDefined();
+        expect(wedMorning?.isCompleted).toBe(true);
+        expect(wedMorning?.isAutoCompleted).toBe(true);
+
+        // 3. 水曜（今日）の12:00より後の固定枠は未完了
+        const wedAfternoon = result.dayBlocks[2].find((b) => b.title === '水曜午後講義');
+        expect(wedAfternoon).toBeDefined();
+        expect(wedAfternoon?.isCompleted).toBe(false);
+
+        // 4. 金曜（未来曜日）の固定枠は未完了
+        const friLecture = result.dayBlocks[4].find((b) => b.title === '金曜講義');
+        expect(friLecture).toBeDefined();
+        expect(friLecture?.isCompleted).toBe(false);
+      });
+
+      it('過去の週タスクは基本自動完了となるが、ユーザーが「まだ終わってないよ」とトグルした場合は未完了となり現在以降の空き枠へ再配置されること', () => {
+        // 水曜（dayIndex: 2）の 10:00（600分）を現在時刻とする
+        const mondayWeeklyTask: TaskItem = {
+          id: 'task-weekly-assignment-mon',
+          title: '月曜の数学レポート',
+          category: 'must',
+          durationMinutes: 60,
+          period: 'week',
+          frequencyCount: 1,
+          taskType: 'assignment',
+          targetDays: [0], // 月曜に配置
+          priority: 'high',
+        };
+
+        // 1. 手動オーバーライドなし（デフォルト）の場合: 過去の月曜なので自動完了
+        const defaultResult = generateTheoreticalSchedule([], [mondayWeeklyTask], {
+          todayIndex: 2, // 水曜
+          currentMinutes: 600,
+        });
+        const monBlock = defaultResult.dayBlocks[0].find((b) => b.title === '月曜の数学レポート');
+        expect(monBlock).toBeDefined();
+        expect(monBlock?.isCompleted).toBe(true);
+        expect(monBlock?.isAutoCompleted).toBe(true);
+
+        // 2. ユーザーが「まだ終わってないよ」と未完了トグルした場合
+        const uncompletedResult = generateTheoreticalSchedule([], [mondayWeeklyTask], {
+          todayIndex: 2, // 水曜
+          currentMinutes: 600,
+          uncompletedBlockIds: new Set([monBlock!.id]),
+        });
+
+        // 月曜の元ブロックは未完了（isCompleted: false）
+        const uncompletedMonBlock = uncompletedResult.dayBlocks[0].find((b) => b.title === '月曜の数学レポート');
+        expect(uncompletedMonBlock?.isCompleted).toBe(false);
+        expect(uncompletedMonBlock?.isUserToggled).toBe(true);
+
+        // そして、水曜（今日）以降の未来空き枠へ「再配置」ブロックが生成されていること
+        const futureBlocks = [
+          ...uncompletedResult.dayBlocks[2],
+          ...uncompletedResult.dayBlocks[3],
+          ...uncompletedResult.dayBlocks[4],
+          ...uncompletedResult.dayBlocks[5],
+          ...uncompletedResult.dayBlocks[6],
+        ];
+        const rescheduledBlock = futureBlocks.find((b) => b.isRescheduled && b.title === '月曜の数学レポート');
+        expect(rescheduledBlock).toBeDefined();
+        expect(rescheduledBlock?.rescheduledFromDay).toBe(0);
+        expect(rescheduledBlock?.dayIndex).toBeGreaterThanOrEqual(2);
+      });
+
+      it('未来の週タスクを「もう終わっている」と早期完了した場合、その枠に代わりのタスクが重ねて配置されること', () => {
+        // 木曜（dayIndex: 3）に予定されている週タスク
+        const thursdayTask: TaskItem = {
+          id: 'task-thursday-lecture-task',
+          title: '木曜の物理演習',
+          category: 'study',
+          durationMinutes: 60,
+          period: 'week',
+          frequencyCount: 1,
+          targetDays: [3], // 木曜
+          priority: 'medium',
+        };
+
+        // 未配置の週タスク（または自動敷き詰めタスク）
+        const unassignedTask: TaskItem = {
+          id: 'task-extra-certification',
+          title: '基本情報・資格対策',
+          category: 'study',
+          durationMinutes: 60,
+          period: 'week',
+          frequencyCount: 1,
+          priority: 'low',
+        };
+
+        // 通常配置を確認
+        const normalResult = generateTheoreticalSchedule([], [thursdayTask, unassignedTask], {
+          todayIndex: 1, // 火曜
+          currentMinutes: 600,
+        });
+
+        const thuBlock = normalResult.dayBlocks[3].find((b) => b.title === '木曜の物理演習');
+        expect(thuBlock).toBeDefined();
+        expect(thuBlock?.isCompleted).toBe(false);
+
+        // ユーザーが木曜のタスクを「早期完了」トグル
+        const earlyResult = generateTheoreticalSchedule([], [thursdayTask, unassignedTask], {
+          todayIndex: 1, // 火曜
+          currentMinutes: 600,
+          completedBlockIds: new Set([thuBlock!.id]),
+        });
+
+        const updatedThuBlocks = earlyResult.dayBlocks[3];
+        // 元のタスクは完了・前倒し完了フラグがつく
+        const origThuBlock = updatedThuBlocks.find((b) => b.id === thuBlock!.id);
+        expect(origThuBlock?.isCompleted).toBe(true);
+        expect(origThuBlock?.isEarlyCompleted).toBe(true);
+
+        // 同じ木曜の枠に「代わりのタスク（isSubstitute: true）」が重ねて生成されていること
+        const substituteBlock = updatedThuBlocks.find((b) => b.isSubstitute);
+        expect(substituteBlock).toBeDefined();
+        expect(substituteBlock?.title).toBe('基本情報・資格対策');
+        expect(substituteBlock?.startMinutes).toBe(origThuBlock?.startMinutes);
+        expect(substituteBlock?.endMinutes).toBe(origThuBlock?.endMinutes);
+        expect(substituteBlock?.substitutedForTitle).toBe('木曜の物理演習');
+      });
+    });
   });
 });
 

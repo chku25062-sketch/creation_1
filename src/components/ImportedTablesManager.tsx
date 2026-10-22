@@ -26,6 +26,7 @@ import {
   Upload,
   X,
   Palette,
+  Hourglass,
 } from 'lucide-react';
 import { TABLE_PALETTE_OPTIONS, getTableColorSchemeByIndex } from '@/components/Timeline24h';
 import {
@@ -1799,6 +1800,58 @@ export function ImportedTablesManager({
                       { label: '週7回 (毎日)', value: '7' },
                     ]}
                     title="週に入れる日ブロックの量（週何日行うか、手入力または候補選択）"
+                  />
+                </div>
+
+                {/* 週タスク有効期限（半入力式） */}
+                <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
+                  <Hourglass className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
+                    有効期限:
+                  </span>
+                  <SemiInput
+                    value={
+                      activeTable.weeklyTaskExpiryWeeks === 'none'
+                        ? '期限なし'
+                        : activeTable.weeklyTaskExpiryWeeks === 2
+                          ? '2週間'
+                          : '1週間'
+                    }
+                    onChange={(val) => {
+                      const trimmed = val.trim();
+                      if (
+                        trimmed === '期限なし' ||
+                        trimmed === 'なし' ||
+                        trimmed === 'none' ||
+                        trimmed === '無制限'
+                      ) {
+                        updateActiveTable((prev) => ({
+                          ...prev,
+                          weeklyTaskExpiryWeeks: 'none',
+                          axisConfig: { ...prev.axisConfig, weeklyTaskExpiryWeeks: 'none' },
+                        }));
+                      } else if (trimmed.includes('2')) {
+                        updateActiveTable((prev) => ({
+                          ...prev,
+                          weeklyTaskExpiryWeeks: 2,
+                          axisConfig: { ...prev.axisConfig, weeklyTaskExpiryWeeks: 2 },
+                        }));
+                      } else {
+                        updateActiveTable((prev) => ({
+                          ...prev,
+                          weeklyTaskExpiryWeeks: 1,
+                          axisConfig: { ...prev.axisConfig, weeklyTaskExpiryWeeks: 1 },
+                        }));
+                      }
+                    }}
+                    placeholder="1週間 (基本)"
+                    inputClassName="w-16 text-center"
+                    options={[
+                      { label: '🌟 1週間 (当週内・基本)', value: '1週間' },
+                      { label: '2週間', value: '2週間' },
+                      { label: '期限なし', value: '期限なし' },
+                    ]}
+                    title="週タスクの有効期限（手入力または候補選択）"
                   />
                 </div>
 
