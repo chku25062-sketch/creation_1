@@ -816,6 +816,7 @@ export function generateTheoreticalSchedule(
       if (!ctx.isAuto) {
         if (
           ctx.kind === 'assignment' ||
+          ctx.kind === 'attached_task' ||
           ctx.kind === 'weekly_flexible' ||
           ctx.kind === 'weekly_specific'
         ) {
@@ -972,7 +973,13 @@ export function generateTheoreticalSchedule(
     if (plan.isAuto || plan.isComplete) continue;
     if (plan.kind === 'attached_task') continue;
 
-    for (const d of plan.candidateDays) {
+    // 第一候補日(candidateDays)で収まらなかった場合、週の他の空いている曜日もフォールバック候補として試行
+    const fallbackDays =
+      plan.candidateDays.length < 7
+        ? [...plan.candidateDays, ...[0, 1, 2, 3, 4, 5, 6].filter((d) => !plan.candidateDays.includes(d))]
+        : plan.candidateDays;
+
+    for (const d of fallbackDays) {
       if (plan.placedCount >= plan.targetCountWeekly) {
         plan.isComplete = true;
         break;
@@ -1081,6 +1088,42 @@ export function generateTheoreticalSchedule(
         dayAvailableSlots[d] = dayAvailableSlots[d]
           .filter((s) => s.durationMinutes >= 15)
           .sort((a, b) => a.startMinutes - b.startMinutes);
+      }
+    }
+  }
+
+  // Phase 4: 最終救済フォールバック（未だ1回も配置されていないタスクの救済配置）
+  // ★ 必要以上に未配置タスクが残るのを防ぐため、空きのある全曜日の残余スロットに対して配置を試みる
+  const unplacedPlans = plans.filter((p) => p.placedCount === 0 && !p.isAuto);
+  for (const plan of unplacedPlans) {
+    if (plan.placedCount > 0) continue;
+
+    // 空き時間の長い曜日から順に試行
+    const daysByFree = [0, 1, 2, 3, 4, 5, 6].sort((a, b) => {
+      const freeA = dayAvailableSlots[a].reduce((s, slot) => s + slot.durationMinutes, 0);
+      const freeB = dayAvailableSlots[b].reduce((s, slot) => s + slot.durationMinutes, 0);
+      return freeB - freeA;
+    });
+
+    for (const d of daysByFree) {
+      if (plan.placedCount > 0) break;
+
+      const dummyCtx: DayTaskContext = {
+        plan,
+        task: plan.task,
+        kind: plan.kind,
+        isAuto: false,
+        targetCount: 1,
+        placedCountInDay: 0,
+        isSameDayAsParent: false,
+      };
+
+      const placed = tryPlaceContextInDay(d, dummyCtx, isWeeklyTaskItem(plan.task));
+      if (placed) {
+        dayAvailableSlots[d] = dayAvailableSlots[d]
+          .filter((s) => s.durationMinutes >= 15)
+          .sort((a, b) => a.startMinutes - b.startMinutes);
+        break;
       }
     }
   }
@@ -1240,16 +1283,30 @@ export function generateTheoreticalSchedule(
 
   // 5. 配置実績の集計
   const unassignedTasks: TaskItem[] = [];
+  const seenUnassignedTaskIds = new Set<string>();
   let assignedTaskCount = 0;
 
   for (const plan of plans) {
+    // 再配置プラン（isRescheduledPlan）のクローンは元タスク基準で重複防止
+    if (plan.isRescheduledPlan) {
+      if (plan.placedCount === 0 && plan.origTaskId) {
+        const orig = schedulableTasks.find((t) => t.id === plan.origTaskId);
+        if (orig && !seenUnassignedTaskIds.has(orig.id)) {
+          seenUnassignedTaskIds.add(orig.id);
+          unassignedTasks.push(orig);
+        }
+      }
+      continue;
+    }
+
     if (plan.placedCount > 0) {
       assignedTaskCount++;
-      if (!plan.isAuto && !plan.isComplete) {
+    } else {
+      // タイムライン上に1回も配置できなかったタスクのみが「未配置タスク」
+      if (!seenUnassignedTaskIds.has(plan.task.id)) {
+        seenUnassignedTaskIds.add(plan.task.id);
         unassignedTasks.push(plan.task);
       }
-    } else {
-      unassignedTasks.push(plan.task);
     }
   }
 

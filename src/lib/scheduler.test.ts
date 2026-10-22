@@ -2058,6 +2058,80 @@ describe('Theoretical Scheduler Engine', () => {
           expect(walkBlocks[0].isWeeklyTask).toBe(false);
         }
       });
+
+      it('付随タスクがスケジュール内に配置された場合、未配置タスク（unassignedTasks）に含まれず0件となること', () => {
+        const fixedSlot: FixedSlot = {
+          id: 'lecture-slot',
+          title: '大学講義 (2限・3限)',
+          category: 'lecture',
+          startMinutes: 640,
+          endMinutes: 880,
+          color: '#0284c7',
+          daysOfWeek: [0, 2], // 月・水
+        };
+
+        const attachedTask: TaskItem = {
+          id: 'task-attached-lecture',
+          title: '大学講義 (2限・3限) のタスク',
+          taskType: 'task',
+          isAttachedTask: true,
+          parentTitle: '大学講義 (2限・3限)',
+          parentEndMinutesByDay: { 0: 880, 2: 880 },
+          durationMinutes: 15,
+          frequency: 'custom',
+          frequencyCount: 1,
+          priority: 'high',
+          category: 'lecture',
+          period: 'week',
+          dailyCount: 1,
+          dailyRepeatMode: 'custom',
+        };
+
+        const result = generateTheoreticalSchedule([fixedSlot], [attachedTask]);
+
+        // 月曜に配置されていること
+        expect(result.dayBlocks[0].some((b) => b.title === '大学講義 (2限・3限) のタスク')).toBe(true);
+        // 配置されたため未配置タスクは0件であること
+        expect(result.unassignedTasks).toHaveLength(0);
+        expect(result.metrics.unassignedTaskMinutes).toBe(0);
+        expect(result.metrics.theoreticalScore).toBe(100);
+      });
+
+      it('特定曜日に枠がない週タスクでも別日にフォールバック救済配置され、必要以上に未配置タスクにならないこと', () => {
+        // 月曜(0)は終日固定予定で埋まっている
+        const fullMondaySlot: FixedSlot = {
+          id: 'busy-monday',
+          title: '終日拘束',
+          category: 'work',
+          startMinutes: 0,
+          endMinutes: 1440,
+          color: '#3b82f6',
+          daysOfWeek: [0],
+        };
+
+        // 月曜(0)を指定した週タスク (60分)
+        const mondayTask: TaskItem = {
+          id: 'task-mon-pref',
+          title: '月曜希望のレポート',
+          category: 'study',
+          priority: 'high',
+          durationMinutes: 60,
+          period: 'week',
+          frequencyCount: 1,
+          targetDays: [0], // 月曜希望
+        };
+
+        const result = generateTheoreticalSchedule([fullMondaySlot], [mondayTask]);
+
+        // 月曜には入らないが、空きのある火曜〜日曜のいずれかにフォールバック配置されること
+        const totalPlaced = Object.values(result.dayBlocks)
+          .flat()
+          .filter((b) => b.title === '月曜希望のレポート').length;
+        expect(totalPlaced).toBe(1);
+        // 未配置タスクにならないこと
+        expect(result.unassignedTasks).toHaveLength(0);
+        expect(result.metrics.theoreticalScore).toBe(100);
+      });
     });
   });
 });
