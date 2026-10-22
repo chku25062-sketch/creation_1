@@ -235,7 +235,7 @@ export const DEFAULT_TASK_PALETTE: TableColorScheme = {
 export const WEEKLY_TASK_PALETTE: TableColorScheme = {
   bg: '#f5f3ff', // Violet-50
   border: '#ddd6fe', // Violet-200
-  text: '#5b21b6', // Violet-800
+  text: '#4c1d95', // Violet-900 (視認性を最大限に高めた濃色バイオレット)
   strip: '#8b5cf6', // Violet-500
   badgeBg: '#ede9fe', // Violet-100
   badgeText: '#4c1d95', // Violet-900
@@ -826,7 +826,8 @@ export function Timeline24h({
                       const duration = block.endMinutes - block.startMinutes;
                       const rawHeight = (duration / 60) * hourHeight;
                       const height = Math.max(22, Math.round(rawHeight) - 2);
-                      const isShort = duration < 25 || height < 30;
+                      // ★ 文字消え防止: 高さが44px未満、または時間が35分未満の場合は短縮モード（タイトル行の表示を最優先）
+                      const isShort = duration < 35 || height < 44;
                       const isAssignment = block.taskType === 'assignment';
                       // ★ Plan11: 週タスクのみ完了トグル可能（日課タスクや固定枠にはトグルを表示しない）
                       const isWeeklyTask =
@@ -835,12 +836,12 @@ export function Timeline24h({
                         !block.isSubstitute &&
                         block.isWeeklyTask === true;
 
-                      // ★ 枠の高さ（所要時間）に応じて、タスク名を表示できる最大行数を動的に算出
+                      // ★ 枠の高さ（所要時間）に応じて、タスク名を表示できる最大行数を動的に算出（最低1行は必ず確保）
                       const hasTimeRow = !isShort;
-                      const availableHeightForTitle = hasTimeRow ? height - 20 : height - 8;
+                      const availableHeightForTitle = hasTimeRow ? Math.max(16, height - 22) : Math.max(16, height - 6);
                       const calculatedLines = Math.max(
                         1,
-                        Math.min(6, Math.floor(availableHeightForTitle / 15)),
+                        Math.min(6, Math.floor(availableHeightForTitle / 14)),
                       );
 
                       // ★ 完了状態の場合は洗練されたグレートーンパレットを適用
@@ -865,7 +866,7 @@ export function Timeline24h({
                         top: `${top}px`,
                         height: `${height}px`,
                         backgroundColor: isEarlyCompleted
-                          ? 'rgba(241, 245, 249, 0.74)' // 半透明グレートーン（奥の新タスクが透ける）
+                          ? 'rgba(241, 245, 249, 0.76)' // 半透明グレートーン（奥の新タスクが透ける）
                           : colorScheme.bg,
                         borderColor: isEarlyCompleted
                           ? 'rgba(203, 213, 225, 0.85)'
@@ -909,10 +910,19 @@ export function Timeline24h({
                           {/* Block Content */}
                           <div className="flex h-full flex-col justify-between p-1 pl-2.5 overflow-hidden">
                             <div className="flex items-start justify-between gap-1 min-w-0 overflow-hidden">
-                              <div className="min-w-0 flex-1 flex items-center gap-1">
+                              {/* タイトル領域: バッジとタイトルを同一インラインフローにまとめ、文字が横幅0pxに押し潰される現象を根本根絶 */}
+                              <div
+                                className="min-w-0 flex-1 leading-snug break-words [overflow-wrap:anywhere] text-xs sm:text-[13px] font-bold"
+                                style={{
+                                  display: '-webkit-box',
+                                  WebkitBoxOrient: 'vertical',
+                                  WebkitLineClamp: calculatedLines,
+                                  overflow: 'hidden',
+                                }}
+                              >
                                 {isSubstitute && (
                                   <span
-                                    className="shrink-0 inline-flex items-center gap-0.5 rounded bg-blue-600 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs animate-pulse"
+                                    className="inline-flex items-center gap-0.5 rounded bg-blue-600 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline animate-pulse"
                                     title={`元の予定「${block.substitutedForTitle}」の早期完了に伴い代行配置`}
                                   >
                                     <Sparkles className="h-2 w-2" />
@@ -921,7 +931,7 @@ export function Timeline24h({
                                 )}
                                 {isEarlyCompleted && (
                                   <span
-                                    className="shrink-0 inline-flex items-center gap-0.5 rounded bg-emerald-600/90 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs"
+                                    className="inline-flex items-center gap-0.5 rounded bg-emerald-600/90 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline"
                                     title="前倒し完了済み（奥に代行タスクが配置されています）"
                                   >
                                     <CheckCircle2 className="h-2 w-2" />
@@ -930,7 +940,7 @@ export function Timeline24h({
                                 )}
                                 {isWeeklyTask && !isSubstitute && !block.isCompleted && (
                                   <span
-                                    className="shrink-0 inline-flex items-center gap-0.5 rounded bg-violet-600 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs"
+                                    className="inline-flex items-center rounded bg-violet-600 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline"
                                     title="週タスク"
                                   >
                                     週
@@ -938,25 +948,15 @@ export function Timeline24h({
                                 )}
                                 {block.isRescheduled && (
                                   <span
-                                    className="shrink-0 inline-flex items-center gap-0.5 rounded bg-amber-500 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs"
+                                    className="inline-flex items-center gap-0.5 rounded bg-amber-500 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline"
                                     title="やり残しのため未来の空き枠へ自動再スケジュール"
                                   >
                                     <RotateCcw className="h-2 w-2" />
                                     再配置
                                   </span>
                                 )}
-                                <span
-                                  className={`min-w-0 flex-1 font-bold leading-snug break-words [overflow-wrap:anywhere] text-xs sm:text-[13px] ${
-                                    block.isCompleted ? 'line-through opacity-75' : ''
-                                  }`}
-                                  style={{
-                                    display: '-webkit-box',
-                                    WebkitBoxOrient: 'vertical',
-                                    WebkitLineClamp: calculatedLines,
-                                    overflow: 'hidden',
-                                  }}
-                                >
-                                  {block.title}
+                                <span className={block.isCompleted ? 'line-through opacity-80' : ''}>
+                                  {block.title || '（名称未設定）'}
                                 </span>
                               </div>
 
@@ -994,30 +994,11 @@ export function Timeline24h({
                                   </button>
                                 )}
 
-                                {block.sourceTableName && (
-                                  <span
-                                    className="inline-flex items-center gap-0.5 rounded px-1 py-0.2 text-[8px] font-bold shadow-2xs border"
-                                    style={{
-                                      backgroundColor: colorScheme.badgeBg,
-                                      color: colorScheme.badgeText,
-                                      borderColor: colorScheme.badgeBorder,
-                                    }}
-                                    title={`参照元: ${block.sourceTableName}`}
-                                  >
-                                    <FileSpreadsheet className="h-2 w-2" />
-                                    <span className="max-w-[70px] truncate hidden sm:inline">
-                                      {block.sourceTableName}
-                                    </span>
-                                  </span>
-                                )}
+                                {/* ★ ユーザー指示により参照元タグはオフ（色が教えてくれるため、余分な圧迫を排除してタイトル領域を全開に確保） */}
+
                                 {isAssignment && block.deadlineDay !== undefined && (
                                   <span className="rounded bg-rose-200/90 px-1 py-0.2 text-[9px] font-bold text-rose-900 shadow-2xs">
                                     期日:{WEEKDAY_NAMES[block.deadlineDay]}
-                                  </span>
-                                )}
-                                {!isShort && !isAssignment && (
-                                  <span className="hidden rounded bg-white/70 px-1 py-0.2 font-mono text-[9px] text-slate-600 xl:inline-block shadow-2xs">
-                                    {formatDuration(duration)}
                                   </span>
                                 )}
                               </div>
@@ -1034,6 +1015,11 @@ export function Timeline24h({
                                   {minutesToTimeString(block.startMinutes)} -{' '}
                                   {minutesToTimeString(block.endMinutes)}
                                 </span>
+                                {duration >= 30 && (
+                                  <span className="text-[9px] opacity-75">
+                                    ({formatDuration(duration)})
+                                  </span>
+                                )}
                                 {isSubstitute && block.substitutedForTitle && (
                                   <span
                                     className="shrink-0 rounded bg-blue-100/90 px-1 py-0.2 text-[8px] font-bold text-blue-900 truncate max-w-[110px]"
