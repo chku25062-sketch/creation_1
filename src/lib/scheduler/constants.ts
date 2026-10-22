@@ -50,9 +50,13 @@ export function getCategoryColor(category: string): string {
  * - 週タスク: 課題 (assignment)、付随タスク、period === 'week'、または頻度が low / medium / custom
  */
 export function isWeeklyTaskItem(task: TaskItem): boolean {
-  if (task.period === 'day' || task.frequency === 'high') return false;
+  // 1. 明示的な日課タスク（period === 'day'）は日タスク
+  if (task.period === 'day') return false;
+  // 2. 課題・付随タスク・週タスク（period === 'week'）は、たとえ週5日等の設定で frequency === 'high' であっても100% 週タスク！
   if (task.taskType === 'assignment' || task.isAttachedTask) return true;
   if (task.period === 'week') return true;
+  // 3. period未指定時のフォールバック
+  if (task.frequency === 'high') return false;
   if (
     task.frequency === 'low' ||
     task.frequency === 'medium' ||

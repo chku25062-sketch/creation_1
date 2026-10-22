@@ -102,8 +102,11 @@ export function generatePlacementPlans(
       };
     }
 
-    // ③ 日課タスク（日タスク: period === 'day' または frequency === 'high'）
-    const isDaily = task.period === 'day' || task.frequency === 'high';
+    // ③ 日課タスク（日タスク: period === 'day'、または period未指定かつ frequency === 'high'）
+    // （※ period === 'week' や課題・付随タスクは絶対に日課タスクにしない！）
+    const isDaily =
+      task.period === 'day' ||
+      (!task.period && task.frequency === 'high' && !isWeeklyTaskItem(task));
     if (isDaily) {
       let candidateDays: number[] = [0, 1, 2, 3, 4, 5, 6];
 

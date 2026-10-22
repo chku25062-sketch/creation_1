@@ -2699,6 +2699,140 @@ describe('Theoretical Scheduler Engine', () => {
         // 午前中の空き枠（09:00〜11:00）ではなく、13:00（780分）以降に配置されていること！
         expect(thuBlock!.startMinutes).toBeGreaterThanOrEqual(780);
       });
+
+      it('空き枠がちょうど60分しかない環境で、休憩15分付きの週タスク（60分）が日タスクに横取りされず最優先で配置されること', () => {
+        // 月曜:
+        // 00:00〜09:00 睡眠
+        // 09:00〜10:00 空き枠（ちょうど60分間！）
+        // 10:00〜24:00 固定予定
+        const fixedSlots: FixedSlot[] = [
+          {
+            id: 'sleep-mon',
+            title: '睡眠',
+            category: 'sleep',
+            startMinutes: 0,
+            endMinutes: 540, // 09:00
+            color: '#6366f1',
+            daysOfWeek: [0],
+          },
+          {
+            id: 'busy-mon',
+            title: '固定講義・バイト',
+            category: 'lecture',
+            startMinutes: 600, // 10:00
+            endMinutes: 1440,
+            color: '#0284c7',
+            daysOfWeek: [0],
+          },
+        ];
+
+        // 週タスク: 所要時間60分 + 休憩15分（本来計75分だが、空き枠は60分しかない）
+        const weeklyTask: TaskItem = {
+          id: 'task-weekly-60',
+          title: '週レポート作成',
+          category: 'must',
+          priority: 'high',
+          durationMinutes: 60,
+          breakMinutes: 15, // 休憩15分
+          period: 'week',
+          targetDays: [0],
+          completed: false,
+        };
+
+        // 日タスク: 30分（もし週タスクが弾かれたら入り込んでしまうタスク）
+        const dailyTask: TaskItem = {
+          id: 'task-daily-30',
+          title: '日課筋トレ',
+          category: 'want',
+          priority: 'medium',
+          durationMinutes: 30,
+          period: 'day',
+          completed: false,
+        };
+
+        const result = generateTheoreticalSchedule(fixedSlots, [weeklyTask, dailyTask], {
+          todayIndex: 0,
+          currentMinutes: 0,
+        });
+
+        const monBlocks = result.dayBlocks[0];
+
+        // 1. 週タスクが休憩時間のせいで弾かれることなく、60分枠（09:00〜10:00 = 540〜600分）に最優先で配置されていること！
+        const placedWeekly = monBlocks.find((b) => b.title === '週レポート作成');
+        expect(placedWeekly).toBeDefined();
+        expect(placedWeekly!.startMinutes).toBe(540);
+        expect(placedWeekly!.endMinutes).toBe(600);
+        expect(placedWeekly!.isWeeklyTask).toBe(true);
+
+        // 2. 日タスクはこの60分枠を横取りできていないこと（枠が使い切られたため、月曜には配置されない）
+        const placedDaily = monBlocks.find((b) => b.title === '日課筋トレ');
+        expect(placedDaily).toBeUndefined();
+      });
+
+      it('週5日設定（frequency: high）の週タスクが日タスク化せず、週ボックスとして最優先で配置されること', () => {
+        // 月曜〜金曜に1日60分の空き枠
+        const fixedSlots: FixedSlot[] = [
+          {
+            id: 'sleep-all',
+            title: '睡眠',
+            category: 'sleep',
+            startMinutes: 0,
+            endMinutes: 540, // 09:00
+            color: '#6366f1',
+            daysOfWeek: [0, 1, 2, 3, 4],
+          },
+          {
+            id: 'busy-all',
+            title: '終日固定枠',
+            category: 'work',
+            startMinutes: 600, // 10:00
+            endMinutes: 1440,
+            color: '#0284c7',
+            daysOfWeek: [0, 1, 2, 3, 4],
+          },
+        ];
+
+        // 月〜金の5日を指定した週タスク（UIによって frequency = 'high' が付与された状態）
+        const highFreqWeeklyTask: TaskItem = {
+          id: 'task-high-freq-weekly',
+          title: '平日毎日やる集中英会話',
+          category: 'study',
+          priority: 'high',
+          durationMinutes: 60,
+          period: 'week', // 明示的に週タスク
+          frequency: 'high', // 週5日のため high が付いている
+          frequencyCount: 5,
+          targetDays: [0, 1, 2, 3, 4],
+          completed: false,
+        };
+
+        // 自動敷き詰め日タスク
+        const dailyAutoTask: TaskItem = {
+          id: 'task-auto-daily',
+          title: '自動読書',
+          category: 'want',
+          priority: 'low',
+          durationMinutes: 30,
+          period: 'day',
+          dailyRepeatMode: 'auto',
+          completed: false,
+        };
+
+        const result = generateTheoreticalSchedule(fixedSlots, [highFreqWeeklyTask, dailyAutoTask], {
+          todayIndex: 0,
+          currentMinutes: 0,
+        });
+
+        // 月曜〜金曜の全日で、週タスクが日タスクに枠を奪われることなく確実に配置されていること
+        for (let d = 0; d < 5; d++) {
+          const blocks = result.dayBlocks[d];
+          const placedWeekly = blocks.find((b) => b.title === '平日毎日やる集中英会話');
+          expect(placedWeekly).toBeDefined();
+          expect(placedWeekly!.isWeeklyTask).toBe(true);
+          expect(placedWeekly!.startMinutes).toBe(540);
+          expect(placedWeekly!.endMinutes).toBe(600);
+        }
+      });
     });
   });
 });

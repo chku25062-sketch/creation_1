@@ -126,7 +126,9 @@ export function createPlaceContextHelper(ctx: SchedulingExecutionContext) {
 
       const maxAllowedEnd = Math.min(slot.endMinutes, effectiveLatestEnd);
       const availableDuration = maxAllowedEnd - effectiveSlotStart;
-      if (availableDuration < minAcceptable + breakMin) continue;
+      // ★ タスク本体の所要時間（minAcceptable / requiredMin）が収まっていれば配置を許可！
+      // 休憩が入らないからといってタスク本体の配置を絶対に諦めない！
+      if (availableDuration < minAcceptable) continue;
 
       // 自動敷き詰めタスク以外は、勝手にタスク時間を縮小せず、本来の設定所要時間（requiredMin）を厳密に維持！
       const effectiveDuration = taskCtx.isAuto
@@ -136,8 +138,10 @@ export function createPlaceContextHelper(ctx: SchedulingExecutionContext) {
           )
         : requiredMin;
 
-      const totalNeeded = effectiveDuration + breakMin;
-      if (availableDuration < totalNeeded) continue;
+      if (availableDuration < effectiveDuration) continue;
+
+      // 休憩時間はスロット内の残り時間に合わせて最大 breakMin を確保（余白がなければ0分〜）
+      const effectiveBreak = Math.max(0, Math.min(breakMin, availableDuration - effectiveDuration));
 
       const taskStart = effectiveSlotStart;
       const taskEnd = taskStart + effectiveDuration;
@@ -153,7 +157,7 @@ export function createPlaceContextHelper(ctx: SchedulingExecutionContext) {
         endMinutes: taskEnd,
         isFixed: false,
         isBreak: false,
-        breakMinutes: breakMin > 0 ? breakMin : undefined,
+        breakMinutes: effectiveBreak > 0 ? effectiveBreak : undefined,
         color: getCategoryColor(taskCtx.task.category),
         taskId: taskCtx.plan.origTaskId || taskCtx.task.id,
         priority: taskCtx.task.priority,
@@ -168,8 +172,8 @@ export function createPlaceContextHelper(ctx: SchedulingExecutionContext) {
       });
 
       // スロット消費 & 分割
+      const consumedEnd = taskEnd + effectiveBreak;
       if (effectiveSlotStart > slot.startMinutes) {
-        const consumedEnd = taskEnd + breakMin;
         const remainingAfter = slot.endMinutes - consumedEnd;
         slot.endMinutes = effectiveSlotStart;
         slot.durationMinutes = slot.endMinutes - slot.startMinutes;
@@ -182,8 +186,8 @@ export function createPlaceContextHelper(ctx: SchedulingExecutionContext) {
           slots.sort((a, b) => a.startMinutes - b.startMinutes);
         }
       } else {
-        slot.startMinutes = taskEnd + breakMin;
-        slot.durationMinutes = slot.endMinutes - (taskEnd + breakMin);
+        slot.startMinutes = consumedEnd;
+        slot.durationMinutes = slot.endMinutes - consumedEnd;
       }
 
       taskCtx.placedCountInDay++;
@@ -306,9 +310,9 @@ export class PlacementPipeline {
  */
 export function createDefaultPlacementPipeline(): PlacementPipeline {
   return new PlacementPipeline([
-    new WeeklyPlacementPhase(),
-    new DailyFairPlacementPhase(),
-    new AttachedFallbackPhase(),
-    new RescuePlacementPhase(),
+    new WeeklyPlacementPhase(),     // 1. 週タスクの直接優先配置＆柔軟配置（同日付随、条件合致週タスク、繰り越し、柔軟週タスク）
+    new DailyFairPlacementPhase(),  // 2. 日タスクの公平巡回＆自動敷き詰め（残りの空き枠のみ）
+    new AttachedFallbackPhase(),   // 3. 当日に入り切らなかった付随タスクの別日フォールバック
+    new RescuePlacementPhase(),    // 4. 最終救済フェーズ
   ]);
 }

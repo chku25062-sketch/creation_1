@@ -191,8 +191,14 @@ export class WeeklyPlacementPhase implements PlacementPhase {
         plan.kind === 'weekly_specific' || (plan.task.cycleDays && plan.task.cycleDays.length > 0);
       const allDays = isCycleSpecific ? [...plan.candidateDays] : [0, 1, 2, 3, 4, 5, 6];
 
-      // 締め切り日（deadlineDay）の考慮（課題タスク等）
+      // 指定日時以降オプションの考慮
+      const scheduleAfterDay =
+        plan.task.scheduleAfterDay ??
+        (plan.task.scheduleAfterEnabled ? plan.task.startDay : undefined);
+
+      // 締め切り日（deadlineDay）および指定日時以降（scheduleAfterDay）の考慮
       const eligibleDays = allDays.filter((d) => {
+        if (scheduleAfterDay !== undefined && d < scheduleAfterDay) return false;
         if (plan.task.deadlineDay !== undefined) {
           const startD = plan.task.startDay !== undefined ? plan.task.startDay : 0;
           if (startD <= plan.task.deadlineDay) {
@@ -204,15 +210,16 @@ export class WeeklyPlacementPhase implements PlacementPhase {
         return true;
       });
 
+      // タスク本体の所要時間（休憩抜きで枠に収まるかを判定）
       const neededDuration =
-        (plan.task.durationMinutes ||
-          (plan.task.durationSize === 'small'
-            ? 25
-            : plan.task.durationSize === 'medium'
-              ? 45
-              : plan.task.durationSize === 'large'
-                ? 120
-                : 30)) + (plan.task.breakMinutes || 0);
+        plan.task.durationMinutes ||
+        (plan.task.durationSize === 'small'
+          ? 25
+          : plan.task.durationSize === 'medium'
+            ? 45
+            : plan.task.durationSize === 'large'
+              ? 120
+              : 30);
 
       // 探索曜日のソート：
       // ① スロットが設定時間を満たす他曜日（空き時間順）

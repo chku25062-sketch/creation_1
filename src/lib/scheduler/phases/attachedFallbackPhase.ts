@@ -1,9 +1,9 @@
 import { PlacementPhase, SchedulingExecutionContext, DayTaskContext } from '../types';
 
 /**
- * Phase 3: 付随タスクの別日フォールバック
+ * Phase 2 (週タスク完了フェーズ): 付随タスクの別日フォールバック
  * 親の日に配置できず、別日に回された付随タスクの配置。
- * 別日ではその曜日の日課タスク・通常タスクが優先された後の空き枠に配置する。
+ * 日課タスク（日タスク）が動く前に、週タスクとしての枠を別日の空き枠から最優先で確保する。
  */
 export class AttachedFallbackPhase implements PlacementPhase {
   readonly name = 'AttachedFallbackPhase';
