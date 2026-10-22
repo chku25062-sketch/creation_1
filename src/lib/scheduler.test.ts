@@ -2464,6 +2464,74 @@ describe('Theoretical Scheduler Engine', () => {
         const initialBlockC = initialBlocks.find((b) => b.title === 'タスクC')!;
         expect(movedTaskC!.startMinutes).toBeLessThanOrEqual(initialBlockC.startMinutes);
       });
+
+      it('週タスクが日ブロックから独立し、各曜日の固定枠配置直後の最もクリーンな空き枠に対して条件を満たす週タスクが直接優先配置されること', () => {
+        // 水曜日（2）に固定枠（09:00〜10:30）がある
+        const wedFixedSlot: FixedSlot = {
+          id: 'wed-lecture',
+          title: '水曜専門講義',
+          category: 'lecture',
+          startMinutes: 9 * 60, // 09:00
+          endMinutes: 10 * 60 + 30, // 10:30
+          daysOfWeek: [2],
+          color: '#0284c7',
+        };
+
+        // 水曜日の条件を満たす週タスク（水曜指定のレポート、所要時間90分）
+        const wedWeeklyTask: TaskItem = {
+          id: 'wed-report-task',
+          title: '水曜レポート作成',
+          category: 'must',
+          durationMinutes: 90,
+          period: 'week',
+          targetDays: [2],
+          priority: 'high',
+        };
+
+        // 日ブロック用タスク（自動敷き詰めの高優先度日課タスク）
+        const highPriorityDailyTask: TaskItem = {
+          id: 'daily-routine-auto',
+          title: 'フリー日課タスク（自動敷き詰め）',
+          category: 'routine',
+          durationMinutes: 45,
+          period: 'day',
+          dailyRepeatMode: 'auto',
+          priority: 'high',
+        };
+
+        const result = generateTheoreticalSchedule([wedFixedSlot], [wedWeeklyTask, highPriorityDailyTask], {
+          todayIndex: 0,
+          currentMinutes: 0,
+        });
+
+        const wedBlocks = result.dayBlocks[2];
+
+        // 1. 固定枠が配置されていること
+        const fixedBlock = wedBlocks.find((b) => b.title === '水曜専門講義');
+        expect(fixedBlock).toBeDefined();
+
+        // 2. 日ブロック（日課タスク）より前に、週タスクが独立して固定枠直後の空き枠（00:00〜09:00 または 10:30〜）に最優先で配置されていること
+        const weeklyBlock = wedBlocks.find((b) => b.title === '水曜レポート作成');
+        expect(weeklyBlock).toBeDefined();
+        // 90分を満たしていること
+        expect(weeklyBlock!.endMinutes - weeklyBlock!.startMinutes).toBe(90);
+        expect(weeklyBlock!.isWeeklyTask).toBe(true);
+
+        // 3. 週タスクが配置された残りの枠にのみ、日ブロック（自動敷き詰めタスク）が配置されていること
+        const dailyBlocks = wedBlocks.filter((b) => b.title === 'フリー日課タスク（自動敷き詰め）');
+        expect(dailyBlocks.length).toBeGreaterThan(0);
+        for (const db of dailyBlocks) {
+          expect(db.isWeeklyTask).toBe(false);
+          // 週タスクと重なっていないこと
+          const overlapsWeekly =
+            Math.max(db.startMinutes, weeklyBlock!.startMinutes) <
+            Math.min(db.endMinutes, weeklyBlock!.endMinutes);
+          expect(overlapsWeekly).toBe(false);
+        }
+
+        // 未配置タスクがゼロであること
+        expect(result.unassignedTasks).toHaveLength(0);
+      });
     });
   });
 });
