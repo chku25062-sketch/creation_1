@@ -65,7 +65,7 @@ export const INITIAL_TASKS: TaskItem[] = [
     parentTitle: '大学講義 (2限・3限)',
     parentEndMinutesByDay: { 0: 880, 2: 880 }, // 14:40
     durationMinutes: 15,
-    durationSize: 'small',
+    durationSize: undefined,
     frequency: 'custom',
     frequencyCount: 1,
     priority: 'high',
@@ -158,8 +158,8 @@ export function loadLocalData(): { fixedSlots: FixedSlot[]; tasks: TaskItem[] } 
             : `${t.parentTitle || '講義'} のタスク`,
           taskType: 'task' as const,
           isAttachedTask: true,
-          durationMinutes: t.durationMinutes > 30 ? 15 : t.durationMinutes || 15,
-          durationSize: 'small' as const,
+          durationMinutes: t.durationMinutes && t.durationMinutes > 0 ? t.durationMinutes : 15,
+          durationSize: undefined,
           deadlineDay: undefined,
           startDay: undefined,
         };

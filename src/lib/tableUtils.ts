@@ -684,7 +684,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               id: attachedTaskId,
               title: attachedTaskTitle,
               category: tableCategory, // 表の名前でカテゴリを代用
-              durationSize: attachedDuration <= 25 ? 'small' : 'medium',
+              durationSize: undefined, // 明示的な分数（durationMinutes）を尊重
               durationMinutes: attachedDuration,
               frequency: 'custom',
               frequencyCount: 1, // 週1回
@@ -706,7 +706,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               id: attachedTaskId,
               title: attachedTaskTitle,
               category: tableCategory, // 表の名前でカテゴリを代用
-              durationSize: 'small',
+              durationSize: undefined, // 明示的な分数（durationMinutes）を尊重
               durationMinutes: attachedDuration,
               frequency: 'custom',
               frequencyCount: 1, // 週1回
@@ -729,6 +729,8 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
         } else {
           // 既存付随タスクの日程情報をマージ（週1回・日の繰り返しなしは維持）
           const existingAttached = attachedTaskMap.get(attachedKey)!;
+          existingAttached.durationMinutes = attachedDuration;
+          existingAttached.durationSize = undefined;
           if (classification === 'fixed_slot') {
             if (isWeekday && colInfo.dayIndex !== undefined) {
               const curDays = existingAttached.targetDays || [];

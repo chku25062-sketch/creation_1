@@ -56,6 +56,15 @@ export function getCategoryColor(category: string): string {
  * 所要時間（小・中・大）の自動調整: 空きスロットのサイズに合わせていい感じにフィット
  */
 export function getAdjustedDuration(task: TaskItem, availableSlotDuration: number): number {
+  // ★ 付随タスク（isAttachedTask）または具体的な所要時間（durationMinutes）が指定されているタスクは、
+  //    表データやユーザー設定で指定された分数を厳密に使用（25分に固定・上書きしない）
+  if (task.isAttachedTask && task.durationMinutes && task.durationMinutes > 0) {
+    return Math.min(task.durationMinutes, availableSlotDuration);
+  }
+  if (task.durationMinutes && task.durationMinutes > 0 && !task.durationSize) {
+    return Math.min(task.durationMinutes, availableSlotDuration);
+  }
+
   if (task.durationSize === 'small') {
     // 小: 15〜30分未満。空き枠が15〜30分なら空き枠全体を使い、それ以上なら25分
     if (availableSlotDuration >= 15 && availableSlotDuration < 30) {
@@ -651,11 +660,13 @@ export function generateTheoreticalSchedule(
           if (effectiveSlotStart >= taskLatestEndTime) continue;
 
           const requiredMin =
-            ctx.task.durationSize === 'small'
-              ? 15
-              : ctx.task.durationSize === 'medium'
-                ? 30
-                : ctx.task.durationMinutes || 30;
+            ctx.task.isAttachedTask && ctx.task.durationMinutes
+              ? ctx.task.durationMinutes
+              : ctx.task.durationSize === 'small'
+                ? 15
+                : ctx.task.durationSize === 'medium'
+                  ? 30
+                  : ctx.task.durationMinutes || 30;
 
           const breakMin =
             ctx.task.breakMinutes && ctx.task.breakMinutes > 0 ? ctx.task.breakMinutes : 0;

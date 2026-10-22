@@ -636,6 +636,21 @@ describe('tableUtils', () => {
       expect(attached).toBeDefined();
       expect(attached!.title).toBe('胸トレ のタスク');
     });
+
+    it('表データで設定された付随タスクの分数（例: 45分）が正確に反映され、durationSizeが未定義であること', () => {
+      const table = createBaseTable('09:00');
+      table.attachedTaskConfig = {
+        enabled: true,
+        titleTemplate: '{title} のタスク',
+        durationMinutes: 45,
+      };
+
+      const res = generateScheduleItemsForTable(table);
+      const attached = res.tasks.find((t) => t.isAttachedTask);
+      expect(attached).toBeDefined();
+      expect(attached!.durationMinutes).toBe(45);
+      expect(attached!.durationSize).toBeUndefined();
+    });
   });
 
   describe('配置方式（placementMode: fixed / auto）による分類と指定区間タスク生成', () => {

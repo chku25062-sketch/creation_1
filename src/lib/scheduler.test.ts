@@ -789,7 +789,47 @@ describe('Theoretical Scheduler Engine', () => {
       const placed = monBlocks.find((b) => b.title === 'ゼミ のタスク');
       expect(placed).toBeDefined();
       expect(placed!.startMinutes).toBe(1350); // 22:30〜
-      expect(placed!.endMinutes).toBe(1365); // 22:45
+      expect(placed!.endMinutes).toBe(1365); // 22:45 (15分枠)
+    });
+
+    it('付随タスクの所要時間が表データで指定された分数（例: 45分や10分）通りに配置され、25分に固定されないこと', () => {
+      // 09:00〜10:30 (540〜630分) 本タスク
+      // 10:30〜12:00 (630〜720分: 90分間の空き枠)
+      const fixedSlots: FixedSlot[] = [
+        {
+          id: 'slot-lecture',
+          title: 'プログラミング演習',
+          category: 'lecture',
+          startMinutes: 540,
+          endMinutes: 630,
+          color: '#0284c7',
+          daysOfWeek: [0],
+        },
+      ];
+
+      // 表データで 45分 と指定された付随タスク
+      const attachedTask45: TaskItem = {
+        id: 'task-attached-45',
+        title: 'プログラミング演習 のタスク',
+        durationMinutes: 45,
+        priority: 'high',
+        category: 'lecture',
+        period: 'week',
+        frequencyCount: 1,
+        dailyCount: 1,
+        isAttachedTask: true,
+        parentTitle: 'プログラミング演習',
+        parentEndMinutesByDay: { 0: 630 },
+        targetDays: [0],
+      };
+
+      const result = generateTheoreticalSchedule(fixedSlots, [attachedTask45]);
+      const monBlocks = result.dayBlocks[0];
+      const placed = monBlocks.find((b) => b.title === 'プログラミング演習 のタスク');
+      expect(placed).toBeDefined();
+      expect(placed!.startMinutes).toBe(630);
+      // 25分ではなく、指定通りの 45分 (630〜675分) になること！
+      expect(placed!.endMinutes).toBe(675);
     });
   });
 
