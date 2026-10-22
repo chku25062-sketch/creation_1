@@ -53,35 +53,45 @@ export function createPlaceContextHelper(ctx: SchedulingExecutionContext) {
         taskEarliestStartTime = Math.max(taskEarliestStartTime, ctx.currMinutes);
       }
 
-      const effectiveSlotStart = Math.max(slot.startMinutes, taskEarliestStartTime);
-      if (effectiveSlotStart >= taskLatestEndTime) continue;
+      // 週タスクで時間割表等の時間制限（taskLatestEndTime）がある場合、昼間に収まらなければ夜間も含めて探索可能にする
+      let effectiveLatestEnd = taskLatestEndTime;
+      if (isWeekly && effectiveLatestEnd < 1440 && slot.startMinutes >= effectiveLatestEnd) {
+        effectiveLatestEnd = 1440;
+      }
 
+      const effectiveSlotStart = Math.max(slot.startMinutes, taskEarliestStartTime);
+      if (effectiveSlotStart >= effectiveLatestEnd) continue;
+
+      // タスク本来の設定所要時間（durationMinutes 最優先、未指定なら durationSize に応じた標準時間）
       const requiredMin =
-        taskCtx.task.isAttachedTask && taskCtx.task.durationMinutes
+        taskCtx.task.durationMinutes && taskCtx.task.durationMinutes > 0
           ? taskCtx.task.durationMinutes
           : taskCtx.task.durationSize === 'small'
-            ? 15
+            ? 25
             : taskCtx.task.durationSize === 'medium'
-              ? 30
-              : taskCtx.task.durationMinutes || 30;
+              ? 45
+              : taskCtx.task.durationSize === 'large'
+                ? 120
+                : 30;
 
       const breakMin =
         taskCtx.task.breakMinutes && taskCtx.task.breakMinutes > 0 ? taskCtx.task.breakMinutes : 0;
-      // 最低15分の空き枠があれば、タスクを枠サイズに合わせて柔軟にフィット配置（枠不足を防止）
-      const minAcceptable = Math.min(requiredMin, 15);
 
-      const maxAllowedEnd = Math.min(slot.endMinutes, taskLatestEndTime);
+      // 自動敷き詰めタスク（isAuto）のみ、空き枠に合わせて柔軟に可変配置（最低15分〜）を許可。
+      // 設定された時間を持つ通常タスク・週タスクは、設定時間（requiredMin）を満たす空き枠にのみ配置する！
+      const minAcceptable = taskCtx.isAuto ? Math.min(requiredMin, 15) : requiredMin;
+
+      const maxAllowedEnd = Math.min(slot.endMinutes, effectiveLatestEnd);
       const availableDuration = maxAllowedEnd - effectiveSlotStart;
       if (availableDuration < minAcceptable + breakMin) continue;
 
+      // 自動敷き詰めタスク以外は、勝手にタスク時間を縮小せず、本来の設定所要時間（requiredMin）を厳密に維持！
       const effectiveDuration = taskCtx.isAuto
         ? Math.min(
-            taskCtx.task.durationMinutes && taskCtx.task.durationMinutes > 0
-              ? taskCtx.task.durationMinutes
-              : 60,
+            requiredMin,
             Math.max(15, availableDuration - breakMin),
           )
-        : getAdjustedDuration(taskCtx.task, availableDuration - breakMin);
+        : requiredMin;
 
       const totalNeeded = effectiveDuration + breakMin;
       if (availableDuration < totalNeeded) continue;

@@ -2261,6 +2261,58 @@ describe('Theoretical Scheduler Engine', () => {
         expect(result.unassignedTasks).toHaveLength(0);
         expect(result.metrics.theoreticalScore).toBe(100);
       });
+
+      it('週タスクに設定された所要時間（例: 90分）がある場合、それより短い空き枠（例: 30分）には短縮配置されず、90分を満たす枠に設定時間通りの長さで配置されること', () => {
+        // 月曜（0）に30分の小さな空き枠しかない固定スロット群
+        // 00:00〜09:00（固定）、09:30〜24:00（固定） ➔ 空き枠は 09:00〜09:30 (30分のみ)
+        const monSlot1: FixedSlot = {
+          id: 'mon-fixed-1',
+          title: '早朝固定',
+          category: 'sleep',
+          startMinutes: 0,
+          endMinutes: 540, // 09:00
+          daysOfWeek: [0],
+          color: '#6366f1',
+        };
+        const monSlot2: FixedSlot = {
+          id: 'mon-fixed-2',
+          title: '日中〜夜間固定',
+          category: 'work',
+          startMinutes: 570, // 09:30
+          endMinutes: 1440,
+          daysOfWeek: [0],
+          color: '#3b82f6',
+        };
+
+        // 90分の週タスク（月曜を第一希望 targetDays: [0] とする）
+        const task90m: TaskItem = {
+          id: 'task-long-90m',
+          title: 'じっくり取り組むレポート課題',
+          category: 'must',
+          durationMinutes: 90, // ★ 90分設定！
+          period: 'week',
+          frequencyCount: 1,
+          targetDays: [0], // 月曜希望
+          priority: 'high',
+        };
+
+        const result = generateTheoreticalSchedule([monSlot1, monSlot2], [task90m]);
+
+        const allBlocks = Object.values(result.dayBlocks)
+          .flat()
+          .filter((b) => b.title === 'じっくり取り組むレポート課題');
+
+        expect(allBlocks).toHaveLength(1);
+        const placedBlock = allBlocks[0];
+
+        // 月曜（30分枠しかない）には無理やり短縮されて入らず、90分が確保できる火曜〜日曜に配置されること
+        expect(placedBlock.dayIndex).not.toBe(0);
+        // ブロックの長さが設定時間（90分）を正確に満たしていること！
+        const blockDuration = placedBlock.endMinutes - placedBlock.startMinutes;
+        expect(blockDuration).toBe(90);
+        // 枠不足にならず未配置が0件であること
+        expect(result.unassignedTasks).toHaveLength(0);
+      });
     });
   });
 });
