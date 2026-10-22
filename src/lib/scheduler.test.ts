@@ -831,6 +831,107 @@ describe('Theoretical Scheduler Engine', () => {
       // 25分ではなく、指定通りの 45分 (630〜675分) になること！
       expect(placed!.endMinutes).toBe(675);
     });
+
+    it('木曜・金曜の授業への付随タスクが当日に十分な空き時間がある場合、月火水に奪われず確実に当日に配置されること', () => {
+      // 月・火・水・木・金すべてに 09:00〜18:00 (540〜1080分) の空き時間がある状態
+      // 木曜（3）に 13:00〜14:30 (780〜870分) の木曜講義
+      // 金曜（4）に 10:40〜12:10 (640〜730分) の金曜講義
+      const fixedSlots: FixedSlot[] = [
+        // 睡眠（全曜日 00:00〜08:00 = 0〜480分、23:00〜24:00 = 1380〜1440分）
+        {
+          id: 'slot-sleep',
+          title: '睡眠',
+          category: 'sleep',
+          startMinutes: 0,
+          endMinutes: 480,
+          color: '#6366f1',
+          daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+        },
+        {
+          id: 'slot-night',
+          title: '就寝準備',
+          category: 'sleep',
+          startMinutes: 1380,
+          endMinutes: 1440,
+          color: '#6366f1',
+          daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+        },
+        // 木曜講義
+        {
+          id: 'slot-thu-lecture',
+          title: '木曜ゼミ (401教室)',
+          category: 'lecture',
+          startMinutes: 780,
+          endMinutes: 870,
+          color: '#0284c7',
+          daysOfWeek: [3],
+        },
+        // 金曜講義
+        {
+          id: 'slot-fri-lecture',
+          title: '金曜実験 (情報棟)',
+          category: 'lecture',
+          startMinutes: 640,
+          endMinutes: 730,
+          color: '#0284c7',
+          daysOfWeek: [4],
+        },
+      ];
+
+      // 木曜ゼミの付随タスク（15分）
+      const thuAttached: TaskItem = {
+        id: 'task-attached-thu',
+        title: '木曜ゼミ (401教室) のタスク',
+        durationMinutes: 15,
+        priority: 'high',
+        category: 'lecture',
+        period: 'week',
+        frequencyCount: 1,
+        dailyCount: 1,
+        isAttachedTask: true,
+        parentTitle: '木曜ゼミ (401教室)',
+        parentEndMinutesByDay: { 3: 870 },
+        targetDays: [3],
+      };
+
+      // 金曜実験の付随タスク（30分）
+      const friAttached: TaskItem = {
+        id: 'task-attached-fri',
+        title: '金曜実験 (情報棟) のタスク',
+        durationMinutes: 30,
+        priority: 'high',
+        category: 'lecture',
+        period: 'week',
+        frequencyCount: 1,
+        dailyCount: 1,
+        isAttachedTask: true,
+        parentTitle: '金曜実験 (情報棟)',
+        parentEndMinutesByDay: { 4: 730 },
+        targetDays: [4],
+      };
+
+      const result = generateTheoreticalSchedule(fixedSlots, [thuAttached, friAttached]);
+
+      // 月曜(0)、火曜(1)、水曜(2)には絶対に配置されないこと！
+      for (const d of [0, 1, 2]) {
+        expect(result.dayBlocks[d].some((b) => b.title === '木曜ゼミ (401教室) のタスク')).toBe(false);
+        expect(result.dayBlocks[d].some((b) => b.title === '金曜実験 (情報棟) のタスク')).toBe(false);
+      }
+
+      // 木曜（3）に木曜ゼミのタスクが、親タスク終了（870分）以降に配置されること
+      const thuBlocks = result.dayBlocks[3];
+      const placedThu = thuBlocks.find((b) => b.title === '木曜ゼミ (401教室) のタスク');
+      expect(placedThu).toBeDefined();
+      expect(placedThu!.startMinutes).toBeGreaterThanOrEqual(870);
+      expect(placedThu!.endMinutes - placedThu!.startMinutes).toBe(15);
+
+      // 金曜（4）に金曜実験のタスクが、親タスク終了（730分）以降に配置されること
+      const friBlocks = result.dayBlocks[4];
+      const placedFri = friBlocks.find((b) => b.title === '金曜実験 (情報棟) のタスク');
+      expect(placedFri).toBeDefined();
+      expect(placedFri!.startMinutes).toBeGreaterThanOrEqual(730);
+      expect(placedFri!.endMinutes - placedFri!.startMinutes).toBe(30);
+    });
   });
 
   describe('getAdjustedDuration', () => {

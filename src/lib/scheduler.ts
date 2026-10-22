@@ -301,10 +301,11 @@ export function generateTheoreticalSchedule(
           : (task.targetDays && task.targetDays.length > 0 ? [...task.targetDays].sort((a, b) => a - b) : [0]);
 
       const primaryDay = preferredDays[0];
-      // 第一候補日(primaryDay)から順に1週間の曜日を候補日とする（同日に入らない場合の別日フォールバック用）
+      // 第一候補日(primaryDay)からその週の終わり（日曜: 6）までの曜日を候補日とする
+      // （※元タスクが行われる前の過去の曜日（木金タスクにとっての月火水など）には絶対に配置しない！）
       const candidateDays: number[] = [];
-      for (let i = 0; i < 7; i++) {
-        candidateDays.push((primaryDay + i) % 7);
+      for (let d = primaryDay; d < 7; d++) {
+        candidateDays.push(d);
       }
 
       return {
@@ -454,7 +455,9 @@ export function generateTheoreticalSchedule(
       const preferredDays =
         plan.task.parentEndMinutesByDay && Object.keys(plan.task.parentEndMinutesByDay).length > 0
           ? Object.keys(plan.task.parentEndMinutesByDay).map(Number)
-          : (plan.task.targetDays || [0]);
+          : (plan.task.targetDays && plan.task.targetDays.length > 0
+              ? plan.task.targetDays
+              : (plan.task.startDay !== undefined ? [plan.task.startDay] : [0]));
 
       for (const d of plan.candidateDays) {
         const isSameDay = preferredDays.includes(d);
