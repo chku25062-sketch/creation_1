@@ -142,21 +142,31 @@ export function parseColHeader(header: string, defaultIndex: number): ParsedColH
 
 /**
  * 表データが「固定枠」「日課タスク」「週タスク」のどれに分類されるかを判定
- * - 固定枠: 開始時刻が設定されているもの
- * - 週タスク: 週の回数（weeklyRepeatCount）が指定されているもの「のみ」
- * - 日課タスク: 週の回数が指定されていないもの（未指定・auto）
+ * - 固定枠: 固定配置（placementMode === 'fixed'）または開始時刻が設定されているもの
+ * - 週タスク: 自動配置（placementMode === 'auto'）で週の回数（weeklyRepeatCount）が指定されているもの「のみ」
+ * - 日課タスク: 自動配置で週の回数が指定されていないもの（未指定・auto）
  */
 export function getTableClassification(table: ImportedTableData): TableClassification {
   if (table.classificationOverride) {
     return table.classificationOverride;
   }
 
-  const isStartTimeUnset = !table.axisConfig.startTime || table.axisConfig.startTime === 'unset';
-  if (!isStartTimeUnset) {
+  // ★ 固定配置がオン（'fixed'）の場合、固定枠に割り当て
+  // placementMode が未指定の場合は、後方互換性のため startTime の有無で判定
+  const isFixed =
+    table.placementMode === 'fixed' ||
+    (table.placementMode === undefined &&
+      table.axisConfig.startTime !== null &&
+      table.axisConfig.startTime !== undefined &&
+      table.axisConfig.startTime !== 'unset' &&
+      table.axisConfig.startTime !== '自動' &&
+      table.axisConfig.startTime !== 'auto');
+
+  if (isFixed) {
     return 'fixed_slot';
   }
 
-  // ★ 週の回数（weeklyRepeatCount）が指定されているもの「のみ」を週タスクとして定義
+  // ★ 自動配置の場合: 週の回数（weeklyRepeatCount）が指定されているもの「のみ」を週タスクとして定義
   if (
     table.weeklyRepeatCount !== undefined &&
     table.weeklyRepeatCount !== 'auto' &&
@@ -379,13 +389,25 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
 
   const tableCategory = table.name || '表タスク';
 
+  const tableStartTimeMinutes =
+    table.axisConfig.startTime &&
+    table.axisConfig.startTime !== 'unset' &&
+    table.axisConfig.startTime !== '未設定' &&
+    table.axisConfig.startTime !== '自動' &&
+    table.axisConfig.startTime !== 'auto'
+      ? timeStringToMinutes(table.axisConfig.startTime)
+      : undefined;
+
   const tableEndTimeMinutes =
     table.axisConfig.endTime &&
     table.axisConfig.endTime !== 'unset' &&
+    table.axisConfig.endTime !== '未設定' &&
     table.axisConfig.endTime !== '自動' &&
     table.axisConfig.endTime !== 'auto'
       ? timeStringToMinutes(table.axisConfig.endTime)
       : undefined;
+
+  const isAutoRange = tableStartTimeMinutes !== undefined || tableEndTimeMinutes !== undefined;
 
   table.cells.forEach((row, r) => {
     const timeSlot = tablePeriodTimes[r];
@@ -485,8 +507,14 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             existing.dailyCount = tableDailyCount;
             existing.dailyRepeatMode = 'custom';
           }
+          if (tableStartTimeMinutes !== undefined) {
+            existing.earliestStartTime = tableStartTimeMinutes;
+          }
           if (tableEndTimeMinutes !== undefined) {
             existing.latestEndTime = tableEndTimeMinutes;
+          }
+          if (isAutoRange) {
+            existing.autoPlaceWithinRange = true;
           }
           if (effectiveBreakMinutes !== undefined) {
             existing.breakMinutes = Math.max(existing.breakMinutes || 0, effectiveBreakMinutes);
@@ -523,7 +551,9 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             cycleDays: isCycle ? [cycleIdx] : undefined,
             cycleIndex: isCycle ? cycleIdx : undefined,
             cycleCount: isCycle ? cycleCount : undefined,
+            earliestStartTime: tableStartTimeMinutes,
             latestEndTime: tableEndTimeMinutes,
+            autoPlaceWithinRange: isAutoRange,
             priority: 'medium',
             completed: false,
             sourceTableId: table.id,
@@ -547,8 +577,14 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             : undefined;
 
         if (existing) {
+          if (tableStartTimeMinutes !== undefined) {
+            existing.earliestStartTime = tableStartTimeMinutes;
+          }
           if (tableEndTimeMinutes !== undefined) {
             existing.latestEndTime = tableEndTimeMinutes;
+          }
+          if (isAutoRange) {
+            existing.autoPlaceWithinRange = true;
           }
           if (effectiveBreakMinutes !== undefined) {
             existing.breakMinutes = Math.max(existing.breakMinutes || 0, effectiveBreakMinutes);
@@ -598,7 +634,9 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             startDay: isWeekday ? colInfo.dayIndex : undefined,
             deadlineDay: isWeekday ? colInfo.dayIndex : undefined,
             cycleIndex: isCycle ? cycleIdx : undefined,
+            earliestStartTime: tableStartTimeMinutes,
             latestEndTime: tableEndTimeMinutes,
+            autoPlaceWithinRange: isAutoRange,
             priority: 'medium',
             completed: false,
             sourceTableId: table.id,
@@ -646,6 +684,9 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               period: 'week', // 週のタスク
               dailyCount: 1, // 1日の中の繰り返しなし
               dailyRepeatMode: 'custom',
+              earliestStartTime: tableStartTimeMinutes,
+              latestEndTime: tableEndTimeMinutes,
+              autoPlaceWithinRange: isAutoRange,
               completed: false,
               sourceTableId: table.id,
               sourceTableName: table.name,
@@ -670,6 +711,9 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               parentTitle: fullTitle,
               taskType: 'task',
               priority: 'high',
+              earliestStartTime: tableStartTimeMinutes,
+              latestEndTime: tableEndTimeMinutes,
+              autoPlaceWithinRange: isAutoRange,
               completed: false,
               sourceTableId: table.id,
               sourceTableName: table.name,
@@ -678,6 +722,15 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
         } else {
           // 既存付随タスクの日程情報をマージ（週1回・日の繰り返しなしは維持）
           const existingAttached = attachedTaskMap.get(attachedKey)!;
+          if (tableStartTimeMinutes !== undefined) {
+            existingAttached.earliestStartTime = tableStartTimeMinutes;
+          }
+          if (tableEndTimeMinutes !== undefined) {
+            existingAttached.latestEndTime = tableEndTimeMinutes;
+          }
+          if (isAutoRange) {
+            existingAttached.autoPlaceWithinRange = true;
+          }
           if (classification === 'fixed_slot') {
             if (isWeekday && colInfo.dayIndex !== undefined) {
               const curDays = existingAttached.targetDays || [];

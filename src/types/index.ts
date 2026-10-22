@@ -53,7 +53,9 @@ export interface TaskItem {
   cycleCount?: number; // 周期全体の長さ (例: 3日周期なら3)
   sourceTableId?: string; // 参照元テーブルID
   sourceTableName?: string; // 参照元テーブル名
+  earliestStartTime?: number; // これより前の時刻にはタスク配置を行わない下限時刻（分。未設定時は0=00:00）
   latestEndTime?: number; // これ以上先の時刻にはタスク配置を行わない上限時刻（分。未設定時は1440=24:00）
+  autoPlaceWithinRange?: boolean; // 指定区間内での自動配置オプション
   isAttachedTask?: boolean; // 本タスクに付随するタスクかどうか
   parentTitle?: string; // 付随先の本タスク名
   parentEndMinutesByDay?: Record<number, number>; // 各曜日における本タスクの終了時刻（分）
@@ -126,6 +128,8 @@ export interface ParsedScheduleItem {
   confidence?: number;
 }
 
+export type TablePlacementMode = 'fixed' | 'auto';
+
 export type TableClassification = 'fixed_slot' | 'daily_task' | 'weekly_task';
 
 export interface AttachedTaskConfig {
@@ -183,6 +187,7 @@ export interface ImportedTableData {
   isApplied?: boolean; // 計画表に反映中かどうか
   classificationOverride?: TableClassification; // 手動で日・週・固定枠を明示上書きしたい場合の設定
   columnMode?: TableColumnMode; // 列の管理方式: 曜日で管理 ('weekday') または 周期で管理 ('cycle')
+  placementMode?: TablePlacementMode; // 配置方法: 固定枠として固定時間帯に配置 ('fixed') または タスクとして空き枠・指定区間に自動配置 ('auto')
   dailyRepeatCount?: number | 'auto'; // 1日の中の繰り返し回数 (未指定または 'auto' は指定なし)
   weeklyRepeatCount?: number | 'auto'; // 週に入れる日ブロックの量 (週あたりの日数・回数、未指定または 'auto' は指定なし)
   colorIndex?: number; // 割り当てるカラーパレットの番号 (0〜11)

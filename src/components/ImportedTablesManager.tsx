@@ -35,6 +35,7 @@ import {
   ScheduleInclusionSettings,
   TableClassification,
   TableColumnMode,
+  TablePlacementMode,
 } from '@/types';
 import { calculatePeriodTimes, timeStringToMinutes } from '@/lib/timeUtils';
 import {
@@ -1552,6 +1553,42 @@ export function ImportedTablesManager({
             <div className="shrink-0 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-lg border border-slate-200/90 bg-slate-50/95 px-2.5 py-1.5 text-xs text-slate-700 shadow-2xs">
               {/* Left: 分類バッジ ＆ 時間軸・付随タスク・行列クイック設定 */}
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                {/* 配置方法の選択（固定配置 / 自動配置） */}
+                {(() => {
+                  const isFixed =
+                    activeTable.placementMode === 'fixed' ||
+                    (activeTable.placementMode === undefined &&
+                      activeTable.axisConfig.startTime !== null &&
+                      activeTable.axisConfig.startTime !== undefined &&
+                      activeTable.axisConfig.startTime !== 'unset' &&
+                      activeTable.axisConfig.startTime !== '自動' &&
+                      activeTable.axisConfig.startTime !== 'auto');
+                  const currentMode: TablePlacementMode = isFixed ? 'fixed' : 'auto';
+
+                  return (
+                    <div className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
+                      <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
+                        配置:
+                      </span>
+                      <select
+                        value={currentMode}
+                        onChange={(e) => {
+                          const nextMode = e.target.value as TablePlacementMode;
+                          updateActiveTable((prev) => ({
+                            ...prev,
+                            placementMode: nextMode,
+                          }));
+                        }}
+                        className="text-[11px] font-bold text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
+                        title="配置方法を選択（固定配置: 時間割のように固定枠として配置 / 自動配置: 空き枠・指定区間に自動配分）"
+                      >
+                        <option value="fixed">📌 固定</option>
+                        <option value="auto">⚡ 自動</option>
+                      </select>
+                    </div>
+                  );
+                })()}
+
                 {/* 現在分類の表示（選択不可・自動判定結果を表示） */}
                 {(() => {
                   const classification = getTableClassification(activeTable);

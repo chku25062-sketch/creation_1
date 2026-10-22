@@ -495,12 +495,11 @@ describe('Theoretical Scheduler Engine', () => {
       expect(placedCannotFit).toBeUndefined();
     });
 
-    it('付随タスク（isAttachedTask）が同じ日の本タスク（固定枠）の終了時刻直後に優先配置されること', () => {
-      // 月曜:
+    it('付随タスク（isAttachedTask）は直後である必要はなく空き枠に柔軟に配置され、同じ日のタスクとして優先配置されること', () => {
       // 00:00〜07:00 睡眠
       // 07:00〜09:00 空き枠（本コマの前）
       // 09:00〜10:30 固定枠「線形代数」
-      // 10:30〜12:00 空き枠（本コマの直後）
+      // 10:30〜12:00 空き枠（本コマの後）
       // 12:00〜24:00 その他固定枠
       const fixedSlots: FixedSlot[] = [
         {
@@ -543,17 +542,19 @@ describe('Theoretical Scheduler Engine', () => {
         targetDays: [0],
       };
 
-      // 「線形代数」の付随タスク（所要時間15分、親タスク終了は10:30=630分）
+      // 「線形代数」の付随タスク（所要時間15分）
+      // 直後強制はないため、同じ日の空き枠があれば最優先で配置される
       const attachedTask: TaskItem = {
         id: 'task-attached-math',
         title: '線形代数 のタスク',
         durationMinutes: 15,
         priority: 'high',
         category: 'lecture',
-        period: 'day',
+        period: 'week',
+        frequencyCount: 1,
+        dailyCount: 1,
         isAttachedTask: true,
         parentTitle: '線形代数',
-        parentEndMinutesByDay: { 0: 630 },
         targetDays: [0],
       };
 
@@ -563,48 +564,69 @@ describe('Theoretical Scheduler Engine', () => {
       const mondayBlocks = result.dayBlocks[0];
       const placedAttached = mondayBlocks.find((b) => b.title === '線形代数 のタスク');
       expect(placedAttached).toBeDefined();
-
-      // 朝の空き枠（07:00〜09:00 = 420〜540分）ではなく、本タスク終了（630分）の直後（630分〜）に配置されること
-      expect(placedAttached!.startMinutes).toBe(630);
-      expect(placedAttached!.endMinutes).toBe(645);
+      // 直後でなくても、月曜日の空き枠に配置されていること
+      expect(placedAttached!.startMinutes).toBeGreaterThanOrEqual(420);
+      expect(placedAttached!.endMinutes).toBeLessThanOrEqual(720);
     });
 
-    it('付随タスク（isAttachedTask）は表の終了時刻（latestEndTime）に縛られず、本タスク以降の空き枠に配置できること', () => {
-      // 16:30〜18:00 (990〜1080分) に固定枠「ゼミ」
-      // 空き枠は 18:00〜19:00 (1080〜1140分) に存在
+    it('タスクの指定区間自動配置（earliestStartTime 〜 latestEndTime）のオプションが正しく機能すること', () => {
+      // 00:00〜07:00 睡眠 (0〜420分)
+      // 07:00〜09:00 早朝空き枠 (420〜540分)
+      // 09:00〜12:00 午前作業 (540〜720分)
+      // 12:00〜13:00 昼空き枠 (720〜780分)
+      // 13:00〜18:00 午後作業 (780〜1080分)
+      // 18:00〜24:00 夜空き枠 (1080〜1440分)
       const fixedSlots: FixedSlot[] = [
         {
-          id: 'slot-seminar',
-          title: 'ゼミ',
-          category: 'lecture',
-          startMinutes: 990,
-          endMinutes: 1080, // 18:00
-          color: '#0369a1',
+          id: 'slot-sleep',
+          title: '睡眠',
+          category: 'sleep',
+          startMinutes: 0,
+          endMinutes: 420,
+          color: '#6366f1',
           daysOfWeek: [1], // 火曜
+        },
+        {
+          id: 'slot-work-am',
+          title: '午前作業',
+          category: 'work',
+          startMinutes: 540,
+          endMinutes: 720,
+          color: '#0284c7',
+          daysOfWeek: [1],
+        },
+        {
+          id: 'slot-work-pm',
+          title: '午後作業',
+          category: 'work',
+          startMinutes: 780,
+          endMinutes: 1080,
+          color: '#0284c7',
+          daysOfWeek: [1],
         },
       ];
 
-      // 元の表の終了時刻が 18:00 (1080分) であったとしても、付随タスクは 18:00 以降に配置できる
-      const attachedTask: TaskItem = {
-        id: 'task-attached-seminar',
-        title: 'ゼミ のタスク',
-        durationMinutes: 30,
+      // 指定区間: 09:00〜18:00 (540〜1080分) の自動配置タスク
+      // 早朝（420〜540）や夜間（1080〜）は区間外のため、昼の空き枠（720〜780分）にのみ自動配置されるはず
+      const rangeTask: TaskItem = {
+        id: 'task-range-auto',
+        title: '日中指定タスク',
+        durationMinutes: 45,
         priority: 'high',
-        category: 'lecture',
+        category: 'study',
         period: 'day',
-        isAttachedTask: true,
-        parentTitle: 'ゼミ',
-        parentEndMinutesByDay: { 1: 1080 },
         targetDays: [1],
-        latestEndTime: 1080, // 表から引き継がれていたとしても免除される
+        earliestStartTime: 540, // 09:00以降
+        latestEndTime: 1080, // 18:00まで
+        autoPlaceWithinRange: true,
       };
 
-      const result = generateTheoreticalSchedule(fixedSlots, [attachedTask]);
+      const result = generateTheoreticalSchedule(fixedSlots, [rangeTask]);
       const tuesdayBlocks = result.dayBlocks[1];
-      const placed = tuesdayBlocks.find((b) => b.title === 'ゼミ のタスク');
+      const placed = tuesdayBlocks.find((b) => b.title === '日中指定タスク');
       expect(placed).toBeDefined();
-      expect(placed!.startMinutes).toBe(1080); // 18:00から配置される
-      expect(placed!.endMinutes).toBe(1110); // 18:30まで
+      expect(placed!.startMinutes).toBe(720); // 12:00〜
+      expect(placed!.endMinutes).toBe(765); // 12:45
     });
 
     it('同一日に空き枠がない場合、別日に回され、その別日ではその日のタスクが優先されること（週1回・日繰り返しなし）', () => {

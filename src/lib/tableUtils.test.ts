@@ -622,6 +622,41 @@ describe('tableUtils', () => {
       expect(attached!.parentEndMinutesByDay).toEqual({ 0: 640 }); // コマ終了630分 + 休憩10分 = 640分
     });
   });
+
+  describe('配置方式（placementMode: fixed / auto）による分類と指定区間タスク生成', () => {
+    it('placementMode が fixed の場合、開始時刻が未設定でも fixed_slot に分類されること', () => {
+      const table = createBaseTable(null); // startTime: null
+      table.placementMode = 'fixed';
+      expect(getTableClassification(table)).toBe('fixed_slot');
+    });
+
+    it('placementMode が auto の場合、開始時刻が設定されていても fixed_slot にならず、タスクに分類されること', () => {
+      const table = createBaseTable('09:00');
+      table.placementMode = 'auto';
+      // weeklyRepeatCount が指定されていないので daily_task
+      expect(getTableClassification(table)).toBe('daily_task');
+
+      // weeklyRepeatCount が指定されていれば weekly_task
+      table.weeklyRepeatCount = 3;
+      expect(getTableClassification(table)).toBe('weekly_task');
+    });
+
+    it('placementMode が auto で開始・終了時刻が指定された場合、タスクに指定区間自動配置のオプションが付与されること', () => {
+      const table = createBaseTable('09:00'); // 540分
+      table.placementMode = 'auto';
+      table.axisConfig.endTime = '18:00'; // 1080分
+      table.weeklyRepeatCount = 2;
+
+      const res = generateScheduleItemsForTable(table);
+      expect(res.slots.length).toBe(0);
+      expect(res.tasks.length).toBeGreaterThan(0);
+
+      const task = res.tasks[0];
+      expect(task.earliestStartTime).toBe(540);
+      expect(task.latestEndTime).toBe(1080);
+      expect(task.autoPlaceWithinRange).toBe(true);
+    });
+  });
 });
 
 

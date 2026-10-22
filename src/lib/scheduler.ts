@@ -600,23 +600,14 @@ export function generateTheoreticalSchedule(
         for (const slot of slots) {
           if (slot.durationMinutes < 15) continue;
 
-          // ★ 付随タスク（本タスクと同じ日なら直後に優先配置）の開始時刻制約
-          let minStartMinutes = 0;
-          if (ctx.task.isAttachedTask && ctx.isSameDayAsParent) {
-            if (ctx.task.parentEndMinutesByDay && ctx.task.parentEndMinutesByDay[d] !== undefined) {
-              minStartMinutes = ctx.task.parentEndMinutesByDay[d];
-            } else if (ctx.task.parentTitle) {
-              const parentBlock = dayBlocks[d]
-                .filter((b) => b.title === ctx.task.parentTitle)
-                .sort((a, b) => b.endMinutes - a.endMinutes)[0];
-              if (parentBlock) {
-                minStartMinutes = parentBlock.endMinutes + (parentBlock.breakMinutes || 0);
-              }
-            }
-          }
+          // ★ 指定区間の自動配置（earliestStartTime 〜 latestEndTime）制約
+          // これより前、またはこれ以上先の時刻にはタスク配置を行わない（未設定時は 0 〜 1440=24:00）
+          // 付随タスク（isAttachedTask）は直後である必要はなく、その日（または別日）の空き枠に柔軟に配置可能
+          const taskEarliestStartTime = ctx.task.earliestStartTime ?? 0;
+          const taskLatestEndTime = ctx.task.isAttachedTask ? 1440 : (ctx.task.latestEndTime ?? 1440);
 
-          // 本タスク終了時刻より前のスロットはスキップ
-          if (slot.endMinutes <= minStartMinutes) continue;
+          const effectiveSlotStart = Math.max(slot.startMinutes, taskEarliestStartTime);
+          if (effectiveSlotStart >= taskLatestEndTime) continue;
 
           const requiredMin =
             ctx.task.durationSize === 'small'
@@ -628,13 +619,6 @@ export function generateTheoreticalSchedule(
           const breakMin =
             ctx.task.breakMinutes && ctx.task.breakMinutes > 0 ? ctx.task.breakMinutes : 0;
           const minAcceptable = ctx.isAuto ? Math.min(requiredMin, 15) : requiredMin;
-
-          // ★ 終了時刻上限（latestEndTime）の制約
-          // これ以上先の時刻にはタスク配置を行わない（自動・未設定時は最大値1440=24:00）
-          // 付随タスク（isAttachedTask）は元の表の終了時刻に縛られず、常に24:00最大値まで配置可能
-          const taskLatestEndTime = ctx.task.isAttachedTask ? 1440 : (ctx.task.latestEndTime ?? 1440);
-          const effectiveSlotStart = Math.max(slot.startMinutes, minStartMinutes);
-          if (effectiveSlotStart >= taskLatestEndTime) continue;
 
           const maxAllowedEnd = Math.min(slot.endMinutes, taskLatestEndTime);
           const availableDuration = maxAllowedEnd - effectiveSlotStart;
