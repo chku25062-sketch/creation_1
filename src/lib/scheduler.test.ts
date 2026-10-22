@@ -2313,6 +2313,157 @@ describe('Theoretical Scheduler Engine', () => {
         // 枠不足にならず未配置が0件であること
         expect(result.unassignedTasks).toHaveLength(0);
       });
+
+      it('配置優先順位（固定枠 > その日の週タスク > 以前の未完了週タスク > 日タスク）に従って配置されること', () => {
+        // 火曜日（1）の 13:00〜14:00 (60分枠) のみに空きがあるスロット設計
+        const fixedBefore: FixedSlot = {
+          id: 'fix-1',
+          title: '午前固定',
+          category: 'work',
+          startMinutes: 0,
+          endMinutes: 13 * 60, // 13:00
+          daysOfWeek: [1],
+          color: '#3b82f6',
+        };
+        const fixedAfter: FixedSlot = {
+          id: 'fix-2',
+          title: '午後固定',
+          category: 'work',
+          startMinutes: 14 * 60, // 14:00
+          endMinutes: 24 * 60,
+          daysOfWeek: [1],
+          color: '#3b82f6',
+        };
+
+        // 月曜（0）から日曜（6）まで、火曜以外は全日固定で埋める
+        const otherDayBlocks: FixedSlot[] = [0, 2, 3, 4, 5, 6].map((d) => ({
+          id: `full-fix-${d}`,
+          title: '終日固定',
+          category: 'work',
+          startMinutes: 0,
+          endMinutes: 1440,
+          daysOfWeek: [d],
+          color: '#64748b',
+        }));
+
+        // 火曜の週タスク（60分）
+        const tuesdayWeeklyTask: TaskItem = {
+          id: 'tue-task',
+          title: '火曜の週タスク',
+          category: 'must',
+          durationMinutes: 60,
+          period: 'week',
+          frequencyCount: 1,
+          targetDays: [1],
+          priority: 'medium',
+        };
+
+        // 過去（月曜）の未完了週タスク（60分）
+        const uncompletedPastTask: TaskItem = {
+          id: 'past-uncompleted-task',
+          title: '月曜の未完了週タスク',
+          category: 'must',
+          durationMinutes: 60,
+          period: 'week',
+          frequencyCount: 1,
+          targetDays: [0],
+          priority: 'medium',
+        };
+
+        // 日タスク（60分）
+        const dailyTask: TaskItem = {
+          id: 'daily-task-item',
+          title: '日課タスク',
+          category: 'routine',
+          durationMinutes: 60,
+          period: 'day',
+          dailyCount: 1,
+          priority: 'high',
+        };
+
+        const result = generateTheoreticalSchedule(
+          [fixedBefore, fixedAfter, ...otherDayBlocks],
+          [tuesdayWeeklyTask, uncompletedPastTask, dailyTask],
+          {
+            todayIndex: 1, // 今日は火曜
+            currentMinutes: 8 * 60,
+            uncompletedBlockIds: new Set(['block-task-0-past-uncompleted-task-0']),
+          },
+        );
+
+        // 火曜のたった1つの空き枠（13:00〜14:00）には、「その日の週タスク」が最優先で配置されること
+        const tueBlocks = result.dayBlocks[1];
+        const placedTuesdayTask = tueBlocks.find((b) => b.title === '火曜の週タスク');
+        expect(placedTuesdayTask).toBeDefined();
+        expect(placedTuesdayTask?.startMinutes).toBe(13 * 60);
+      });
+
+      it('タスクを完了状態にしたとき、空いた枠に後続のタスク群が前倒しで詰めて再編成されること', () => {
+        // 火曜日のスケジュール:
+        // タスクA (09:00〜10:30, 90分)
+        // タスクB (10:45〜12:15, 90分)
+        // タスクC (13:00〜14:00, 60分)
+        const taskA: TaskItem = {
+          id: 'task-A',
+          title: 'タスクA',
+          category: 'must',
+          priority: 'medium',
+          durationMinutes: 90,
+          period: 'week',
+          targetDays: [1],
+        };
+        const taskB: TaskItem = {
+          id: 'task-B',
+          title: 'タスクB',
+          category: 'must',
+          priority: 'medium',
+          durationMinutes: 45,
+          period: 'week',
+          targetDays: [1],
+        };
+        const taskC: TaskItem = {
+          id: 'task-C',
+          title: 'タスクC',
+          category: 'must',
+          priority: 'medium',
+          durationMinutes: 45,
+          period: 'week',
+          targetDays: [1],
+        };
+
+        // 初期配置（現在時刻: 00:00 = 0）
+        const initial = generateTheoreticalSchedule([], [taskA, taskB, taskC], {
+          todayIndex: 1,
+          currentMinutes: 0,
+        });
+
+        const initialBlocks = initial.dayBlocks[1].filter((b) => !b.isFixed && !b.isBreak);
+        const blockA = initialBlocks.find((b) => b.title === 'タスクA')!;
+        expect(blockA).toBeDefined();
+
+        // タスクAを早期完了にする（現在時刻: 00:00 なので未来の枠の早期完了）
+        const completedResult = generateTheoreticalSchedule([], [taskA, taskB, taskC], {
+          todayIndex: 1,
+          currentMinutes: 0,
+          completedBlockIds: new Set([blockA.id]),
+        });
+
+        const updatedBlocks = completedResult.dayBlocks[1].filter((b) => !b.isFixed && !b.isBreak);
+        // タスクAは完了ブロックとして残る
+        const compBlockA = updatedBlocks.find((b) => b.id === blockA.id);
+        expect(compBlockA?.isCompleted).toBe(true);
+
+        // タスクAの枠にタスクBが代行・前倒しで入る
+        const subBlockB = updatedBlocks.find((b) => b.isSubstitute && b.title === 'タスクB');
+        expect(subBlockB).toBeDefined();
+
+        // そして、タスクBが前倒しされたことで、タスクCも前倒しされてスケジュール全体が再編成されていること！
+        const movedTaskC = updatedBlocks.find((b) => b.title === 'タスクC');
+        expect(movedTaskC).toBeDefined();
+        // タスクCの開始時刻が、初期配置よりも前に詰められていること
+        const initialBlockC = initialBlocks.find((b) => b.title === 'タスクC')!;
+        expect(movedTaskC!.startMinutes).toBeLessThanOrEqual(initialBlockC.startMinutes);
+      });
     });
   });
 });

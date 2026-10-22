@@ -48,18 +48,24 @@ export function createPlaceContextHelper(ctx: SchedulingExecutionContext) {
         }
       }
 
+      let effectiveLatestEnd = taskLatestEndTime;
+      let effectiveEarliestStart = taskEarliestStartTime;
+
+      // 週タスク（課題・レポート・自習等）は、時間割表の枠時間（09:00〜18:00等）に縛られず、
+      // 早朝や夜間（18:00〜23:00等）も含めた1日の全空き時間をフルに使って配置できるようにする！
+      if (isWeekly) {
+        if (taskCtx.task.autoPlaceWithinRange || taskCtx.task.sourceTableId) {
+          effectiveEarliestStart = 0;
+          effectiveLatestEnd = 1440;
+        }
+      }
+
       // 再配置プランかつ今日（d === todayIdx）の場合、現在時刻以降にのみ配置
       if (taskCtx.plan.isRescheduledPlan && d === ctx.todayIdx) {
-        taskEarliestStartTime = Math.max(taskEarliestStartTime, ctx.currMinutes);
+        effectiveEarliestStart = Math.max(effectiveEarliestStart, ctx.currMinutes);
       }
 
-      // 週タスクで時間割表等の時間制限（taskLatestEndTime）がある場合、昼間に収まらなければ夜間も含めて探索可能にする
-      let effectiveLatestEnd = taskLatestEndTime;
-      if (isWeekly && effectiveLatestEnd < 1440 && slot.startMinutes >= effectiveLatestEnd) {
-        effectiveLatestEnd = 1440;
-      }
-
-      const effectiveSlotStart = Math.max(slot.startMinutes, taskEarliestStartTime);
+      const effectiveSlotStart = Math.max(slot.startMinutes, effectiveEarliestStart);
       if (effectiveSlotStart >= effectiveLatestEnd) continue;
 
       // タスク本来の設定所要時間（durationMinutes 最優先、未指定なら durationSize に応じた標準時間）

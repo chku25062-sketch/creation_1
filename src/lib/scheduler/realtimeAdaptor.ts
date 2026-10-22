@@ -278,6 +278,81 @@ export function applyRealtimeAdaptation(params: RealtimeAdaptationParams): {
     }
   }
 
+  // 3. 完了状態にした後の「それ以降のタイムライン完全再編成（前倒し詰め）」
+  // 前倒し移動によって途中に穴が空いたスロットに対し、後続の未完了タスク群を固定枠を避けながら前に詰めて再編成する
+  for (const early of earlyCompletedBlocks) {
+    const d = early.day;
+    const blocksInDay = dayBlocks[d];
+
+    // 固定枠、過去完了枠、ユーザー完了枠、代行ブロックは動かさない（固定錨）
+    const fixedAnchors = blocksInDay
+      .filter((b) => b.isFixed || b.isCompleted || b.isSubstitute || b.id === early.block.id)
+      .sort((a, b) => a.startMinutes - b.startMinutes);
+
+    // 動かす対象: earlyBlock.endMinutes 以降に予定されている未完了の通常タスクブロック
+    const movableBlocks = blocksInDay
+      .filter(
+        (b) =>
+          !b.isFixed &&
+          !b.isCompleted &&
+          !b.isSubstitute &&
+          b.id !== early.block.id &&
+          b.startMinutes >= early.block.endMinutes,
+      )
+      .sort((a, b) => a.startMinutes - b.startMinutes);
+
+    if (movableBlocks.length === 0) continue;
+
+    let currentPointer = early.block.endMinutes;
+    const recompactedBlocks: TheoreticalBlock[] = [];
+
+    for (const block of movableBlocks) {
+      const blockDur = block.endMinutes - block.startMinutes;
+      const breakMin = block.breakMinutes || 0;
+
+      while (currentPointer < 1440) {
+        // 現在位置に重なる固定錨があれば、その終了位置まで進める
+        const overlapAnchor = fixedAnchors.find(
+          (a) => a.endMinutes > currentPointer && a.startMinutes <= currentPointer,
+        );
+        if (overlapAnchor) {
+          currentPointer = Math.max(
+            currentPointer,
+            overlapAnchor.endMinutes + (overlapAnchor.breakMinutes || 0),
+          );
+          continue;
+        }
+
+        const upcomingAnchor = fixedAnchors.find((a) => a.startMinutes > currentPointer);
+        const maxAvail = upcomingAnchor
+          ? upcomingAnchor.startMinutes - currentPointer
+          : 1440 - currentPointer;
+
+        if (maxAvail >= blockDur + breakMin) {
+          recompactedBlocks.push({
+            ...block,
+            startMinutes: currentPointer,
+            endMinutes: currentPointer + blockDur,
+          });
+          currentPointer += blockDur + breakMin;
+          break;
+        } else {
+          if (upcomingAnchor) {
+            currentPointer = upcomingAnchor.endMinutes + (upcomingAnchor.breakMinutes || 0);
+          } else {
+            // スロットが足りない場合は元の位置で維持
+            recompactedBlocks.push(block);
+            break;
+          }
+        }
+      }
+    }
+
+    dayBlocks[d] = [...fixedAnchors, ...recompactedBlocks].sort(
+      (a, b) => a.startMinutes - b.startMinutes,
+    );
+  }
+
   return {
     scheduledTaskMinutesDelta,
   };

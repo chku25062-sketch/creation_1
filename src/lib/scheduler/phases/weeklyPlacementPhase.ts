@@ -43,10 +43,17 @@ export class WeeklyPlacementPhase implements PlacementPhase {
     }
 
     // 2. その他の週タスク（課題・特定曜日・柔軟・再配置）の動的即時配置
-    // 所要時間の大きい順（大きい枠を必要とするタスクほど先に配置）かつ優先度順にソート（ビンパッキング最良原則）
+    // ユーザー指定優先順位:
+    // ① その日の週タスク（通常週タスク: !p.isRescheduledPlan）が最優先！
+    // ② 以前の未完了の週タスク（再配置プラン: p.isRescheduledPlan）がその次！
+    // ③ それぞれの中で、所要時間の大きい順（大きい枠を必要とするタスクほど先に配置）かつ優先度順（ビンパッキング最良原則）
     const generalWeeklyPlans = weeklyPlans
       .filter((p) => p.kind !== 'attached_task')
       .sort((a, b) => {
+        // ① 通常週タスク（その日の週タスク） > 以前の未完了週タスク（再配置プラン）
+        if (!a.isRescheduledPlan && b.isRescheduledPlan) return -1;
+        if (a.isRescheduledPlan && !b.isRescheduledPlan) return 1;
+
         const durA =
           a.task.durationMinutes ||
           (a.task.durationSize === 'small'
