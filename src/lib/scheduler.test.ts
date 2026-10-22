@@ -1833,6 +1833,64 @@ describe('Theoretical Scheduler Engine', () => {
         expect(substituteBlock?.endMinutes).toBe(origThuBlock?.endMinutes);
         expect(substituteBlock?.substitutedForTitle).toBe('木曜の物理演習');
       });
+
+      it('日課の自動敷き詰めタスクで空き時間が埋まっている環境でも、過去の週タスクを未完了にした場合に現在以降の枠へ確実に再配置されること', () => {
+        // 水曜（dayIndex: 2）の 10:00（600分）を現在時刻とする
+        const mondayWeeklyTask: TaskItem = {
+          id: 'task-weekly-report-mon',
+          title: '月曜の物理実験レポート',
+          category: 'must',
+          durationMinutes: 60,
+          period: 'week',
+          frequencyCount: 1,
+          targetDays: [0], // 月曜に配置
+          priority: 'high',
+        };
+
+        // 毎日空き枠を埋め尽くす日課の自動敷き詰めタスク（複数）
+        const dailyAutoTask: TaskItem = {
+          id: 'task-daily-fill',
+          title: '日常学習',
+          category: 'study',
+          durationMinutes: 30,
+          period: 'day',
+          frequency: 'high',
+          priority: 'low',
+        };
+
+        // 通常配置
+        const normalResult = generateTheoreticalSchedule([], [mondayWeeklyTask, dailyAutoTask], {
+          todayIndex: 2,
+          currentMinutes: 600,
+        });
+
+        const monBlock = normalResult.dayBlocks[0].find((b) => b.title === '月曜の物理実験レポート');
+        expect(monBlock).toBeDefined();
+
+        // ユーザーが月曜のタスクを「未完了（まだ終わってないよ）」とトグル
+        const toggledResult = generateTheoreticalSchedule([], [mondayWeeklyTask, dailyAutoTask], {
+          todayIndex: 2, // 水曜
+          currentMinutes: 600,
+          uncompletedBlockIds: new Set([monBlock!.id]),
+        });
+
+        // 水曜（今日）以降の未来枠に再配置ブロックが確実に生成されていること
+        const futureBlocks = [
+          ...toggledResult.dayBlocks[2],
+          ...toggledResult.dayBlocks[3],
+          ...toggledResult.dayBlocks[4],
+          ...toggledResult.dayBlocks[5],
+          ...toggledResult.dayBlocks[6],
+        ];
+
+        const rescheduled = futureBlocks.find((b) => b.isRescheduled && b.title === '月曜の物理実験レポート');
+        expect(rescheduled).toBeDefined();
+        expect(rescheduled?.dayIndex).toBeGreaterThanOrEqual(2);
+        // 今日の場合、現在時刻（600分）以降に配置されていること
+        if (rescheduled?.dayIndex === 2) {
+          expect(rescheduled.startMinutes).toBeGreaterThanOrEqual(600);
+        }
+      });
     });
   });
 });

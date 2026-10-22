@@ -322,12 +322,14 @@ export default function Home() {
   // Plan11: 週タスクの完了状態トグルハンドラ
   const handleToggleBlockComplete = (block: import('@/types').TheoreticalBlock) => {
     const blockKey = block.id;
+    const taskIdKey = block.taskId;
 
     if (block.isCompleted) {
       // 現在完了 -> 未完了に戻す（「まだ終わってないよ」）
       setCompletedBlockIds((prev) => {
         const next = new Set(prev);
         next.delete(blockKey);
+        if (taskIdKey) next.delete(taskIdKey);
         try {
           localStorage.setItem('app_completed_block_ids', JSON.stringify(Array.from(next)));
         } catch {
@@ -339,6 +341,7 @@ export default function Home() {
       setUncompletedBlockIds((prev) => {
         const next = new Set(prev);
         next.add(blockKey);
+        if (taskIdKey) next.add(taskIdKey);
         try {
           localStorage.setItem('app_uncompleted_block_ids', JSON.stringify(Array.from(next)));
         } catch {
@@ -351,6 +354,7 @@ export default function Home() {
       setUncompletedBlockIds((prev) => {
         const next = new Set(prev);
         next.delete(blockKey);
+        if (taskIdKey) next.delete(taskIdKey);
         try {
           localStorage.setItem('app_uncompleted_block_ids', JSON.stringify(Array.from(next)));
         } catch {
@@ -362,6 +366,7 @@ export default function Home() {
       setCompletedBlockIds((prev) => {
         const next = new Set(prev);
         next.add(blockKey);
+        if (taskIdKey) next.add(taskIdKey);
         try {
           localStorage.setItem('app_completed_block_ids', JSON.stringify(Array.from(next)));
         } catch {
