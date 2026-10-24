@@ -510,226 +510,205 @@ export function Timeline24h({
   }, [importedTables, blocks, dayBlocks]);
 
   return (
-    <div
-      className={`flex flex-1 min-h-0 flex-col gap-1.5 transition-all duration-300 ${
-        isPlanner
-          ? 'planner-leather-cover p-1.5 sm:p-2.5 rounded-2xl border border-[#3e2413] shadow-xl'
-          : 'rounded-xl border border-slate-200 bg-white p-1.5 sm:p-2 shadow-2xs'
-      }`}
-    >
-      <div
-        className={`flex flex-1 min-h-0 flex-col gap-1.5 overflow-hidden transition-all duration-300 ${
-          isPlanner
-            ? 'planner-stitch-border rounded-xl p-1 sm:p-1.5 bg-[#422a19]/20'
-            : 'contents'
-        }`}
-      >
-        {/* Unassigned Warning Alert if any (折りたたみ可能な洗練されたアコーディオン表示) */}
-        {unassignedTasks.length > 0 && (
-          <div className="flex shrink-0 flex-col rounded-lg border border-amber-200/90 bg-amber-50/90 text-xs text-amber-900 shadow-2xs overflow-hidden transition-all duration-200">
-            <button
-              type="button"
-              onClick={() => setIsUnassignedAlertExpanded((prev) => !prev)}
-              className="flex items-center justify-between w-full p-2 px-3 hover:bg-amber-100/60 transition text-left cursor-pointer"
-            >
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
-                <span className="font-semibold text-amber-950">
-                  枠不足により今週未配置のタスクがあります（{unassignedTasks.length}件）
-                </span>
-              </div>
-              <div className="flex items-center gap-1 text-[11px] font-medium text-amber-800">
-                <span>{isUnassignedAlertExpanded ? '閉じる' : '詳細を表示'}</span>
-                <span className={`transform transition-transform text-[10px] ${isUnassignedAlertExpanded ? 'rotate-180' : ''}`}>▼</span>
-              </div>
-            </button>
+    <div className="flex flex-1 min-h-0 flex-col gap-1.5 rounded-xl border border-slate-200 bg-white p-1.5 sm:p-2 shadow-2xs">
+      {/* Unassigned Warning Alert if any (折りたたみ可能な洗練されたアコーディオン表示) */}
+      {unassignedTasks.length > 0 && (
+        <div className="flex shrink-0 flex-col rounded-lg border border-amber-200/90 bg-amber-50/90 text-xs text-amber-900 shadow-2xs overflow-hidden transition-all duration-200">
+          <button
+            type="button"
+            onClick={() => setIsUnassignedAlertExpanded((prev) => !prev)}
+            className="flex items-center justify-between w-full p-2 px-3 hover:bg-amber-100/60 transition text-left cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+              <span className="font-semibold text-amber-950">
+                枠不足により今週未配置のタスクがあります（{unassignedTasks.length}件）
+              </span>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] font-medium text-amber-800">
+              <span>{isUnassignedAlertExpanded ? '閉じる' : '詳細を表示'}</span>
+              <span className={`transform transition-transform text-[10px] ${isUnassignedAlertExpanded ? 'rotate-180' : ''}`}>▼</span>
+            </div>
+          </button>
 
-            {isUnassignedAlertExpanded && (
-              <div className="px-3 pb-2.5 pt-0.5 border-t border-amber-200/60 bg-amber-50/50">
-                <ul className="mt-1 space-y-1 list-inside list-disc text-amber-800 text-[11px]">
-                  {unassignedTasks.map((t) => (
-                    <li key={t.id}>
-                      <span className="font-medium text-amber-900">{t.title}</span>
-                      <span className="ml-1 text-amber-700 font-mono">({formatDuration(t.durationMinutes)})</span>
-                      <span className="ml-1.5 text-[10px] text-amber-600">
-                        [優先度: {t.priority === 'high' ? '高' : t.priority === 'medium' ? '中' : '低'}]
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
+          {isUnassignedAlertExpanded && (
+            <div className="px-3 pb-2.5 pt-0.5 border-t border-amber-200/60 bg-amber-50/50">
+              <ul className="mt-1 space-y-1 list-inside list-disc text-amber-800 text-[11px]">
+                {unassignedTasks.map((t) => (
+                  <li key={t.id}>
+                    <span className="font-medium text-amber-900">{t.title}</span>
+                    <span className="ml-1 text-amber-700 font-mono">({formatDuration(t.durationMinutes)})</span>
+                    <span className="ml-1.5 text-[10px] text-amber-600">
+                      [優先度: {t.priority === 'high' ? '高' : t.priority === 'medium' ? '中' : '低'}]
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
-        {/* 7-Day Vertical Weekly Grid Container */}
+      {/* 7-Day Vertical Weekly Grid Container */}
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
+        {/* Sticky Weekday Header Row */}
         <div
-          className={`flex flex-1 min-h-0 flex-col overflow-hidden transition-all duration-300 ${
+          className={`flex shrink-0 border-b px-1 sm:px-1.5 transition-colors ${
             isPlanner
-              ? 'rounded-lg border border-[#cfc3b4] bg-[#fcfbf6] shadow-sm relative'
-              : 'rounded-xl border border-slate-200 bg-white shadow-2xs'
+              ? 'border-slate-200 bg-[#f8f6f0]'
+              : 'border-slate-200 bg-slate-50/95'
           }`}
         >
-          {/* Sticky Weekday Header Row */}
+          {/* Time axis header space ＋ テーマ切替スイッチ */}
           <div
-            className={`flex shrink-0 border-b px-1 sm:px-1.5 transition-colors ${
-              isPlanner
-                ? 'border-[#d6cbbe] bg-[#f5f1e8] shadow-2xs'
-                : 'border-slate-200 bg-slate-50/95'
+            className={`${timeAxisWidthClass} border-r border-slate-200 py-1.5 px-0.5 text-center flex flex-col items-center justify-center gap-0.5 ${
+              isPlanner ? 'bg-[#f4f1e8]' : 'bg-slate-50'
             }`}
           >
-            {/* Time axis header space ＋ テーマ切替スイッチ */}
-            <div
-              className={`${timeAxisWidthClass} border-r ${
-                isPlanner ? 'border-[#d6cbbe] bg-[#efe9dc]/80' : 'border-slate-200'
-              } py-1.5 px-0.5 text-center flex flex-col items-center justify-center gap-0.5`}
-            >
-              <span className="font-mono text-[9px] sm:text-[10px] font-bold text-slate-500">
-                時間
-              </span>
-              {onToggleThemeMode && (
-                <button
-                  type="button"
-                  onClick={() => onToggleThemeMode(isPlanner ? 'modern' : 'planner')}
-                  className={`flex items-center justify-center h-4 w-10 sm:w-11 rounded text-[8px] font-bold border transition cursor-pointer shadow-2xs ${
-                    isPlanner
-                      ? 'border-amber-700/40 bg-amber-100 text-amber-950 hover:bg-amber-200'
-                      : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
-                  }`}
-                  title={isPlanner ? 'モダンデザインへ切替' : '手帳風デザインへ切替'}
-                >
-                  {isPlanner ? '📖手帳' : '💻現代'}
-                </button>
-              )}
-            </div>
-
-            {/* Column Headers: フォーカスモード(1日) ⇄ 週間全体(7列) */}
-            {focusMode === 'today' ? (
-              /* フォーカスモード（1日拡大）ヘッダー */
-              <div
-                className={`flex flex-1 items-center justify-between px-1.5 sm:px-2 py-1 ${
-                  isPlanner ? 'bg-[#faf6ee]' : 'bg-amber-50/40'
+            <span className="font-mono text-[9px] sm:text-[10px] font-bold text-slate-500">
+              時間
+            </span>
+            {onToggleThemeMode && (
+              <button
+                type="button"
+                onClick={() => onToggleThemeMode(isPlanner ? 'modern' : 'planner')}
+                className={`flex items-center justify-center h-4 w-11 rounded text-[8px] font-bold border transition cursor-pointer shadow-2xs ${
+                  isPlanner
+                    ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
+                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
                 }`}
+                title={isPlanner ? '付箋カードスタイルへ切替' : '手帳直書きスタイルへ切替'}
               >
-                <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto">
-                  <button
-                    onClick={() => setSelectedDayIndex((prev) => (prev + 6) % 7)}
-                    className="rounded p-1 text-slate-500 hover:bg-slate-200/80 hover:text-slate-800 transition"
-                    title="前の曜日へ"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                  </button>
-
-                  {/* 曜日セレクターピル (月〜日) */}
-                  <div className="flex items-center gap-0.5 sm:gap-1">
-                    {weekDays.map((d) => (
-                      <button
-                        key={`day-pill-${d.dayIndex}`}
-                        onClick={() => setSelectedDayIndex(d.dayIndex)}
-                        className={`rounded px-1.5 py-0.5 text-xs font-semibold transition ${
-                          d.dayIndex === selectedDayIndex
-                            ? isPlanner
-                              ? 'bg-[#533621] text-amber-100 shadow-2xs'
-                              : 'bg-blue-600 text-white shadow-2xs'
-                            : d.isToday
-                              ? 'bg-amber-200 text-amber-950 font-bold'
-                              : 'text-slate-600 hover:bg-slate-200/60'
-                        }`}
-                      >
-                        {d.dayOfWeek}
-                        {d.isToday && (
-                          <span className="hidden sm:inline text-[9px] ml-0.5 opacity-90">
-                            (今日)
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-
-                  <button
-                    onClick={() => setSelectedDayIndex((prev) => (prev + 1) % 7)}
-                    className="rounded p-1 text-slate-500 hover:bg-slate-200/80 hover:text-slate-800 transition"
-                    title="次の曜日へ"
-                  >
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-800 shrink-0">
-                  <span className="font-mono text-slate-600 text-[11px]">
-                    {displayedDays[0]?.month}/{displayedDays[0]?.day} ({displayedDays[0]?.dayOfWeek})
-                  </span>
-                  {onToggleThemeMode && (
-                    <button
-                      onClick={() => onToggleThemeMode(isPlanner ? 'modern' : 'planner')}
-                      className={`hidden sm:flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-bold border transition shadow-2xs cursor-pointer ${
-                        isPlanner
-                          ? 'border-amber-700/50 bg-[#fffdf9] text-amber-950 hover:bg-[#f6efe2]'
-                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                      }`}
-                      title={isPlanner ? 'モダンデザインへ切替' : '手帳風デザインへ切替'}
-                    >
-                      {isPlanner ? (
-                        <>
-                          <BookOpen className="h-3 w-3 text-amber-800" />
-                          <span>手帳風</span>
-                        </>
-                      ) : (
-                        <>
-                          <Laptop className="h-3 w-3 text-blue-600" />
-                          <span>モダン</span>
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-              </div>
-            ) : (
-              /* 週間全体（7列）ヘッダー */
-              <div className="grid flex-1 grid-cols-7">
-                {weekDays.map((d) => (
-                  <div
-                    key={`weekday-header-${d.dayIndex}`}
-                    className={`flex flex-col items-center justify-center border-r ${
-                      isPlanner ? 'border-[#d6cbbe]' : 'border-slate-200'
-                    } py-1.5 ${
-                      d.dayIndex === 6 ? 'border-r-0' : ''
-                    } ${
-                      d.isToday
-                        ? isPlanner
-                          ? 'bg-amber-200/35 font-bold'
-                          : 'bg-amber-100/40 font-bold'
-                        : ''
-                    }`}
-                  >
-                    <div className="flex items-center gap-1">
-                      <span
-                        className={`text-xs ${
-                          d.isToday
-                            ? 'text-amber-900 font-bold'
-                            : d.isSaturday
-                              ? 'text-blue-600 font-medium'
-                              : d.isSunday
-                                ? 'text-rose-600 font-medium'
-                                : 'text-slate-700 font-medium'
-                        }`}
-                      >
-                        {d.dayOfWeek}
-                      </span>
-                      {d.isToday && (
-                        <span className="rounded bg-amber-400/90 px-1 py-0.2 text-[9px] font-bold text-amber-950">
-                          今日
-                        </span>
-                      )}
-                    </div>
-                    <span className="font-mono text-[10px] text-slate-500">
-                      {d.month}/{d.day}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                {isPlanner ? '📖手帳' : '💻付箋'}
+              </button>
             )}
           </div>
+
+          {/* Column Headers: フォーカスモード(1日) ⇄ 週間全体(7列) */}
+          {focusMode === 'today' ? (
+            /* フォーカスモード（1日拡大）ヘッダー */
+            <div
+              className={`flex flex-1 items-center justify-between px-1.5 sm:px-2 py-1 ${
+                isPlanner ? 'bg-[#faf8f2]' : 'bg-amber-50/40'
+              }`}
+            >
+              <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto">
+                <button
+                  onClick={() => setSelectedDayIndex((prev) => (prev + 6) % 7)}
+                  className="rounded p-1 text-slate-500 hover:bg-slate-200/80 hover:text-slate-800 transition"
+                  title="前の曜日へ"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+
+                {/* 曜日セレクターピル (月〜日) */}
+                <div className="flex items-center gap-0.5 sm:gap-1">
+                  {weekDays.map((d) => (
+                    <button
+                      key={`day-pill-${d.dayIndex}`}
+                      onClick={() => setSelectedDayIndex(d.dayIndex)}
+                      className={`rounded px-1.5 py-0.5 text-xs font-semibold transition ${
+                        d.dayIndex === selectedDayIndex
+                          ? isPlanner
+                            ? 'bg-amber-800 text-white shadow-2xs'
+                            : 'bg-blue-600 text-white shadow-2xs'
+                          : d.isToday
+                            ? 'bg-amber-200 text-amber-950 font-bold'
+                            : 'text-slate-600 hover:bg-slate-200/60'
+                      }`}
+                    >
+                      {d.dayOfWeek}
+                      {d.isToday && (
+                        <span className="hidden sm:inline text-[9px] ml-0.5 opacity-90">
+                          (今日)
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setSelectedDayIndex((prev) => (prev + 1) % 7)}
+                  className="rounded p-1 text-slate-500 hover:bg-slate-200/80 hover:text-slate-800 transition"
+                  title="次の曜日へ"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-800 shrink-0">
+                <span className="font-mono text-slate-600 text-[11px]">
+                  {displayedDays[0]?.month}/{displayedDays[0]?.day} ({displayedDays[0]?.dayOfWeek})
+                </span>
+                {onToggleThemeMode && (
+                  <button
+                    onClick={() => onToggleThemeMode(isPlanner ? 'modern' : 'planner')}
+                    className={`hidden sm:flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-bold border transition shadow-2xs cursor-pointer ${
+                      isPlanner
+                        ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
+                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                    title={isPlanner ? '付箋カードスタイルへ切替' : '手帳直書きスタイルへ切替'}
+                  >
+                    {isPlanner ? (
+                      <>
+                        <BookOpen className="h-3 w-3 text-amber-800" />
+                        <span>手帳直書き</span>
+                      </>
+                    ) : (
+                      <>
+                        <Laptop className="h-3 w-3 text-blue-600" />
+                        <span>付箋カード</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* 週間全体（7列）ヘッダー */
+            <div className="grid flex-1 grid-cols-7">
+              {weekDays.map((d) => (
+                <div
+                  key={`weekday-header-${d.dayIndex}`}
+                  className={`flex flex-col items-center justify-center border-r border-slate-200 py-1.5 ${
+                    d.dayIndex === 6 ? 'border-r-0' : ''
+                  } ${
+                    d.isToday
+                      ? isPlanner
+                        ? 'bg-amber-100/30 font-bold'
+                        : 'bg-amber-100/40 font-bold'
+                      : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    <span
+                      className={`text-xs ${
+                        d.isToday
+                          ? 'text-amber-900 font-bold'
+                          : d.isSaturday
+                            ? 'text-blue-600 font-medium'
+                            : d.isSunday
+                              ? 'text-rose-600 font-medium'
+                              : 'text-slate-700 font-medium'
+                      }`}
+                    >
+                      {d.dayOfWeek}
+                    </span>
+                    {d.isToday && (
+                      <span className="rounded bg-amber-400/90 px-1 py-0.2 text-[9px] font-bold text-amber-950">
+                        今日
+                      </span>
+                    )}
+                  </div>
+                  <span className="font-mono text-[10px] text-slate-500">
+                    {d.month}/{d.day}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Scrollable 24-Hour Grid Area (ノート調方眼罫線) */}
         <div
@@ -742,11 +721,6 @@ export function Timeline24h({
             className={`relative flex ${focusMode === 'today' ? 'w-full min-w-0' : 'min-w-[700px]'}`}
             style={{ height: `${totalHeight}px` }}
           >
-            {/* 週間表示時の見開き手帳の中央折り目（バインダー背表紙シャドウ） */}
-            {isPlanner && focusMode === 'week' && (
-              <div className="planner-crease-overlay absolute inset-0 z-15 pointer-events-none" />
-            )}
-
             {/* 全幅共通の水平グリッド罫線レイヤー（10分・30分・正時の目盛り線） */}
             <div className="pointer-events-none absolute inset-0 z-0">
               {Array.from({ length: TOTAL_HOURS }).map((_, hour) => {
@@ -879,15 +853,11 @@ export function Timeline24h({
                 <span className="ml-1 h-px w-2 bg-slate-400" />
               </div>
 
-              {/* 現在時刻の赤いピルバッジ ＆ 手帳風しおりリボン */}
+              {/* 現在時刻の赤いピルバッジ */}
               <div
                 className="pointer-events-none absolute right-0 z-30 -translate-y-1/2 flex items-center"
                 style={{ top: `${(currentMinutes / 60) * hourHeight}px` }}
               >
-                {isPlanner && (
-                  /* 手帳のしおり紐（ブックマークリボン） */
-                  <div className="absolute right-0 bottom-full h-8 planner-ribbon-tail pointer-events-none -mr-0.5 opacity-90 shadow-sm" />
-                )}
                 <span
                   className={`rounded-l px-1 py-0.5 font-mono text-[9px] font-bold text-white shadow-2xs ${
                     isPlanner ? 'bg-[#be123c]' : 'bg-rose-500'
@@ -963,11 +933,17 @@ export function Timeline24h({
                       const isSubstitute = !!block.isSubstitute;
                       const isEarlyCompleted = !!block.isEarlyCompleted;
 
-                      const positioningClass = isEarlyCompleted
-                        ? 'z-20 shadow-sm backdrop-blur-[2px] border-dashed hover:opacity-35 transition-all ring-1 ring-slate-400/40'
-                        : isSubstitute
-                          ? 'z-10 shadow-2xs inset-x-0.5 sm:inset-x-1 ring-1 ring-blue-400/40'
-                          : 'z-10 inset-x-0.5 sm:inset-x-1 shadow-2xs';
+                      const positioningClass = isPlanner
+                        ? isEarlyCompleted
+                          ? 'z-20 border-dashed hover:opacity-30 transition-all opacity-60'
+                          : isSubstitute
+                            ? 'z-10 inset-x-0.5 sm:inset-x-1 ring-1 ring-blue-400/50'
+                            : 'z-10 inset-x-0.5 sm:inset-x-1'
+                        : isEarlyCompleted
+                          ? 'z-20 shadow-sm backdrop-blur-[2px] border-dashed hover:opacity-35 transition-all ring-1 ring-slate-400/40'
+                          : isSubstitute
+                            ? 'z-10 shadow-2xs inset-x-0.5 sm:inset-x-1 ring-1 ring-blue-400/40'
+                            : 'z-10 inset-x-0.5 sm:inset-x-1 shadow-2xs';
 
                       const positioningStyle: React.CSSProperties = {
                         top: `${top}px`,
@@ -1000,29 +976,32 @@ export function Timeline24h({
                                   : block.title
                           }
                           style={positioningStyle}
-                          className={`group !absolute overflow-hidden rounded-md border ${
-                            isPlanner ? 'planner-sticky-shadow' : 'sticky-note'
+                          className={`group !absolute overflow-hidden border ${
+                            isPlanner
+                              ? 'planner-entry rounded-xs'
+                              : 'sticky-note rounded-md'
                           } hover:z-30 transition-all duration-150 ${positioningClass}`}
                         >
-                          {/* 手帳風マスキングテープ（和紙テープ）アクセント */}
-                          {isPlanner && !isSubstitute && !isEarlyCompleted && (
-                            <div className="planner-washi-tape absolute top-0 inset-x-3 h-1 rounded-b-xs opacity-70 pointer-events-none z-10" />
+                          {/* 付箋のり付けストリップ (左端: モダン・付箋モードのみ表示。手帳直書きモードでは付箋を使わないため非表示) */}
+                          {!isPlanner && (
+                            <div
+                              className="absolute inset-y-0 left-0 w-1.5 opacity-90 shadow-2xs"
+                              style={{
+                                backgroundColor: isSubstitute
+                                  ? '#3b82f6'
+                                  : isEarlyCompleted
+                                    ? '#94a3b8'
+                                    : colorScheme.strip,
+                              }}
+                            />
                           )}
 
-                          {/* 付箋のり付けストリップ (左端) */}
-                          <div
-                            className="absolute inset-y-0 left-0 w-1.5 opacity-90 shadow-2xs"
-                            style={{
-                              backgroundColor: isSubstitute
-                                ? '#3b82f6'
-                                : isEarlyCompleted
-                                  ? '#94a3b8'
-                                  : colorScheme.strip,
-                            }}
-                          />
-
                           {/* Block Content */}
-                          <div className="flex h-full flex-col justify-between p-1 pl-2.5 overflow-hidden">
+                          <div
+                            className={`flex h-full flex-col justify-between p-1 ${
+                              isPlanner ? 'pl-1.5 sm:pl-2' : 'pl-2.5'
+                            } overflow-hidden`}
+                          >
                             <div className="flex items-start justify-between gap-1 min-w-0 overflow-hidden">
                               {/* タイトル領域: バッジとタイトルを同一インラインフローにまとめ、文字が横幅0pxに押し潰される現象を根本根絶 */}
                               <div
@@ -1083,12 +1062,18 @@ export function Timeline24h({
                                       e.stopPropagation();
                                       onToggleBlockComplete(block);
                                     }}
-                                    className={`shrink-0 flex items-center gap-0.5 rounded px-1 py-0.2 text-[9px] font-bold transition cursor-pointer shadow-2xs border ${
-                                      block.isCompleted
-                                        ? isPlanner
-                                          ? 'bg-rose-50/90 text-rose-800 border-rose-300 hover:bg-rose-100'
-                                          : 'bg-slate-200/90 text-slate-700 border-slate-300 hover:bg-slate-300'
-                                        : 'bg-white/90 text-slate-600 border-slate-200 hover:bg-blue-50 hover:text-blue-600'
+                                    className={`shrink-0 flex items-center gap-0.5 transition cursor-pointer ${
+                                      isPlanner
+                                        ? `rounded-xs px-1 py-0.2 text-[9px] font-medium border ${
+                                            block.isCompleted
+                                              ? 'bg-slate-200/90 text-slate-800 border-slate-400 hover:bg-slate-300'
+                                              : 'bg-white/90 text-slate-700 border-slate-300 hover:border-slate-500'
+                                          }`
+                                        : `rounded px-1 py-0.2 text-[9px] font-bold shadow-2xs border ${
+                                            block.isCompleted
+                                              ? 'bg-slate-200/90 text-slate-700 border-slate-300 hover:bg-slate-300'
+                                              : 'bg-white/90 text-slate-600 border-slate-200 hover:bg-blue-50 hover:text-blue-600'
+                                          }`
                                     }`}
                                     title={
                                       block.isCompleted
@@ -1098,11 +1083,9 @@ export function Timeline24h({
                                   >
                                     {block.isCompleted ? (
                                       isPlanner ? (
-                                        <span
-                                          className="planner-stamp-done px-1.5 py-0.2 text-[8px] font-bold leading-none inline-flex items-center justify-center select-none"
-                                          title="完了スタンプ（済）"
-                                        >
-                                          済
+                                        <span className="flex items-center gap-0.5 font-bold text-slate-800">
+                                          <span className="inline-block text-[9px] leading-none">✓</span>
+                                          <span>済</span>
                                         </span>
                                       ) : (
                                         <>
@@ -1110,6 +1093,11 @@ export function Timeline24h({
                                           <span className="hidden sm:inline">済</span>
                                         </>
                                       )
+                                    ) : isPlanner ? (
+                                      <span className="flex items-center gap-0.5 text-slate-600">
+                                        <span className="inline-block w-2.5 h-2.5 border border-slate-400 rounded-2xs bg-white" />
+                                        <span className="hidden sm:inline">未</span>
+                                      </span>
                                     ) : (
                                       <>
                                         <Circle className="h-2.5 w-2.5 text-slate-400" />
@@ -1175,6 +1163,5 @@ export function Timeline24h({
         </div>
       </div>
     </div>
-  </div>
-);
+  );
 }

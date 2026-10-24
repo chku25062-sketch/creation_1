@@ -376,12 +376,12 @@ export function SheetFooter({
                     }`}
                   >
                     <div className="flex items-start gap-2.5">
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#533621] text-amber-200 shadow-2xs">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#3b2b1e] text-amber-100 shadow-2xs">
                         <BookOpen className="h-4 w-4" />
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5 font-bold text-slate-900">
-                          <span>手帳風（Planner）</span>
+                          <span>手帳風（直書き）</span>
                           {themeMode === 'planner' && (
                             <span className="rounded bg-amber-200 px-1 py-0.2 text-[9px] font-bold text-amber-900">
                               適用中
@@ -389,7 +389,7 @@ export function SheetFooter({
                           )}
                         </div>
                         <p className="text-[11px] font-normal text-slate-500 mt-0.5 leading-tight">
-                          革カバー・上質方眼紙・しおり紐・付箋スタンプ調
+                          付箋を使わず、手帳にペンで直接予定を書き込んだようなシンプル・フラットなスタイル
                         </p>
                       </div>
                     </div>
@@ -404,12 +404,12 @@ export function SheetFooter({
                     }`}
                   >
                     <div className="flex items-start gap-2.5">
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-800 text-white shadow-2xs">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-blue-600 text-white shadow-2xs">
                         <Laptop className="h-4 w-4" />
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5 font-bold text-slate-900">
-                          <span>モダン（Modern）</span>
+                          <span>モダン（付箋カード）</span>
                           {themeMode === 'modern' && (
                             <span className="rounded bg-blue-200 px-1 py-0.2 text-[9px] font-bold text-blue-900">
                               適用中
@@ -417,7 +417,7 @@ export function SheetFooter({
                           )}
                         </div>
                         <p className="text-[11px] font-normal text-slate-500 mt-0.5 leading-tight">
-                          すっきり洗練されたデジタルフラットスタイル
+                          付箋（Sticky Note）のように予定カードを貼り付けた立体的なスタイル
                         </p>
                       </div>
                     </div>

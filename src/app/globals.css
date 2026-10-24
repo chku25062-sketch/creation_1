@@ -117,89 +117,34 @@
 }
 
 /* ========================================================
-   手帳風（Planner）＆ モダン（Modern）デザインテーマスタイル
+   手帳風（Planner: スケジュール帳直書き）＆ モダン（Modern）スタイル
    ======================================================== */
 
-/* --- 手帳風（Planner Mode）--- */
+/* --- 手帳風（Planner: スケジュール帳直書き調）--- */
 
-/* 本革カバー風バインダー枠（ステッチ付き） */
-.planner-leather-cover {
-  background-color: #533621;
-  background-image:
-    radial-gradient(ellipse at 50% 0%, rgba(138, 92, 57, 0.4) 0%, transparent 70%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(0, 0, 0, 0.25) 100%);
-  box-shadow:
-    0 10px 30px -4px rgba(40, 20, 10, 0.28),
-    inset 0 1px 2px rgba(255, 255, 255, 0.2),
-    inset 0 -2px 6px rgba(0, 0, 0, 0.4);
-  position: relative;
-}
-
-/* 手帳カバーの手縫い風ステッチライン */
-.planner-stitch-border {
-  border: 1.5px dashed rgba(217, 140, 70, 0.45);
-}
-
-/* 手帳用紙（上質アイボリー・クリーム方眼紙） */
+/* 手帳用紙（落ち着いたアイボリー用紙 ＋ 極細方眼グリッド） */
 .planner-paper-bg {
-  background-color: #fcfbf6;
+  background-color: #faf9f5;
   background-image:
-    linear-gradient(to right, rgba(148, 163, 184, 0.18) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(148, 163, 184, 0.18) 1px, transparent 1px);
+    linear-gradient(to right, rgba(148, 163, 184, 0.15) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.15) 1px, transparent 1px);
   background-size: 20px 20px;
 }
 
-/* 見開き手帳の中央折り目（バインダーの背・綴じ目の立体陰影） */
-.planner-crease-overlay {
-  pointer-events: none;
-  background: linear-gradient(
-    to right,
-    transparent 0%,
-    transparent 47.5%,
-    rgba(70, 50, 30, 0.04) 49%,
-    rgba(50, 30, 15, 0.12) 50%,
-    rgba(70, 50, 30, 0.04) 51%,
-    transparent 52.5%,
-    transparent 100%
-  );
+/* スケジュール帳の直書き予定枠（付箋ではなく、手帳にペンやマーカーで直接記入したフラットスタイル） */
+.planner-entry {
+  box-shadow: none !important;
+  border-radius: 2px !important;
+  border-style: solid !important;
+  border-width: 1px !important;
 }
 
-/* 手帳のしおり紐（ブックマークリボン） */
-.planner-ribbon-tail {
-  width: 14px;
-  background: linear-gradient(to bottom, #9f1239, #be123c, #e11d48);
-  box-shadow: 1px 2px 5px rgba(0, 0, 0, 0.25);
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
+.planner-entry:hover {
+  box-shadow: none !important;
+  filter: brightness(0.97);
 }
 
-/* 和紙マスキングテープ風アクセント */
-.planner-washi-tape {
-  background: rgba(254, 240, 138, 0.55);
-  backdrop-filter: blur(1px);
-  border-top: 1px dashed rgba(202, 138, 4, 0.35);
-  border-bottom: 1px dashed rgba(202, 138, 4, 0.35);
-}
-
-/* 手帳の朱肉「済」印章スタンプ */
-.planner-stamp-done {
-  border: 2px solid #e11d48;
-  color: #e11d48;
-  border-radius: 9999px;
-  transform: rotate(-8deg);
-  box-shadow: 0 0 0 1px rgba(225, 29, 72, 0.2), inset 0 0 3px rgba(225, 29, 72, 0.25);
-  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', serif;
-  text-shadow: 0 0 1px rgba(225, 29, 72, 0.4);
-}
-
-/* 手帳付箋の自然なドロップシャドウ */
-.planner-sticky-shadow {
-  box-shadow:
-    0 2px 4px rgba(70, 50, 30, 0.08),
-    0 4px 10px -2px rgba(70, 50, 30, 0.06),
-    0 -1px 0 rgba(0, 0, 0, 0.02);
-}
-
-/* --- モダン（Modern Mode）--- */
+/* --- モダン（Modern Mode: 通常のWebカードスタイル）--- */
 
 .modern-frame {
   background-color: #ffffff;
@@ -214,4 +159,5 @@
     linear-gradient(to bottom, rgba(226, 232, 240, 0.4) 1px, transparent 1px);
   background-size: 32px 32px;
 }
+
 
