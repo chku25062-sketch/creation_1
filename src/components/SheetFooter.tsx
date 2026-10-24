@@ -381,7 +381,7 @@ export function SheetFooter({
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5 font-bold text-slate-900">
-                          <span>手帳風（直書き）</span>
+                          <span>手帳風（文字のみ）</span>
                           {themeMode === 'planner' && (
                             <span className="rounded bg-amber-200 px-1 py-0.2 text-[9px] font-bold text-amber-900">
                               適用中
@@ -389,7 +389,7 @@ export function SheetFooter({
                           )}
                         </div>
                         <p className="text-[11px] font-normal text-slate-500 mt-0.5 leading-tight">
-                          付箋を使わず、手帳にペンで直接予定を書き込んだようなシンプル・フラットなスタイル
+                          ブロックで囲わず、色のついた文字と時間などの付随情報のみで表現するスタイル
                         </p>
                       </div>
                     </div>

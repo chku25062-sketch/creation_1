@@ -935,9 +935,9 @@ export function Timeline24h({
 
                       const positioningClass = isPlanner
                         ? isEarlyCompleted
-                          ? 'z-20 border-dashed hover:opacity-30 transition-all opacity-60'
+                          ? 'z-20 opacity-40 hover:opacity-20 transition-opacity'
                           : isSubstitute
-                            ? 'z-10 inset-x-0.5 sm:inset-x-1 ring-1 ring-blue-400/50'
+                            ? 'z-10 inset-x-0.5 sm:inset-x-1'
                             : 'z-10 inset-x-0.5 sm:inset-x-1'
                         : isEarlyCompleted
                           ? 'z-20 shadow-sm backdrop-blur-[2px] border-dashed hover:opacity-35 transition-all ring-1 ring-slate-400/40'
@@ -948,14 +948,18 @@ export function Timeline24h({
                       const positioningStyle: React.CSSProperties = {
                         top: `${top}px`,
                         height: `${height}px`,
-                        backgroundColor: isEarlyCompleted
-                          ? 'rgba(241, 245, 249, 0.76)' // 半透明グレートーン（奥の新タスクが透ける）
-                          : colorScheme.bg,
-                        borderColor: isEarlyCompleted
-                          ? 'rgba(203, 213, 225, 0.85)'
-                          : colorScheme.border,
+                        backgroundColor: isPlanner
+                          ? 'transparent' // ★ 手帳風ではブロック（背景色塗りつぶし）で囲わない！
+                          : isEarlyCompleted
+                            ? 'rgba(241, 245, 249, 0.76)'
+                            : colorScheme.bg,
+                        borderColor: isPlanner
+                          ? 'transparent' // ★ 手帳風では四角いボーダー枠で囲わない！
+                          : isEarlyCompleted
+                            ? 'rgba(203, 213, 225, 0.85)'
+                            : colorScheme.border,
                         color: colorScheme.text,
-                        ...(isEarlyCompleted
+                        ...(isEarlyCompleted && !isPlanner
                           ? {
                               left: '4%',
                               width: '92%',
@@ -976,13 +980,13 @@ export function Timeline24h({
                                   : block.title
                           }
                           style={positioningStyle}
-                          className={`group !absolute overflow-hidden border ${
+                          className={`group !absolute overflow-hidden ${
                             isPlanner
-                              ? 'planner-entry rounded-xs'
-                              : 'sticky-note rounded-md'
-                          } hover:z-30 transition-all duration-150 ${positioningClass}`}
+                              ? 'hover:bg-amber-900/[0.04] transition-colors duration-100 rounded-none'
+                              : 'sticky-note rounded-md border transition-all duration-150'
+                          } hover:z-30 ${positioningClass}`}
                         >
-                          {/* 付箋のり付けストリップ (左端: モダン・付箋モードのみ表示。手帳直書きモードでは付箋を使わないため非表示) */}
+                          {/* 付箋のり付けストリップ (左端: モダン・付箋モードのみ表示。手帳風では完全非表示) */}
                           {!isPlanner && (
                             <div
                               className="absolute inset-y-0 left-0 w-1.5 opacity-90 shadow-2xs"
@@ -996,14 +1000,14 @@ export function Timeline24h({
                             />
                           )}
 
-                          {/* Block Content */}
+                          {/* Block Content: 手帳風では色付き文字と付随情報のみで表現 */}
                           <div
-                            className={`flex h-full flex-col justify-between p-1 ${
-                              isPlanner ? 'pl-1.5 sm:pl-2' : 'pl-2.5'
+                            className={`flex h-full flex-col justify-between ${
+                              isPlanner ? 'p-0.5 px-1 sm:px-1.5' : 'p-1 pl-2.5'
                             } overflow-hidden`}
                           >
                             <div className="flex items-start justify-between gap-1 min-w-0 overflow-hidden">
-                              {/* タイトル領域: バッジとタイトルを同一インラインフローにまとめ、文字が横幅0pxに押し潰される現象を根本根絶 */}
+                              {/* タイトル領域: 手帳風では色付きのペン文字でサラッと書いた表現 */}
                               <div
                                 className="min-w-0 flex-1 leading-snug break-words [overflow-wrap:anywhere] text-xs sm:text-[13px] font-bold"
                                 style={{
@@ -1014,43 +1018,87 @@ export function Timeline24h({
                                 }}
                               >
                                 {isSubstitute && (
-                                  <span
-                                    className="inline-flex items-center gap-0.5 rounded bg-blue-600 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline animate-pulse"
-                                    title={`元の予定「${block.substitutedForTitle}」の早期完了に伴い代行配置`}
-                                  >
-                                    <Sparkles className="h-2 w-2" />
-                                    代行
-                                  </span>
+                                  isPlanner ? (
+                                    <span className="text-[10px] font-bold text-blue-600 mr-1 select-none align-baseline">
+                                      [代行]
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className="inline-flex items-center gap-0.5 rounded bg-blue-600 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline animate-pulse"
+                                      title={`元の予定「${block.substitutedForTitle}」の早期完了に伴い代行配置`}
+                                    >
+                                      <Sparkles className="h-2 w-2" />
+                                      代行
+                                    </span>
+                                  )
                                 )}
                                 {isEarlyCompleted && (
-                                  <span
-                                    className="inline-flex items-center gap-0.5 rounded bg-emerald-600/90 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline"
-                                    title="前倒し完了済み（奥に代行タスクが配置されています）"
-                                  >
-                                    <CheckCircle2 className="h-2 w-2" />
-                                    完了
-                                  </span>
+                                  isPlanner ? (
+                                    <span className="text-[10px] font-bold text-emerald-700 mr-1 select-none align-baseline">
+                                      [済]
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className="inline-flex items-center gap-0.5 rounded bg-emerald-600/90 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline"
+                                      title="前倒し完了済み（奥に代行タスクが配置されています）"
+                                    >
+                                      <CheckCircle2 className="h-2 w-2" />
+                                      完了
+                                    </span>
+                                  )
                                 )}
                                 {isWeeklyTask && !isSubstitute && !block.isCompleted && (
-                                  <span
-                                    className="inline-flex items-center rounded bg-violet-600 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline"
-                                    title="週タスク"
-                                  >
-                                    週
-                                  </span>
+                                  isPlanner ? (
+                                    <span
+                                      className="text-[10px] font-bold text-violet-700 mr-1 select-none align-baseline"
+                                      title="週タスク"
+                                    >
+                                      [週]
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className="inline-flex items-center rounded bg-violet-600 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline"
+                                      title="週タスク"
+                                    >
+                                      週
+                                    </span>
+                                  )
                                 )}
                                 {block.isRescheduled && (
-                                  <span
-                                    className="inline-flex items-center gap-0.5 rounded bg-amber-500 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline"
-                                    title="やり残しのため未来の空き枠へ自動再スケジュール"
-                                  >
-                                    <RotateCcw className="h-2 w-2" />
-                                    再配置
-                                  </span>
+                                  isPlanner ? (
+                                    <span
+                                      className="text-[10px] font-bold text-amber-600 mr-1 select-none align-baseline"
+                                      title="やり残しのため未来の空き枠へ自動再スケジュール"
+                                    >
+                                      [再]
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className="inline-flex items-center gap-0.5 rounded bg-amber-500 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline"
+                                      title="やり残しのため未来の空き枠へ自動再スケジュール"
+                                    >
+                                      <RotateCcw className="h-2 w-2" />
+                                      再配置
+                                    </span>
+                                  )
                                 )}
-                                <span className={block.isCompleted ? 'line-through opacity-80' : ''}>
+                                <span
+                                  style={{
+                                    color: block.isCompleted
+                                      ? '#94a3b8'
+                                      : colorScheme.text,
+                                  }}
+                                  className={`${
+                                    block.isCompleted ? 'line-through opacity-70' : ''
+                                  } ${isPlanner ? 'font-semibold tracking-tight' : 'font-bold'}`}
+                                >
                                   {block.title || '（名称未設定）'}
                                 </span>
+                                {isPlanner && isShort && (
+                                  <span className="font-mono text-[9px] text-slate-400 font-normal ml-1 whitespace-nowrap">
+                                    {minutesToTimeString(block.startMinutes)}
+                                  </span>
+                                )}
                               </div>
 
                               <div className="shrink-0 flex items-center gap-1">
@@ -1064,10 +1112,10 @@ export function Timeline24h({
                                     }}
                                     className={`shrink-0 flex items-center gap-0.5 transition cursor-pointer ${
                                       isPlanner
-                                        ? `rounded-xs px-1 py-0.2 text-[9px] font-medium border ${
+                                        ? `px-0.5 py-0 text-[10px] ${
                                             block.isCompleted
-                                              ? 'bg-slate-200/90 text-slate-800 border-slate-400 hover:bg-slate-300'
-                                              : 'bg-white/90 text-slate-700 border-slate-300 hover:border-slate-500'
+                                              ? 'text-slate-500 hover:text-slate-800'
+                                              : 'text-slate-400 hover:text-slate-700'
                                           }`
                                         : `rounded px-1 py-0.2 text-[9px] font-bold shadow-2xs border ${
                                             block.isCompleted
@@ -1083,9 +1131,8 @@ export function Timeline24h({
                                   >
                                     {block.isCompleted ? (
                                       isPlanner ? (
-                                        <span className="flex items-center gap-0.5 font-bold text-slate-800">
-                                          <span className="inline-block text-[9px] leading-none">✓</span>
-                                          <span>済</span>
+                                        <span className="flex items-center gap-0.5 font-bold text-slate-600 font-mono text-[10px]">
+                                          [✓]
                                         </span>
                                       ) : (
                                         <>
@@ -1094,9 +1141,8 @@ export function Timeline24h({
                                         </>
                                       )
                                     ) : isPlanner ? (
-                                      <span className="flex items-center gap-0.5 text-slate-600">
-                                        <span className="inline-block w-2.5 h-2.5 border border-slate-400 rounded-2xs bg-white" />
-                                        <span className="hidden sm:inline">未</span>
+                                      <span className="flex items-center gap-0.5 text-slate-400 font-mono text-[10px]">
+                                        [ ]
                                       </span>
                                     ) : (
                                       <>
@@ -1107,22 +1153,32 @@ export function Timeline24h({
                                   </button>
                                 )}
 
-                                {/* ★ ユーザー指示により参照元タグはオフ（色が教えてくれるため、余分な圧迫を排除してタイトル領域を全開に確保） */}
-
+                                {/* ★ 課題の期日表示 */}
                                 {isAssignment && block.deadlineDay !== undefined && (
-                                  <span className="rounded bg-rose-200/90 px-1 py-0.2 text-[9px] font-bold text-rose-900 shadow-2xs">
-                                    期日:{WEEKDAY_NAMES[block.deadlineDay]}
-                                  </span>
+                                  isPlanner ? (
+                                    <span className="text-[9px] font-medium text-rose-700 ml-1">
+                                      期日:{WEEKDAY_NAMES[block.deadlineDay]}
+                                    </span>
+                                  ) : (
+                                    <span className="rounded bg-rose-200/90 px-1 py-0.2 text-[9px] font-bold text-rose-900 shadow-2xs">
+                                      期日:{WEEKDAY_NAMES[block.deadlineDay]}
+                                    </span>
+                                  )
                                 )}
                               </div>
                             </div>
 
+                            {/* 付随情報（時間など）: 手帳風ではペンのメモ書き調 */}
                             {!isShort && (
-                              <div className="mt-auto shrink-0 flex items-center gap-1 font-mono text-[10px] opacity-80 sm:text-[11px] pt-0.5">
+                              <div
+                                className={`mt-auto shrink-0 flex items-center gap-1 font-mono text-[10px] ${
+                                  isPlanner ? 'text-slate-500 pt-0 opacity-85' : 'text-slate-600 pt-0.5 opacity-80'
+                                } sm:text-[11px]`}
+                              >
                                 {isAssignment ? (
                                   <BookOpen className="h-2.5 w-2.5 text-purple-700 shrink-0" />
                                 ) : (
-                                  <Clock className="h-2.5 w-2.5 text-slate-500 shrink-0" />
+                                  <Clock className="h-2.5 w-2.5 text-slate-400 shrink-0" />
                                 )}
                                 <span className="truncate">
                                   {minutesToTimeString(block.startMinutes)} -{' '}
@@ -1134,20 +1190,32 @@ export function Timeline24h({
                                   </span>
                                 )}
                                 {isSubstitute && block.substitutedForTitle && (
-                                  <span
-                                    className="shrink-0 rounded bg-blue-100/90 px-1 py-0.2 text-[8px] font-bold text-blue-900 truncate max-w-[110px]"
-                                    title={`代行元: ${block.substitutedForTitle}`}
-                                  >
-                                    ⇄ {block.substitutedForTitle}
-                                  </span>
+                                  isPlanner ? (
+                                    <span className="text-[9px] text-blue-600 truncate max-w-[110px]">
+                                      ⇄ {block.substitutedForTitle}
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className="shrink-0 rounded bg-blue-100/90 px-1 py-0.2 text-[8px] font-bold text-blue-900 truncate max-w-[110px]"
+                                      title={`代行元: ${block.substitutedForTitle}`}
+                                    >
+                                      ⇄ {block.substitutedForTitle}
+                                    </span>
+                                  )
                                 )}
                                 {block.breakMinutes !== undefined && block.breakMinutes > 0 && (
-                                  <span
-                                    className="shrink-0 rounded bg-emerald-100/80 px-1 py-0.2 text-[9px] font-medium text-emerald-800"
-                                    title={`タスク後の余白（休憩）: ${block.breakMinutes}分`}
-                                  >
-                                    余白 {block.breakMinutes}m
-                                  </span>
+                                  isPlanner ? (
+                                    <span className="text-[9px] text-emerald-700">
+                                      余白 {block.breakMinutes}m
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className="shrink-0 rounded bg-emerald-100/80 px-1 py-0.2 text-[9px] font-medium text-emerald-800"
+                                      title={`タスク後の余白（休憩）: ${block.breakMinutes}分`}
+                                    >
+                                      余白 {block.breakMinutes}m
+                                    </span>
+                                  )
                                 )}
                               </div>
                             )}
