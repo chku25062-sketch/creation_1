@@ -462,7 +462,7 @@ export default function Home() {
         themeMode === 'planner' ? 'bg-[#f4efe8] bg-notebook-grid' : 'bg-[#f8fafc] modern-grid-bg'
       }`}
     >
-      <main className="mx-auto flex w-full flex-1 min-h-0 flex-col px-1.5 pt-1.5 pb-1 sm:px-3 sm:pt-2 sm:pb-1.5 max-w-full">
+      <main className="mx-auto flex w-full flex-1 min-h-0 flex-col p-1 sm:p-1.5 max-w-full">
         {/* Sheet 1: 計画表 (メインタイムライン) */}
         <div
           className={`flex flex-1 min-h-0 flex-col ${

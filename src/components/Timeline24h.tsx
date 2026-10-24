@@ -510,10 +510,10 @@ export function Timeline24h({
   }, [importedTables, blocks, dayBlocks]);
 
   return (
-    <div className="flex flex-1 min-h-0 flex-col gap-1.5 rounded-xl border border-slate-200 bg-white p-1.5 sm:p-2 shadow-2xs">
+    <div className="flex flex-1 min-h-0 flex-col gap-1 w-full">
       {/* Unassigned Warning Alert if any (折りたたみ可能な洗練されたアコーディオン表示) */}
       {unassignedTasks.length > 0 && (
-        <div className="flex shrink-0 flex-col rounded-lg border border-amber-200/90 bg-amber-50/90 text-xs text-amber-900 shadow-2xs overflow-hidden transition-all duration-200">
+        <div className="flex shrink-0 flex-col border border-amber-200/90 bg-amber-50/90 text-xs text-amber-900 overflow-hidden transition-all duration-200">
           <button
             type="button"
             onClick={() => setIsUnassignedAlertExpanded((prev) => !prev)}
@@ -550,7 +550,7 @@ export function Timeline24h({
       )}
 
       {/* 7-Day Vertical Weekly Grid Container */}
-      <div className="flex flex-1 min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs">
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden border border-slate-200/90 bg-white">
         {/* Sticky Weekday Header Row */}
         <div
           className={`flex shrink-0 border-b px-1 sm:px-1.5 transition-colors ${
