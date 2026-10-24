@@ -137,13 +137,9 @@
 
 /* --- 手帳風（Planner: スケジュール帳直書き調）--- */
 
-/* 手帳用紙（落ち着いたアイボリー用紙 ＋ 極細方眼グリッド） */
+/* 手帳用紙（落ち着いたアイボリー用紙。方眼線はタイムライン時間目盛りと完全同期して描画） */
 .planner-paper-bg {
   background-color: #faf9f5;
-  background-image:
-    linear-gradient(to right, rgba(148, 163, 184, 0.15) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(148, 163, 184, 0.15) 1px, transparent 1px);
-  background-size: 20px 20px;
 }
 
 /* スケジュール帳の直書き予定枠（付箋ではなく、手帳にペンやマーカーで直接記入したフラットスタイル） */

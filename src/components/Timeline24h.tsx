@@ -729,35 +729,43 @@ export function Timeline24h({
                   <div key={`h-layer-${hour}`} className="absolute inset-x-0" style={{ top: `${hourBase}px`, height: `${hourHeight}px` }}>
                     {/* 10分刻みの点線 */}
                     <div
-                      className="absolute inset-x-0 border-b border-dotted border-slate-200/50"
+                      className={`absolute inset-x-0 border-b ${
+                        isPlanner ? 'border-[#e8e0d4]/80' : 'border-dotted border-slate-200/50'
+                      }`}
                       style={{ top: `${(10 / 60) * hourHeight}px` }}
                     />
                     {/* 20分刻みの点線 */}
                     <div
-                      className="absolute inset-x-0 border-b border-dotted border-slate-200/50"
+                      className={`absolute inset-x-0 border-b ${
+                        isPlanner ? 'border-[#e8e0d4]/80' : 'border-dotted border-slate-200/50'
+                      }`}
                       style={{ top: `${(20 / 60) * hourHeight}px` }}
                     />
-                    {/* 30分ごとの目盛り線（破線で強調） */}
+                    {/* 30分ごとの目盛り線（半時: 破線で強調） */}
                     <div
                       className={`absolute inset-x-0 border-b border-dashed ${
-                        isPlanner ? 'border-[#ded4c5]' : 'border-slate-300/80'
+                        isPlanner ? 'border-[#cdbea8]' : 'border-slate-300/80'
                       }`}
                       style={{ top: `${(30 / 60) * hourHeight}px` }}
                     />
                     {/* 40分刻みの点線 */}
                     <div
-                      className="absolute inset-x-0 border-b border-dotted border-slate-200/50"
+                      className={`absolute inset-x-0 border-b ${
+                        isPlanner ? 'border-[#e8e0d4]/80' : 'border-dotted border-slate-200/50'
+                      }`}
                       style={{ top: `${(40 / 60) * hourHeight}px` }}
                     />
                     {/* 50分刻みの点線 */}
                     <div
-                      className="absolute inset-x-0 border-b border-dotted border-slate-200/50"
+                      className={`absolute inset-x-0 border-b ${
+                        isPlanner ? 'border-[#e8e0d4]/80' : 'border-dotted border-slate-200/50'
+                      }`}
                       style={{ top: `${(50 / 60) * hourHeight}px` }}
                     />
                     {/* 60分（正時）の実線 */}
                     <div
                       className={`absolute inset-x-0 border-b ${
-                        isPlanner ? 'border-[#d4c8b8]' : 'border-slate-300'
+                        isPlanner ? 'border-[#b5a38c]' : 'border-slate-300'
                       }`}
                       style={{ top: `${hourHeight}px` }}
                     />
@@ -881,9 +889,11 @@ export function Timeline24h({
                 return (
                   <div
                     key={`weekday-col-${d.dayIndex}`}
-                    className={`relative border-r border-slate-200/70 ${
-                      colIndex === displayedDays.length - 1 ? 'border-r-0' : ''
-                    } ${d.isToday ? 'bg-amber-100/15' : ''}`}
+                    className={`relative border-r ${
+                      isPlanner ? 'border-[#cdbea8]' : 'border-slate-200/70'
+                    } ${colIndex === displayedDays.length - 1 ? 'border-r-0' : ''} ${
+                      d.isToday ? 'bg-amber-100/15' : ''
+                    }`}
                     style={{ height: `${totalHeight}px` }}
                   >
                     {/* 今日の現在時刻インジケーター（赤ライン ＆ 赤丸） */}
@@ -933,11 +943,20 @@ export function Timeline24h({
                       const isSubstitute = !!block.isSubstitute;
                       const isEarlyCompleted = !!block.isEarlyCompleted;
 
+                      // 手帳風: 全予定共通の統一背景色（落ち着いた手帳用紙エクリュ）
+                      // これにより、時間枠が直感的に分かりつつ、色付き文字が主役として綺麗に映える
+                      const PLANNER_UNIFIED_BG = '#efebe2'; // 統一された品のある淡いエクリュ
+                      const PLANNER_COMPLETED_BG = '#e5e3dc'; // 完了時の統一背景
+                      const PLANNER_EARLY_COMPLETED_BG = 'rgba(239, 235, 226, 0.45)';
+
+                      const PLANNER_BORDER = 'rgba(215, 207, 192, 0.85)'; // 繊細な1px実線
+                      const PLANNER_COMPLETED_BORDER = 'rgba(195, 187, 175, 0.7)';
+
                       const positioningClass = isPlanner
                         ? isEarlyCompleted
-                          ? 'z-20 opacity-40 hover:opacity-20 transition-opacity'
+                          ? 'z-20 opacity-40 hover:opacity-20 transition-opacity border-dashed'
                           : isSubstitute
-                            ? 'z-10 inset-x-0.5 sm:inset-x-1'
+                            ? 'z-10 inset-x-0.5 sm:inset-x-1 ring-1 ring-blue-400/50'
                             : 'z-10 inset-x-0.5 sm:inset-x-1'
                         : isEarlyCompleted
                           ? 'z-20 shadow-sm backdrop-blur-[2px] border-dashed hover:opacity-35 transition-all ring-1 ring-slate-400/40'
@@ -949,12 +968,20 @@ export function Timeline24h({
                         top: `${top}px`,
                         height: `${height}px`,
                         backgroundColor: isPlanner
-                          ? 'transparent' // ★ 手帳風ではブロック（背景色塗りつぶし）で囲わない！
+                          ? isEarlyCompleted
+                            ? PLANNER_EARLY_COMPLETED_BG
+                            : block.isCompleted
+                              ? PLANNER_COMPLETED_BG
+                              : PLANNER_UNIFIED_BG // ★ 統一の背景色
                           : isEarlyCompleted
                             ? 'rgba(241, 245, 249, 0.76)'
                             : colorScheme.bg,
                         borderColor: isPlanner
-                          ? 'transparent' // ★ 手帳風では四角いボーダー枠で囲わない！
+                          ? isEarlyCompleted
+                            ? 'rgba(203, 213, 225, 0.6)'
+                            : block.isCompleted
+                              ? PLANNER_COMPLETED_BORDER
+                              : PLANNER_BORDER // ★ 統一の繊細な枠線
                           : isEarlyCompleted
                             ? 'rgba(203, 213, 225, 0.85)'
                             : colorScheme.border,
@@ -966,20 +993,6 @@ export function Timeline24h({
                             }
                           : {}),
                       };
-
-                      const plannerLineColor = block.isCompleted
-                        ? '#94a3b8'
-                        : isSubstitute
-                          ? '#3b82f6'
-                          : isWeeklyTask
-                            ? '#8b5cf6'
-                            : colorScheme.strip || colorScheme.text;
-
-                      const contentPaddingClass = isPlanner
-                        ? height < 28
-                          ? 'py-0.5 px-1 sm:px-1.5'
-                          : 'py-1 px-1 sm:px-1.5'
-                        : 'p-1 pl-2.5';
 
                       return (
                         <div
@@ -994,32 +1007,12 @@ export function Timeline24h({
                                   : block.title
                           }
                           style={positioningStyle}
-                          className={`group !absolute overflow-hidden ${
+                          className={`group !absolute overflow-hidden border ${
                             isPlanner
-                              ? 'hover:bg-amber-900/[0.04] transition-colors duration-100 rounded-none'
+                              ? 'hover:brightness-[0.98] transition-all duration-100 rounded-none'
                               : 'sticky-note rounded-md border transition-all duration-150'
                           } hover:z-30 ${positioningClass}`}
                         >
-                          {/* 手帳風: 予定の始まりを表す横棒 (開始時刻の水平ライン) */}
-                          {isPlanner && (
-                            <div
-                              className={`absolute top-0 inset-x-0 h-[1.5px] pointer-events-none z-10 ${
-                                isEarlyCompleted ? 'opacity-40' : 'opacity-90'
-                              }`}
-                              style={{ backgroundColor: plannerLineColor }}
-                            />
-                          )}
-
-                          {/* 手帳風: 予定の終わりを表す横棒 (終了時刻の水平ライン) */}
-                          {isPlanner && (
-                            <div
-                              className={`absolute bottom-0 inset-x-0 h-[1.5px] pointer-events-none z-10 ${
-                                isEarlyCompleted ? 'opacity-40' : 'opacity-90'
-                              }`}
-                              style={{ backgroundColor: plannerLineColor }}
-                            />
-                          )}
-
                           {/* 付箋のり付けストリップ (左端: モダン・付箋モードのみ表示。手帳風では完全非表示) */}
                           {!isPlanner && (
                             <div
@@ -1034,9 +1027,11 @@ export function Timeline24h({
                             />
                           )}
 
-                          {/* Block Content: 手帳風では色付き文字と付随情報のみで表現 */}
+                          {/* Block Content: 統一背景色の上で色付き文字と付随情報を表現 */}
                           <div
-                            className={`flex h-full flex-col justify-between ${contentPaddingClass} overflow-hidden`}
+                            className={`flex h-full flex-col justify-between ${
+                              isPlanner ? 'p-1 px-1.5 sm:px-2' : 'p-1 pl-2.5'
+                            } overflow-hidden`}
                           >
                             <div className="flex items-start justify-between gap-1 min-w-0 overflow-hidden">
                               {/* タイトル領域: 手帳風では色付きのペン文字でサラッと書いた表現 */}
