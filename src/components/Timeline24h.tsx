@@ -943,14 +943,14 @@ export function Timeline24h({
                       const isSubstitute = !!block.isSubstitute;
                       const isEarlyCompleted = !!block.isEarlyCompleted;
 
-                      // 手帳風: 全予定共通の統一背景色（落ち着いた手帳用紙エクリュ）
+                      // 手帳風: 全予定共通の半透明背景色（背後の時間対応方眼線が上品に透けて見える）
                       // これにより、時間枠が直感的に分かりつつ、色付き文字が主役として綺麗に映える
-                      const PLANNER_UNIFIED_BG = '#efebe2'; // 統一された品のある淡いエクリュ
-                      const PLANNER_COMPLETED_BG = '#e5e3dc'; // 完了時の統一背景
-                      const PLANNER_EARLY_COMPLETED_BG = 'rgba(239, 235, 226, 0.45)';
+                      const PLANNER_UNIFIED_BG = 'rgba(238, 233, 222, 0.52)'; // 統一された品のある半透明エクリュ
+                      const PLANNER_COMPLETED_BG = 'rgba(224, 220, 212, 0.45)'; // 完了時の半透明背景
+                      const PLANNER_EARLY_COMPLETED_BG = 'rgba(238, 233, 222, 0.25)'; // 前倒し完了時の半透明背景
 
-                      const PLANNER_BORDER = 'rgba(215, 207, 192, 0.85)'; // 繊細な1px実線
-                      const PLANNER_COMPLETED_BORDER = 'rgba(195, 187, 175, 0.7)';
+                      const PLANNER_BORDER = 'rgba(205, 194, 176, 0.65)'; // 繊細な半透明実線
+                      const PLANNER_COMPLETED_BORDER = 'rgba(185, 177, 165, 0.5)';
 
                       const positioningClass = isPlanner
                         ? isEarlyCompleted
