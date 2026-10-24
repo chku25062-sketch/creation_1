@@ -43,6 +43,12 @@ export default function Home() {
   const [completedBlockIds, setCompletedBlockIds] = useState<Set<string>>(new Set());
   const [uncompletedBlockIds, setUncompletedBlockIds] = useState<Set<string>>(new Set());
 
+  // 日フォーカスで選択されている曜日インデックス (0=月 ... 6=日)
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number>(() => {
+    const now = new Date();
+    return (now.getDay() + 6) % 7;
+  });
+
   // 完了トグル状態の復元
   useEffect(() => {
     try {
@@ -439,6 +445,28 @@ export default function Home() {
     });
   }, [effectiveFixedSlots, effectiveTasks, isInitialized, completedBlockIds, uncompletedBlockIds]);
 
+  // 今週配置された全週タスク一覧（日フォーカス時も週全体を俯瞰できるよう抽出）
+  const weeklyBlocks = useMemo(() => {
+    if (!schedulingResult.allBlocks) return [];
+    return schedulingResult.allBlocks
+      .filter((b) => b.isWeeklyTask && !b.isFixed && !b.isBreak)
+      .sort((a, b) => {
+        const dayA = a.dayIndex ?? 0;
+        const dayB = b.dayIndex ?? 0;
+        if (dayA !== dayB) return dayA - dayB;
+        return a.startMinutes - b.startMinutes;
+      });
+  }, [schedulingResult.allBlocks]);
+
+  // 今週未配置の週タスク一覧（枠不足等）
+  const unassignedWeeklyTasks = useMemo(() => {
+    if (!schedulingResult.unassignedTasks) return [];
+    return schedulingResult.unassignedTasks.filter((t) => {
+      const isDaily = t.period === 'day' || t.frequency === 'high';
+      return !isDaily || t.period === 'week' || t.frequency === 'low';
+    });
+  }, [schedulingResult.unassignedTasks]);
+
   if (!isInitialized) {
     return (
       <div
@@ -479,6 +507,8 @@ export default function Home() {
             onToggleBlockComplete={handleToggleBlockComplete}
             themeMode={themeMode}
             onToggleThemeMode={handleToggleThemeMode}
+            selectedDayIndex={selectedDayIndex}
+            onSelectDayIndex={setSelectedDayIndex}
           />
         </div>
 
@@ -521,6 +551,24 @@ export default function Home() {
         onToggleFocus={handleToggleFocus}
         themeMode={themeMode}
         onToggleThemeMode={handleToggleThemeMode}
+        weeklyBlocks={weeklyBlocks}
+        unassignedWeeklyTasks={unassignedWeeklyTasks}
+        onToggleBlockComplete={handleToggleBlockComplete}
+        selectedDayIndex={selectedDayIndex}
+        onSelectDayIndex={(idx) => {
+          setSelectedDayIndex(idx);
+          if (focusMode !== 'today') {
+            setFocusMode('today');
+            try {
+              localStorage.setItem('app_focus_mode', 'today');
+            } catch {
+              // ignore
+            }
+          }
+          if (activeTab !== 'timeline') {
+            setActiveTab('timeline');
+          }
+        }}
       />
 
       <AuthModal

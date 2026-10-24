@@ -28,6 +28,8 @@ interface Timeline24hProps {
   onToggleBlockComplete?: (block: TheoreticalBlock) => void;
   themeMode?: AppThemeMode;
   onToggleThemeMode?: (mode: AppThemeMode) => void;
+  selectedDayIndex?: number;
+  onSelectDayIndex?: (dayIndex: number) => void;
 }
 
 const TOTAL_HOURS = 24;
@@ -342,6 +344,8 @@ export function Timeline24h({
   onToggleBlockComplete,
   themeMode = 'planner',
   onToggleThemeMode,
+  selectedDayIndex: controlledDayIndex,
+  onSelectDayIndex,
 }: Timeline24hProps) {
   const isPlanner = themeMode === 'planner';
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -400,8 +404,15 @@ export function Timeline24h({
     return (now.getDay() + 6) % 7;
   }, []);
 
-  // フォーカスモードで現在選択されている曜日のインデックス
-  const [selectedDayIndex, setSelectedDayIndex] = useState<number>(todayIndex);
+  // フォーカスモードで現在選択されている曜日のインデックス (外部制御対応)
+  const [internalDayIndex, setInternalDayIndex] = useState<number>(todayIndex);
+  const selectedDayIndex = controlledDayIndex !== undefined ? controlledDayIndex : internalDayIndex;
+
+  const handleSelectDayIndex = (updater: number | ((prev: number) => number)) => {
+    const next = typeof updater === 'function' ? updater(selectedDayIndex) : updater;
+    setInternalDayIndex(next);
+    onSelectDayIndex?.(next);
+  };
 
   // 表示する曜日配列 (todayフォーカス時は選択された1日、week時は7日間)
   const displayedDays = useMemo(() => {
@@ -594,7 +605,7 @@ export function Timeline24h({
             >
               <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto">
                 <button
-                  onClick={() => setSelectedDayIndex((prev) => (prev + 6) % 7)}
+                  onClick={() => handleSelectDayIndex((prev) => (prev + 6) % 7)}
                   className="rounded p-1 text-slate-500 hover:bg-slate-200/80 hover:text-slate-800 transition"
                   title="前の曜日へ"
                 >
@@ -606,7 +617,7 @@ export function Timeline24h({
                   {weekDays.map((d) => (
                     <button
                       key={`day-pill-${d.dayIndex}`}
-                      onClick={() => setSelectedDayIndex(d.dayIndex)}
+                      onClick={() => handleSelectDayIndex(d.dayIndex)}
                       className={`rounded px-1.5 py-0.5 text-xs font-semibold transition ${
                         d.dayIndex === selectedDayIndex
                           ? isPlanner
@@ -628,7 +639,7 @@ export function Timeline24h({
                 </div>
 
                 <button
-                  onClick={() => setSelectedDayIndex((prev) => (prev + 1) % 7)}
+                  onClick={() => handleSelectDayIndex((prev) => (prev + 1) % 7)}
                   className="rounded p-1 text-slate-500 hover:bg-slate-200/80 hover:text-slate-800 transition"
                   title="次の曜日へ"
                 >
