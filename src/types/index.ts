@@ -218,3 +218,7 @@ export interface ScheduleInclusionSettings {
   enableDailyTasks: boolean; // 日課タスク (毎日)
   enableWeeklyTasks: boolean; // 週次タスク (目標・課題)
 }
+
+/** アプリケーションのデザインテーマモード（手帳風 ⇄ モダン） */
+export type AppThemeMode = 'planner' | 'modern';
+

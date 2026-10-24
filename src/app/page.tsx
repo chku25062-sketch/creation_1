@@ -6,7 +6,7 @@ import { Timeline24h } from '@/components/Timeline24h';
 import { ImportedTablesManager } from '@/components/ImportedTablesManager';
 import { AuthModal } from '@/components/AuthModal';
 import { FileImportModal } from '@/components/FileImportModal';
-import { FixedSlot, TaskItem, ImportedTableData, ScheduleInclusionSettings } from '@/types';
+import { FixedSlot, TaskItem, ImportedTableData, ScheduleInclusionSettings, AppThemeMode } from '@/types';
 import { generateTheoreticalSchedule } from '@/lib/scheduler';
 import {
   loadLocalData,
@@ -37,6 +37,8 @@ export default function Home() {
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [focusMode, setFocusMode] = useState<'week' | 'today'>('today');
+  // デザインテーマ（手帳風 'planner' ⇄ モダン 'modern'）
+  const [themeMode, setThemeMode] = useState<AppThemeMode>('planner');
   // Plan11: ユーザー手動による完了/未完了トグル状態の管理
   const [completedBlockIds, setCompletedBlockIds] = useState<Set<string>>(new Set());
   const [uncompletedBlockIds, setUncompletedBlockIds] = useState<Set<string>>(new Set());
@@ -68,6 +70,30 @@ export default function Home() {
       // ignore
     }
   }, []);
+
+  // デザインテーマ（手帳風 ⇄ モダン）の復元
+  useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem('app_theme_mode');
+      if (savedTheme === 'planner' || savedTheme === 'modern') {
+        setThemeMode(savedTheme);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleToggleThemeMode = (mode?: AppThemeMode) => {
+    setThemeMode((prev) => {
+      const next = mode || (prev === 'planner' ? 'modern' : 'planner');
+      try {
+        localStorage.setItem('app_theme_mode', next);
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
 
   const handleToggleFocus = () => {
     setFocusMode((prev) => {
@@ -415,7 +441,12 @@ export default function Home() {
 
   if (!isInitialized) {
     return (
-      <div className="flex h-full h-[100dvh] w-full items-center justify-center bg-[#fbfaf5] bg-notebook-grid text-slate-800">
+      <div
+        data-theme={themeMode}
+        className={`flex h-full h-[100dvh] w-full items-center justify-center text-slate-800 transition-colors ${
+          themeMode === 'planner' ? 'bg-[#f4efe8] bg-notebook-grid' : 'bg-[#f8fafc] modern-grid-bg'
+        }`}
+      >
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
           <p className="text-xs text-slate-500 font-medium">理論値計画表を初期化中...</p>
@@ -425,7 +456,12 @@ export default function Home() {
   }
 
   return (
-    <div className="relative flex h-full h-[100dvh] w-full flex-col overflow-hidden bg-[#fbfaf5] bg-notebook-grid text-slate-800">
+    <div
+      data-theme={themeMode}
+      className={`relative flex h-full h-[100dvh] w-full flex-col overflow-hidden text-slate-800 transition-colors duration-300 ${
+        themeMode === 'planner' ? 'bg-[#f4efe8] bg-notebook-grid' : 'bg-[#f8fafc] modern-grid-bg'
+      }`}
+    >
       <main className="mx-auto flex w-full flex-1 min-h-0 flex-col px-1.5 pt-1.5 pb-1 sm:px-3 sm:pt-2 sm:pb-1.5 max-w-full">
         {/* Sheet 1: 計画表 (メインタイムライン) */}
         <div
@@ -441,6 +477,8 @@ export default function Home() {
             focusMode={focusMode}
             onToggleFocus={handleToggleFocus}
             onToggleBlockComplete={handleToggleBlockComplete}
+            themeMode={themeMode}
+            onToggleThemeMode={handleToggleThemeMode}
           />
         </div>
 
@@ -481,6 +519,8 @@ export default function Home() {
         onSignOut={handleSignOut}
         focusMode={focusMode}
         onToggleFocus={handleToggleFocus}
+        themeMode={themeMode}
+        onToggleThemeMode={handleToggleThemeMode}
       />
 
       <AuthModal

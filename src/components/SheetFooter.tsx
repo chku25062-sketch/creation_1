@@ -14,8 +14,12 @@ import {
   X,
   Crosshair,
   CalendarRange,
+  BookOpen,
+  Laptop,
+  Palette,
 } from 'lucide-react';
 import { isSupabaseConfigured } from '@/lib/supabase';
+import { AppThemeMode } from '@/types';
 
 export type SheetTab = 'timeline' | 'data';
 
@@ -30,6 +34,8 @@ interface SheetFooterProps {
   onSignOut?: () => void;
   focusMode?: 'week' | 'today';
   onToggleFocus?: () => void;
+  themeMode?: AppThemeMode;
+  onToggleThemeMode?: (mode: AppThemeMode) => void;
 }
 
 export function SheetFooter({
@@ -43,7 +49,10 @@ export function SheetFooter({
   onSignOut,
   focusMode = 'today',
   onToggleFocus,
+  themeMode = 'planner',
+  onToggleThemeMode,
 }: SheetFooterProps) {
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Escキーでメニューを閉じる
@@ -167,6 +176,36 @@ export function SheetFooter({
                 )}
               </button>
             </div>
+          )}
+
+          {/* テーマ切り替えトグル（手帳風 ⇄ モダン） */}
+          {onToggleThemeMode && (
+            <button
+              onClick={() => onToggleThemeMode(themeMode === 'planner' ? 'modern' : 'planner')}
+              className={`relative flex h-7.5 items-center gap-1 px-2 rounded-md border shadow-2xs transition active:scale-95 text-xs font-semibold ${
+                themeMode === 'planner'
+                  ? 'border-amber-700/40 bg-[#f7f3e8] text-amber-950 hover:bg-[#ede6d4]'
+                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+              title={
+                themeMode === 'planner'
+                  ? '現在: 手帳風デザイン（クリックでモダン表示へ切替）'
+                  : '現在: モダンデザイン（クリックで手帳風表示へ切替）'
+              }
+              aria-label={themeMode === 'planner' ? 'モダンデザインへ切替' : '手帳風デザインへ切替'}
+            >
+              {themeMode === 'planner' ? (
+                <>
+                  <BookOpen className="h-3.5 w-3.5 text-amber-800" />
+                  <span className="hidden sm:inline">手帳風</span>
+                </>
+              ) : (
+                <>
+                  <Laptop className="h-3.5 w-3.5 text-blue-600" />
+                  <span className="hidden sm:inline">モダン</span>
+                </>
+              )}
+            </button>
           )}
 
           {/* Menu Icon Button (メニューアイコン) */}
@@ -315,7 +354,79 @@ export function SheetFooter({
               </div>
             </div>
 
-            {/* セクション 3: 表示フォーカス切り替え */}
+            {/* セクション 3: デザインテーマ切り替え (手帳風 ⇄ モダン) */}
+            {onToggleThemeMode && (
+              <div className="space-y-2">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Palette className="h-3.5 w-3.5 text-amber-700" />
+                    デザインテーマ
+                  </span>
+                  <span className="text-[10px] font-bold text-amber-800 bg-amber-100/80 px-1.5 py-0.2 rounded font-mono">
+                    {themeMode === 'planner' ? '手帳風' : 'モダン'}
+                  </span>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-2xs space-y-1.5">
+                  <button
+                    onClick={() => onToggleThemeMode('planner')}
+                    className={`w-full flex items-start justify-between rounded-lg p-2.5 text-xs transition text-left cursor-pointer ${
+                      themeMode === 'planner'
+                        ? 'bg-amber-50/80 font-bold text-amber-950 border border-amber-300 shadow-2xs'
+                        : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#533621] text-amber-200 shadow-2xs">
+                        <BookOpen className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                          <span>手帳風（Planner）</span>
+                          {themeMode === 'planner' && (
+                            <span className="rounded bg-amber-200 px-1 py-0.2 text-[9px] font-bold text-amber-900">
+                              適用中
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] font-normal text-slate-500 mt-0.5 leading-tight">
+                          革カバー・上質方眼紙・しおり紐・付箋スタンプ調
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => onToggleThemeMode('modern')}
+                    className={`w-full flex items-start justify-between rounded-lg p-2.5 text-xs transition text-left cursor-pointer ${
+                      themeMode === 'modern'
+                        ? 'bg-blue-50/80 font-bold text-blue-950 border border-blue-300 shadow-2xs'
+                        : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-800 text-white shadow-2xs">
+                        <Laptop className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                          <span>モダン（Modern）</span>
+                          {themeMode === 'modern' && (
+                            <span className="rounded bg-blue-200 px-1 py-0.2 text-[9px] font-bold text-blue-900">
+                              適用中
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] font-normal text-slate-500 mt-0.5 leading-tight">
+                          すっきり洗練されたデジタルフラットスタイル
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* セクション 4: 表示フォーカス切り替え */}
             {onToggleFocus && (
               <div className="space-y-2">
                 <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -362,7 +473,7 @@ export function SheetFooter({
               </div>
             )}
 
-            {/* セクション 4: シート切り替え */}
+            {/* セクション 5: シート切り替え */}
             <div className="space-y-2">
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 シート切り替え
