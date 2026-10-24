@@ -21,9 +21,12 @@ import {
   Clock,
   AlertTriangle,
   ChevronRight,
+  Scale,
+  Zap,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { isSupabaseConfigured } from '@/lib/supabase';
-import { AppThemeMode, TheoreticalBlock, TaskItem } from '@/types';
+import { AppThemeMode, TheoreticalBlock, TaskItem, TaskPlacementStrategy } from '@/types';
 import { minutesToTimeString, formatDuration } from '@/lib/timeUtils';
 
 export type SheetTab = 'timeline' | 'data';
@@ -46,6 +49,8 @@ interface SheetFooterProps {
   onToggleBlockComplete?: (block: TheoreticalBlock) => void;
   selectedDayIndex?: number;
   onSelectDayIndex?: (dayIndex: number) => void;
+  placementStrategy?: TaskPlacementStrategy;
+  onTogglePlacementStrategy?: (strategy?: TaskPlacementStrategy) => void;
 }
 
 export function SheetFooter({
@@ -66,6 +71,8 @@ export function SheetFooter({
   onToggleBlockComplete,
   selectedDayIndex,
   onSelectDayIndex,
+  placementStrategy = 'balanced',
+  onTogglePlacementStrategy,
 }: SheetFooterProps) {
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -336,6 +343,42 @@ export function SheetFooter({
               </div>
             </div>
 
+            {/* 未完了タスク配分ポリシー切り替え (分散 ⇄ 集中) */}
+            {onTogglePlacementStrategy && (
+              <div className="flex items-center justify-between border border-slate-300 bg-white p-2 shadow-2xs text-xs">
+                <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                  <SlidersHorizontal className="h-3.5 w-3.5 text-violet-600 shrink-0" />
+                  配分方針:
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onTogglePlacementStrategy('balanced')}
+                    className={`px-2 py-0.5 text-[10px] font-bold border transition cursor-pointer ${
+                      placementStrategy === 'balanced'
+                        ? 'border-emerald-600 bg-emerald-600 text-white shadow-2xs'
+                        : 'border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                    title="1日に集中させず、週全体で空き時間が多い日にバランスよく分散配置"
+                  >
+                    分散 (バランス)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onTogglePlacementStrategy('concentrated')}
+                    className={`px-2 py-0.5 text-[10px] font-bold border transition cursor-pointer ${
+                      placementStrategy === 'concentrated'
+                        ? 'border-indigo-600 bg-indigo-600 text-white shadow-2xs'
+                        : 'border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                    title="十分な空き時間がある直近の日にまとめてタスクを集中配置"
+                  >
+                    集中 (前倒し)
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* 週タスク一覧 */}
             <div className="border border-slate-300 bg-white p-2.5 space-y-2 shadow-2xs">
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-600 px-1">
@@ -576,7 +619,90 @@ export function SheetFooter({
               </div>
             )}
 
-            {/* セクション 2: 週タスク管理バーへのショートカット */}
+            {/* セクション 2: 未完了タスク配分ポリシー (分散 ⇄ 集中) */}
+            {onTogglePlacementStrategy && (
+              <div className="space-y-2">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <SlidersHorizontal className="h-3.5 w-3.5 text-violet-600" />
+                    未完了タスク配分ポリシー
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold px-1.5 py-0.2 border font-mono ${
+                      placementStrategy === 'concentrated'
+                        ? 'text-indigo-900 bg-indigo-100 border-indigo-200'
+                        : 'text-emerald-900 bg-emerald-100 border-emerald-200'
+                    }`}
+                  >
+                    {placementStrategy === 'concentrated' ? '集中配置 (前倒し)' : '分散配置 (バランス)'}
+                  </span>
+                </div>
+
+                <div className="border border-slate-300 bg-white p-2 shadow-2xs space-y-1.5">
+                  {/* 分散配置ボタン */}
+                  <button
+                    type="button"
+                    onClick={() => onTogglePlacementStrategy('balanced')}
+                    className={`w-full flex items-start justify-between p-2.5 text-xs transition text-left cursor-pointer border ${
+                      placementStrategy === 'balanced'
+                        ? 'bg-emerald-50/80 font-bold text-emerald-950 border-emerald-300 shadow-2xs'
+                        : 'text-slate-600 hover:bg-slate-50 border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center bg-emerald-600 text-white shadow-2xs">
+                        <Scale className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                          <span>分散配置（バランス型）</span>
+                          {placementStrategy === 'balanced' && (
+                            <span className="bg-emerald-200 px-1 py-0.2 text-[9px] font-bold text-emerald-900">
+                              適用中
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] font-normal text-slate-500 mt-0.5 leading-tight">
+                          1日に詰め込まず、週全体で空き時間が多い日にバランスよく分散配置します
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* 集中配置ボタン */}
+                  <button
+                    type="button"
+                    onClick={() => onTogglePlacementStrategy('concentrated')}
+                    className={`w-full flex items-start justify-between p-2.5 text-xs transition text-left cursor-pointer border ${
+                      placementStrategy === 'concentrated'
+                        ? 'bg-indigo-50/80 font-bold text-indigo-950 border-indigo-300 shadow-2xs'
+                        : 'text-slate-600 hover:bg-slate-50 border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center bg-indigo-600 text-white shadow-2xs">
+                        <Zap className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                          <span>集中配置（前倒し型）</span>
+                          {placementStrategy === 'concentrated' && (
+                            <span className="bg-indigo-200 px-1 py-0.2 text-[9px] font-bold text-indigo-900">
+                              適用中
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] font-normal text-slate-500 mt-0.5 leading-tight">
+                          十分な空き時間がある直近の日に、まとめてタスクを集中配置して早く消化します
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* セクション 3: 週タスク管理バーへのショートカット */}
             <div className="space-y-2">
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 週タスク管理
@@ -600,7 +726,7 @@ export function SheetFooter({
               </button>
             </div>
 
-            {/* セクション 3: クラウド連携 */}
+            {/* セクション 4: クラウド連携 */}
             <div className="space-y-2">
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 クラウド連携

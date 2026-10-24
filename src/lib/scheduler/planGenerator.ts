@@ -268,11 +268,14 @@ export function generatePlacementPlans(
           priority: 'high',
         };
 
+        const strategy = realtimeContext.placementStrategy || 'balanced';
+        const targetCountPerDay = strategy === 'concentrated' ? Infinity : 1;
+
         plans.push({
           task: rescheduledTask,
           kind: 'weekly_flexible',
           candidateDays: futureDays,
-          targetCountPerDay: 1,
+          targetCountPerDay,
           targetCountWeekly: 1,
           isAuto: false,
           placedCount: 0,

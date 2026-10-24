@@ -2968,6 +2968,100 @@ describe('Theoretical Scheduler Engine', () => {
         // 新タスク（代行タスク）が奥（インデックスが小さい）に配置され、完了タスクが手前に重なること
         expect(subIdx).toBeLessThan(origIdx);
       });
+
+      describe('未完了タスクの配分ポリシー（TaskPlacementStrategy）', () => {
+        it('集中配置（concentrated）の場合、十分な空きがある直近曜日（今日）に未完了タスクがまとめて配置されること', () => {
+          // 月曜(0)に配置されていた2つの週タスク
+          const task1: TaskItem = {
+            id: 'task-1',
+            title: '未完了タスク1',
+            category: 'must',
+            priority: 'high',
+            durationMinutes: 60,
+            period: 'week',
+            targetDays: [0],
+            frequencyCount: 1,
+            completed: false,
+          };
+          const task2: TaskItem = {
+            id: 'task-2',
+            title: '未完了タスク2',
+            category: 'must',
+            priority: 'high',
+            durationMinutes: 60,
+            period: 'week',
+            targetDays: [0],
+            frequencyCount: 1,
+            completed: false,
+          };
+
+          // 今日は火曜(1)。火曜〜日曜まで空き枠が潤沢にある状態。
+          // ユーザーが月曜の完了状態だった2つのタスクを「未完了」に解除した。
+          const result = generateTheoreticalSchedule([], [task1, task2], {
+            todayIndex: 1,
+            currentMinutes: 480, // 08:00
+            uncompletedBlockIds: new Set([
+              'block-task-0-task-1-0',
+              'block-task-0-task-2-0',
+            ]),
+            placementStrategy: 'concentrated',
+          });
+
+          // concentrated（集中配置）なので、火曜(1)に両方のタスクがまとめて配置されること
+          const tueBlocks = result.dayBlocks[1];
+          const hasTask1 = tueBlocks.some((b) => b.title === '未完了タスク1');
+          const hasTask2 = tueBlocks.some((b) => b.title === '未完了タスク2');
+          expect(hasTask1).toBe(true);
+          expect(hasTask2).toBe(true);
+        });
+
+        it('分散配置（balanced）の場合、1日あたり1タスクの上限が適用され、複数曜日に分散されること', () => {
+          const task1: TaskItem = {
+            id: 'task-1',
+            title: '未完了タスク1',
+            category: 'must',
+            priority: 'high',
+            durationMinutes: 60,
+            period: 'week',
+            targetDays: [0],
+            frequencyCount: 1,
+            completed: false,
+          };
+          const task2: TaskItem = {
+            id: 'task-2',
+            title: '未完了タスク2',
+            category: 'must',
+            priority: 'high',
+            durationMinutes: 60,
+            period: 'week',
+            targetDays: [0],
+            frequencyCount: 1,
+            completed: false,
+          };
+
+          // 今日は火曜(1)。分散配置（balanced）の場合
+          const result = generateTheoreticalSchedule([], [task1, task2], {
+            todayIndex: 1,
+            currentMinutes: 480,
+            uncompletedBlockIds: new Set([
+              'block-task-0-task-1-0',
+              'block-task-0-task-2-0',
+            ]),
+            placementStrategy: 'balanced',
+          });
+
+          // balanced（分散配置）なので、火曜(1)には1タスクのみ配置され、もう1タスクは水曜以降に分散される
+          const tueBlocks = result.dayBlocks[1].filter((b) => b.title.startsWith('未完了タスク'));
+          expect(tueBlocks.length).toBe(1);
+
+          // 全曜日の合計では両方ともスケジュール内に配置されていること
+          const allBlocks = Object.values(result.dayBlocks).flat();
+          const hasTask1 = allBlocks.some((b) => b.title === '未完了タスク1');
+          const hasTask2 = allBlocks.some((b) => b.title === '未完了タスク2');
+          expect(hasTask1).toBe(true);
+          expect(hasTask2).toBe(true);
+        });
+      });
     });
   });
 });

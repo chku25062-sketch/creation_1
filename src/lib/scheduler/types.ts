@@ -1,5 +1,7 @@
-import { TaskItem, TheoreticalBlock, FreeSlot, FixedSlot } from '@/types';
+import { TaskItem, TheoreticalBlock, FreeSlot, FixedSlot, TaskPlacementStrategy } from '@/types';
 import { SlotManager } from './slotManager';
+
+export type { TaskPlacementStrategy } from '@/types';
 
 export interface TaskPlacementPlan {
   task: TaskItem;
@@ -31,6 +33,7 @@ export interface SchedulingRealtimeContext {
   currentMinutes?: number; // 0〜1440 (未指定時は実行時のシステム時刻)
   completedBlockIds?: Set<string>; // ユーザーが手動で完了にしたブロックID（早期完了含む）
   uncompletedBlockIds?: Set<string>; // ユーザーが手動で未完了にしたブロックID（過去自動完了の解除含む）
+  placementStrategy?: TaskPlacementStrategy; // 'balanced' (分散) | 'concentrated' (集中)
 }
 
 export interface SchedulingExecutionContext {

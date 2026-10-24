@@ -6,7 +6,7 @@ import { Timeline24h } from '@/components/Timeline24h';
 import { ImportedTablesManager } from '@/components/ImportedTablesManager';
 import { AuthModal } from '@/components/AuthModal';
 import { FileImportModal } from '@/components/FileImportModal';
-import { FixedSlot, TaskItem, ImportedTableData, ScheduleInclusionSettings, AppThemeMode } from '@/types';
+import { FixedSlot, TaskItem, ImportedTableData, ScheduleInclusionSettings, AppThemeMode, TaskPlacementStrategy } from '@/types';
 import { generateTheoreticalSchedule } from '@/lib/scheduler';
 import {
   loadLocalData,
@@ -49,6 +49,9 @@ export default function Home() {
     return (now.getDay() + 6) % 7;
   });
 
+  // タスク配分ポリシー（分散バランス型 'balanced' ⇄ 集中前倒し型 'concentrated'）
+  const [placementStrategy, setPlacementStrategy] = useState<TaskPlacementStrategy>('balanced');
+
   // 完了トグル状態の復元
   useEffect(() => {
     try {
@@ -88,6 +91,30 @@ export default function Home() {
       // ignore
     }
   }, []);
+
+  // タスク配分ポリシー（分散 ⇄ 集中）の復元
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('app_placement_strategy');
+      if (saved === 'balanced' || saved === 'concentrated') {
+        setPlacementStrategy(saved);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleTogglePlacementStrategy = (strategy?: TaskPlacementStrategy) => {
+    setPlacementStrategy((prev) => {
+      const next = strategy || (prev === 'balanced' ? 'concentrated' : 'balanced');
+      try {
+        localStorage.setItem('app_placement_strategy', next);
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
 
   const handleToggleThemeMode = (mode?: AppThemeMode) => {
     setThemeMode((prev) => {
@@ -442,8 +469,16 @@ export default function Home() {
     return generateTheoreticalSchedule(effectiveFixedSlots, effectiveTasks, {
       completedBlockIds,
       uncompletedBlockIds,
+      placementStrategy,
     });
-  }, [effectiveFixedSlots, effectiveTasks, isInitialized, completedBlockIds, uncompletedBlockIds]);
+  }, [
+    effectiveFixedSlots,
+    effectiveTasks,
+    isInitialized,
+    completedBlockIds,
+    uncompletedBlockIds,
+    placementStrategy,
+  ]);
 
   // 今週配置された全週タスク一覧（日フォーカス時も週全体を俯瞰できるよう抽出）
   const weeklyBlocks = useMemo(() => {
@@ -555,6 +590,8 @@ export default function Home() {
         unassignedWeeklyTasks={unassignedWeeklyTasks}
         onToggleBlockComplete={handleToggleBlockComplete}
         selectedDayIndex={selectedDayIndex}
+        placementStrategy={placementStrategy}
+        onTogglePlacementStrategy={handleTogglePlacementStrategy}
         onSelectDayIndex={(idx) => {
           setSelectedDayIndex(idx);
           if (focusMode !== 'today') {

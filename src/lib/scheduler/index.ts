@@ -50,6 +50,7 @@ export function generateTheoreticalSchedule(
 
   const userCompletedIds = realtimeContext?.completedBlockIds || new Set<string>();
   const userUncompletedIds = realtimeContext?.uncompletedBlockIds || new Set<string>();
+  const placementStrategy = realtimeContext?.placementStrategy || 'balanced';
 
   // 2. 固定枠と空きスロットの統合管理初期化
   const slotManager = new SlotManager(fixedSlots, dayBlocks);
@@ -63,6 +64,7 @@ export function generateTheoreticalSchedule(
       currentMinutes: currMinutes,
       completedBlockIds: userCompletedIds,
       uncompletedBlockIds: userUncompletedIds,
+      placementStrategy,
     },
     todayIdx,
     currMinutes,
@@ -84,6 +86,7 @@ export function generateTheoreticalSchedule(
       currentMinutes: currMinutes,
       completedBlockIds: userCompletedIds,
       uncompletedBlockIds: userUncompletedIds,
+      placementStrategy,
     },
     todayIdx,
     currMinutes,

@@ -150,7 +150,10 @@ export class WeeklyPlacementPhase implements PlacementPhase {
         plan.candidateDays && plan.candidateDays.length > 0
           ? plan.candidateDays
           : [0, 1, 2, 3, 4, 5, 6];
-      const sortedDays = slotManager.getDaysSortedByFreeTime(candidateDays);
+      const isConcentrated = ctx.realtimeContext?.placementStrategy === 'concentrated';
+      const sortedDays = isConcentrated
+        ? [...candidateDays].sort((a, b) => a - b)
+        : slotManager.getDaysSortedByFreeTime(candidateDays);
 
       for (const d of sortedDays) {
         if (plan.placedCount >= plan.targetCountWeekly) {
@@ -233,6 +236,19 @@ export class WeeklyPlacementPhase implements PlacementPhase {
           const idxA = candidateOrder.indexOf(a);
           const idxB = candidateOrder.indexOf(b);
           return (idxA !== -1 ? idxA : 999) - (idxB !== -1 ? idxB : 999);
+        });
+      } else if (ctx.realtimeContext?.placementStrategy === 'concentrated') {
+        // 集中配置: スロットが収まる直近の曜日（前倒し順）を最優先
+        sortedSearchDays = [...eligibleDays].sort((a, b) => {
+          const slotsA = slotManager.getAvailableSlots(a);
+          const slotsB = slotManager.getAvailableSlots(b);
+          const fitA = slotsA.some((s) => s.durationMinutes >= neededDuration);
+          const fitB = slotsB.some((s) => s.durationMinutes >= neededDuration);
+
+          if (fitA && !fitB) return -1;
+          if (!fitA && fitB) return 1;
+
+          return a - b; // 直近の曜日（今日寄り）を優先
         });
       } else {
         sortedSearchDays = [...eligibleDays].sort((a, b) => {
