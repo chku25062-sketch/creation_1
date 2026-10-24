@@ -69,17 +69,19 @@ export function SheetFooter({
 }: SheetFooterProps) {
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isTaskDrawerOpen, setIsTaskDrawerOpen] = useState(false);
 
-  // Escキーでメニューを閉じる
+  // Escキーで開いているバー（メニューまたはタスク専用バー）を閉じる
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isMenuOpen) {
-        setIsMenuOpen(false);
+      if (e.key === 'Escape') {
+        if (isMenuOpen) setIsMenuOpen(false);
+        if (isTaskDrawerOpen) setIsTaskDrawerOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isMenuOpen]);
+  }, [isMenuOpen, isTaskDrawerOpen]);
 
   const WEEKDAY_NAMES = ['月', '火', '水', '木', '金', '土', '日'];
 
@@ -91,7 +93,7 @@ export function SheetFooter({
       ? Math.round((completedWeeklyTasksCount / totalWeeklyTasksCount) * 100)
       : 0;
 
-  // 曜日ジャンプ（日フォーカスでその曜日へ切り替えてメニューを閉じる）
+  // 曜日ジャンプ（日フォーカスでその曜日へ切り替えてバーを閉じる）
   const handleJumpToDay = (dayIndex?: number) => {
     if (dayIndex !== undefined && onSelectDayIndex) {
       onSelectDayIndex(dayIndex);
@@ -102,6 +104,7 @@ export function SheetFooter({
         onTabChange('timeline');
       }
       setIsMenuOpen(false);
+      setIsTaskDrawerOpen(false);
     }
   };
 
@@ -217,40 +220,52 @@ export function SheetFooter({
             </div>
           )}
 
-          {/* テーマ切り替えトグル（手帳風 ⇄ モダン） */}
-          {onToggleThemeMode && (
-            <button
-              onClick={() => onToggleThemeMode(themeMode === 'planner' ? 'modern' : 'planner')}
-              className={`relative flex h-7.5 items-center gap-1 px-2 rounded-md border shadow-2xs transition active:scale-95 text-xs font-semibold ${
-                themeMode === 'planner'
-                  ? 'border-amber-700/40 bg-[#f7f3e8] text-amber-950 hover:bg-[#ede6d4]'
-                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-              }`}
-              title={
-                themeMode === 'planner'
-                  ? '現在: 手帳風デザイン（クリックでモダン表示へ切替）'
-                  : '現在: モダンデザイン（クリックで手帳風表示へ切替）'
-              }
-              aria-label={themeMode === 'planner' ? 'モダンデザインへ切替' : '手帳風デザインへ切替'}
-            >
-              {themeMode === 'planner' ? (
-                <>
-                  <BookOpen className="h-3.5 w-3.5 text-amber-800" />
-                  <span className="hidden sm:inline">手帳風</span>
-                </>
-              ) : (
-                <>
-                  <Laptop className="h-3.5 w-3.5 text-blue-600" />
-                  <span className="hidden sm:inline">モダン</span>
-                </>
-              )}
-            </button>
-          )}
-
-          {/* Menu Icon Button (メニューアイコン) */}
+          {/* タスクボタン (メニューとは独立したタスク専用バーを開く) */}
           <button
-            onClick={() => setIsMenuOpen(true)}
-            className="relative flex h-7.5 w-7.5 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 shadow-2xs transition hover:bg-slate-50 hover:text-slate-900 active:scale-95"
+            type="button"
+            onClick={() => {
+              setIsTaskDrawerOpen((prev) => !prev);
+              setIsMenuOpen(false);
+            }}
+            className={`relative flex h-7.5 items-center gap-1.5 px-2.5 border shadow-2xs transition active:scale-95 text-xs font-semibold cursor-pointer ${
+              isTaskDrawerOpen
+                ? 'border-violet-600 bg-violet-600 text-white'
+                : totalWeeklyTasksCount > 0
+                  ? 'border-violet-300 bg-violet-50 text-violet-900 hover:bg-violet-100'
+                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+            title="今週の週タスク管理バーを開く"
+            aria-label="週タスク管理バーを開く"
+          >
+            <CheckSquare className={`h-3.5 w-3.5 ${isTaskDrawerOpen ? 'text-white' : 'text-violet-600'} shrink-0`} />
+            <span>タスク</span>
+            {totalWeeklyTasksCount > 0 && (
+              <span
+                className={`font-mono text-[10px] px-1 py-0.2 font-bold ${
+                  isTaskDrawerOpen
+                    ? 'bg-white/20 text-white'
+                    : completedWeeklyTasksCount === totalWeeklyTasksCount
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-violet-200 text-violet-900'
+                }`}
+              >
+                {completedWeeklyTasksCount}/{totalWeeklyTasksCount}
+              </span>
+            )}
+          </button>
+
+          {/* Menu Icon Button (メニューアイコン: クリックでメニューバーを開く) */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsMenuOpen((prev) => !prev);
+              setIsTaskDrawerOpen(false);
+            }}
+            className={`relative flex h-7.5 w-7.5 items-center justify-center border shadow-2xs transition active:scale-95 cursor-pointer ${
+              isMenuOpen
+                ? 'border-blue-600 bg-blue-600 text-white'
+                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+            }`}
             title="メニューを開く"
             aria-label="メニューを開く"
           >
@@ -265,7 +280,189 @@ export function SheetFooter({
         </div>
       </div>
 
-      {/* 右スライドイン 独立メニューバー (Slide-over Drawer) */}
+      {/* 1. タスク専用独立スライドバー (Task Slide-over Drawer) */}
+      <div
+        className={`fixed inset-0 z-50 transition-all duration-300 ${
+          isTaskDrawerOpen ? 'visible pointer-events-auto' : 'invisible pointer-events-none'
+        }`}
+        aria-hidden={!isTaskDrawerOpen}
+      >
+        {/* 背景オーバーレイ */}
+        <div
+          onClick={() => setIsTaskDrawerOpen(false)}
+          className={`absolute inset-0 bg-slate-900/30 backdrop-blur-[2px] transition-opacity duration-300 ${
+            isTaskDrawerOpen ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
+
+        {/* スライドインバー本体 */}
+        <div
+          className={`absolute inset-y-0 right-0 flex w-84 sm:w-96 max-w-[92vw] flex-col border-l border-slate-300 bg-[#fdfcf9] bg-notebook-grid shadow-2xl transition-transform duration-300 ease-out ${
+            isTaskDrawerOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
+        >
+          {/* バーヘッダー */}
+          <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-[#ede8dc]/90 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <div className="flex h-6 w-6 items-center justify-center rounded bg-violet-600 text-white shadow-2xs">
+                <CheckSquare className="h-3.5 w-3.5" />
+              </div>
+              <span className="font-bold text-sm text-slate-900 tracking-tight">今週の週タスク管理</span>
+            </div>
+            <button
+              onClick={() => setIsTaskDrawerOpen(false)}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition cursor-pointer"
+              title="タスクバーを閉じる"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* バーコンテンツ */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
+            {/* 進捗サマリーカード */}
+            <div className="border border-slate-300 bg-white p-3 space-y-2 shadow-2xs">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-700">週タスク進捗状況</span>
+                <span className="font-mono text-xs font-bold text-violet-900 bg-violet-100 border border-violet-200 px-2 py-0.5">
+                  {completedWeeklyTasksCount} / {totalWeeklyTasksCount} 完了 ({completionPercentage}%)
+                </span>
+              </div>
+              <div className="h-2 w-full bg-slate-200 overflow-hidden">
+                <div
+                  className="h-full bg-violet-600 transition-all duration-300"
+                  style={{ width: `${completionPercentage}%` }}
+                />
+              </div>
+            </div>
+
+            {/* 週タスク一覧 */}
+            <div className="border border-slate-300 bg-white p-2.5 space-y-2 shadow-2xs">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-600 px-1">
+                配置済みタスク一覧
+              </div>
+
+              {weeklyBlocks.length > 0 ? (
+                <div className="space-y-1.5 max-h-[52vh] overflow-y-auto pr-0.5">
+                  {weeklyBlocks.map((block) => {
+                    const dayName = WEEKDAY_NAMES[block.dayIndex ?? 0] ?? '月';
+                    const isTargetDayCurrent = block.dayIndex === selectedDayIndex;
+                    const durationMins = block.endMinutes - block.startMinutes;
+
+                    return (
+                      <div
+                        key={`taskbar-weekly-${block.id}`}
+                        className={`flex items-center justify-between gap-2 p-2 border transition ${
+                          block.isCompleted
+                            ? 'border-slate-200 bg-slate-50/70'
+                            : isTargetDayCurrent
+                              ? 'border-violet-300 bg-violet-50/40'
+                              : 'border-slate-200/90 bg-white hover:bg-slate-50/80'
+                        }`}
+                      >
+                        {/* 曜日バッジ（クリックでその曜日の日フォーカスへジャンプ） */}
+                        <button
+                          type="button"
+                          onClick={() => handleJumpToDay(block.dayIndex)}
+                          className={`shrink-0 flex items-center justify-center h-6 w-6 font-bold text-xs border transition cursor-pointer ${
+                            isTargetDayCurrent
+                              ? 'border-amber-800 bg-amber-800 text-white'
+                              : 'border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200'
+                          }`}
+                          title={`クリックで${dayName}曜日の日フォーカスへ移動`}
+                        >
+                          {dayName}
+                        </button>
+
+                        {/* タスク情報 */}
+                        <div className="flex-1 min-w-0 flex flex-col justify-center">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`text-xs font-bold truncate ${
+                                block.isCompleted
+                                  ? 'line-through text-slate-400'
+                                  : 'text-slate-800'
+                              }`}
+                              title={block.title}
+                            >
+                              {block.title}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono mt-0.5">
+                            <Clock className="h-3 w-3 text-slate-400 shrink-0" />
+                            <span>
+                              {minutesToTimeString(block.startMinutes)} - {minutesToTimeString(block.endMinutes)}
+                            </span>
+                            <span className="text-slate-400">({formatDuration(durationMins)})</span>
+                          </div>
+                        </div>
+
+                        {/* 完了トグルボタン */}
+                        {onToggleBlockComplete && (
+                          <button
+                            type="button"
+                            onClick={() => onToggleBlockComplete(block)}
+                            className={`shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] font-bold border transition cursor-pointer ${
+                              block.isCompleted
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                                : 'border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100'
+                            }`}
+                            title={block.isCompleted ? 'クリックで未完了に戻す' : 'クリックで完了にする'}
+                          >
+                            {block.isCompleted ? (
+                              <>
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                <span>済</span>
+                              </>
+                            ) : (
+                              <span>未完了</span>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* 今週の週タスクが0件の表示 */
+                <div className="py-4 text-center text-slate-500 space-y-1">
+                  <p className="text-xs">今週配置された週タスクはありません</p>
+                  <p className="text-[11px] text-slate-400">
+                    「データ管理」タブから週タスクを登録・有効化できます
+                  </p>
+                </div>
+              )}
+
+              {/* 未配置の週タスクの警告（枠不足等） */}
+              {unassignedWeeklyTasks.length > 0 && (
+                <div className="mt-2 border border-amber-300 bg-amber-50/80 p-2 text-amber-900 space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                    <span>枠不足による未配置タスク（{unassignedWeeklyTasks.length}件）</span>
+                  </div>
+                  <ul className="space-y-0.5 text-[11px] text-amber-800 max-h-24 overflow-y-auto">
+                    {unassignedWeeklyTasks.map((t) => (
+                      <li key={`unassigned-${t.id}`} className="flex items-center justify-between">
+                        <span className="truncate">{t.title}</span>
+                        <span className="font-mono text-amber-700 shrink-0 ml-1">
+                          {formatDuration(t.durationMinutes)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* バーフッター */}
+          <div className="shrink-0 border-t border-slate-200 bg-[#f7f5ee] px-4 py-2.5 text-center text-[10px] text-slate-500 font-medium">
+            理論値計画表・週タスク管理
+          </div>
+        </div>
+      </div>
+
+      {/* 2. 右スライドイン 通常メニューバー (Menu Slide-over Drawer) */}
       <div
         className={`fixed inset-0 z-50 transition-all duration-300 ${
           isMenuOpen ? 'visible pointer-events-auto' : 'invisible pointer-events-none'
@@ -282,7 +479,7 @@ export function SheetFooter({
 
         {/* スライドインバー本体 */}
         <div
-          className={`absolute inset-y-0 right-0 flex w-84 sm:w-96 max-w-[92vw] flex-col border-l border-slate-300 bg-[#fdfcf9] bg-notebook-grid shadow-2xl transition-transform duration-300 ease-out ${
+          className={`absolute inset-y-0 right-0 flex w-84 sm:w-88 max-w-[90vw] flex-col border-l border-slate-300 bg-[#fdfcf9] bg-notebook-grid shadow-2xl transition-transform duration-300 ease-out ${
             isMenuOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
         >
@@ -296,7 +493,7 @@ export function SheetFooter({
             </div>
             <button
               onClick={() => setIsMenuOpen(false)}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition cursor-pointer"
               title="メニューを閉じる"
             >
               <X className="h-4 w-4" />
@@ -305,148 +502,105 @@ export function SheetFooter({
 
           {/* バーコンテンツ */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {/* セクション 1: 今週の週タスク管理 (日フォーカス中も今週全体を俯瞰・操作可能) */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-800">
-                  <CheckSquare className="h-4 w-4 text-violet-600 shrink-0" />
-                  <span>今週の週タスク管理</span>
-                </div>
-                {totalWeeklyTasksCount > 0 && (
-                  <span className="font-mono text-[11px] font-bold text-violet-900 bg-violet-100 border border-violet-200 px-1.5 py-0.5">
-                    {completedWeeklyTasksCount} / {totalWeeklyTasksCount} 完了 ({completionPercentage}%)
+            {/* セクション 1: デザインテーマ切り替え (手帳風 ⇄ モダン) */}
+            {onToggleThemeMode && (
+              <div className="space-y-2">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Palette className="h-3.5 w-3.5 text-amber-700" />
+                    デザインテーマ
                   </span>
-                )}
-              </div>
-
-              {/* 進捗プログレスバー */}
-              {totalWeeklyTasksCount > 0 && (
-                <div className="space-y-1">
-                  <div className="h-1.5 w-full bg-slate-200 overflow-hidden">
-                    <div
-                      className="h-full bg-violet-600 transition-all duration-300"
-                      style={{ width: `${completionPercentage}%` }}
-                    />
-                  </div>
+                  <span className="text-[10px] font-bold text-amber-900 bg-amber-100 border border-amber-200 px-1.5 py-0.2 font-mono">
+                    {themeMode === 'planner' ? '手帳風 適用中' : 'モダン 適用中'}
+                  </span>
                 </div>
-              )}
-
-              {/* 週タスク一覧カード */}
-              <div className="border border-slate-300 bg-white p-2.5 space-y-2 shadow-2xs">
-                {weeklyBlocks.length > 0 ? (
-                  <div className="space-y-1.5 max-h-64 overflow-y-auto pr-0.5">
-                    {weeklyBlocks.map((block) => {
-                      const dayName = WEEKDAY_NAMES[block.dayIndex ?? 0] ?? '月';
-                      const isTargetDayCurrent = block.dayIndex === selectedDayIndex;
-                      const durationMins = block.endMinutes - block.startMinutes;
-
-                      return (
-                        <div
-                          key={`menu-weekly-${block.id}`}
-                          className={`flex items-center justify-between gap-2 p-2 border transition ${
-                            block.isCompleted
-                              ? 'border-slate-200 bg-slate-50/70'
-                              : isTargetDayCurrent
-                                ? 'border-violet-300 bg-violet-50/40'
-                                : 'border-slate-200/90 bg-white hover:bg-slate-50/80'
-                          }`}
-                        >
-                          {/* 曜日バッジ（クリックでその曜日の日フォーカスへジャンプ） */}
-                          <button
-                            type="button"
-                            onClick={() => handleJumpToDay(block.dayIndex)}
-                            className={`shrink-0 flex items-center justify-center h-6 w-6 font-bold text-xs border transition cursor-pointer ${
-                              isTargetDayCurrent
-                                ? 'border-amber-800 bg-amber-800 text-white'
-                                : 'border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200'
-                            }`}
-                            title={`クリックで${dayName}曜日の日フォーカスへ移動`}
-                          >
-                            {dayName}
-                          </button>
-
-                          {/* タスク情報 */}
-                          <div className="flex-1 min-w-0 flex flex-col justify-center">
-                            <div className="flex items-center gap-1.5">
-                              <span
-                                className={`text-xs font-bold truncate ${
-                                  block.isCompleted
-                                    ? 'line-through text-slate-400'
-                                    : 'text-slate-800'
-                                }`}
-                                title={block.title}
-                              >
-                                {block.title}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono mt-0.5">
-                              <Clock className="h-3 w-3 text-slate-400 shrink-0" />
-                              <span>
-                                {minutesToTimeString(block.startMinutes)} - {minutesToTimeString(block.endMinutes)}
-                              </span>
-                              <span className="text-slate-400">({formatDuration(durationMins)})</span>
-                            </div>
-                          </div>
-
-                          {/* 完了トグルボタン */}
-                          {onToggleBlockComplete && (
-                            <button
-                              type="button"
-                              onClick={() => onToggleBlockComplete(block)}
-                              className={`shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] font-bold border transition cursor-pointer ${
-                                block.isCompleted
-                                  ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                                  : 'border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100'
-                              }`}
-                              title={block.isCompleted ? 'クリックで未完了に戻す' : 'クリックで完了にする'}
-                            >
-                              {block.isCompleted ? (
-                                <>
-                                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                                  <span>済</span>
-                                </>
-                              ) : (
-                                <span>未完了</span>
-                              )}
-                            </button>
+                <div className="border border-slate-300 bg-white p-2 shadow-2xs space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={() => onToggleThemeMode('planner')}
+                    className={`w-full flex items-start justify-between p-2.5 text-xs transition text-left cursor-pointer border ${
+                      themeMode === 'planner'
+                        ? 'bg-amber-50/80 font-bold text-amber-950 border-amber-300 shadow-2xs'
+                        : 'text-slate-600 hover:bg-slate-50 border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center bg-[#3b2b1e] text-amber-100 shadow-2xs">
+                        <BookOpen className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                          <span>手帳風（文字のみ）</span>
+                          {themeMode === 'planner' && (
+                            <span className="bg-amber-200 px-1 py-0.2 text-[9px] font-bold text-amber-900">
+                              適用中
+                            </span>
                           )}
                         </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  /* 今週の週タスクが0件の表示 */
-                  <div className="py-3 text-center text-slate-500 space-y-1">
-                    <p className="text-xs">今週配置された週タスクはありません</p>
-                    <p className="text-[11px] text-slate-400">
-                      「データ管理」タブから週タスクを登録・有効化できます
-                    </p>
-                  </div>
-                )}
-
-                {/* 未配置の週タスクの警告（枠不足等） */}
-                {unassignedWeeklyTasks.length > 0 && (
-                  <div className="mt-2 border border-amber-300 bg-amber-50/80 p-2 text-amber-900 space-y-1">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
-                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                      <span>枠不足による未配置タスク（{unassignedWeeklyTasks.length}件）</span>
+                        <p className="text-[11px] font-normal text-slate-500 mt-0.5 leading-tight">
+                          ブロックで囲わず、色のついた文字と時間などの付随情報のみで表現するスタイル
+                        </p>
+                      </div>
                     </div>
-                    <ul className="space-y-0.5 text-[11px] text-amber-800 max-h-24 overflow-y-auto">
-                      {unassignedWeeklyTasks.map((t) => (
-                        <li key={`unassigned-${t.id}`} className="flex items-center justify-between">
-                          <span className="truncate">{t.title}</span>
-                          <span className="font-mono text-amber-700 shrink-0 ml-1">
-                            {formatDuration(t.durationMinutes)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onToggleThemeMode('modern')}
+                    className={`w-full flex items-start justify-between p-2.5 text-xs transition text-left cursor-pointer border ${
+                      themeMode === 'modern'
+                        ? 'bg-blue-50/80 font-bold text-blue-950 border-blue-300 shadow-2xs'
+                        : 'text-slate-600 hover:bg-slate-50 border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center bg-blue-600 text-white shadow-2xs">
+                        <Laptop className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                          <span>モダン（付箋カード）</span>
+                          {themeMode === 'modern' && (
+                            <span className="bg-blue-200 px-1 py-0.2 text-[9px] font-bold text-blue-900">
+                              適用中
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] font-normal text-slate-500 mt-0.5 leading-tight">
+                          付箋（Sticky Note）のように予定カードを配置した立体的なスタイル
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
               </div>
+            )}
+
+            {/* セクション 2: 週タスク管理バーへのショートカット */}
+            <div className="space-y-2">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                週タスク管理
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  setIsTaskDrawerOpen(true);
+                }}
+                className="w-full flex items-center justify-between border border-violet-200 bg-violet-50/60 p-2.5 text-xs font-semibold text-violet-950 hover:bg-violet-100/70 transition shadow-2xs cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <CheckSquare className="h-4 w-4 text-violet-600" />
+                  <span>週タスク管理バーを開く</span>
+                </div>
+                <div className="flex items-center gap-1 text-[11px] font-bold text-violet-800 font-mono">
+                  <span>{completedWeeklyTasksCount}/{totalWeeklyTasksCount}</span>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </div>
+              </button>
             </div>
 
-            {/* セクション 2: クラウド連携 */}
+            {/* セクション 3: クラウド連携 */}
             <div className="space-y-2">
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 クラウド連携
@@ -454,17 +608,17 @@ export function SheetFooter({
 
               {userEmail ? (
                 /* ログイン中カード */
-                <div className="rounded-xl border border-emerald-300 bg-emerald-50/70 p-3 shadow-2xs space-y-2.5">
+                <div className="border border-emerald-300 bg-emerald-50/70 p-3 shadow-2xs space-y-2.5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
                       <Cloud className="h-4 w-4 text-emerald-600" />
                       <span>クラウド同期中</span>
                     </div>
-                    <span className="inline-flex items-center rounded-full bg-emerald-200 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800">
+                    <span className="inline-flex items-center bg-emerald-200 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800">
                       接続済
                     </span>
                   </div>
-                  <div className="text-xs text-slate-700 bg-white/80 rounded-md p-2 border border-emerald-200/60 break-all font-mono">
+                  <div className="text-xs text-slate-700 bg-white/80 p-2 border border-emerald-200/60 break-all font-mono">
                     {userEmail}
                   </div>
                   {onSignOut && (
@@ -473,7 +627,7 @@ export function SheetFooter({
                         onSignOut();
                         setIsMenuOpen(false);
                       }}
-                      className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-rose-300 bg-white py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 transition shadow-2xs"
+                      className="w-full flex items-center justify-center gap-1.5 border border-rose-300 bg-white py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 transition shadow-2xs cursor-pointer"
                     >
                       <LogOut className="h-3.5 w-3.5 text-rose-600" />
                       <span>ログアウト</span>
@@ -482,7 +636,7 @@ export function SheetFooter({
                 </div>
               ) : (
                 /* 未ログインカード */
-                <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3 shadow-2xs space-y-2.5">
+                <div className="border border-blue-200 bg-blue-50/60 p-3 shadow-2xs space-y-2.5">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900">
                     <CloudOff className="h-4 w-4 text-blue-600" />
                     <span>クラウド同期（未ログイン）</span>
@@ -496,7 +650,7 @@ export function SheetFooter({
                         setIsMenuOpen(false);
                         onOpenAuth();
                       }}
-                      className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 py-2 text-xs font-bold text-white hover:bg-blue-700 transition shadow-2xs active:scale-[0.99]"
+                      className="w-full flex items-center justify-center gap-1.5 bg-blue-600 py-2 text-xs font-bold text-white hover:bg-blue-700 transition shadow-2xs active:scale-[0.99] cursor-pointer"
                     >
                       <LogIn className="h-3.5 w-3.5" />
                       <span>
@@ -508,18 +662,18 @@ export function SheetFooter({
               )}
             </div>
 
-            {/* セクション 3: データ保存状況 */}
+            {/* セクション 4: データ保存状況 */}
             <div className="space-y-2">
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 データ保存状況
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-2xs space-y-2">
+              <div className="border border-slate-200 bg-white p-3 shadow-2xs space-y-2">
                 <div className="flex items-center justify-between text-xs font-semibold text-slate-800">
                   <span className="flex items-center gap-1.5">
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                     ローカル自動保存
                   </span>
-                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-mono">
+                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 font-mono">
                     有効
                   </span>
                 </div>
@@ -534,90 +688,18 @@ export function SheetFooter({
               </div>
             </div>
 
-            {/* セクション 4: デザインテーマ切り替え (手帳風 ⇄ モダン) */}
-            {onToggleThemeMode && (
-              <div className="space-y-2">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <Palette className="h-3.5 w-3.5 text-amber-700" />
-                    デザインテーマ
-                  </span>
-                  <span className="text-[10px] font-bold text-amber-800 bg-amber-100/80 px-1.5 py-0.2 rounded font-mono">
-                    {themeMode === 'planner' ? '手帳風' : 'モダン'}
-                  </span>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-2xs space-y-1.5">
-                  <button
-                    onClick={() => onToggleThemeMode('planner')}
-                    className={`w-full flex items-start justify-between rounded-lg p-2.5 text-xs transition text-left cursor-pointer ${
-                      themeMode === 'planner'
-                        ? 'bg-amber-50/80 font-bold text-amber-950 border border-amber-300 shadow-2xs'
-                        : 'text-slate-600 hover:bg-slate-50 border border-transparent'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#3b2b1e] text-amber-100 shadow-2xs">
-                        <BookOpen className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5 font-bold text-slate-900">
-                          <span>手帳風（文字のみ）</span>
-                          {themeMode === 'planner' && (
-                            <span className="rounded bg-amber-200 px-1 py-0.2 text-[9px] font-bold text-amber-900">
-                              適用中
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] font-normal text-slate-500 mt-0.5 leading-tight">
-                          ブロックで囲わず、色のついた文字と時間などの付随情報のみで表現するスタイル
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => onToggleThemeMode('modern')}
-                    className={`w-full flex items-start justify-between rounded-lg p-2.5 text-xs transition text-left cursor-pointer ${
-                      themeMode === 'modern'
-                        ? 'bg-blue-50/80 font-bold text-blue-950 border border-blue-300 shadow-2xs'
-                        : 'text-slate-600 hover:bg-slate-50 border border-transparent'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-blue-600 text-white shadow-2xs">
-                        <Laptop className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5 font-bold text-slate-900">
-                          <span>モダン（付箋カード）</span>
-                          {themeMode === 'modern' && (
-                            <span className="rounded bg-blue-200 px-1 py-0.2 text-[9px] font-bold text-blue-900">
-                              適用中
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] font-normal text-slate-500 mt-0.5 leading-tight">
-                          付箋（Sticky Note）のように予定カードを貼り付けた立体的なスタイル
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* セクション 5: 表示フォーカス切り替え */}
             {onToggleFocus && (
               <div className="space-y-2">
                 <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   計画表の表示フォーカス
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-2xs space-y-1">
+                <div className="border border-slate-200 bg-white p-2 shadow-2xs space-y-1">
                   <button
                     onClick={() => {
                       if (focusMode !== 'today') onToggleFocus();
                     }}
-                    className={`w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-xs transition ${
+                    className={`w-full flex items-center justify-between px-2.5 py-2 text-xs transition cursor-pointer ${
                       focusMode === 'today'
                         ? 'bg-blue-50 font-bold text-blue-900 border border-blue-200'
                         : 'text-slate-600 hover:bg-slate-100'
@@ -635,7 +717,7 @@ export function SheetFooter({
                     onClick={() => {
                       if (focusMode !== 'week') onToggleFocus();
                     }}
-                    className={`w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-xs transition ${
+                    className={`w-full flex items-center justify-between px-2.5 py-2 text-xs transition cursor-pointer ${
                       focusMode === 'week'
                         ? 'bg-blue-50 font-bold text-blue-900 border border-blue-200'
                         : 'text-slate-600 hover:bg-slate-100'
@@ -658,13 +740,13 @@ export function SheetFooter({
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 シート切り替え
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-2xs space-y-1">
+              <div className="border border-slate-200 bg-white p-2 shadow-2xs space-y-1">
                 <button
                   onClick={() => {
                     onTabChange('timeline');
                     setIsMenuOpen(false);
                   }}
-                  className={`w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-xs transition ${
+                  className={`w-full flex items-center justify-between px-2.5 py-2 text-xs transition cursor-pointer ${
                     activeTab === 'timeline'
                       ? 'bg-blue-50 font-bold text-blue-900 border border-blue-200'
                       : 'text-slate-600 hover:bg-slate-100'
@@ -675,7 +757,7 @@ export function SheetFooter({
                     計画表
                   </span>
                   {unassignedCount > 0 && (
-                    <span className="rounded-full bg-amber-400 px-1.5 py-0.2 text-[9px] font-bold text-amber-950">
+                    <span className="bg-amber-400 px-1.5 py-0.2 text-[9px] font-bold text-amber-950">
                       {unassignedCount}件未配置
                     </span>
                   )}
@@ -685,7 +767,7 @@ export function SheetFooter({
                     onTabChange('data');
                     setIsMenuOpen(false);
                   }}
-                  className={`w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-xs transition ${
+                  className={`w-full flex items-center justify-between px-2.5 py-2 text-xs transition cursor-pointer ${
                     activeTab === 'data'
                       ? 'bg-emerald-50 font-bold text-emerald-900 border border-emerald-200'
                       : 'text-slate-600 hover:bg-slate-100'
@@ -696,7 +778,7 @@ export function SheetFooter({
                     データ管理
                   </span>
                   {tablesCount > 0 && (
-                    <span className="rounded-full bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800">
+                    <span className="bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800">
                       {tablesCount}件
                     </span>
                   )}
