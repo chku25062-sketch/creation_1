@@ -967,6 +967,20 @@ export function Timeline24h({
                           : {}),
                       };
 
+                      const plannerLineColor = block.isCompleted
+                        ? '#94a3b8'
+                        : isSubstitute
+                          ? '#3b82f6'
+                          : isWeeklyTask
+                            ? '#8b5cf6'
+                            : colorScheme.strip || colorScheme.text;
+
+                      const contentPaddingClass = isPlanner
+                        ? height < 28
+                          ? 'py-0.5 px-1 sm:px-1.5'
+                          : 'py-1 px-1 sm:px-1.5'
+                        : 'p-1 pl-2.5';
+
                       return (
                         <div
                           key={`block-${d.dayIndex}-${block.id}`}
@@ -986,6 +1000,26 @@ export function Timeline24h({
                               : 'sticky-note rounded-md border transition-all duration-150'
                           } hover:z-30 ${positioningClass}`}
                         >
+                          {/* 手帳風: 予定の始まりを表す横棒 (開始時刻の水平ライン) */}
+                          {isPlanner && (
+                            <div
+                              className={`absolute top-0 inset-x-0 h-[1.5px] pointer-events-none z-10 ${
+                                isEarlyCompleted ? 'opacity-40' : 'opacity-90'
+                              }`}
+                              style={{ backgroundColor: plannerLineColor }}
+                            />
+                          )}
+
+                          {/* 手帳風: 予定の終わりを表す横棒 (終了時刻の水平ライン) */}
+                          {isPlanner && (
+                            <div
+                              className={`absolute bottom-0 inset-x-0 h-[1.5px] pointer-events-none z-10 ${
+                                isEarlyCompleted ? 'opacity-40' : 'opacity-90'
+                              }`}
+                              style={{ backgroundColor: plannerLineColor }}
+                            />
+                          )}
+
                           {/* 付箋のり付けストリップ (左端: モダン・付箋モードのみ表示。手帳風では完全非表示) */}
                           {!isPlanner && (
                             <div
@@ -1002,9 +1036,7 @@ export function Timeline24h({
 
                           {/* Block Content: 手帳風では色付き文字と付随情報のみで表現 */}
                           <div
-                            className={`flex h-full flex-col justify-between ${
-                              isPlanner ? 'p-0.5 px-1 sm:px-1.5' : 'p-1 pl-2.5'
-                            } overflow-hidden`}
+                            className={`flex h-full flex-col justify-between ${contentPaddingClass} overflow-hidden`}
                           >
                             <div className="flex items-start justify-between gap-1 min-w-0 overflow-hidden">
                               {/* タイトル領域: 手帳風では色付きのペン文字でサラッと書いた表現 */}
