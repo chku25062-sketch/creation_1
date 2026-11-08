@@ -5,13 +5,25 @@ import {
   GridCell,
   FixedSlot,
   TaskItem,
-  FixedCategory,
-  TaskCategory,
 } from '@/types';
 import { calculatePeriodTimes, timeStringToMinutes, minutesToTimeString } from './timeUtils';
 
-const WEEKDAY_NAMES = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜', '月', '火', '水', '木', '金', '土', '日'];
-const CYCLE_KEYWORDS = ['day', 'サイクル', '周期', '分割', 'rot', 'part'];
+const WEEKDAY_NAMES = [
+  '月曜',
+  '火曜',
+  '水曜',
+  '木曜',
+  '金曜',
+  '土曜',
+  '日曜',
+  '月',
+  '火',
+  '水',
+  '木',
+  '金',
+  '土',
+  '日',
+];
 
 /**
  * 表が「曜日で管理」か「周期で管理」かを判定
@@ -74,7 +86,8 @@ export interface ParsedColHeader {
 /**
  * 列ヘッダーの文字列から、曜日/周期/フリー/除外 を正確に判定
  */
-export function parseColHeader(header: string, defaultIndex: number): ParsedColHeader {
+export function parseColHeader(header: string, _defaultIndex?: number): ParsedColHeader {
+  void _defaultIndex;
   const h = (header || '').trim();
   const hLower = h.toLowerCase();
 
@@ -107,8 +120,7 @@ export function parseColHeader(header: string, defaultIndex: number): ParsedColH
   }
 
   // 3. 周期ローテーション: Day 1, Day 2, サイクル1, 周期1, A, B, C など
-  const dayMatch =
-    hLower.match(/^(?:day|d)\s*[-_:]?\s*(\d+)$/i) || h.match(/^(\d+)\s*日目?$/);
+  const dayMatch = hLower.match(/^(?:day|d)\s*[-_:]?\s*(\d+)$/i) || h.match(/^(\d+)\s*日目?$/);
   if (dayMatch) {
     const num = parseInt(dayMatch[1], 10);
     return { type: 'cycle', cycleIndex: Math.max(0, num - 1), label: h };
@@ -361,7 +373,9 @@ export interface TableScheduleGenerationResult {
  * - 周期管理モードまたは周期列がある場合、空列があっても総列数 (cycleCount) に含め、
  *   その日はタスクが生成されない「何もしない日（オフ日）」として成立させる
  */
-export function generateScheduleItemsForTable(table: ImportedTableData): TableScheduleGenerationResult {
+export function generateScheduleItemsForTable(
+  table: ImportedTableData,
+): TableScheduleGenerationResult {
   const classification = getTableClassification(table);
   const columnMode = getTableColumnMode(table);
   const slotMap = new Map<string, FixedSlot>();
@@ -369,9 +383,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
   const attachedTaskMap = new Map<string, TaskItem>();
 
   const tablePeriodTimes =
-    classification === 'fixed_slot'
-      ? calculatePeriodTimes(table.numRows, table.axisConfig)
-      : [];
+    classification === 'fixed_slot' ? calculatePeriodTimes(table.numRows, table.axisConfig) : [];
 
   const attachedConfig = table.attachedTaskConfig;
 
@@ -385,7 +397,9 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
   // 列が1つ（Day 1のみ等）の場合は1日周期（毎日繰り返し）とする
   const cycleCount = isCycleMode
     ? Math.max(1, nonExcludedCols.length)
-    : (table.numCols > 1 ? table.numCols : 1);
+    : table.numCols > 1
+      ? table.numCols
+      : 1;
 
   const tableCategory = table.name || '表タスク';
 
@@ -423,7 +437,8 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
         ? `${title} (${cell.roomOrNote.replace(/\n/g, ' ')})`
         : title;
 
-      const isWeekday = !isCycleMode && colInfo.type === 'weekday' && colInfo.dayIndex !== undefined;
+      const isWeekday =
+        !isCycleMode && colInfo.type === 'weekday' && colInfo.dayIndex !== undefined;
       const isCycle = isCycleMode;
       const cycleIdx = colInfo.cycleIndex !== undefined ? colInfo.cycleIndex : c;
 
@@ -451,13 +466,11 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
 
         // 同じ時限（時間帯）かつ同じタイトルのセルは、曜日（daysOfWeek）を結合して1つのスロットに集約
         if (timeSlot && (timeSlot.startMinutes > 0 || timeSlot.endMinutes > 0)) {
-          let days: number[] = [];
+          let days: number[];
           if (isWeekday) {
             days = [colInfo.dayIndex!];
           } else if (isCycle) {
-            days = [0, 1, 2, 3, 4, 5, 6].filter(
-              (d) => d % cycleCount === (cycleIdx % cycleCount),
-            );
+            days = [0, 1, 2, 3, 4, 5, 6].filter((d) => d % cycleCount === cycleIdx % cycleCount);
           } else {
             days = [0, 1, 2, 3, 4, 5, 6];
           }
@@ -470,7 +483,10 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               new Set([...(existingSlot.daysOfWeek || []), ...days]),
             ).sort((a, b) => a - b);
             if (effectiveBreakMinutes !== undefined) {
-              existingSlot.breakMinutes = Math.max(existingSlot.breakMinutes || 0, effectiveBreakMinutes);
+              existingSlot.breakMinutes = Math.max(
+                existingSlot.breakMinutes || 0,
+                effectiveBreakMinutes,
+              );
             }
           } else {
             const slotId = `slot-table-${table.id}-${r}-${c}`;
@@ -628,7 +644,9 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             period: 'week',
             targetDays: isWeekday
               ? [colInfo.dayIndex!]
-              : (!isCycle && !tableWeeklyCount ? [0, 1, 2, 3, 4, 5, 6] : undefined),
+              : !isCycle && !tableWeeklyCount
+                ? [0, 1, 2, 3, 4, 5, 6]
+                : undefined,
             cycleDays: isCycle ? [cycleIdx] : undefined,
             cycleCount: isCycle ? cycleCount : undefined,
             startDay: isWeekday ? colInfo.dayIndex : undefined,
@@ -641,7 +659,8 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
             completed: false,
             sourceTableId: table.id,
             sourceTableName: table.name,
-            expiryWeeks: table.weeklyTaskExpiryWeeks ?? table.axisConfig?.weeklyTaskExpiryWeeks ?? 1,
+            expiryWeeks:
+              table.weeklyTaskExpiryWeeks ?? table.axisConfig?.weeklyTaskExpiryWeeks ?? 1,
           });
         }
       }
@@ -694,12 +713,15 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               isAttachedTask: true,
               parentTitle: fullTitle,
               parentEndMinutesByDay,
-              targetDays: isWeekday && colInfo.dayIndex !== undefined ? [colInfo.dayIndex] : undefined,
+              targetDays:
+                isWeekday && colInfo.dayIndex !== undefined ? [colInfo.dayIndex] : undefined,
               startDay: isWeekday && colInfo.dayIndex !== undefined ? colInfo.dayIndex : undefined,
               // ★ 指定日時以降に配置（元タスクより後に時間を設定）
               scheduleAfterEnabled: true,
-              scheduleAfterDay: isWeekday && colInfo.dayIndex !== undefined ? colInfo.dayIndex : undefined,
-              scheduleAfterTime: parentEnd !== undefined ? minutesToTimeString(parentEnd) : undefined,
+              scheduleAfterDay:
+                isWeekday && colInfo.dayIndex !== undefined ? colInfo.dayIndex : undefined,
+              scheduleAfterTime:
+                parentEnd !== undefined ? minutesToTimeString(parentEnd) : undefined,
               earliestStartTime: parentEnd,
               priority: 'high',
               period: 'week', // 週のタスク
@@ -708,7 +730,8 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               completed: false,
               sourceTableId: table.id,
               sourceTableName: table.name,
-              expiryWeeks: table.weeklyTaskExpiryWeeks ?? table.axisConfig?.weeklyTaskExpiryWeeks ?? 1,
+              expiryWeeks:
+                table.weeklyTaskExpiryWeeks ?? table.axisConfig?.weeklyTaskExpiryWeeks ?? 1,
             });
           } else {
             attachedTaskMap.set(attachedKey, {
@@ -734,7 +757,8 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
               completed: false,
               sourceTableId: table.id,
               sourceTableName: table.name,
-              expiryWeeks: table.weeklyTaskExpiryWeeks ?? table.axisConfig?.weeklyTaskExpiryWeeks ?? 1,
+              expiryWeeks:
+                table.weeklyTaskExpiryWeeks ?? table.axisConfig?.weeklyTaskExpiryWeeks ?? 1,
             });
           }
         } else {
@@ -749,7 +773,8 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
                 existingAttached.targetDays = [...curDays, colInfo.dayIndex].sort((a, b) => a - b);
               }
               if (timeSlot) {
-                if (!existingAttached.parentEndMinutesByDay) existingAttached.parentEndMinutesByDay = {};
+                if (!existingAttached.parentEndMinutesByDay)
+                  existingAttached.parentEndMinutesByDay = {};
                 const endWithBreak = timeSlot.endMinutes + (effectiveBreakMinutes || 0);
                 existingAttached.parentEndMinutesByDay[colInfo.dayIndex] = Math.max(
                   existingAttached.parentEndMinutesByDay[colInfo.dayIndex] || 0,
@@ -759,7 +784,10 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
                 if (existingAttached.scheduleAfterDay === undefined) {
                   existingAttached.scheduleAfterDay = colInfo.dayIndex;
                 }
-                if (existingAttached.earliestStartTime === undefined || endWithBreak > existingAttached.earliestStartTime) {
+                if (
+                  existingAttached.earliestStartTime === undefined ||
+                  endWithBreak > existingAttached.earliestStartTime
+                ) {
                   existingAttached.earliestStartTime = endWithBreak;
                   existingAttached.scheduleAfterTime = minutesToTimeString(endWithBreak);
                 }
@@ -798,8 +826,7 @@ export function generateScheduleItemsForTable(table: ImportedTableData): TableSc
           task.targetDays.length >= 5 ? 'high' : task.targetDays.length >= 3 ? 'medium' : 'low';
       } else if (task.cycleDays && task.cycleDays.length > 0) {
         task.frequencyCount = task.cycleDays.length;
-        task.frequency =
-          task.cycleDays.length >= Math.ceil(cycleCount * 0.7) ? 'high' : 'medium';
+        task.frequency = task.cycleDays.length >= Math.ceil(cycleCount * 0.7) ? 'high' : 'medium';
       }
     }
   });

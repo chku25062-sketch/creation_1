@@ -19,9 +19,11 @@ export class WeeklyPlacementPhase implements PlacementPhase {
       const preferredDays =
         plan.task.parentEndMinutesByDay && Object.keys(plan.task.parentEndMinutesByDay).length > 0
           ? Object.keys(plan.task.parentEndMinutesByDay).map(Number)
-          : (plan.task.targetDays && plan.task.targetDays.length > 0
-              ? plan.task.targetDays
-              : (plan.task.startDay !== undefined ? [plan.task.startDay] : [0]));
+          : plan.task.targetDays && plan.task.targetDays.length > 0
+            ? plan.task.targetDays
+            : plan.task.startDay !== undefined
+              ? [plan.task.startDay]
+              : [0];
 
       for (const d of preferredDays) {
         if (plan.placedCount >= plan.targetCountWeekly) {

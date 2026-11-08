@@ -54,6 +54,8 @@ export function calculateScheduleMetrics(
       // 新タスク（代行タスク）を奥（先）、完了タスクを手前（後）に配置
       if (a.isSubstitute && !b.isSubstitute) return -1;
       if (!a.isSubstitute && b.isSubstitute) return 1;
+      if (!a.isEarlyCompleted && b.isEarlyCompleted) return -1;
+      if (a.isEarlyCompleted && !b.isEarlyCompleted) return 1;
       return a.endMinutes - b.endMinutes;
     });
     allBlocks.push(...dayBlocks[d]);
@@ -71,7 +73,8 @@ export function calculateScheduleMetrics(
             Math.max(
               0,
               Math.round(
-                ((totalRequestedTaskMinutes - unassignedTaskMinutes) / totalRequestedTaskMinutes) * 100,
+                ((totalRequestedTaskMinutes - unassignedTaskMinutes) / totalRequestedTaskMinutes) *
+                  100,
               ),
             ),
           )

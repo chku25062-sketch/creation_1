@@ -224,4 +224,3 @@ export type AppThemeMode = 'planner' | 'modern';
 
 /** タスクの配置戦略ポリシー（分散バランス型 ⇄ 集中前倒し型） */
 export type TaskPlacementStrategy = 'balanced' | 'concentrated';
-

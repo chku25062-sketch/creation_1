@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Calendar,
   FileSpreadsheet,
@@ -24,12 +24,20 @@ import {
   Scale,
   Zap,
   SlidersHorizontal,
+  Bug,
+  RotateCcw,
 } from 'lucide-react';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { AppThemeMode, TheoreticalBlock, TaskItem, TaskPlacementStrategy } from '@/types';
-import { minutesToTimeString, formatDuration } from '@/lib/timeUtils';
+import { minutesToTimeString, timeStringToMinutes, formatDuration } from '@/lib/timeUtils';
 
 export type SheetTab = 'timeline' | 'data';
+
+export interface DebugTimeConfig {
+  enabled: boolean;
+  dayIndex: number;
+  minutes: number;
+}
 
 interface SheetFooterProps {
   activeTab: SheetTab;
@@ -51,6 +59,10 @@ interface SheetFooterProps {
   onSelectDayIndex?: (dayIndex: number) => void;
   placementStrategy?: TaskPlacementStrategy;
   onTogglePlacementStrategy?: (strategy?: TaskPlacementStrategy) => void;
+  debugTime?: DebugTimeConfig;
+  onChangeDebugTime?: (next: Partial<DebugTimeConfig>) => void;
+  onResetDebugTime?: () => void;
+  onResetCompletionStates?: () => void;
 }
 
 export function SheetFooter({
@@ -73,8 +85,11 @@ export function SheetFooter({
   onSelectDayIndex,
   placementStrategy = 'balanced',
   onTogglePlacementStrategy,
+  debugTime,
+  onChangeDebugTime,
+  onResetDebugTime,
+  onResetCompletionStates,
 }: SheetFooterProps) {
-
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isTaskDrawerOpen, setIsTaskDrawerOpen] = useState(false);
 
@@ -244,7 +259,9 @@ export function SheetFooter({
             title="今週の週タスク管理バーを開く"
             aria-label="週タスク管理バーを開く"
           >
-            <CheckSquare className={`h-3.5 w-3.5 ${isTaskDrawerOpen ? 'text-white' : 'text-violet-600'} shrink-0`} />
+            <CheckSquare
+              className={`h-3.5 w-3.5 ${isTaskDrawerOpen ? 'text-white' : 'text-violet-600'} shrink-0`}
+            />
             <span>タスク</span>
             {totalWeeklyTasksCount > 0 && (
               <span
@@ -271,12 +288,24 @@ export function SheetFooter({
             className={`relative flex h-7.5 w-7.5 items-center justify-center border shadow-2xs transition active:scale-95 cursor-pointer ${
               isMenuOpen
                 ? 'border-blue-600 bg-blue-600 text-white'
-                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                : debugTime?.enabled
+                  ? 'border-amber-500 bg-amber-50 text-amber-900 hover:bg-amber-100'
+                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900'
             }`}
-            title="メニューを開く"
+            title={
+              debugTime?.enabled
+                ? `メニューを開く (デバッグ日時適用中: ${WEEKDAY_NAMES[debugTime.dayIndex]} ${minutesToTimeString(debugTime.minutes)})`
+                : 'メニューを開く'
+            }
             aria-label="メニューを開く"
           >
             <Menu className="h-4 w-4" />
+            {debugTime?.enabled && (
+              <span
+                className="absolute -top-1 -left-1 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-white"
+                title="デバッグ日時適用中"
+              />
+            )}
             {userEmail && (
               <span
                 className="absolute top-1 right-1 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white"
@@ -314,7 +343,9 @@ export function SheetFooter({
               <div className="flex h-6 w-6 items-center justify-center rounded bg-violet-600 text-white shadow-2xs">
                 <CheckSquare className="h-3.5 w-3.5" />
               </div>
-              <span className="font-bold text-sm text-slate-900 tracking-tight">今週の週タスク管理</span>
+              <span className="font-bold text-sm text-slate-900 tracking-tight">
+                今週の週タスク管理
+              </span>
             </div>
             <button
               onClick={() => setIsTaskDrawerOpen(false)}
@@ -332,7 +363,8 @@ export function SheetFooter({
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold text-slate-700">週タスク進捗状況</span>
                 <span className="font-mono text-xs font-bold text-violet-900 bg-violet-100 border border-violet-200 px-2 py-0.5">
-                  {completedWeeklyTasksCount} / {totalWeeklyTasksCount} 完了 ({completionPercentage}%)
+                  {completedWeeklyTasksCount} / {totalWeeklyTasksCount} 完了 ({completionPercentage}
+                  %)
                 </span>
               </div>
               <div className="h-2 w-full bg-slate-200 overflow-hidden">
@@ -420,11 +452,17 @@ export function SheetFooter({
                         {/* タスク情報 */}
                         <div className="flex-1 min-w-0 flex flex-col justify-center">
                           <div className="flex items-center gap-1.5">
+                            {block.isRescheduled && (
+                              <span
+                                className="shrink-0 rounded bg-amber-100 border border-amber-300 px-1 py-0.2 text-[9px] font-bold text-amber-800"
+                                title="未完了のため再配置されたタスク"
+                              >
+                                再配置
+                              </span>
+                            )}
                             <span
                               className={`text-xs font-bold truncate ${
-                                block.isCompleted
-                                  ? 'line-through text-slate-400'
-                                  : 'text-slate-800'
+                                block.isCompleted ? 'line-through text-slate-400' : 'text-slate-800'
                               }`}
                               title={block.title}
                             >
@@ -434,7 +472,8 @@ export function SheetFooter({
                           <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono mt-0.5">
                             <Clock className="h-3 w-3 text-slate-400 shrink-0" />
                             <span>
-                              {minutesToTimeString(block.startMinutes)} - {minutesToTimeString(block.endMinutes)}
+                              {minutesToTimeString(block.startMinutes)} -{' '}
+                              {minutesToTimeString(block.endMinutes)}
                             </span>
                             <span className="text-slate-400">({formatDuration(durationMins)})</span>
                           </div>
@@ -450,7 +489,9 @@ export function SheetFooter({
                                 ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
                                 : 'border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100'
                             }`}
-                            title={block.isCompleted ? 'クリックで未完了に戻す' : 'クリックで完了にする'}
+                            title={
+                              block.isCompleted ? 'クリックで未完了に戻す' : 'クリックで完了にする'
+                            }
                           >
                             {block.isCompleted ? (
                               <>
@@ -545,6 +586,187 @@ export function SheetFooter({
 
           {/* バーコンテンツ */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* セクション 0: デバッグ用 現在日時変更（シミュレーター） */}
+            {debugTime && onChangeDebugTime && (
+              <div className="space-y-2">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Bug className="h-3.5 w-3.5 text-amber-600" />
+                    デバッグ用：現在日時の変更
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold px-1.5 py-0.2 border font-mono ${
+                      debugTime.enabled
+                        ? 'text-amber-950 bg-amber-200 border-amber-400'
+                        : 'text-slate-600 bg-slate-100 border-slate-300'
+                    }`}
+                  >
+                    {debugTime.enabled
+                      ? `手動: ${WEEKDAY_NAMES[debugTime.dayIndex]}曜 ${minutesToTimeString(debugTime.minutes)}`
+                      : `実時刻: ${WEEKDAY_NAMES[debugTime.dayIndex]}曜 ${minutesToTimeString(debugTime.minutes)}`}
+                  </span>
+                </div>
+
+                <div className="border border-amber-300/90 bg-amber-50/40 p-2.5 shadow-2xs space-y-2.5">
+                  {/* ON/OFF 切り替え & 実時刻リセット */}
+                  <div className="flex items-center justify-between gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onChangeDebugTime({ enabled: !debugTime.enabled })}
+                      className={`flex-1 py-1.5 px-2 text-xs font-bold border transition cursor-pointer ${
+                        debugTime.enabled
+                          ? 'bg-amber-600 text-white border-amber-700 shadow-2xs'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      {debugTime.enabled ? '🧪 デバッグ日時固定 ON' : '🕒 実日時（自動）を使用中'}
+                    </button>
+                    {debugTime.enabled && onResetDebugTime && (
+                      <button
+                        type="button"
+                        onClick={onResetDebugTime}
+                        className="flex items-center gap-1 py-1.5 px-2 text-[11px] font-bold bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 transition cursor-pointer shrink-0"
+                        title="実際の現在曜日・現在時刻に戻す"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        <span>実時刻へ戻す</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* 曜日（今日とする曜日）の選択 */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px] text-slate-600 font-semibold">
+                      <span>「今日」とする曜日:</span>
+                      <span className="font-mono text-[10px] text-amber-900 font-bold">
+                        {WEEKDAY_NAMES[debugTime.dayIndex]}曜日
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-7 gap-1">
+                      {WEEKDAY_NAMES.map((dayLabel, idx) => (
+                        <button
+                          key={`debug-day-${idx}`}
+                          type="button"
+                          onClick={() => {
+                            onChangeDebugTime({ enabled: true, dayIndex: idx });
+                            onSelectDayIndex?.(idx);
+                          }}
+                          className={`py-1 text-xs font-bold border transition cursor-pointer ${
+                            debugTime.dayIndex === idx
+                              ? 'bg-amber-700 text-white border-amber-800 shadow-2xs'
+                              : 'bg-white text-slate-700 border-slate-300 hover:bg-amber-100/60'
+                          }`}
+                        >
+                          {dayLabel}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 現在時刻の変更（時刻入力 + スライダー + クイック増減） */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] text-slate-600 font-semibold">
+                      <span>現在時刻の設定:</span>
+                      <input
+                        type="time"
+                        aria-label="デバッグ現在時刻"
+                        value={minutesToTimeString(debugTime.minutes)}
+                        onChange={(e) => {
+                          if (!e.target.value) return;
+                          const mins = Math.max(
+                            0,
+                            Math.min(1439, timeStringToMinutes(e.target.value)),
+                          );
+                          onChangeDebugTime({ enabled: true, minutes: mins });
+                        }}
+                        className="border border-slate-300 bg-white px-2 py-0.5 font-mono text-xs font-bold text-slate-900 focus:border-amber-600 focus:outline-none"
+                      />
+                    </div>
+
+                    <input
+                      type="range"
+                      aria-label="デバッグ時刻スライダー"
+                      min={0}
+                      max={1435}
+                      step={5}
+                      value={debugTime.minutes}
+                      onChange={(e) => {
+                        onChangeDebugTime({
+                          enabled: true,
+                          minutes: Number(e.target.value),
+                        });
+                      }}
+                      className="w-full accent-amber-600 cursor-pointer h-1.5"
+                    />
+
+                    {/* 微調整ボタン (-1h, -15m, +15m, +1h) */}
+                    <div className="grid grid-cols-4 gap-1">
+                      {[
+                        { label: '-1時間', delta: -60 },
+                        { label: '-15分', delta: -15 },
+                        { label: '+15分', delta: 15 },
+                        { label: '+1時間', delta: 60 },
+                      ].map((btn) => (
+                        <button
+                          key={btn.label}
+                          type="button"
+                          onClick={() => {
+                            const nextMins = Math.max(
+                              0,
+                              Math.min(1439, debugTime.minutes + btn.delta),
+                            );
+                            onChangeDebugTime({ enabled: true, minutes: nextMins });
+                          }}
+                          className="border border-slate-300 bg-white py-1 text-[10px] font-mono font-bold text-slate-700 hover:bg-amber-100/60 transition cursor-pointer"
+                        >
+                          {btn.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* よく使う時刻プリセット */}
+                    <div className="grid grid-cols-6 gap-1 pt-0.5">
+                      {[
+                        { label: '08:00', mins: 480 },
+                        { label: '09:30', mins: 570 },
+                        { label: '12:00', mins: 720 },
+                        { label: '15:00', mins: 900 },
+                        { label: '19:00', mins: 1140 },
+                        { label: '22:00', mins: 1320 },
+                      ].map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => onChangeDebugTime({ enabled: true, minutes: preset.mins })}
+                          className={`border py-0.5 text-[10px] font-mono font-semibold transition cursor-pointer ${
+                            debugTime.minutes === preset.mins
+                              ? 'border-amber-600 bg-amber-100 text-amber-950 font-bold'
+                              : 'border-slate-200 bg-white/80 text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 完了・未完了トグル履歴のリセットボタン */}
+                  {onResetCompletionStates && (
+                    <div className="pt-1 border-t border-amber-200/80">
+                      <button
+                        type="button"
+                        onClick={onResetCompletionStates}
+                        className="w-full flex items-center justify-center gap-1.5 border border-slate-300 bg-white py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 transition cursor-pointer"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        <span>手動の完了・未完了トグル状態をすべてリセット</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* セクション 1: デザインテーマ切り替え (手帳風 ⇄ モダン) */}
             {onToggleThemeMode && (
               <div className="space-y-2">
@@ -634,7 +856,9 @@ export function SheetFooter({
                         : 'text-emerald-900 bg-emerald-100 border-emerald-200'
                     }`}
                   >
-                    {placementStrategy === 'concentrated' ? '集中配置 (前倒し)' : '分散配置 (バランス)'}
+                    {placementStrategy === 'concentrated'
+                      ? '集中配置 (前倒し)'
+                      : '分散配置 (バランス)'}
                   </span>
                 </div>
 
@@ -720,7 +944,9 @@ export function SheetFooter({
                   <span>週タスク管理バーを開く</span>
                 </div>
                 <div className="flex items-center gap-1 text-[11px] font-bold text-violet-800 font-mono">
-                  <span>{completedWeeklyTasksCount}/{totalWeeklyTasksCount}</span>
+                  <span>
+                    {completedWeeklyTasksCount}/{totalWeeklyTasksCount}
+                  </span>
                   <ChevronRight className="h-3.5 w-3.5" />
                 </div>
               </button>

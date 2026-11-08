@@ -10,7 +10,6 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  Sparkles,
   Sliders,
   FolderOpen,
   Search,
@@ -34,7 +33,6 @@ import {
   FixedSlot,
   TaskItem,
   ScheduleInclusionSettings,
-  TableClassification,
   TableColumnMode,
   TablePlacementMode,
 } from '@/types';
@@ -70,16 +68,7 @@ interface ImportedTablesManagerProps {
   onFileSelect?: (file: File) => void;
 }
 
-const WEEKDAY_HEADER_OPTIONS = [
-  '月曜',
-  '火曜',
-  '水曜',
-  '木曜',
-  '金曜',
-  '土曜',
-  '日曜',
-  '除外',
-];
+const WEEKDAY_HEADER_OPTIONS = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜', '除外'];
 
 const CYCLE_HEADER_OPTIONS = [
   'Day 1',
@@ -274,14 +263,6 @@ export function ImportedTablesManager({
     return tables.find((t) => t.id === selectedItemId) || tables[0];
   }, [tables, selectedItemId]);
 
-  const dailyTasksCount = useMemo(() => {
-    return tasks.filter((t) => t.period === 'day' || t.frequency === 'high').length;
-  }, [tasks]);
-
-  const weeklyTasksCount = useMemo(() => {
-    return tasks.filter((t) => t.period !== 'day' && t.frequency !== 'high').length;
-  }, [tasks]);
-
   // テーブル名編集モーダル/ステート
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempTableName, setTempTableName] = useState('');
@@ -341,8 +322,7 @@ export function ImportedTablesManager({
 
     // もし計画表に反映中のテーブルであれば、固定枠 & タスクも自動再同期
     if (isTableApplied(nextTable)) {
-      const { slots: newSlots, tasks: newTasks, slotIds, taskIds } =
-        generateScheduleItemsForTable(nextTable);
+      const { slots: newSlots, tasks: newTasks } = generateScheduleItemsForTable(nextTable);
 
       const filteredSlots = fixedSlots.filter(
         (s) =>
@@ -392,7 +372,15 @@ export function ImportedTablesManager({
     if (selectedItemId === 'sys-weekly') return isWeeklyApplied;
     if (activeTable) return isTableApplied(activeTable);
     return false;
-  }, [selectedItemId, isSlotsApplied, isDailyApplied, isWeeklyApplied, activeTable, fixedSlots, tasks]);
+  }, [
+    selectedItemId,
+    isSlotsApplied,
+    isDailyApplied,
+    isWeeklyApplied,
+    activeTable,
+    fixedSlots,
+    tasks,
+  ]);
 
   // テーブル反映トグル切り替え (Plan7: 固定枠 / 日課タスク / 週次タスク / 付随タスク対応)
   const handleToggleTableApply = (table: ImportedTableData) => {
@@ -420,9 +408,7 @@ export function ImportedTablesManager({
       onTasksChange(nextTasks);
 
       const updated = tables.map((t) =>
-        t.id === table.id
-          ? { ...t, isApplied: false, appliedSlotIds: [], appliedTaskIds: [] }
-          : t,
+        t.id === table.id ? { ...t, isApplied: false, appliedSlotIds: [], appliedTaskIds: [] } : t,
       );
       onTablesChange(updated);
 
@@ -430,8 +416,12 @@ export function ImportedTablesManager({
       setTimeout(() => setApplySuccessMsg(null), 3000);
     } else {
       // 反映 (ON)
-      const { slots: newSlots, tasks: newTasks, slotIds, taskIds } =
-        generateScheduleItemsForTable(table);
+      const {
+        slots: newSlots,
+        tasks: newTasks,
+        slotIds,
+        taskIds,
+      } = generateScheduleItemsForTable(table);
 
       if (newSlots.length === 0 && newTasks.length === 0) {
         alert('有効なコマがありません。セルに内容を入力するか、列の曜日定義をご確認ください。');
@@ -561,81 +551,6 @@ export function ImportedTablesManager({
     setTimeout(() => setApplySuccessMsg(null), 3000);
   };
 
-  // 表レイアウト・プリセット一括変更（曜日、周期、1列リスト）
-  const handleApplyPreset = (preset: 'weekday' | 'cycle3' | 'single') => {
-    updateActiveTable((prev) => {
-      if (preset === 'weekday') {
-        const targetCols = 5;
-        const headers = ['月曜', '火曜', '水曜', '木曜', '金曜'];
-        const nextCells = prev.cells.map((row) => {
-          const newRow = row.slice(0, targetCols);
-          while (newRow.length < targetCols) {
-            const cIdx = newRow.length;
-            newRow.push({
-              dayIndex: cIdx,
-              periodIndex: row[0]?.periodIndex || 1,
-              text: null,
-              rawLines: [],
-              fullText: '',
-              title: '',
-              roomOrNote: '',
-              startMinutes: 0,
-              endMinutes: 0,
-            });
-          }
-          return newRow;
-        });
-        return {
-          ...prev,
-          numCols: targetCols,
-          colHeaders: headers,
-          cells: nextCells,
-          updatedAt: new Date().toISOString(),
-        };
-      } else if (preset === 'cycle3') {
-        const targetCols = 3;
-        const headers = ['Day 1', 'Day 2', 'Day 3'];
-        const nextCells = prev.cells.map((row) => {
-          const newRow = row.slice(0, targetCols);
-          while (newRow.length < targetCols) {
-            const cIdx = newRow.length;
-            newRow.push({
-              dayIndex: cIdx,
-              periodIndex: row[0]?.periodIndex || 1,
-              text: null,
-              rawLines: [],
-              fullText: '',
-              title: '',
-              roomOrNote: '',
-              startMinutes: 0,
-              endMinutes: 0,
-            });
-          }
-          return newRow;
-        });
-        return {
-          ...prev,
-          numCols: targetCols,
-          colHeaders: headers,
-          cells: nextCells,
-          updatedAt: new Date().toISOString(),
-        };
-      } else {
-        // 1列リスト (フリー)
-        const targetCols = 1;
-        const headers = ['タスク一覧'];
-        const nextCells = prev.cells.map((row) => row.slice(0, 1));
-        return {
-          ...prev,
-          numCols: 1,
-          colHeaders: headers,
-          cells: nextCells,
-          updatedAt: new Date().toISOString(),
-        };
-      }
-    });
-  };
-
   // 縦軸（基本ルール一括設定）の変更
   const handleAxisConfigChange = (
     key: keyof ImportedTableData['axisConfig'],
@@ -761,9 +676,7 @@ export function ImportedTablesManager({
         '{title} のタスク',
     );
     setCellAttachedDuration(
-      cell.attachedTask?.durationMinutes ||
-        activeTable.attachedTaskConfig?.durationMinutes ||
-        15,
+      cell.attachedTask?.durationMinutes || activeTable.attachedTaskConfig?.durationMinutes || 15,
     );
   };
 
@@ -909,12 +822,12 @@ export function ImportedTablesManager({
           - PC: インライン relative 配置
           ======================================================== */}
       <aside
-          className={`shrink-0 flex flex-col h-full border-r border-slate-200 bg-slate-50 select-none transition-all duration-200 ease-in-out ${
-            isSidebarOpen
-              ? 'absolute inset-y-0 left-0 z-40 w-72 max-w-[85vw] shadow-2xl translate-x-0 opacity-100 md:relative md:inset-auto md:z-auto md:w-64 lg:w-72 md:shadow-none'
-              : 'absolute inset-y-0 left-0 z-40 w-72 max-w-[85vw] -translate-x-full opacity-0 pointer-events-none md:pointer-events-auto md:opacity-100 md:relative md:inset-auto md:z-auto md:w-[76px] md:shadow-none md:translate-x-0'
-          }`}
-        >
+        className={`shrink-0 flex flex-col h-full border-r border-slate-200 bg-slate-50 select-none transition-all duration-200 ease-in-out ${
+          isSidebarOpen
+            ? 'absolute inset-y-0 left-0 z-40 w-72 max-w-[85vw] shadow-2xl translate-x-0 opacity-100 md:relative md:inset-auto md:z-auto md:w-64 lg:w-72 md:shadow-none'
+            : 'absolute inset-y-0 left-0 z-40 w-72 max-w-[85vw] -translate-x-full opacity-0 pointer-events-none md:pointer-events-auto md:opacity-100 md:relative md:inset-auto md:z-auto md:w-[76px] md:shadow-none md:translate-x-0'
+        }`}
+      >
         <div className="flex flex-col h-full min-h-0 w-full">
           {/* Top Bar: ヘッダーを廃止し、折り畳みボタンと「ファイル名で検索」を並べて配置 */}
           {isSidebarOpen ? (
@@ -1407,10 +1320,7 @@ export function ImportedTablesManager({
       {/* ========================================================
           Right Main Area: プレビュー & 軸・インターバル定義詳細
           ======================================================== */}
-      <main
-        className="flex flex-1 min-w-0 w-full flex-col bg-white p-2.5 sm:p-3 gap-2 overflow-hidden min-h-0"
-      >
-
+      <main className="flex flex-1 min-w-0 w-full flex-col bg-white p-2.5 sm:p-3 gap-2 overflow-hidden min-h-0">
         {/* Explorer Path / Breadcrumb & Top Actions Bar */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
           {/* Breadcrumb Path & Mobile Sidebar Toggle */}
@@ -1715,7 +1625,8 @@ export function ImportedTablesManager({
                   </span>
                   <SemiInput
                     value={
-                      activeTable.dailyRepeatCount === 'auto' || activeTable.dailyRepeatCount === undefined
+                      activeTable.dailyRepeatCount === 'auto' ||
+                      activeTable.dailyRepeatCount === undefined
                         ? '指定なし'
                         : String(activeTable.dailyRepeatCount)
                     }
@@ -1764,7 +1675,8 @@ export function ImportedTablesManager({
                   </span>
                   <SemiInput
                     value={
-                      activeTable.weeklyRepeatCount === 'auto' || activeTable.weeklyRepeatCount === undefined
+                      activeTable.weeklyRepeatCount === 'auto' ||
+                      activeTable.weeklyRepeatCount === undefined
                         ? '指定なし'
                         : String(activeTable.weeklyRepeatCount)
                     }
@@ -1865,7 +1777,12 @@ export function ImportedTablesManager({
                     value={activeTable.axisConfig.startTime ?? ''}
                     onChange={(val) => {
                       const trimmed = val.trim();
-                      if (!trimmed || trimmed === 'unset' || trimmed === '未設定' || trimmed === '自動') {
+                      if (
+                        !trimmed ||
+                        trimmed === 'unset' ||
+                        trimmed === '未設定' ||
+                        trimmed === '自動'
+                      ) {
                         handleAxisConfigChange('startTime', null);
                       } else {
                         handleAxisConfigChange('startTime', trimmed);
@@ -1942,17 +1859,27 @@ export function ImportedTablesManager({
                   </span>
                   <SemiInput
                     value={
-                      activeTable.axisConfig.periodMinutes !== null && activeTable.axisConfig.periodMinutes !== undefined
+                      activeTable.axisConfig.periodMinutes !== null &&
+                      activeTable.axisConfig.periodMinutes !== undefined
                         ? String(activeTable.axisConfig.periodMinutes)
                         : ''
                     }
                     onChange={(val) => {
                       const trimmed = val.trim();
-                      if (!trimmed || trimmed === '0' || trimmed === 'unset' || trimmed === '未設定' || trimmed === '自動') {
+                      if (
+                        !trimmed ||
+                        trimmed === '0' ||
+                        trimmed === 'unset' ||
+                        trimmed === '未設定' ||
+                        trimmed === '自動'
+                      ) {
                         handleAxisConfigChange('periodMinutes', null);
                       } else {
                         const num = parseInt(trimmed.replace(/[^0-9]/g, ''), 10);
-                        handleAxisConfigChange('periodMinutes', isNaN(num) || num <= 0 ? null : num);
+                        handleAxisConfigChange(
+                          'periodMinutes',
+                          isNaN(num) || num <= 0 ? null : num,
+                        );
                       }
                     }}
                     placeholder="自動"
@@ -1981,7 +1908,8 @@ export function ImportedTablesManager({
                   </span>
                   <SemiInput
                     value={
-                      activeTable.axisConfig.intervalMinutes === null || activeTable.axisConfig.intervalMinutes === undefined
+                      activeTable.axisConfig.intervalMinutes === null ||
+                      activeTable.axisConfig.intervalMinutes === undefined
                         ? ''
                         : activeTable.axisConfig.intervalMinutes === 0
                           ? '0'
@@ -1989,7 +1917,12 @@ export function ImportedTablesManager({
                     }
                     onChange={(val) => {
                       const trimmed = val.trim();
-                      if (!trimmed || trimmed === 'unset' || trimmed === '未設定' || trimmed === '自動') {
+                      if (
+                        !trimmed ||
+                        trimmed === 'unset' ||
+                        trimmed === '未設定' ||
+                        trimmed === '自動'
+                      ) {
                         handleAxisConfigChange('intervalMinutes', null);
                       } else if (trimmed === '0' || trimmed === 'なし') {
                         handleAxisConfigChange('intervalMinutes', 0);
@@ -2081,9 +2014,7 @@ export function ImportedTablesManager({
                     <Sliders className="h-3 w-3" />
                     <span className="hidden sm:inline">時間微調整</span>
                     <span className="sm:hidden">微調整</span>
-                    {hasCustomTimes && (
-                      <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
-                    )}
+                    {hasCustomTimes && <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />}
                     {showCustomTimes ? (
                       <ChevronUp className="h-3 w-3 text-slate-400" />
                     ) : (
@@ -2106,8 +2037,7 @@ export function ImportedTablesManager({
                             enabled,
                             titleTemplate:
                               prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
-                            durationMinutes:
-                              prev.attachedTaskConfig?.durationMinutes || 15,
+                            durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
                           },
                         }));
                       }}
@@ -2128,8 +2058,7 @@ export function ImportedTablesManager({
                             attachedTaskConfig: {
                               enabled: true,
                               titleTemplate: val,
-                              durationMinutes:
-                                prev.attachedTaskConfig?.durationMinutes || 15,
+                              durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
                             },
                           }));
                         }}
@@ -2289,9 +2218,7 @@ export function ImportedTablesManager({
                       <div
                         key={`custom-row-${pt.periodIndex}`}
                         className={`flex flex-col gap-1 rounded-md border p-1.5 text-xs transition ${
-                          isCustom
-                            ? 'border-amber-300 bg-amber-50/70'
-                            : 'border-slate-200 bg-white'
+                          isCustom ? 'border-amber-300 bg-amber-50/70' : 'border-slate-200 bg-white'
                         }`}
                       >
                         <div className="flex items-center justify-between">
@@ -2378,8 +2305,9 @@ export function ImportedTablesManager({
                           tableColumnMode === 'cycle'
                             ? CYCLE_HEADER_OPTIONS
                             : WEEKDAY_HEADER_OPTIONS;
-                        const isColumnEmpty =
-                          activeTable.cells.every((r) => !r[cIdx]?.title?.trim());
+                        const isColumnEmpty = activeTable.cells.every(
+                          (r) => !r[cIdx]?.title?.trim(),
+                        );
 
                         return (
                           <th
@@ -2388,8 +2316,8 @@ export function ImportedTablesManager({
                               isExcluded
                                 ? 'bg-slate-200/60 text-slate-400'
                                 : tableColumnMode === 'cycle'
-                                ? 'bg-emerald-50/50'
-                                : 'bg-slate-100/90'
+                                  ? 'bg-emerald-50/50'
+                                  : 'bg-slate-100/90'
                             }`}
                           >
                             <div className="flex flex-col items-center gap-1">
@@ -2408,7 +2336,9 @@ export function ImportedTablesManager({
                                 {activeTable.numCols > 1 && (
                                   <button
                                     type="button"
-                                    onClick={() => updateActiveTable((t) => removeColAtIndex(t, cIdx))}
+                                    onClick={() =>
+                                      updateActiveTable((t) => removeColAtIndex(t, cIdx))
+                                    }
                                     title={`この列 (${colName}) を削除`}
                                     className="h-4 w-4 rounded flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition"
                                   >
@@ -2423,8 +2353,8 @@ export function ImportedTablesManager({
                                   isExcluded
                                     ? 'border-slate-300 bg-slate-100 text-slate-400'
                                     : tableColumnMode === 'cycle'
-                                    ? 'border-emerald-300 bg-white text-emerald-700 hover:border-emerald-400'
-                                    : 'border-blue-300 bg-white text-blue-700 hover:border-blue-400'
+                                      ? 'border-emerald-300 bg-white text-emerald-700 hover:border-emerald-400'
+                                      : 'border-blue-300 bg-white text-blue-700 hover:border-blue-400'
                                 }`}
                               >
                                 {headerOptions.map((opt) => (
@@ -2480,7 +2410,9 @@ export function ImportedTablesManager({
                               {activeTable.numRows > 1 && (
                                 <button
                                   type="button"
-                                  onClick={() => updateActiveTable((t) => removeRowAtIndex(t, rIdx))}
+                                  onClick={() =>
+                                    updateActiveTable((t) => removeRowAtIndex(t, rIdx))
+                                  }
                                   title={`行 ${rIdx + 1} を削除`}
                                   className="h-4 w-4 rounded opacity-0 group-hover/row:opacity-100 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition"
                                 >
@@ -2533,9 +2465,7 @@ export function ImportedTablesManager({
                                       )}
                                     </div>
                                     <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                                      <span className="opacity-70">
-                                        {pt?.startTime || ''}
-                                      </span>
+                                      <span className="opacity-70">{pt?.startTime || ''}</span>
                                       <button
                                         type="button"
                                         onClick={(e) => handleClearCell(rIdx, cIdx, e)}
@@ -2649,7 +2579,6 @@ export function ImportedTablesManager({
               </select>
             </div>
 
-
             {/* 付随タスク（連動タスク）設定 */}
             <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
               <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -2678,9 +2607,7 @@ export function ImportedTablesManager({
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className="text-[10px] text-slate-500 shrink-0">
-                      所要時間:
-                    </label>
+                    <label className="text-[10px] text-slate-500 shrink-0">所要時間:</label>
                     <select
                       value={cellAttachedDuration}
                       onChange={(e) => setCellAttachedDuration(Number(e.target.value))}

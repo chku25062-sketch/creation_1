@@ -1,11 +1,17 @@
-import { TaskItem, TheoreticalBlock, FreeSlot, FixedSlot, TaskPlacementStrategy } from '@/types';
+import { TaskItem, TheoreticalBlock, FixedSlot, TaskPlacementStrategy } from '@/types';
 import { SlotManager } from './slotManager';
 
 export type { TaskPlacementStrategy } from '@/types';
 
 export interface TaskPlacementPlan {
   task: TaskItem;
-  kind: 'assignment' | 'weekly_specific' | 'daily_fixed' | 'weekly_flexible' | 'daily_auto' | 'attached_task';
+  kind:
+    | 'assignment'
+    | 'weekly_specific'
+    | 'daily_fixed'
+    | 'weekly_flexible'
+    | 'daily_auto'
+    | 'attached_task';
   isAuto: boolean;
   targetCountPerDay: number;
   targetCountWeekly: number;
@@ -51,7 +57,7 @@ export interface SchedulingExecutionContext {
   currMinutes: number;
   userCompletedIds: Set<string>;
   userUncompletedIds: Set<string>;
-  
+
   // 共通のタスク配置ヘルパーメソッド
   tryPlaceContextInDay: (d: number, ctx: DayTaskContext, isWeekly: boolean) => boolean;
   sortDayTaskContexts: (contexts: DayTaskContext[]) => void;

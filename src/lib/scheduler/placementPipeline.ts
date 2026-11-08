@@ -1,5 +1,5 @@
 import { PlacementPhase, SchedulingExecutionContext, DayTaskContext } from './types';
-import { getAdjustedDuration, getCategoryColor, WEEKLY_TASK_COLOR } from './constants';
+import { getCategoryColor, WEEKLY_TASK_COLOR } from './constants';
 import { timeStringToMinutes } from '../timeUtils';
 import { WeeklyPlacementPhase } from './phases/weeklyPlacementPhase';
 import { DailyFairPlacementPhase } from './phases/dailyFairPlacementPhase';
@@ -132,10 +132,7 @@ export function createPlaceContextHelper(ctx: SchedulingExecutionContext) {
 
       // 自動敷き詰めタスク以外は、勝手にタスク時間を縮小せず、本来の設定所要時間（requiredMin）を厳密に維持！
       const effectiveDuration = taskCtx.isAuto
-        ? Math.min(
-            requiredMin,
-            Math.max(15, availableDuration - breakMin),
-          )
+        ? Math.min(requiredMin, Math.max(15, availableDuration - breakMin))
         : requiredMin;
 
       if (availableDuration < effectiveDuration) continue;
@@ -310,10 +307,10 @@ export class PlacementPipeline {
  */
 export function createDefaultPlacementPipeline(): PlacementPipeline {
   return new PlacementPipeline([
-    new WeeklyPlacementPhase(),     // 1. 週タスクの直接優先配置＆柔軟配置（同日付随、条件合致週タスク、繰り越し、柔軟週タスク）
-    new DailyFairPlacementPhase(),  // 2. 回数指定日タスクの公平巡回配置（各曜日の日課を確保）
-    new AttachedFallbackPhase(),   // 3. 当日に入り切らなかった付随タスクの別日フォールバック（自動日タスクが枠を埋める前に最優先確保！）
-    new DailyAutoPlacementPhase(),  // 4. 自動敷き詰め日タスク（すべての固定枠・週タスク・日課タスク配置後の残りの空き枠のみ）
-    new RescuePlacementPhase(),    // 5. 最終救済フェーズ
+    new WeeklyPlacementPhase(), // 1. 週タスクの直接優先配置＆柔軟配置（同日付随、条件合致週タスク、繰り越し、柔軟週タスク）
+    new DailyFairPlacementPhase(), // 2. 回数指定日タスクの公平巡回配置（各曜日の日課を確保）
+    new AttachedFallbackPhase(), // 3. 当日に入り切らなかった付随タスクの別日フォールバック（自動日タスクが枠を埋める前に最優先確保！）
+    new DailyAutoPlacementPhase(), // 4. 自動敷き詰め日タスク（すべての固定枠・週タスク・日課タスク配置後の残りの空き枠のみ）
+    new RescuePlacementPhase(), // 5. 最終救済フェーズ
   ]);
 }

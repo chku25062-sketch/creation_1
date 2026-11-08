@@ -6,6 +6,7 @@ import {
   getAdjustedDuration,
 } from './scheduler';
 import { FixedSlot, TaskItem } from '@/types';
+import { INITIAL_FIXED_SLOTS, INITIAL_TASKS } from './storage';
 
 describe('Theoretical Scheduler Engine', () => {
   describe('normalizeFixedSlots', () => {
@@ -484,7 +485,7 @@ describe('Theoretical Scheduler Engine', () => {
       };
 
       const result = generateTheoreticalSchedule(fixedSlots, [taskWithLimit, taskCannotFit]);
-      
+
       // taskWithLimit は 08:00〜09:00 (480〜540分) に配置され、10:00 (600分) 以内に収まる
       const placedMorning = result.blocks.find((b) => b.title === '朝の学習');
       expect(placedMorning).toBeDefined();
@@ -914,8 +915,12 @@ describe('Theoretical Scheduler Engine', () => {
 
       // 月曜(0)、火曜(1)、水曜(2)には絶対に配置されないこと！
       for (const d of [0, 1, 2]) {
-        expect(result.dayBlocks[d].some((b) => b.title === '木曜ゼミ (401教室) のタスク')).toBe(false);
-        expect(result.dayBlocks[d].some((b) => b.title === '金曜実験 (情報棟) のタスク')).toBe(false);
+        expect(result.dayBlocks[d].some((b) => b.title === '木曜ゼミ (401教室) のタスク')).toBe(
+          false,
+        );
+        expect(result.dayBlocks[d].some((b) => b.title === '金曜実験 (情報棟) のタスク')).toBe(
+          false,
+        );
       }
 
       // 木曜（3）に木曜ゼミのタスクが、親タスク終了（870分）以降に配置されること
@@ -1151,7 +1156,11 @@ describe('Theoretical Scheduler Engine', () => {
       // 火曜 (d=1, 1%4=1): 背中トレ
       expect(result.dayBlocks[1].some((b) => b.taskId === 'back')).toBe(true);
       // 水曜 (d=2, 2%4=2): オフ日（胸・背中・脚のいずれも配置されない）
-      expect(result.dayBlocks[2].some((b) => b.taskId === 'chest' || b.taskId === 'back' || b.taskId === 'leg')).toBe(false);
+      expect(
+        result.dayBlocks[2].some(
+          (b) => b.taskId === 'chest' || b.taskId === 'back' || b.taskId === 'leg',
+        ),
+      ).toBe(false);
       // 木曜 (d=3, 3%4=3): 脚トレ
       expect(result.dayBlocks[3].some((b) => b.taskId === 'leg')).toBe(true);
       // 金曜 (d=4, 4%4=0): 胸トレ
@@ -1159,7 +1168,11 @@ describe('Theoretical Scheduler Engine', () => {
       // 土曜 (d=5, 5%4=1): 背中トレ
       expect(result.dayBlocks[5].some((b) => b.taskId === 'back')).toBe(true);
       // 日曜 (d=6, 6%4=2): オフ日（胸・背中・脚のいずれも配置されない）
-      expect(result.dayBlocks[6].some((b) => b.taskId === 'chest' || b.taskId === 'back' || b.taskId === 'leg')).toBe(false);
+      expect(
+        result.dayBlocks[6].some(
+          (b) => b.taskId === 'chest' || b.taskId === 'back' || b.taskId === 'leg',
+        ),
+      ).toBe(false);
     });
 
     it('複数曜日 targetDays: [0, 3] を持つ週次タスクが月曜と木曜にのみ正確に配置されること', () => {
@@ -1753,7 +1766,9 @@ describe('Theoretical Scheduler Engine', () => {
         });
 
         // 月曜の元ブロックは未完了（isCompleted: false）
-        const uncompletedMonBlock = uncompletedResult.dayBlocks[0].find((b) => b.title === '月曜の数学レポート');
+        const uncompletedMonBlock = uncompletedResult.dayBlocks[0].find(
+          (b) => b.title === '月曜の数学レポート',
+        );
         expect(uncompletedMonBlock?.isCompleted).toBe(false);
         expect(uncompletedMonBlock?.isUserToggled).toBe(true);
 
@@ -1765,7 +1780,9 @@ describe('Theoretical Scheduler Engine', () => {
           ...uncompletedResult.dayBlocks[5],
           ...uncompletedResult.dayBlocks[6],
         ];
-        const rescheduledBlock = futureBlocks.find((b) => b.isRescheduled && b.title === '月曜の数学レポート');
+        const rescheduledBlock = futureBlocks.find(
+          (b) => b.isRescheduled && b.title === '月曜の数学レポート',
+        );
         expect(rescheduledBlock).toBeDefined();
         expect(rescheduledBlock?.rescheduledFromDay).toBe(0);
         expect(rescheduledBlock?.dayIndex).toBeGreaterThanOrEqual(2);
@@ -1857,7 +1874,9 @@ describe('Theoretical Scheduler Engine', () => {
           currentMinutes: 600,
         });
 
-        const monBlock = normalResult.dayBlocks[0].find((b) => b.title === '月曜の物理実験レポート');
+        const monBlock = normalResult.dayBlocks[0].find(
+          (b) => b.title === '月曜の物理実験レポート',
+        );
         expect(monBlock).toBeDefined();
 
         // ユーザーが月曜のタスクを「未完了（まだ終わってないよ）」とトグル
@@ -1876,7 +1895,9 @@ describe('Theoretical Scheduler Engine', () => {
           ...toggledResult.dayBlocks[6],
         ];
 
-        const rescheduled = futureBlocks.find((b) => b.isRescheduled && b.title === '月曜の物理実験レポート');
+        const rescheduled = futureBlocks.find(
+          (b) => b.isRescheduled && b.title === '月曜の物理実験レポート',
+        );
         expect(rescheduled).toBeDefined();
         expect(rescheduled?.dayIndex).toBeGreaterThanOrEqual(2);
         // 今日の場合、現在時刻（600分）以降に配置されていること
@@ -2090,7 +2111,9 @@ describe('Theoretical Scheduler Engine', () => {
         const result = generateTheoreticalSchedule([fixedSlot], [attachedTask]);
 
         // 月曜に配置されていること
-        expect(result.dayBlocks[0].some((b) => b.title === '大学講義 (2限・3限) のタスク')).toBe(true);
+        expect(result.dayBlocks[0].some((b) => b.title === '大学講義 (2限・3限) のタスク')).toBe(
+          true,
+        );
         // 配置されたため未配置タスクは0件であること
         expect(result.unassignedTasks).toHaveLength(0);
         expect(result.metrics.unassignedTaskMinutes).toBe(0);
@@ -2149,14 +2172,20 @@ describe('Theoretical Scheduler Engine', () => {
 
         // 日曜（dayIndex: 6）には夜（23:00〜24:00）のみが存在し、朝（00:00〜07:00）は存在しないこと
         const sundayBlocks = result.dayBlocks[6];
-        const sunMorningBlock = sundayBlocks.find((b) => b.startMinutes === 0 && b.endMinutes === 420);
-        const sunNightBlock = sundayBlocks.find((b) => b.startMinutes === 1380 && b.endMinutes === 1440);
+        const sunMorningBlock = sundayBlocks.find(
+          (b) => b.startMinutes === 0 && b.endMinutes === 420,
+        );
+        const sunNightBlock = sundayBlocks.find(
+          (b) => b.startMinutes === 1380 && b.endMinutes === 1440,
+        );
         expect(sunMorningBlock).toBeUndefined();
         expect(sunNightBlock).toBeDefined();
 
         // 翌日の月曜（dayIndex: 0）の朝（00:00〜07:00）に睡眠ブロックが存在すること
         const mondayBlocks = result.dayBlocks[0];
-        const monMorningBlock = mondayBlocks.find((b) => b.startMinutes === 0 && b.endMinutes === 420);
+        const monMorningBlock = mondayBlocks.find(
+          (b) => b.startMinutes === 0 && b.endMinutes === 420,
+        );
         expect(monMorningBlock).toBeDefined();
         expect(monMorningBlock?.title).toBe('日曜夜の睡眠');
       });
@@ -2200,21 +2229,29 @@ describe('Theoretical Scheduler Engine', () => {
         };
 
         // 通常実行
-        const normalResult = generateTheoreticalSchedule([], [morningTask, afternoonTask, wednesdayTask], {
-          todayIndex: 1, // 火曜
-          currentMinutes: 480, // 08:00
-        });
+        const normalResult = generateTheoreticalSchedule(
+          [],
+          [morningTask, afternoonTask, wednesdayTask],
+          {
+            todayIndex: 1, // 火曜
+            currentMinutes: 480, // 08:00
+          },
+        );
 
         const tueBlocks = normalResult.dayBlocks[1];
         const morningBlock = tueBlocks.find((b) => b.title === '火曜午前のレポート');
         expect(morningBlock).toBeDefined();
 
         // ユーザーが火曜午前のレポートを早期完了
-        const earlyResult = generateTheoreticalSchedule([], [morningTask, afternoonTask, wednesdayTask], {
-          todayIndex: 1,
-          currentMinutes: 480,
-          completedBlockIds: new Set([morningBlock!.id]),
-        });
+        const earlyResult = generateTheoreticalSchedule(
+          [],
+          [morningTask, afternoonTask, wednesdayTask],
+          {
+            todayIndex: 1,
+            currentMinutes: 480,
+            completedBlockIds: new Set([morningBlock!.id]),
+          },
+        );
 
         // 代替タスクとして、水曜のタスクではなく同じ火曜日の日ブロックに割り当てられている「火曜午後のプログラミング学習」が選ばれること
         const updatedTueBlocks = earlyResult.dayBlocks[1];
@@ -2499,10 +2536,14 @@ describe('Theoretical Scheduler Engine', () => {
           priority: 'high',
         };
 
-        const result = generateTheoreticalSchedule([wedFixedSlot], [wedWeeklyTask, highPriorityDailyTask], {
-          todayIndex: 0,
-          currentMinutes: 0,
-        });
+        const result = generateTheoreticalSchedule(
+          [wedFixedSlot],
+          [wedWeeklyTask, highPriorityDailyTask],
+          {
+            todayIndex: 0,
+            currentMinutes: 0,
+          },
+        );
 
         const wedBlocks = result.dayBlocks[2];
 
@@ -2556,7 +2597,7 @@ describe('Theoretical Scheduler Engine', () => {
             title: '人工知能論',
             category: 'lecture',
             startMinutes: 630, // 10:30
-            endMinutes: 720,   // 12:00
+            endMinutes: 720, // 12:00
             color: '#0284c7',
             daysOfWeek: [1],
           },
@@ -2665,7 +2706,7 @@ describe('Theoretical Scheduler Engine', () => {
             title: '昼食',
             category: 'meal',
             startMinutes: 660, // 11:00
-            endMinutes: 780,   // 13:00
+            endMinutes: 780, // 13:00
             color: '#10b981',
             daysOfWeek: [3],
           },
@@ -2818,10 +2859,14 @@ describe('Theoretical Scheduler Engine', () => {
           completed: false,
         };
 
-        const result = generateTheoreticalSchedule(fixedSlots, [highFreqWeeklyTask, dailyAutoTask], {
-          todayIndex: 0,
-          currentMinutes: 0,
-        });
+        const result = generateTheoreticalSchedule(
+          fixedSlots,
+          [highFreqWeeklyTask, dailyAutoTask],
+          {
+            todayIndex: 0,
+            currentMinutes: 0,
+          },
+        );
 
         // 月曜〜金曜の全日で、週タスクが日タスクに枠を奪われることなく確実に配置されていること
         for (let d = 0; d < 5; d++) {
@@ -3000,10 +3045,7 @@ describe('Theoretical Scheduler Engine', () => {
           const result = generateTheoreticalSchedule([], [task1, task2], {
             todayIndex: 1,
             currentMinutes: 480, // 08:00
-            uncompletedBlockIds: new Set([
-              'block-task-0-task-1-0',
-              'block-task-0-task-2-0',
-            ]),
+            uncompletedBlockIds: new Set(['block-task-0-task-1-0', 'block-task-0-task-2-0']),
             placementStrategy: 'concentrated',
           });
 
@@ -3043,10 +3085,7 @@ describe('Theoretical Scheduler Engine', () => {
           const result = generateTheoreticalSchedule([], [task1, task2], {
             todayIndex: 1,
             currentMinutes: 480,
-            uncompletedBlockIds: new Set([
-              'block-task-0-task-1-0',
-              'block-task-0-task-2-0',
-            ]),
+            uncompletedBlockIds: new Set(['block-task-0-task-1-0', 'block-task-0-task-2-0']),
             placementStrategy: 'balanced',
           });
 
@@ -3062,8 +3101,471 @@ describe('Theoretical Scheduler Engine', () => {
           expect(hasTask2).toBe(true);
         });
       });
+
+      describe('Plan12: 固定枠・週タスク・再配置タスクの完了状態と現在時刻基準の上からの再配置', () => {
+        it('授業などの固定枠（isFixed）が予定より早く終わった際、グレーアウト（isCompleted & isEarlyCompleted）となり、現在時刻を考慮して上から後続タスクが再配置されること', () => {
+          // 火曜（dayIndex: 1）
+          // 00:00〜09:00 睡眠
+          // 09:00〜10:30 (540〜630分) 1限講義（固定枠）
+          // 10:30〜11:30 (630〜690分) タスクB（60分）
+          // 11:30〜12:15 (690〜735分) タスクC（45分）
+          const fixedSlots: FixedSlot[] = [
+            {
+              id: 'sleep-tue',
+              title: '睡眠',
+              category: 'sleep',
+              startMinutes: 0,
+              endMinutes: 540, // 09:00
+              color: '#6366f1',
+              daysOfWeek: [1],
+            },
+            {
+              id: 'lecture-1',
+              title: 'データ構造とアルゴリズム',
+              category: 'lecture',
+              startMinutes: 540, // 09:00
+              endMinutes: 630, // 10:30
+              color: '#0284c7',
+              daysOfWeek: [1],
+            },
+          ];
+
+          const taskB: TaskItem = {
+            id: 'task-b',
+            title: 'アルゴリズム演習課題',
+            category: 'must',
+            priority: 'high',
+            durationMinutes: 60,
+            period: 'week',
+            targetDays: [1],
+          };
+
+          const taskC: TaskItem = {
+            id: 'task-c',
+            title: '英語リーディング',
+            category: 'study',
+            priority: 'medium',
+            durationMinutes: 45,
+            period: 'day',
+            dailyCount: 1,
+            targetDays: [1],
+          };
+
+          // 初期配置確認
+          const initial = generateTheoreticalSchedule(fixedSlots, [taskB, taskC], {
+            todayIndex: 1,
+            currentMinutes: 580, // 09:40
+          });
+          const lectureBlock = initial.dayBlocks[1].find(
+            (b) => b.title === 'データ構造とアルゴリズム',
+          )!;
+          expect(lectureBlock).toBeDefined();
+          expect(lectureBlock.isFixed).toBe(true);
+          expect(lectureBlock.isCompleted).toBe(false);
+
+          // 09:40（580分）時点で授業が早く終わったため、固定枠を完了トグル
+          const earlyResult = generateTheoreticalSchedule(fixedSlots, [taskB, taskC], {
+            todayIndex: 1,
+            currentMinutes: 580, // 09:40
+            completedBlockIds: new Set([lectureBlock.id]),
+          });
+
+          const tueBlocks = earlyResult.dayBlocks[1];
+
+          // 1. 授業（固定枠）がグレーアウト対象（isCompleted: true, isEarlyCompleted: true）になっていること
+          const updatedLecture = tueBlocks.find((b) => b.id === lectureBlock.id)!;
+          expect(updatedLecture).toBeDefined();
+          expect(updatedLecture.isCompleted).toBe(true);
+          expect(updatedLecture.isEarlyCompleted).toBe(true);
+
+          // 2. 現在時刻 09:40（580分）を考慮し、タスクBが 09:40〜10:40（580〜640分）に上から前倒し再配置されていること
+          const placedTaskB = tueBlocks.find((b) => b.title === 'アルゴリズム演習課題')!;
+          expect(placedTaskB).toBeDefined();
+          expect(placedTaskB.startMinutes).toBe(580);
+          expect(placedTaskB.endMinutes).toBe(640);
+
+          // 3. タスクCもそれに続いて 10:40〜11:25（640〜685分）へ隙間なく上から再配置されていること
+          const placedTaskC = tueBlocks.find((b) => b.title === '英語リーディング')!;
+          expect(placedTaskC).toBeDefined();
+          expect(placedTaskC.startMinutes).toBe(640);
+          expect(placedTaskC.endMinutes).toBe(685);
+        });
+
+        it('週タスクが予定より早く終わった際、現在時刻を考慮して上から後続タスクが再配置されること', () => {
+          // 水曜（dayIndex: 2）
+          // 00:00〜10:00 睡眠・朝固定 (0〜600分)
+          // 10:00〜12:00 (600〜720分) 週タスクA（120分）
+          // 12:00〜13:00 (720〜780分) 週タスクB（60分）
+          const fixedSlots: FixedSlot[] = [
+            {
+              id: 'sleep-wed',
+              title: '睡眠',
+              category: 'sleep',
+              startMinutes: 0,
+              endMinutes: 600, // 10:00
+              color: '#6366f1',
+              daysOfWeek: [2],
+            },
+          ];
+
+          const taskA: TaskItem = {
+            id: 'weekly-a',
+            title: '大型レポート執筆',
+            category: 'must',
+            priority: 'high',
+            durationMinutes: 120,
+            period: 'week',
+            targetDays: [2],
+          };
+
+          const taskB: TaskItem = {
+            id: 'weekly-b',
+            title: '統計学演習',
+            category: 'must',
+            priority: 'medium',
+            durationMinutes: 60,
+            period: 'week',
+            targetDays: [2],
+          };
+
+          const initial = generateTheoreticalSchedule(fixedSlots, [taskA, taskB], {
+            todayIndex: 2,
+            currentMinutes: 645, // 10:45
+          });
+          const blockA = initial.dayBlocks[2].find((b) => b.title === '大型レポート執筆')!;
+          expect(blockA.startMinutes).toBe(600);
+          expect(blockA.endMinutes).toBe(720);
+
+          // 現在時刻 10:45（645分）に「大型レポート執筆」が早く完了
+          const earlyResult = generateTheoreticalSchedule(fixedSlots, [taskA, taskB], {
+            todayIndex: 2,
+            currentMinutes: 645, // 10:45
+            completedBlockIds: new Set([blockA.id]),
+          });
+
+          const wedBlocks = earlyResult.dayBlocks[2];
+          const compA = wedBlocks.find((b) => b.id === blockA.id)!;
+          expect(compA.isCompleted).toBe(true);
+          expect(compA.isEarlyCompleted).toBe(true);
+
+          // 後続の「統計学演習」が現在時刻 10:45（645分）を起点に 10:45〜11:45（645〜705分）へ再配置されること
+          const movedB = wedBlocks.find((b) => b.title === '統計学演習')!;
+          expect(movedB).toBeDefined();
+          expect(movedB.startMinutes).toBe(645);
+          expect(movedB.endMinutes).toBe(705);
+        });
+
+        it('未完了にした週タスクの再配置ブロック（isRescheduled）に対し、元のタスクを完了に戻さなくても再配置ブロック単体で完了状態にでき、早期完了時の上からの再配置も適用されること', () => {
+          // 全曜日の00:00〜09:00は睡眠固定枠
+          const fixedSlots: FixedSlot[] = [
+            {
+              id: 'sleep-all',
+              title: '睡眠',
+              category: 'sleep',
+              startMinutes: 0,
+              endMinutes: 540, // 09:00
+              color: '#6366f1',
+              daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+            },
+          ];
+
+          // 月曜（0）に予定されていた週タスク
+          const monTask: TaskItem = {
+            id: 'task-mon-report',
+            title: '月曜の実験レポート',
+            category: 'must',
+            priority: 'high',
+            durationMinutes: 60,
+            period: 'week',
+            frequencyCount: 1,
+            targetDays: [0],
+          };
+
+          // 水曜（2）の後続タスク
+          const wedTask: TaskItem = {
+            id: 'task-wed-study',
+            title: '水曜の資格学習',
+            category: 'study',
+            priority: 'medium',
+            durationMinutes: 45,
+            period: 'day',
+            dailyCount: 1,
+            targetDays: [2],
+          };
+
+          // ステップ1: 今日は水曜（todayIndex: 2）、現在時刻 09:00（540分）。
+          // 月曜のブロック（block-task-0-task-mon-report-0）を未完了にする
+          const step1 = generateTheoreticalSchedule(fixedSlots, [monTask, wedTask], {
+            todayIndex: 2,
+            currentMinutes: 540, // 09:00
+            uncompletedBlockIds: new Set(['block-task-0-task-mon-report-0']),
+          });
+
+          // 水曜（2）の 09:00〜10:00（540〜600分）に再配置ブロックが生成されていること
+          const rescheduledBlock = step1.dayBlocks[2].find(
+            (b) => b.isRescheduled && b.title === '月曜の実験レポート',
+          )!;
+          expect(rescheduledBlock).toBeDefined();
+          expect(rescheduledBlock.isCompleted).toBe(false);
+          expect(rescheduledBlock.startMinutes).toBe(540);
+          expect(rescheduledBlock.endMinutes).toBe(600);
+
+          // ステップ2: 元の月曜タスクは未完了（uncompletedBlockIds に残したまま）で、
+          // 水曜の再配置ブロック（rescheduledBlock.id）を現在時刻 09:25（565分）に完了にする！
+          const step2 = generateTheoreticalSchedule(fixedSlots, [monTask, wedTask], {
+            todayIndex: 2,
+            currentMinutes: 565, // 09:25
+            uncompletedBlockIds: new Set(['block-task-0-task-mon-report-0']),
+            completedBlockIds: new Set([rescheduledBlock.id]),
+          });
+
+          // 1. 月曜の元ブロックは未完了のまま維持されていること
+          const origMonBlock = step2.dayBlocks[0].find((b) => b.title === '月曜の実験レポート')!;
+          expect(origMonBlock).toBeDefined();
+          expect(origMonBlock.isCompleted).toBe(false);
+
+          // 2. 水曜の再配置ブロックは消滅せず、完了・早期完了（グレーアウト）状態になっていること
+          const compRescheduled = step2.dayBlocks[2].find((b) => b.id === rescheduledBlock.id)!;
+          expect(compRescheduled).toBeDefined();
+          expect(compRescheduled.isCompleted).toBe(true);
+          expect(compRescheduled.isEarlyCompleted).toBe(true);
+
+          // 3. 現在時刻 09:25（565分）を考慮し、後続の「水曜の資格学習（45分）」が 09:25〜10:10（565〜610分）に上から再配置されていること
+          const movedWedTask = step2.dayBlocks[2].find((b) => b.title === '水曜の資格学習')!;
+          expect(movedWedTask).toBeDefined();
+          expect(movedWedTask.startMinutes).toBe(565);
+          expect(movedWedTask.endMinutes).toBe(610);
+        });
+
+        it('早期完了時の再配置で、元の枠の残り時間に無理やり別タスクを切り詰めて詰め込んだりせず、本来の所要時間を維持したまま連続再配置および連鎖完了ができること', () => {
+          // 火曜（dayIndex: 1）
+          // 00:00〜09:00 睡眠 (0〜540分)
+          // 09:00〜10:30 1限講義 (540〜630分, 90分)
+          // 10:30〜11:30 週タスク1 (630〜690分, 60分)
+          // 11:30〜12:30 週タスク2 (690〜750分, 60分)
+          const fixedSlots: FixedSlot[] = [
+            {
+              id: 'sleep-tue',
+              title: '睡眠',
+              category: 'sleep',
+              startMinutes: 0,
+              endMinutes: 540,
+              color: '#6366f1',
+              daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+            },
+            {
+              id: 'lecture-1',
+              title: '1限: ソフトウェア工学',
+              category: 'lecture',
+              startMinutes: 540, // 09:00
+              endMinutes: 630, // 10:30 (90分)
+              color: '#0284c7',
+              daysOfWeek: [1],
+            },
+          ];
+
+          const weekly1: TaskItem = {
+            id: 'weekly-1',
+            title: '設計書作成タスク',
+            category: 'must',
+            priority: 'high',
+            durationMinutes: 60,
+            period: 'week',
+            targetDays: [1],
+          };
+
+          const weekly2: TaskItem = {
+            id: 'weekly-2',
+            title: '単体テスト実装',
+            category: 'must',
+            priority: 'medium',
+            durationMinutes: 60,
+            period: 'week',
+            targetDays: [1],
+          };
+
+          // 09:00（540分）時点で1限講義（90分枠）を完了にした場合:
+          // 旧方式では90分枠に60分のweekly1を入れた後、残り30分（10:00〜10:30）にweekly2を30分に切り詰めて無理やり押し込んでいた。
+          // 新方式では、weekly1は 09:00〜10:00（60分）、weekly2は 10:00〜11:00（本来の60分）として正しく連続再配置されること！
+          const initial = generateTheoreticalSchedule(fixedSlots, [weekly1, weekly2], {
+            todayIndex: 1,
+            currentMinutes: 540, // 09:00
+          });
+          const lectureBlock = initial.dayBlocks[1].find(
+            (b) => b.title === '1限: ソフトウェア工学',
+          )!;
+
+          const step1 = generateTheoreticalSchedule(fixedSlots, [weekly1, weekly2], {
+            todayIndex: 1,
+            currentMinutes: 540, // 09:00
+            completedBlockIds: new Set([lectureBlock.id]),
+          });
+
+          const tueStep1 = step1.dayBlocks[1];
+          const movedWeekly1 = tueStep1.find((b) => b.title === '設計書作成タスク')!;
+          const movedWeekly2 = tueStep1.find((b) => b.title === '単体テスト実装')!;
+
+          expect(movedWeekly1).toBeDefined();
+          expect(movedWeekly1.startMinutes).toBe(540); // 09:00
+          expect(movedWeekly1.endMinutes).toBe(600); // 10:00 (60分維持)
+          expect(movedWeekly1.isWeeklyTask).toBe(true); // 週タスク属性を維持
+
+          expect(movedWeekly2).toBeDefined();
+          expect(movedWeekly2.startMinutes).toBe(600); // 10:00
+          expect(movedWeekly2.endMinutes).toBe(660); // 11:00 (30分に切り詰められず60分維持！)
+          expect(movedWeekly2.isWeeklyTask).toBe(true);
+
+          // さらに 09:40（580分）に前倒しされた「設計書作成タスク（movedWeekly1）」も早く終わった場合（連鎖早期完了）:
+          const step2 = generateTheoreticalSchedule(fixedSlots, [weekly1, weekly2], {
+            todayIndex: 1,
+            currentMinutes: 580, // 09:40
+            completedBlockIds: new Set([lectureBlock.id, movedWeekly1.id]),
+          });
+
+          const tueStep2 = step2.dayBlocks[1];
+          const reMovedWeekly2 = tueStep2.find(
+            (b) => b.title === '単体テスト実装' && !b.isCompleted,
+          )!;
+          expect(reMovedWeekly2).toBeDefined();
+          // 現在時刻 09:40（580分）から 10:40（640分）へ60分維持で再配置されること
+          expect(reMovedWeekly2.startMinutes).toBe(580);
+          expect(reMovedWeekly2.endMinutes).toBe(640);
+        });
+
+        it('デバッグ日時変更（todayIndex・currentMinutesの動的変更）に伴い、自動完了・過去未完了再配置・早期完了再配置が即座に連動すること', () => {
+          const fixedSlots: FixedSlot[] = [
+            {
+              id: 'sleep-all',
+              title: '睡眠',
+              category: 'sleep',
+              startMinutes: 0,
+              endMinutes: 540, // 09:00
+              color: '#6366f1',
+              daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+            },
+            {
+              id: 'mon-lecture',
+              title: '月曜1限講義',
+              category: 'lecture',
+              startMinutes: 540, // 09:00
+              endMinutes: 630, // 10:30
+              color: '#0284c7',
+              daysOfWeek: [0],
+            },
+          ];
+
+          const monReport: TaskItem = {
+            id: 'mon-report',
+            title: '月曜レポート課題',
+            category: 'must',
+            priority: 'high',
+            durationMinutes: 60,
+            period: 'week',
+            targetDays: [0],
+          };
+
+          // 1. デバッグ日時を「月曜(0) 08:00(480分)」に設定: 講義も課題もすべて未来のため未完了
+          const atMonMorning = generateTheoreticalSchedule(fixedSlots, [monReport], {
+            todayIndex: 0,
+            currentMinutes: 480,
+          });
+          const monLectureAt0800 = atMonMorning.dayBlocks[0].find(
+            (b) => b.title === '月曜1限講義',
+          )!;
+          const monReportAt0800 = atMonMorning.dayBlocks[0].find(
+            (b) => b.title === '月曜レポート課題',
+          )!;
+          expect(monLectureAt0800.isCompleted).toBe(false);
+          expect(monReportAt0800.isCompleted).toBe(false);
+
+          // 2. デバッグ日時を「月曜(0) 11:00(660分)」に進める: 10:30終了の月曜1限講義は自動完了、10:30〜11:30のレポート課題はまだ進行中（未完了）
+          const atMon1100 = generateTheoreticalSchedule(fixedSlots, [monReport], {
+            todayIndex: 0,
+            currentMinutes: 660,
+          });
+          const monLectureAt1100 = atMon1100.dayBlocks[0].find((b) => b.title === '月曜1限講義')!;
+          const monReportAt1100 = atMon1100.dayBlocks[0].find(
+            (b) => b.title === '月曜レポート課題',
+          )!;
+          expect(monLectureAt1100.isCompleted).toBe(true);
+          expect(monLectureAt1100.isAutoCompleted).toBe(true);
+          expect(monReportAt1100.isCompleted).toBe(false);
+
+          // 3. デバッグ日時を「水曜(2) 10:00(600分)」に進め、月曜レポートを未完了トグルした場合: 水曜10:00以降に再配置されること
+          const atWed1000 = generateTheoreticalSchedule(fixedSlots, [monReport], {
+            todayIndex: 2,
+            currentMinutes: 600,
+            uncompletedBlockIds: new Set([monReportAt1100.id]),
+          });
+          const rescheduledOnWed = atWed1000.dayBlocks[2].find(
+            (b) => b.isRescheduled && b.title === '月曜レポート課題',
+          );
+          expect(rescheduledOnWed).toBeDefined();
+          expect(rescheduledOnWed!.startMinutes).toBeGreaterThanOrEqual(600);
+        });
+
+        it('固定講義やタスクを早期完了した際に1日の予定に隙間が生まれず（0分）、さらに代行タスク自体も連鎖的に完了状態にできること', () => {
+          const baseResult = generateTheoreticalSchedule(INITIAL_FIXED_SLOTS, INITIAL_TASKS, {
+            todayIndex: 0,
+            currentMinutes: 540, // 月曜 09:00
+          });
+          const monInitial = baseResult.dayBlocks[0];
+          const lectureBlock = monInitial.find(
+            (b) => b.isFixed && b.category === 'lecture' && b.startMinutes === 640,
+          )!;
+          expect(lectureBlock).toBeDefined();
+
+          // Step 1: 大学講義 (10:40〜14:40) を早期完了にする
+          const completedIds = new Set<string>([lectureBlock.id]);
+          const wave1Result = generateTheoreticalSchedule(INITIAL_FIXED_SLOTS, INITIAL_TASKS, {
+            todayIndex: 0,
+            currentMinutes: 540,
+            completedBlockIds: completedIds,
+          });
+          const monWave1Active = wave1Result.dayBlocks[0]
+            .filter((b) => !b.isEarlyCompleted)
+            .sort((a, b) => a.startMinutes - b.startMinutes);
+
+          // 00:00〜24:00 までアクティブなブロック間に1分も隙間がないことを検証
+          for (let i = 0; i < monWave1Active.length - 1; i++) {
+            const currEnd = monWave1Active[i].endMinutes + (monWave1Active[i].breakMinutes || 0);
+            const nextStart = monWave1Active[i + 1].startMinutes;
+            expect(nextStart - currEnd).toBe(0);
+          }
+
+          // 講義枠の先頭 (10:40 = 640分) に代行タスクが配置されていること
+          const firstSubstitute = monWave1Active.find(
+            (b) => b.isSubstitute && b.startMinutes <= 640 && b.endMinutes > 640,
+          )!;
+          expect(firstSubstitute).toBeDefined();
+          expect(firstSubstitute.isCompleted).toBe(false);
+
+          // Step 2: 配置された代行タスク (firstSubstitute) をさらに完了状態にする
+          completedIds.add(firstSubstitute.id);
+          const wave2Result = generateTheoreticalSchedule(INITIAL_FIXED_SLOTS, INITIAL_TASKS, {
+            todayIndex: 0,
+            currentMinutes: 540,
+            completedBlockIds: completedIds,
+          });
+
+          // firstSubstitute が早期完了 (isCompleted: true, isEarlyCompleted: true) になっていること
+          const completedSubInWave2 = wave2Result.dayBlocks[0].find(
+            (b) => b.id === firstSubstitute.id && b.isEarlyCompleted,
+          );
+          expect(completedSubInWave2).toBeDefined();
+          expect(completedSubInWave2!.isCompleted).toBe(true);
+
+          // 次の代行タスクが引き上げられ、かつ1日を通して隙間がゼロ（0分）であること
+          const monWave2Active = wave2Result.dayBlocks[0]
+            .filter((b) => !b.isEarlyCompleted)
+            .sort((a, b) => a.startMinutes - b.startMinutes);
+          for (let i = 0; i < monWave2Active.length - 1; i++) {
+            const currEnd = monWave2Active[i].endMinutes + (monWave2Active[i].breakMinutes || 0);
+            const nextStart = monWave2Active[i + 1].startMinutes;
+            expect(nextStart - currEnd).toBe(0);
+          }
+        });
+      });
     });
   });
 });
-
-

@@ -60,11 +60,7 @@ export function isWeeklyTaskItem(task: TaskItem): boolean {
   if (task.period === 'week') return true;
   // 3. period未指定時のフォールバック
   if (task.frequency === 'high') return false;
-  if (
-    task.frequency === 'low' ||
-    task.frequency === 'medium' ||
-    task.frequency === 'custom'
-  ) {
+  if (task.frequency === 'low' || task.frequency === 'medium' || task.frequency === 'custom') {
     return true;
   }
   return false;

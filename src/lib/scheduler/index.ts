@@ -1,9 +1,4 @@
-import {
-  FixedSlot,
-  TaskItem,
-  TheoreticalBlock,
-  WeeklySchedulingResult,
-} from '@/types';
+import { FixedSlot, TaskItem, TheoreticalBlock, WeeklySchedulingResult } from '@/types';
 import { SchedulingRealtimeContext, SchedulingExecutionContext } from './types';
 import { SlotManager } from './slotManager';
 import { generatePlacementPlans } from './planGenerator';
@@ -34,15 +29,19 @@ export function generateTheoreticalSchedule(
   realtimeContext?: SchedulingRealtimeContext,
 ): WeeklySchedulingResult & { blocks: TheoreticalBlock[] } {
   const dayBlocks: Record<number, TheoreticalBlock[]> = {
-    0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: []
+    0: [],
+    1: [],
+    2: [],
+    3: [],
+    4: [],
+    5: [],
+    6: [],
   };
 
   // 1. リアルタイム基準日時の確定
   const now = new Date();
   const todayIdx =
-    realtimeContext?.todayIndex !== undefined
-      ? realtimeContext.todayIndex
-      : (now.getDay() + 6) % 7;
+    realtimeContext?.todayIndex !== undefined ? realtimeContext.todayIndex : (now.getDay() + 6) % 7;
   const currMinutes =
     realtimeContext?.currentMinutes !== undefined
       ? realtimeContext.currentMinutes

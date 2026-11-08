@@ -91,14 +91,19 @@ export class SlotManager {
   private initialize(fixedSlots: FixedSlot[], dayBlocks: Record<number, TheoreticalBlock[]>): void {
     // 曜日ごとのスロット配列を準備
     const rawSlotsByDay: Record<number, FixedSlot[]> = {
-      0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: []
+      0: [],
+      1: [],
+      2: [],
+      3: [],
+      4: [],
+      5: [],
+      6: [],
     };
 
     for (const slot of fixedSlots) {
       if (slot.startMinutes === slot.endMinutes) continue;
-      const targetDays = slot.daysOfWeek && slot.daysOfWeek.length > 0
-        ? slot.daysOfWeek
-        : [0, 1, 2, 3, 4, 5, 6];
+      const targetDays =
+        slot.daysOfWeek && slot.daysOfWeek.length > 0 ? slot.daysOfWeek : [0, 1, 2, 3, 4, 5, 6];
 
       for (const d of targetDays) {
         if (slot.startMinutes > slot.endMinutes) {
@@ -198,6 +203,8 @@ export class SlotManager {
   }
 
   public getDaysSortedByFreeTime(candidateDays: number[] = [0, 1, 2, 3, 4, 5, 6]): number[] {
-    return [...candidateDays].sort((a, b) => this.getTotalFreeMinutes(b) - this.getTotalFreeMinutes(a));
+    return [...candidateDays].sort(
+      (a, b) => this.getTotalFreeMinutes(b) - this.getTotalFreeMinutes(a),
+    );
   }
 }

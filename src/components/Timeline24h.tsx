@@ -7,13 +7,11 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
-  FileSpreadsheet,
   CheckCircle2,
   Circle,
   Sparkles,
   RotateCcw,
   Laptop,
-  Palette,
 } from 'lucide-react';
 import { TheoreticalBlock, TaskItem, ImportedTableData, AppThemeMode } from '@/types';
 import { minutesToTimeString, formatDuration } from '@/lib/timeUtils';
@@ -30,6 +28,9 @@ interface Timeline24hProps {
   onToggleThemeMode?: (mode: AppThemeMode) => void;
   selectedDayIndex?: number;
   onSelectDayIndex?: (dayIndex: number) => void;
+  overrideTodayIndex?: number;
+  overrideCurrentMinutes?: number;
+  isDebugTime?: boolean;
 }
 
 const TOTAL_HOURS = 24;
@@ -346,6 +347,9 @@ export function Timeline24h({
   onToggleThemeMode,
   selectedDayIndex: controlledDayIndex,
   onSelectDayIndex,
+  overrideTodayIndex,
+  overrideCurrentMinutes,
+  isDebugTime = false,
 }: Timeline24hProps) {
   const isPlanner = themeMode === 'planner';
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -370,6 +374,13 @@ export function Timeline24h({
 
   const totalHeight = TOTAL_HOURS * hourHeight;
 
+  // 今日の曜日インデックス (0=月 ... 6=日) — デバッグ日時が指定されている場合はそれを優先
+  const todayIndex = useMemo(() => {
+    if (overrideTodayIndex !== undefined) return overrideTodayIndex;
+    const now = new Date();
+    return (now.getDay() + 6) % 7;
+  }, [overrideTodayIndex]);
+
   // 今週（月曜〜日曜）の7日間の日付情報を算出
   const weekDays = useMemo(() => {
     const now = new Date();
@@ -380,10 +391,7 @@ export function Timeline24h({
     return Array.from({ length: 7 }).map((_, i) => {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
-      const isToday =
-        d.getDate() === now.getDate() &&
-        d.getMonth() === now.getMonth() &&
-        d.getFullYear() === now.getFullYear();
+      const isToday = i === todayIndex;
 
       return {
         date: d,
@@ -396,13 +404,7 @@ export function Timeline24h({
         isSunday: i === 6,
       };
     });
-  }, []);
-
-  // 今日の曜日インデックス (0=月 ... 6=日)
-  const todayIndex = useMemo(() => {
-    const now = new Date();
-    return (now.getDay() + 6) % 7;
-  }, []);
+  }, [todayIndex]);
 
   // フォーカスモードで現在選択されている曜日のインデックス (外部制御対応)
   const [internalDayIndex, setInternalDayIndex] = useState<number>(todayIndex);
@@ -426,8 +428,8 @@ export function Timeline24h({
     return weekDays;
   }, [focusMode, weekDays, selectedDayIndex, todayIndex]);
 
-  // 現在時刻（リアルタイム更新）
-  const [currentMinutes, setCurrentMinutes] = useState<number>(() => {
+  // 現在時刻（リアルタイム更新 or デバッグ時刻オーバーライド）
+  const [realCurrentMinutes, setRealCurrentMinutes] = useState<number>(() => {
     const now = new Date();
     return now.getHours() * 60 + now.getMinutes();
   });
@@ -436,13 +438,20 @@ export function Timeline24h({
     const update = () => {
       const now = new Date();
       const mins = now.getHours() * 60 + now.getMinutes();
-      setCurrentMinutes(mins);
+      setRealCurrentMinutes(mins);
       setNowTimeString(minutesToTimeString(mins));
     };
     update();
     const interval = setInterval(update, 30000); // 30秒ごとに更新
     return () => clearInterval(interval);
   }, []);
+
+  const currentMinutes =
+    overrideCurrentMinutes !== undefined ? overrideCurrentMinutes : realCurrentMinutes;
+  const effectiveNowTimeString =
+    overrideCurrentMinutes !== undefined
+      ? minutesToTimeString(overrideCurrentMinutes)
+      : nowTimeString;
 
   const hasInitialScrolledRef = useRef(false);
 
@@ -538,7 +547,11 @@ export function Timeline24h({
             </div>
             <div className="flex items-center gap-1 text-[11px] font-medium text-amber-800">
               <span>{isUnassignedAlertExpanded ? '閉じる' : '詳細を表示'}</span>
-              <span className={`transform transition-transform text-[10px] ${isUnassignedAlertExpanded ? 'rotate-180' : ''}`}>▼</span>
+              <span
+                className={`transform transition-transform text-[10px] ${isUnassignedAlertExpanded ? 'rotate-180' : ''}`}
+              >
+                ▼
+              </span>
             </div>
           </button>
 
@@ -548,9 +561,12 @@ export function Timeline24h({
                 {unassignedTasks.map((t) => (
                   <li key={t.id}>
                     <span className="font-medium text-amber-900">{t.title}</span>
-                    <span className="ml-1 text-amber-700 font-mono">({formatDuration(t.durationMinutes)})</span>
+                    <span className="ml-1 text-amber-700 font-mono">
+                      ({formatDuration(t.durationMinutes)})
+                    </span>
                     <span className="ml-1.5 text-[10px] text-amber-600">
-                      [優先度: {t.priority === 'high' ? '高' : t.priority === 'medium' ? '中' : '低'}]
+                      [優先度:{' '}
+                      {t.priority === 'high' ? '高' : t.priority === 'medium' ? '中' : '低'}]
                     </span>
                   </li>
                 ))}
@@ -565,9 +581,7 @@ export function Timeline24h({
         {/* Sticky Weekday Header Row */}
         <div
           className={`flex shrink-0 border-b px-1 sm:px-1.5 transition-colors ${
-            isPlanner
-              ? 'border-slate-200 bg-[#f8f6f0]'
-              : 'border-slate-200 bg-slate-50/95'
+            isPlanner ? 'border-slate-200 bg-[#f8f6f0]' : 'border-slate-200 bg-slate-50/95'
           }`}
         >
           {/* Time axis header space ＋ テーマ切替スイッチ */}
@@ -648,6 +662,14 @@ export function Timeline24h({
               </div>
 
               <div className="flex items-center gap-2 text-xs font-bold text-slate-800 shrink-0">
+                {isDebugTime && (
+                  <span
+                    className="rounded bg-amber-500/90 px-1.5 py-0.5 font-mono text-[10px] font-bold text-white shadow-2xs"
+                    title="メニューのデバッグ日時設定が適用されています"
+                  >
+                    🧪 {WEEKDAY_NAMES[todayIndex]} {effectiveNowTimeString}
+                  </span>
+                )}
                 <span className="font-mono text-slate-600 text-[11px]">
                   {displayedDays[0]?.month}/{displayedDays[0]?.day} ({displayedDays[0]?.dayOfWeek})
                 </span>
@@ -737,7 +759,11 @@ export function Timeline24h({
               {Array.from({ length: TOTAL_HOURS }).map((_, hour) => {
                 const hourBase = hour * hourHeight;
                 return (
-                  <div key={`h-layer-${hour}`} className="absolute inset-x-0" style={{ top: `${hourBase}px`, height: `${hourHeight}px` }}>
+                  <div
+                    key={`h-layer-${hour}`}
+                    className="absolute inset-x-0"
+                    style={{ top: `${hourBase}px`, height: `${hourHeight}px` }}
+                  >
                     {/* 10分刻みの点線 */}
                     <div
                       className={`absolute inset-x-0 border-b ${
@@ -834,9 +860,7 @@ export function Timeline24h({
                         transform: 'translateY(-50%)',
                       }}
                     >
-                      <span className="font-mono text-[9px] font-medium text-slate-400">
-                        :30
-                      </span>
+                      <span className="font-mono text-[9px] font-medium text-slate-400">:30</span>
                       <span className="ml-1 h-px w-1.5 bg-slate-300" />
                     </div>
 
@@ -879,10 +903,10 @@ export function Timeline24h({
               >
                 <span
                   className={`rounded-l px-1 py-0.5 font-mono text-[9px] font-bold text-white shadow-2xs ${
-                    isPlanner ? 'bg-[#be123c]' : 'bg-rose-500'
+                    isDebugTime ? 'bg-amber-600' : isPlanner ? 'bg-[#be123c]' : 'bg-rose-500'
                   }`}
                 >
-                  {nowTimeString}
+                  {effectiveNowTimeString}
                 </span>
               </div>
             </div>
@@ -919,348 +943,401 @@ export function Timeline24h({
                     )}
 
                     {/* Scheduled Blocks for this Day: 付箋（Sticky Note）風レンダリング */}
-                    {currentDayBlocks.map((block) => {
-                      const top = Math.round((block.startMinutes / 60) * hourHeight) + 1;
-                      const duration = block.endMinutes - block.startMinutes;
-                      const rawHeight = (duration / 60) * hourHeight;
-                      const height = Math.max(22, Math.round(rawHeight) - 2);
-                      // ★ 文字消え防止: 高さが44px未満、または時間が35分未満の場合は短縮モード（タイトル行の表示を最優先）
-                      const isShort = duration < 35 || height < 44;
-                      const isAssignment = block.taskType === 'assignment';
-                      // ★ Plan11: 週タスクのみ完了トグル可能（日課タスクや固定枠にはトグルを表示しない）
-                      const isWeeklyTask =
-                        !block.isFixed &&
-                        !block.isBreak &&
-                        !block.isSubstitute &&
-                        block.isWeeklyTask === true;
+                    {(() => {
+                      const activeBlocks = currentDayBlocks.filter((b) => !b.isEarlyCompleted);
+                      const earlyBlocks = currentDayBlocks.filter((b) => b.isEarlyCompleted);
+                      const coveredEarlyByActiveId = new Map<string, TheoreticalBlock[]>();
+                      const renderItems: {
+                        block: TheoreticalBlock;
+                        displayEndMinutes: number;
+                        coveredEarlyBlocks: TheoreticalBlock[];
+                      }[] = [];
 
-                      // ★ 枠の高さ（所要時間）に応じて、タスク名を表示できる最大行数を動的に算出（最低1行は必ず確保）
-                      const hasTimeRow = !isShort;
-                      const availableHeightForTitle = hasTimeRow ? Math.max(16, height - 22) : Math.max(16, height - 6);
-                      const calculatedLines = Math.max(
-                        1,
-                        Math.min(6, Math.floor(availableHeightForTitle / 14)),
-                      );
+                      for (const eb of earlyBlocks) {
+                        const overlappingActives = activeBlocks
+                          .filter(
+                            (a) => a.startMinutes < eb.endMinutes && a.endMinutes > eb.startMinutes,
+                          )
+                          .sort((a, b) => a.startMinutes - b.startMinutes);
+                        const firstOverlappingActive = overlappingActives[0];
 
-                      // ★ 完了状態の場合は洗練されたグレートーンパレットを適用
-                      const colorScheme = block.isCompleted
-                        ? COMPLETED_PALETTE
-                        : getBlockColorScheme(block, tableColorMap);
+                        if (
+                          firstOverlappingActive &&
+                          firstOverlappingActive.startMinutes <= eb.startMinutes + 10
+                        ) {
+                          const list = coveredEarlyByActiveId.get(firstOverlappingActive.id) || [];
+                          list.push(eb);
+                          coveredEarlyByActiveId.set(firstOverlappingActive.id, list);
+                        } else {
+                          const displayEndMinutes = firstOverlappingActive
+                            ? firstOverlappingActive.startMinutes
+                            : eb.endMinutes;
+                          renderItems.push({
+                            block: eb,
+                            displayEndMinutes,
+                            coveredEarlyBlocks: [],
+                          });
+                        }
+                      }
 
-                      // ★ Plan11 & ユーザー指示:
-                      // 「完了タスクの上に重ねて新タスクを配置するデザインを逆にして、手前に透明度を上げた完了タスクを持ってくる」
-                      // 奥の新タスク（isSubstitute）: z-10、フル幅（土台としてしっかり描画）
-                      // 手前の完了タスク（isEarlyCompleted）: z-20、透明度向上（backdrop-blur & 半透明すりガラス）、幅92%で浮かび上がらせる
-                      const isSubstitute = !!block.isSubstitute;
-                      const isEarlyCompleted = !!block.isEarlyCompleted;
+                      for (const ab of activeBlocks) {
+                        renderItems.push({
+                          block: ab,
+                          displayEndMinutes: ab.endMinutes,
+                          coveredEarlyBlocks: coveredEarlyByActiveId.get(ab.id) || [],
+                        });
+                      }
 
-                      // 手帳風: 全予定共通の半透明背景色（背後の時間対応方眼線が上品に透けて見える）
-                      // これにより、時間枠が直感的に分かりつつ、色付き文字が主役として綺麗に映える
-                      const PLANNER_UNIFIED_BG = 'rgba(238, 233, 222, 0.52)'; // 統一された品のある半透明エクリュ
-                      const PLANNER_COMPLETED_BG = 'rgba(224, 220, 212, 0.45)'; // 完了時の半透明背景
-                      const PLANNER_EARLY_COMPLETED_BG = 'rgba(238, 233, 222, 0.25)'; // 前倒し完了時の半透明背景
+                      return renderItems.map(({ block, displayEndMinutes, coveredEarlyBlocks }) => {
+                        const top = Math.round((block.startMinutes / 60) * hourHeight) + 1;
+                        const duration = Math.max(15, displayEndMinutes - block.startMinutes);
+                        const rawHeight = (duration / 60) * hourHeight;
+                        const height = Math.max(22, Math.round(rawHeight) - 2);
+                        // ★ 文字消え防止: 高さが44px未満、または時間が35分未満の場合は短縮モード（タイトル行の表示を最優先）
+                        const isShort = duration < 35 || height < 44;
+                        const isAssignment = block.taskType === 'assignment';
+                        // ★ Plan11 & Plan12: 週タスクバッジ表示判定、および全非休憩ブロックの完了トグル可能判定
+                        const isWeeklyTask =
+                          !block.isFixed &&
+                          !block.isBreak &&
+                          (block.isWeeklyTask === true || block.isRescheduled === true);
+                        const isCompletableBlock = !block.isBreak;
+                        const latestCoveredEarly =
+                          coveredEarlyBlocks.length > 0
+                            ? coveredEarlyBlocks[coveredEarlyBlocks.length - 1]
+                            : undefined;
 
-                      const PLANNER_BORDER = 'rgba(205, 194, 176, 0.65)'; // 繊細な半透明実線
-                      const PLANNER_COMPLETED_BORDER = 'rgba(185, 177, 165, 0.5)';
+                        // ★ 枠の高さ（所要時間）に応じて、タスク名を表示できる最大行数を動的に算出（最低1行は必ず確保）
+                        const hasTimeRow = !isShort;
+                        const availableHeightForTitle = hasTimeRow
+                          ? Math.max(16, height - 22)
+                          : Math.max(16, height - 6);
+                        const calculatedLines = Math.max(
+                          1,
+                          Math.min(6, Math.floor(availableHeightForTitle / 14)),
+                        );
 
-                      const positioningClass = isPlanner
-                        ? isEarlyCompleted
-                          ? 'z-20 opacity-40 hover:opacity-20 transition-opacity border-dashed'
-                          : isSubstitute
-                            ? 'z-10 inset-x-0.5 sm:inset-x-1 ring-1 ring-blue-400/50'
+                        // ★ 完了状態（早期完了の経過分を含む）の場合は洗練されたグレートーンパレットを適用
+                        const colorScheme = block.isCompleted
+                          ? COMPLETED_PALETTE
+                          : getBlockColorScheme(block, tableColorMap);
+
+                        const isSubstitute = !!block.isSubstitute;
+                        const isEarlyCompleted = !!block.isEarlyCompleted;
+
+                        // 手帳風: 全予定共通の半透明背景色（背後の時間対応方眼線が上品に透けて見える）
+                        const PLANNER_UNIFIED_BG = 'rgba(238, 233, 222, 0.52)'; // 統一された品のある半透明エクリュ
+                        const PLANNER_COMPLETED_BG = 'rgba(224, 220, 212, 0.45)'; // 完了時の半透明背景
+
+                        const PLANNER_BORDER = 'rgba(205, 194, 176, 0.65)'; // 繊細な半透明実線
+                        const PLANNER_COMPLETED_BORDER = 'rgba(185, 177, 165, 0.5)';
+
+                        const positioningClass = isPlanner
+                          ? isSubstitute
+                            ? 'z-20 inset-x-0.5 sm:inset-x-1 ring-1 ring-blue-400/50'
                             : 'z-10 inset-x-0.5 sm:inset-x-1'
-                        : isEarlyCompleted
-                          ? 'z-20 shadow-sm backdrop-blur-[2px] border-dashed hover:opacity-35 transition-all ring-1 ring-slate-400/40'
                           : isSubstitute
-                            ? 'z-10 shadow-2xs inset-x-0.5 sm:inset-x-1 ring-1 ring-blue-400/40'
+                            ? 'z-20 shadow-2xs inset-x-0.5 sm:inset-x-1 ring-1 ring-blue-400/40'
                             : 'z-10 inset-x-0.5 sm:inset-x-1 shadow-2xs';
 
-                      const positioningStyle: React.CSSProperties = {
-                        top: `${top}px`,
-                        height: `${height}px`,
-                        backgroundColor: isPlanner
-                          ? isEarlyCompleted
-                            ? PLANNER_EARLY_COMPLETED_BG
-                            : block.isCompleted
+                        const positioningStyle: React.CSSProperties = {
+                          top: `${top}px`,
+                          height: `${height}px`,
+                          backgroundColor: isPlanner
+                            ? block.isCompleted
                               ? PLANNER_COMPLETED_BG
-                              : PLANNER_UNIFIED_BG // ★ 統一の背景色
-                          : isEarlyCompleted
-                            ? 'rgba(241, 245, 249, 0.76)'
+                              : PLANNER_UNIFIED_BG
                             : colorScheme.bg,
-                        borderColor: isPlanner
-                          ? isEarlyCompleted
-                            ? 'rgba(203, 213, 225, 0.6)'
-                            : block.isCompleted
+                          borderColor: isPlanner
+                            ? block.isCompleted
                               ? PLANNER_COMPLETED_BORDER
-                              : PLANNER_BORDER // ★ 統一の繊細な枠線
-                          : isEarlyCompleted
-                            ? 'rgba(203, 213, 225, 0.85)'
+                              : PLANNER_BORDER
                             : colorScheme.border,
-                        color: colorScheme.text,
-                        ...(isEarlyCompleted && !isPlanner
-                          ? {
-                              left: '4%',
-                              width: '92%',
-                            }
-                          : {}),
-                      };
+                          color: colorScheme.text,
+                        };
 
-                      return (
-                        <div
-                          key={`block-${d.dayIndex}-${block.id}`}
-                          title={
-                            isSubstitute
-                              ? `【代行タスク】${block.title} (元のタスク「${block.substitutedForTitle || ''}」の代わりに前倒し配置)`
-                              : block.isEarlyCompleted
-                                ? `【前倒し完了済み】${block.title} (奥に代行タスクが配置されています)`
-                                : block.sourceTableName
-                                  ? `${block.title} (参照元: ${block.sourceTableName})`
-                                  : block.title
-                          }
-                          style={positioningStyle}
-                          className={`group !absolute overflow-hidden border ${
-                            isPlanner
-                              ? 'hover:brightness-[0.98] transition-all duration-100 rounded-none'
-                              : 'sticky-note rounded-md border transition-all duration-150'
-                          } hover:z-30 ${positioningClass}`}
-                        >
-                          {/* 付箋のり付けストリップ (左端: モダン・付箋モードのみ表示。手帳風では完全非表示) */}
-                          {!isPlanner && (
-                            <div
-                              className="absolute inset-y-0 left-0 w-1.5 opacity-90 shadow-2xs"
-                              style={{
-                                backgroundColor: isSubstitute
-                                  ? '#3b82f6'
-                                  : isEarlyCompleted
-                                    ? '#94a3b8'
-                                    : colorScheme.strip,
-                              }}
-                            />
-                          )}
-
-                          {/* Block Content: 統一背景色の上で色付き文字と付随情報を表現 */}
+                        return (
                           <div
-                            className={`flex h-full flex-col justify-between ${
-                              isPlanner ? 'p-1 px-1.5 sm:px-2' : 'p-1 pl-2.5'
-                            } overflow-hidden`}
+                            key={`block-${d.dayIndex}-${block.id}`}
+                            title={
+                              isSubstitute
+                                ? `【代行タスク】${block.title} (元のタスク「${block.substitutedForTitle || ''}」の代わりに前倒し配置)`
+                                : block.isEarlyCompleted
+                                  ? `【前倒し完了済み】${block.title}`
+                                  : block.sourceTableName
+                                    ? `${block.title} (参照元: ${block.sourceTableName})`
+                                    : block.title
+                            }
+                            style={positioningStyle}
+                            className={`group !absolute overflow-hidden border ${
+                              isPlanner
+                                ? 'hover:brightness-[0.98] transition-all duration-100 rounded-none'
+                                : 'sticky-note rounded-md border transition-all duration-150'
+                            } hover:z-30 ${positioningClass}`}
                           >
-                            <div className="flex items-start justify-between gap-1 min-w-0 overflow-hidden">
-                              {/* タイトル領域: 手帳風では色付きのペン文字でサラッと書いた表現 */}
+                            {/* 付箋のり付けストリップ (左端: モダン・付箋モードのみ表示。手帳風では完全非表示) */}
+                            {!isPlanner && (
                               <div
-                                className="min-w-0 flex-1 leading-snug break-words [overflow-wrap:anywhere] text-xs sm:text-[13px] font-bold"
+                                className="absolute inset-y-0 left-0 w-1.5 opacity-90 shadow-2xs"
                                 style={{
-                                  display: '-webkit-box',
-                                  WebkitBoxOrient: 'vertical',
-                                  WebkitLineClamp: calculatedLines,
-                                  overflow: 'hidden',
-                                }}
-                              >
-                                {isSubstitute && (
-                                  isPlanner ? (
-                                    <span className="text-[10px] font-bold text-blue-600 mr-1 select-none align-baseline">
-                                      [代行]
-                                    </span>
-                                  ) : (
-                                    <span
-                                      className="inline-flex items-center gap-0.5 rounded bg-blue-600 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline animate-pulse"
-                                      title={`元の予定「${block.substitutedForTitle}」の早期完了に伴い代行配置`}
-                                    >
-                                      <Sparkles className="h-2 w-2" />
-                                      代行
-                                    </span>
-                                  )
-                                )}
-                                {isEarlyCompleted && (
-                                  isPlanner ? (
-                                    <span className="text-[10px] font-bold text-emerald-700 mr-1 select-none align-baseline">
-                                      [済]
-                                    </span>
-                                  ) : (
-                                    <span
-                                      className="inline-flex items-center gap-0.5 rounded bg-emerald-600/90 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline"
-                                      title="前倒し完了済み（奥に代行タスクが配置されています）"
-                                    >
-                                      <CheckCircle2 className="h-2 w-2" />
-                                      完了
-                                    </span>
-                                  )
-                                )}
-                                {isWeeklyTask && !isSubstitute && !block.isCompleted && (
-                                  isPlanner ? (
-                                    <span
-                                      className="text-[10px] font-bold text-violet-700 mr-1 select-none align-baseline"
-                                      title="週タスク"
-                                    >
-                                      [週]
-                                    </span>
-                                  ) : (
-                                    <span
-                                      className="inline-flex items-center rounded bg-violet-600 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline"
-                                      title="週タスク"
-                                    >
-                                      週
-                                    </span>
-                                  )
-                                )}
-                                {block.isRescheduled && (
-                                  isPlanner ? (
-                                    <span
-                                      className="text-[10px] font-bold text-amber-600 mr-1 select-none align-baseline"
-                                      title="やり残しのため未来の空き枠へ自動再スケジュール"
-                                    >
-                                      [再]
-                                    </span>
-                                  ) : (
-                                    <span
-                                      className="inline-flex items-center gap-0.5 rounded bg-amber-500 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline"
-                                      title="やり残しのため未来の空き枠へ自動再スケジュール"
-                                    >
-                                      <RotateCcw className="h-2 w-2" />
-                                      再配置
-                                    </span>
-                                  )
-                                )}
-                                <span
-                                  style={{
-                                    color: block.isCompleted
+                                  backgroundColor: isSubstitute
+                                    ? '#3b82f6'
+                                    : isEarlyCompleted
                                       ? '#94a3b8'
-                                      : colorScheme.text,
-                                  }}
-                                  className={`${
-                                    block.isCompleted ? 'line-through opacity-70' : ''
-                                  } ${isPlanner ? 'font-semibold tracking-tight' : 'font-bold'}`}
-                                >
-                                  {block.title || '（名称未設定）'}
-                                </span>
-                                {isPlanner && isShort && (
-                                  <span className="font-mono text-[9px] text-slate-400 font-normal ml-1 whitespace-nowrap">
-                                    {minutesToTimeString(block.startMinutes)}
-                                  </span>
-                                )}
-                              </div>
+                                      : colorScheme.strip,
+                                }}
+                              />
+                            )}
 
-                              <div className="shrink-0 flex items-center gap-1">
-                                {/* 週タスク完了トグルボタン (オン/オフ) */}
-                                {isWeeklyTask && onToggleBlockComplete && !isSubstitute && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onToggleBlockComplete(block);
+                            {/* Block Content: 統一背景色の上で色付き文字と付随情報を表現 */}
+                            <div
+                              className={`flex h-full flex-col justify-between ${
+                                isPlanner ? 'p-1 px-1.5 sm:px-2' : 'p-1 pl-2.5'
+                              } overflow-hidden`}
+                            >
+                              <div className="flex items-start justify-between gap-1 min-w-0 overflow-hidden">
+                                {/* タイトル領域: 手帳風では色付きのペン文字でサラッと書いた表現 */}
+                                <div
+                                  className="min-w-0 flex-1 leading-snug break-words [overflow-wrap:anywhere] text-xs sm:text-[13px] font-bold"
+                                  style={{
+                                    display: '-webkit-box',
+                                    WebkitBoxOrient: 'vertical',
+                                    WebkitLineClamp: calculatedLines,
+                                    overflow: 'hidden',
+                                  }}
+                                >
+                                  {isSubstitute &&
+                                    (isPlanner ? (
+                                      <span className="text-[10px] font-bold text-blue-600 mr-1 select-none align-baseline">
+                                        [代行]
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className="inline-flex items-center gap-0.5 rounded bg-blue-600 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline animate-pulse"
+                                        title={`元の予定「${block.substitutedForTitle}」の早期完了に伴い代行配置`}
+                                      >
+                                        <Sparkles className="h-2 w-2" />
+                                        代行
+                                      </span>
+                                    ))}
+                                  {isEarlyCompleted &&
+                                    (isPlanner ? (
+                                      <span className="text-[10px] font-bold text-emerald-700 mr-1 select-none align-baseline">
+                                        [済]
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className="inline-flex items-center gap-0.5 rounded bg-emerald-600/90 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline"
+                                        title="前倒し完了済み"
+                                      >
+                                        <CheckCircle2 className="h-2 w-2" />
+                                        完了
+                                      </span>
+                                    ))}
+                                  {isWeeklyTask &&
+                                    !isSubstitute &&
+                                    !block.isCompleted &&
+                                    (isPlanner ? (
+                                      <span
+                                        className="text-[10px] font-bold text-violet-700 mr-1 select-none align-baseline"
+                                        title="週タスク"
+                                      >
+                                        [週]
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className="inline-flex items-center rounded bg-violet-600 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline"
+                                        title="週タスク"
+                                      >
+                                        週
+                                      </span>
+                                    ))}
+                                  {block.isRescheduled &&
+                                    (isPlanner ? (
+                                      <span
+                                        className="text-[10px] font-bold text-amber-600 mr-1 select-none align-baseline"
+                                        title="やり残しのため未来の空き枠へ自動再スケジュール"
+                                      >
+                                        [再]
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className="inline-flex items-center gap-0.5 rounded bg-amber-500 px-1 py-0.2 text-[8px] font-bold text-white shadow-2xs mr-1 align-baseline"
+                                        title="やり残しのため未来の空き枠へ自動再スケジュール"
+                                      >
+                                        <RotateCcw className="h-2 w-2" />
+                                        再配置
+                                      </span>
+                                    ))}
+                                  <span
+                                    style={{
+                                      color: block.isCompleted ? '#94a3b8' : colorScheme.text,
                                     }}
-                                    className={`shrink-0 flex items-center gap-0.5 transition cursor-pointer ${
-                                      isPlanner
-                                        ? `px-0.5 py-0 text-[10px] ${
-                                            block.isCompleted
-                                              ? 'text-slate-500 hover:text-slate-800'
-                                              : 'text-slate-400 hover:text-slate-700'
-                                          }`
-                                        : `rounded px-1 py-0.2 text-[9px] font-bold shadow-2xs border ${
-                                            block.isCompleted
-                                              ? 'bg-slate-200/90 text-slate-700 border-slate-300 hover:bg-slate-300'
-                                              : 'bg-white/90 text-slate-600 border-slate-200 hover:bg-blue-50 hover:text-blue-600'
-                                          }`
-                                    }`}
-                                    title={
-                                      block.isCompleted
-                                        ? '完了状態です（クリックで「まだ終わってないよ」と未完了に戻し未来枠へ自動再配置）'
-                                        : '未完了です（クリックで「これはもう終わっている」と早期完了にし代行タスクを割り振る）'
-                                    }
+                                    className={`${
+                                      block.isCompleted ? 'line-through opacity-70' : ''
+                                    } ${isPlanner ? 'font-semibold tracking-tight' : 'font-bold'}`}
                                   >
-                                    {block.isCompleted ? (
-                                      isPlanner ? (
-                                        <span className="flex items-center gap-0.5 font-bold text-slate-600 font-mono text-[10px]">
-                                          [✓]
-                                        </span>
+                                    {block.title || '（名称未設定）'}
+                                  </span>
+                                  {isPlanner && isShort && (
+                                    <span className="font-mono text-[9px] text-slate-400 font-normal ml-1 whitespace-nowrap">
+                                      {minutesToTimeString(block.startMinutes)}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="shrink-0 flex items-center gap-1">
+                                  {/* ★ 同じ開始位置で早期完了した元タスクがある場合、重ならない横並びボタンとして完了取消を提供 */}
+                                  {latestCoveredEarly && onToggleBlockComplete && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onToggleBlockComplete(latestCoveredEarly);
+                                      }}
+                                      className={`pointer-events-auto relative z-30 shrink-0 flex items-center gap-0.5 transition cursor-pointer ${
+                                        isPlanner
+                                          ? 'px-0.5 py-0 text-[10px] text-emerald-700 hover:text-emerald-950 font-mono font-bold'
+                                          : 'rounded px-1 py-0.2 text-[9px] font-bold shadow-2xs border bg-emerald-50/95 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                                      }`}
+                                      title={`前倒し完了した「${latestCoveredEarly.title}」を未完了に戻す`}
+                                    >
+                                      {isPlanner ? (
+                                        <span>[✓戻]</span>
                                       ) : (
                                         <>
                                           <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 fill-emerald-100" />
-                                          <span className="hidden sm:inline">済</span>
+                                          <span className="hidden sm:inline">戻す</span>
                                         </>
-                                      )
-                                    ) : isPlanner ? (
-                                      <span className="flex items-center gap-0.5 text-slate-400 font-mono text-[10px]">
-                                        [ ]
+                                      )}
+                                    </button>
+                                  )}
+
+                                  {/* ★ 課題の期日表示（完了ボタンの左側に配置し、右端の完了ボタン位置を常に一定に保つ） */}
+                                  {isAssignment &&
+                                    !isEarlyCompleted &&
+                                    block.deadlineDay !== undefined &&
+                                    (isPlanner ? (
+                                      <span className="text-[9px] font-medium text-rose-700 mr-0.5">
+                                        期日:{WEEKDAY_NAMES[block.deadlineDay]}
                                       </span>
                                     ) : (
-                                      <>
-                                        <Circle className="h-2.5 w-2.5 text-slate-400" />
-                                        <span className="hidden sm:inline">未</span>
-                                      </>
-                                    )}
-                                  </button>
-                                )}
+                                      <span className="rounded bg-rose-200/90 px-1 py-0.2 text-[9px] font-bold text-rose-900 shadow-2xs">
+                                        期日:{WEEKDAY_NAMES[block.deadlineDay]}
+                                      </span>
+                                    ))}
 
-                                {/* ★ 課題の期日表示 */}
-                                {isAssignment && block.deadlineDay !== undefined && (
-                                  isPlanner ? (
-                                    <span className="text-[9px] font-medium text-rose-700 ml-1">
-                                      期日:{WEEKDAY_NAMES[block.deadlineDay]}
-                                    </span>
-                                  ) : (
-                                    <span className="rounded bg-rose-200/90 px-1 py-0.2 text-[9px] font-bold text-rose-900 shadow-2xs">
-                                      期日:{WEEKDAY_NAMES[block.deadlineDay]}
-                                    </span>
-                                  )
-                                )}
+                                  {/* 完了トグルボタン (オン/オフ) — 常に右端に固定配置され他の要素と絶対に重ならない */}
+                                  {isCompletableBlock && onToggleBlockComplete && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onToggleBlockComplete(block);
+                                      }}
+                                      className={`pointer-events-auto relative z-30 shrink-0 flex items-center gap-0.5 transition cursor-pointer ${
+                                        isPlanner
+                                          ? `px-0.5 py-0 text-[10px] ${
+                                              block.isCompleted
+                                                ? 'text-slate-500 hover:text-slate-800'
+                                                : 'text-slate-400 hover:text-slate-700'
+                                            }`
+                                          : `rounded px-1 py-0.2 text-[9px] font-bold shadow-2xs border ${
+                                              block.isCompleted
+                                                ? 'bg-slate-200/90 text-slate-700 border-slate-300 hover:bg-slate-300'
+                                                : 'bg-white/90 text-slate-600 border-slate-200 hover:bg-blue-50 hover:text-blue-600'
+                                            }`
+                                      }`}
+                                      title={
+                                        block.isCompleted
+                                          ? '完了状態です（クリックで「まだ終わってないよ」と未完了に戻す）'
+                                          : '未完了です（クリックで「これはもう終わっている」と早期完了にし後続タスクを再配置）'
+                                      }
+                                    >
+                                      {block.isCompleted ? (
+                                        isPlanner ? (
+                                          <span className="flex items-center gap-0.5 font-bold text-slate-600 font-mono text-[10px]">
+                                            [✓]
+                                          </span>
+                                        ) : (
+                                          <>
+                                            <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 fill-emerald-100" />
+                                            <span className="hidden sm:inline">済</span>
+                                          </>
+                                        )
+                                      ) : isPlanner ? (
+                                        <span className="flex items-center gap-0.5 text-slate-400 font-mono text-[10px]">
+                                          [ ]
+                                        </span>
+                                      ) : (
+                                        <>
+                                          <Circle className="h-2.5 w-2.5 text-slate-400" />
+                                          <span className="hidden sm:inline">未</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
+                                </div>
                               </div>
-                            </div>
 
-                            {/* 付随情報（時間など）: 手帳風ではペンのメモ書き調 */}
-                            {!isShort && (
-                              <div
-                                className={`mt-auto shrink-0 flex items-center gap-1 font-mono text-[10px] ${
-                                  isPlanner ? 'text-slate-500 pt-0 opacity-85' : 'text-slate-600 pt-0.5 opacity-80'
-                                } sm:text-[11px]`}
-                              >
-                                {isAssignment ? (
-                                  <BookOpen className="h-2.5 w-2.5 text-purple-700 shrink-0" />
-                                ) : (
-                                  <Clock className="h-2.5 w-2.5 text-slate-400 shrink-0" />
-                                )}
-                                <span className="truncate">
-                                  {minutesToTimeString(block.startMinutes)} -{' '}
-                                  {minutesToTimeString(block.endMinutes)}
-                                </span>
-                                {duration >= 30 && (
-                                  <span className="text-[9px] opacity-75">
-                                    ({formatDuration(duration)})
+                              {/* 付随情報（時間など）: 手帳風ではペンのメモ書き調 */}
+                              {!isShort && (
+                                <div
+                                  className={`mt-auto shrink-0 flex items-center gap-1 font-mono text-[10px] ${
+                                    isPlanner
+                                      ? 'text-slate-500 pt-0 opacity-85'
+                                      : 'text-slate-600 pt-0.5 opacity-80'
+                                  } sm:text-[11px]`}
+                                >
+                                  {isAssignment ? (
+                                    <BookOpen className="h-2.5 w-2.5 text-purple-700 shrink-0" />
+                                  ) : (
+                                    <Clock className="h-2.5 w-2.5 text-slate-400 shrink-0" />
+                                  )}
+                                  <span className="truncate">
+                                    {minutesToTimeString(block.startMinutes)} -{' '}
+                                    {minutesToTimeString(displayEndMinutes)}
                                   </span>
-                                )}
-                                {isSubstitute && block.substitutedForTitle && (
-                                  isPlanner ? (
-                                    <span className="text-[9px] text-blue-600 truncate max-w-[110px]">
-                                      ⇄ {block.substitutedForTitle}
+                                  {duration >= 30 && (
+                                    <span className="text-[9px] opacity-75">
+                                      ({formatDuration(duration)})
                                     </span>
-                                  ) : (
-                                    <span
-                                      className="shrink-0 rounded bg-blue-100/90 px-1 py-0.2 text-[8px] font-bold text-blue-900 truncate max-w-[110px]"
-                                      title={`代行元: ${block.substitutedForTitle}`}
-                                    >
-                                      ⇄ {block.substitutedForTitle}
-                                    </span>
-                                  )
-                                )}
-                                {block.breakMinutes !== undefined && block.breakMinutes > 0 && (
-                                  isPlanner ? (
-                                    <span className="text-[9px] text-emerald-700">
-                                      余白 {block.breakMinutes}m
-                                    </span>
-                                  ) : (
-                                    <span
-                                      className="shrink-0 rounded bg-emerald-100/80 px-1 py-0.2 text-[9px] font-medium text-emerald-800"
-                                      title={`タスク後の余白（休憩）: ${block.breakMinutes}分`}
-                                    >
-                                      余白 {block.breakMinutes}m
-                                    </span>
-                                  )
-                                )}
-                              </div>
-                            )}
+                                  )}
+                                  {isSubstitute &&
+                                    block.substitutedForTitle &&
+                                    (isPlanner ? (
+                                      <span className="text-[9px] text-blue-600 truncate max-w-[110px]">
+                                        ⇄ {block.substitutedForTitle}
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className="shrink-0 rounded bg-blue-100/90 px-1 py-0.2 text-[8px] font-bold text-blue-900 truncate max-w-[110px]"
+                                        title={`代行元: ${block.substitutedForTitle}`}
+                                      >
+                                        ⇄ {block.substitutedForTitle}
+                                      </span>
+                                    ))}
+                                  {block.breakMinutes !== undefined &&
+                                    block.breakMinutes > 0 &&
+                                    (isPlanner ? (
+                                      <span className="text-[9px] text-emerald-700">
+                                        余白 {block.breakMinutes}m
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className="shrink-0 rounded bg-emerald-100/80 px-1 py-0.2 text-[9px] font-medium text-emerald-800"
+                                        title={`タスク後の余白（休憩）: ${block.breakMinutes}分`}
+                                      >
+                                        余白 {block.breakMinutes}m
+                                      </span>
+                                    ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      });
+                    })()}
                   </div>
                 );
               })}

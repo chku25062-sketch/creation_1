@@ -46,10 +46,10 @@ export function generatePlacementPlans(
       (task.dailyRepeatMode === 'auto' || (!hasSpecificDays && task.dailyCount === undefined));
 
     const targetCountPerDay = isAssignment
-      ? (task.dailyCount || 1)
+      ? task.dailyCount || 1
       : isAuto
         ? Infinity
-        : (task.dailyCount || 1);
+        : task.dailyCount || 1;
 
     // ① 課題タスク（出題日〜締切日の範囲）判定（付随タスクは課題扱いしない）
     if (isAssignment) {
@@ -80,8 +80,12 @@ export function generatePlacementPlans(
     if (task.isAttachedTask) {
       const preferredDays =
         task.parentEndMinutesByDay && Object.keys(task.parentEndMinutesByDay).length > 0
-          ? Object.keys(task.parentEndMinutesByDay).map(Number).sort((a, b) => a - b)
-          : (task.targetDays && task.targetDays.length > 0 ? [...task.targetDays].sort((a, b) => a - b) : [0]);
+          ? Object.keys(task.parentEndMinutesByDay)
+              .map(Number)
+              .sort((a, b) => a - b)
+          : task.targetDays && task.targetDays.length > 0
+            ? [...task.targetDays].sort((a, b) => a - b)
+            : [0];
 
       const primaryDay = preferredDays[0];
       const candidateDays: number[] = [];
@@ -114,12 +118,16 @@ export function generatePlacementPlans(
         candidateDays = [...task.targetDays];
       } else if (task.cycleDays && task.cycleDays.length > 0) {
         const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
-        candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => task.cycleDays!.includes(d % cycleLength));
+        candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) =>
+          task.cycleDays!.includes(d % cycleLength),
+        );
       } else if (task.startDay !== undefined) {
         candidateDays = [task.startDay];
       } else if (task.cycleIndex !== undefined) {
         const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
-        candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => d % cycleLength === (task.cycleIndex! % cycleLength));
+        candidateDays = [0, 1, 2, 3, 4, 5, 6].filter(
+          (d) => d % cycleLength === task.cycleIndex! % cycleLength,
+        );
       }
 
       return {
@@ -139,7 +147,9 @@ export function generatePlacementPlans(
     // 周期指定タスク（例: 3日周期の特定日）は、指定された周期日のみに配置し、オフ日には配置しない
     if (task.cycleDays && task.cycleDays.length > 0) {
       const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
-      const candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => task.cycleDays!.includes(d % cycleLength));
+      const candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) =>
+        task.cycleDays!.includes(d % cycleLength),
+      );
       return {
         task,
         kind: 'weekly_specific',
@@ -186,8 +196,7 @@ export function generatePlacementPlans(
 
     // 指定日時以降オプションが有効な場合、指定曜日より前の曜日を候補日から除外
     const scheduleAfterDay =
-      task.scheduleAfterDay ??
-      (task.scheduleAfterEnabled ? task.startDay : undefined);
+      task.scheduleAfterDay ?? (task.scheduleAfterEnabled ? task.startDay : undefined);
     if (scheduleAfterDay !== undefined) {
       candidateDays = candidateDays.filter((d) => d >= scheduleAfterDay);
     }
@@ -224,9 +233,7 @@ export function generatePlacementPlans(
         if (match) {
           fromDay = parseInt(match[1], 10);
           const taskIdCandidate = match[2];
-          matchedTask = schedulableTasks.find(
-            (t) => t.id === taskIdCandidate || id.includes(t.id),
-          );
+          matchedTask = schedulableTasks.find((t) => t.id === taskIdCandidate || id.includes(t.id));
         } else {
           matchedTask = schedulableTasks.find((t) => t.id === id || id.includes(t.id));
         }
@@ -290,12 +297,8 @@ export function generatePlacementPlans(
   }
 
   // 4. 週タスクと日課タスクの厳密な分離
-  const weeklyPlans = plans.filter(
-    (p) => p.isRescheduledPlan || isWeeklyTaskItem(p.task),
-  );
-  const dailyPlans = plans.filter(
-    (p) => !p.isRescheduledPlan && !isWeeklyTaskItem(p.task),
-  );
+  const weeklyPlans = plans.filter((p) => p.isRescheduledPlan || isWeeklyTaskItem(p.task));
+  const dailyPlans = plans.filter((p) => !p.isRescheduledPlan && !isWeeklyTaskItem(p.task));
 
   return {
     schedulableTasks,

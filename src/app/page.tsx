@@ -1,12 +1,19 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { SheetFooter, SheetTab } from '@/components/SheetFooter';
+import { SheetFooter, SheetTab, DebugTimeConfig } from '@/components/SheetFooter';
 import { Timeline24h } from '@/components/Timeline24h';
 import { ImportedTablesManager } from '@/components/ImportedTablesManager';
 import { AuthModal } from '@/components/AuthModal';
 import { FileImportModal } from '@/components/FileImportModal';
-import { FixedSlot, TaskItem, ImportedTableData, ScheduleInclusionSettings, AppThemeMode, TaskPlacementStrategy } from '@/types';
+import {
+  FixedSlot,
+  TaskItem,
+  ImportedTableData,
+  ScheduleInclusionSettings,
+  AppThemeMode,
+  TaskPlacementStrategy,
+} from '@/types';
 import { generateTheoreticalSchedule } from '@/lib/scheduler';
 import {
   loadLocalData,
@@ -51,6 +58,110 @@ export default function Home() {
 
   // タスク配分ポリシー（分散バランス型 'balanced' ⇄ 集中前倒し型 'concentrated'）
   const [placementStrategy, setPlacementStrategy] = useState<TaskPlacementStrategy>('balanced');
+
+  // 実日時（システムクロック）とデバッグ用日時オーバーライド設定
+  const [realTime, setRealTime] = useState<{ dayIndex: number; minutes: number }>(() => {
+    const now = new Date();
+    return {
+      dayIndex: (now.getDay() + 6) % 7,
+      minutes: now.getHours() * 60 + now.getMinutes(),
+    };
+  });
+
+  const [debugTime, setDebugTime] = useState<DebugTimeConfig>(() => {
+    const now = new Date();
+    return {
+      enabled: false,
+      dayIndex: (now.getDay() + 6) % 7,
+      minutes: now.getHours() * 60 + now.getMinutes(),
+    };
+  });
+
+  useEffect(() => {
+    const updateRealTime = () => {
+      const now = new Date();
+      setRealTime({
+        dayIndex: (now.getDay() + 6) % 7,
+        minutes: now.getHours() * 60 + now.getMinutes(),
+      });
+    };
+    updateRealTime();
+    const interval = setInterval(updateRealTime, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // デバッグ日時設定の復元
+  useEffect(() => {
+    try {
+      const savedDebug = localStorage.getItem('app_debug_time_config');
+      if (savedDebug) {
+        const parsed = JSON.parse(savedDebug);
+        if (
+          typeof parsed.enabled === 'boolean' &&
+          typeof parsed.dayIndex === 'number' &&
+          typeof parsed.minutes === 'number'
+        ) {
+          setDebugTime(parsed);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const effectiveTodayIndex = debugTime.enabled ? debugTime.dayIndex : realTime.dayIndex;
+  const effectiveCurrentMinutes = debugTime.enabled ? debugTime.minutes : realTime.minutes;
+
+  const handleChangeDebugTime = (next: Partial<DebugTimeConfig>) => {
+    setDebugTime((prev) => {
+      const base = prev.enabled
+        ? prev
+        : {
+            enabled: false,
+            dayIndex: realTime.dayIndex,
+            minutes: realTime.minutes,
+          };
+      const updated: DebugTimeConfig = {
+        ...base,
+        ...next,
+      };
+      try {
+        localStorage.setItem('app_debug_time_config', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+  };
+
+  const handleResetDebugTime = () => {
+    const now = new Date();
+    const realDay = (now.getDay() + 6) % 7;
+    const realMins = now.getHours() * 60 + now.getMinutes();
+    const resetConfig: DebugTimeConfig = {
+      enabled: false,
+      dayIndex: realDay,
+      minutes: realMins,
+    };
+    setDebugTime(resetConfig);
+    setSelectedDayIndex(realDay);
+    try {
+      localStorage.removeItem('app_debug_time_config');
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleResetCompletionStates = () => {
+    setCompletedBlockIds(new Set());
+    setUncompletedBlockIds(new Set());
+    try {
+      localStorage.removeItem('app_completed_block_ids');
+      localStorage.removeItem('app_uncompleted_block_ids');
+    } catch {
+      // ignore
+    }
+  };
 
   // 完了トグル状態の復元
   useEffect(() => {
@@ -188,11 +299,19 @@ export default function Home() {
         // 固定枠の同期 (開始時刻がある表の場合)
         if (generatedSlots.length > 0) {
           const generatedSlotMap = new Map(generatedSlots.map((s) => [s.id, s]));
+          // 同一テーブル由来で最新の生成結果に含まれない古い重複スロット（fixed-lecture-mw 等）を除去
+          const beforeLen = syncedFixed.length;
+          syncedFixed = syncedFixed.filter(
+            (s) => s.sourceTableId !== table.id || generatedSlotMap.has(s.id),
+          );
+          if (syncedFixed.length !== beforeLen) {
+            isDataCleaned = true;
+          }
+
           syncedFixed = syncedFixed.map((s) => {
             if (s.sourceTableId === table.id) {
               const gen =
-                generatedSlotMap.get(s.id) ||
-                generatedSlots.find((gs) => gs.title === s.title);
+                generatedSlotMap.get(s.id) || generatedSlots.find((gs) => gs.title === s.title);
               if (gen && gen.breakMinutes !== s.breakMinutes) {
                 isDataCleaned = true;
                 return { ...s, breakMinutes: gen.breakMinutes };
@@ -214,11 +333,18 @@ export default function Home() {
         // タスクの同期 (開始時刻が未設定または付随タスクがある場合)
         if (generatedTasks.length > 0) {
           const generatedTaskMap = new Map(generatedTasks.map((t) => [t.id, t]));
+          const beforeTaskLen = syncedTasks.length;
+          syncedTasks = syncedTasks.filter(
+            (t) => t.sourceTableId !== table.id || generatedTaskMap.has(t.id),
+          );
+          if (syncedTasks.length !== beforeTaskLen) {
+            isDataCleaned = true;
+          }
+
           syncedTasks = syncedTasks.map((t) => {
             if (t.sourceTableId === table.id) {
               const gen =
-                generatedTaskMap.get(t.id) ||
-                generatedTasks.find((gt) => gt.title === t.title);
+                generatedTaskMap.get(t.id) || generatedTasks.find((gt) => gt.title === t.title);
               if (gen && gen.breakMinutes !== t.breakMinutes) {
                 isDataCleaned = true;
                 return { ...t, breakMinutes: gen.breakMinutes };
@@ -378,18 +504,18 @@ export default function Home() {
     });
   }, [tasks, inclusionSettings.enableDailyTasks, inclusionSettings.enableWeeklyTasks]);
 
-  // Plan11: 週タスクの完了状態トグルハンドラ
+  // Plan11 & Plan12: 固定枠・週タスク・再配置タスク・代行タスクの完了状態トグルハンドラ
   const handleToggleBlockComplete = (block: import('@/types').TheoreticalBlock) => {
-    // 週タスク以外は操作させない安全ガード
-    if (!block.isWeeklyTask) return;
+    // 休憩ブロック以外はすべて完了/未完了トグル可能
+    if (block.isBreak) return;
 
     const blockKey = block.id;
-    const now = new Date();
-    const todayIdx = (now.getDay() + 6) % 7;
-    const currMinutes = now.getHours() * 60 + now.getMinutes();
+    const todayIdx = effectiveTodayIndex;
+    const currMinutes = effectiveCurrentMinutes;
     const isPast =
       block.dayIndex !== undefined &&
-      (block.dayIndex < todayIdx || (block.dayIndex === todayIdx && block.endMinutes <= currMinutes));
+      (block.dayIndex < todayIdx ||
+        (block.dayIndex === todayIdx && block.endMinutes <= currMinutes));
 
     if (block.isCompleted) {
       // 現在完了 -> 未完了に戻す（「まだ終わってないよ」）
@@ -467,6 +593,8 @@ export default function Home() {
       };
     }
     return generateTheoreticalSchedule(effectiveFixedSlots, effectiveTasks, {
+      todayIndex: effectiveTodayIndex,
+      currentMinutes: effectiveCurrentMinutes,
       completedBlockIds,
       uncompletedBlockIds,
       placementStrategy,
@@ -475,6 +603,8 @@ export default function Home() {
     effectiveFixedSlots,
     effectiveTasks,
     isInitialized,
+    effectiveTodayIndex,
+    effectiveCurrentMinutes,
     completedBlockIds,
     uncompletedBlockIds,
     placementStrategy,
@@ -484,7 +614,7 @@ export default function Home() {
   const weeklyBlocks = useMemo(() => {
     if (!schedulingResult.allBlocks) return [];
     return schedulingResult.allBlocks
-      .filter((b) => b.isWeeklyTask && !b.isFixed && !b.isBreak)
+      .filter((b) => (b.isWeeklyTask || b.isRescheduled) && !b.isFixed && !b.isBreak)
       .sort((a, b) => {
         const dayA = a.dayIndex ?? 0;
         const dayB = b.dayIndex ?? 0;
@@ -527,11 +657,7 @@ export default function Home() {
     >
       <main className="mx-auto flex w-full flex-1 min-h-0 flex-col p-1 sm:p-1.5 max-w-full">
         {/* Sheet 1: 計画表 (メインタイムライン) */}
-        <div
-          className={`flex flex-1 min-h-0 flex-col ${
-            activeTab === 'timeline' ? '' : 'hidden'
-          }`}
-        >
+        <div className={`flex flex-1 min-h-0 flex-col ${activeTab === 'timeline' ? '' : 'hidden'}`}>
           <Timeline24h
             blocks={schedulingResult.blocks}
             dayBlocks={schedulingResult.dayBlocks}
@@ -544,6 +670,9 @@ export default function Home() {
             onToggleThemeMode={handleToggleThemeMode}
             selectedDayIndex={selectedDayIndex}
             onSelectDayIndex={setSelectedDayIndex}
+            overrideTodayIndex={effectiveTodayIndex}
+            overrideCurrentMinutes={effectiveCurrentMinutes}
+            isDebugTime={debugTime.enabled}
           />
         </div>
 
@@ -592,6 +721,14 @@ export default function Home() {
         selectedDayIndex={selectedDayIndex}
         placementStrategy={placementStrategy}
         onTogglePlacementStrategy={handleTogglePlacementStrategy}
+        debugTime={{
+          enabled: debugTime.enabled,
+          dayIndex: effectiveTodayIndex,
+          minutes: effectiveCurrentMinutes,
+        }}
+        onChangeDebugTime={handleChangeDebugTime}
+        onResetDebugTime={handleResetDebugTime}
+        onResetCompletionStates={handleResetCompletionStates}
         onSelectDayIndex={(idx) => {
           setSelectedDayIndex(idx);
           if (focusMode !== 'today') {

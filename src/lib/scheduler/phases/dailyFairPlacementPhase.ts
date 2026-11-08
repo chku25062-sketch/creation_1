@@ -12,7 +12,13 @@ export class DailyFairPlacementPhase implements PlacementPhase {
     const { dailyPlans, slotManager, tryPlaceContextInDay, sortDayTaskContexts } = ctx;
 
     const dailyDayTaskContexts: Record<number, DayTaskContext[]> = {
-      0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: []
+      0: [],
+      1: [],
+      2: [],
+      3: [],
+      4: [],
+      5: [],
+      6: [],
     };
 
     for (let d = 0; d < 7; d++) {
@@ -42,9 +48,8 @@ export class DailyFairPlacementPhase implements PlacementPhase {
     for (let d = 0; d < 7; d++) {
       const tasksInDay = dailyDayTaskContexts[d];
       const fixedTasks = tasksInDay.filter((t) => !t.isAuto);
-      const maxPassesInDay = fixedTasks.length > 0
-        ? Math.max(...fixedTasks.map((t) => t.targetCount))
-        : 1;
+      const maxPassesInDay =
+        fixedTasks.length > 0 ? Math.max(...fixedTasks.map((t) => t.targetCount)) : 1;
 
       let pass = 0;
       let anyPlacedInDay = true;

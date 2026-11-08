@@ -197,7 +197,11 @@ describe('tableUtils', () => {
     expect(parseColHeader('金', 4)).toEqual({ type: 'weekday', dayIndex: 4, label: '金' });
     expect(parseColHeader('Day 1', 0)).toEqual({ type: 'cycle', cycleIndex: 0, label: 'Day 1' });
     expect(parseColHeader('Day 3', 2)).toEqual({ type: 'cycle', cycleIndex: 2, label: 'Day 3' });
-    expect(parseColHeader('サイクル2', 1)).toEqual({ type: 'cycle', cycleIndex: 1, label: 'サイクル2' });
+    expect(parseColHeader('サイクル2', 1)).toEqual({
+      type: 'cycle',
+      cycleIndex: 1,
+      label: 'サイクル2',
+    });
     expect(parseColHeader('A日', 0)).toEqual({ type: 'cycle', cycleIndex: 0, label: 'A日' });
     expect(parseColHeader('フリー', 0)).toEqual({ type: 'free', label: 'フリー' });
     expect(parseColHeader('除外', 0)).toEqual({ type: 'excluded', label: '除外' });
@@ -511,10 +515,14 @@ describe('tableUtils', () => {
       const table = createBaseTable(null);
       table.numCols = 1;
       table.colHeaders = ['Day 1'];
-      table.cells = [[{
-        ...table.cells[0][0],
-        title: '筋トレ',
-      }]];
+      table.cells = [
+        [
+          {
+            ...table.cells[0][0],
+            title: '筋トレ',
+          },
+        ],
+      ];
 
       const res = generateScheduleItemsForTable(table);
       expect(res.tasks.length).toBe(1);
@@ -526,10 +534,14 @@ describe('tableUtils', () => {
       const table = createBaseTable('09:00');
       table.numCols = 1;
       table.colHeaders = ['day1'];
-      table.cells = [[{
-        ...table.cells[0][0],
-        title: '朝礼',
-      }]];
+      table.cells = [
+        [
+          {
+            ...table.cells[0][0],
+            title: '朝礼',
+          },
+        ],
+      ];
 
       const res = generateScheduleItemsForTable(table);
       expect(res.slots.length).toBe(1);
@@ -688,6 +700,3 @@ describe('tableUtils', () => {
     });
   });
 });
-
-
-
