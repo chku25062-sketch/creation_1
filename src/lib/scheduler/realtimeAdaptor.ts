@@ -359,19 +359,58 @@ export function applyRealtimeAdaptation(params: RealtimeAdaptationParams): {
         }
       }
 
-      // Pass 2: 今週まだ未配置の非自動プラン（!plan.isComplete && !plan.isAuto）がある場合、開いた空きスロットに配置
+      // Pass 2: 今週まだ目標回数に達していない未配置の「週タスク」（未完了・未配置の週タスク）がある場合のみ、開いた空きスロットに代行配置
+      // ※過去に完了したタスクや、各曜日固有の日タスク（period: 'day'）は他曜日から代行として絶対に持ってこない
       const usedTaskIdsOnDay = new Set<string>();
       for (const b of [...earlyCompletedAnchors, ...obstacleAnchors, ...recompactedBlocks]) {
         if (b.taskId) usedTaskIdsOnDay.add(b.taskId);
       }
 
+      // 今週未配置の週タスク、または未来の曜日に予定されている未完了週タスク（前倒し可能な週タスク）のみを厳密に対象とする
+      // ※過去に完了したタスクや、各曜日固有の日タスク（period: 'day'）は他曜日から代行として絶対に持ってこない
+      const eligibleIncompleteWeeklyPlans = plans.filter((p) => {
+        if (p.isAuto) return false;
+        // 日課タスク（period === 'day'）は各曜日固有のルーチンのため、他曜日の空き枠へ代行配置しない
+        if (!isWeeklyTaskItem(p.task) && !p.isRescheduledPlan) return false;
+
+        const tid = p.origTaskId || p.task.id;
+        // すでに今日使用されているタスク、または完了リストに含まれるタスクは除外
+        if (usedTaskIdsOnDay.has(tid) || usedTaskIdsOnDay.has(p.task.id)) return false;
+        if (userCompletedIds.has(tid) || userCompletedIds.has(p.task.id)) return false;
+        for (const cid of userCompletedIds) {
+          if (cid.includes(tid)) return false;
+        }
+
+        // 締切日や開始日などのスケジュール制約を尊重
+        if (p.task.deadlineDay !== undefined && d > p.task.deadlineDay) return false;
+        const scheduleAfterDay =
+          p.task.scheduleAfterDay ?? (p.task.scheduleAfterEnabled ? p.task.startDay : undefined);
+        if (scheduleAfterDay !== undefined && d < scheduleAfterDay) return false;
+
+        // 1. 今週まだ配置されていない未配置週タスク
+        if (!p.isComplete) return true;
+
+        // 2. または、未来の曜日（> d）に配置されている未完了の週タスク（前倒し対象）
+        // ※過去の曜日に完了したタスクは絶対に含めない
+        let isFutureIncomplete = false;
+        for (let futD = d + 1; futD < 7; futD++) {
+          const futBlocks = dayBlocks[futD] || [];
+          if (futBlocks.some((b) => b.taskId === tid && !b.isCompleted)) {
+            isFutureIncomplete = true;
+            break;
+          }
+        }
+        return isFutureIncomplete;
+      });
+
+      // その日（d）を候補日としているプランを優先
       const incompletePlans = [
-        ...plans.filter((p) => !p.isComplete && !p.isAuto && p.candidateDays.includes(d)),
-        ...plans.filter((p) => !p.isComplete && !p.isAuto && !p.candidateDays.includes(d)),
+        ...eligibleIncompleteWeeklyPlans.filter((p) => p.candidateDays.includes(d)),
+        ...eligibleIncompleteWeeklyPlans.filter((p) => !p.candidateDays.includes(d)),
       ];
 
       for (const plan of incompletePlans) {
-        if (plan.isComplete) continue;
+        if (plan.isComplete && !eligibleIncompleteWeeklyPlans.includes(plan)) continue;
         const taskId = plan.origTaskId || plan.task.id;
         if (usedTaskIdsOnDay.has(taskId) || usedTaskIdsOnDay.has(plan.task.id)) continue;
 
@@ -422,6 +461,13 @@ export function applyRealtimeAdaptation(params: RealtimeAdaptationParams): {
             plan.placedCount++;
             if (plan.placedCount >= plan.targetCountWeekly) {
               plan.isComplete = true;
+            }
+
+            // 未来の曜日にあった同一タスクの未完了ブロックを削除（前倒しによって移動したため重複を防止）
+            for (let futD = d + 1; futD < 7; futD++) {
+              if (dayBlocks[futD]) {
+                dayBlocks[futD] = dayBlocks[futD].filter((b) => b.taskId !== taskId);
+              }
             }
             break;
           }
@@ -541,77 +587,6 @@ export function applyRealtimeAdaptation(params: RealtimeAdaptationParams): {
             if (nextAuto) {
               nextAuto.startMinutes -= gap;
               consumeIntervalFromFreeSlots(leftover.startMinutes, leftover.endMinutes);
-            }
-          }
-        }
-      } else {
-        // Pass 4: 自動敷き詰めタスクが存在せず、早期完了枠にまだ何も配置されていない場合のフォールバック
-        for (const eb of dayEarlyBlocks) {
-          const hasOverlappingPlaced = recompactedBlocks.some(
-            (rb) =>
-              Math.max(rb.startMinutes, eb.startMinutes) <
-              Math.min(rb.endMinutes, eb.endMinutes + (eb.breakMinutes || 0)),
-          );
-          if (hasOverlappingPlaced) continue;
-
-          const ebEffectiveStart =
-            d === todayIdx ? Math.max(eb.startMinutes, currMinutes) : eb.startMinutes;
-          const fallbackPlan = plans.find((p) => {
-            const tid = p.origTaskId || p.task.id;
-            if (usedTaskIdsOnDay.has(tid) || usedTaskIdsOnDay.has(p.task.id)) return false;
-            if (!eb.isFixed && (eb.taskId === tid || eb.title === p.task.title)) return false;
-            const dur = getTaskRawDuration(p.task);
-            return freeSlots.some((s) => {
-              const st = Math.max(s.startMinutes, ebEffectiveStart);
-              return st < eb.endMinutes && s.endMinutes - st >= dur;
-            });
-          });
-
-          if (fallbackPlan) {
-            const tid = fallbackPlan.origTaskId || fallbackPlan.task.id;
-            const rawDuration = getTaskRawDuration(fallbackPlan.task);
-            const breakMin =
-              fallbackPlan.task.breakMinutes && fallbackPlan.task.breakMinutes > 0
-                ? fallbackPlan.task.breakMinutes
-                : 0;
-            const targetSlot = freeSlots.find((s) => {
-              const st = Math.max(s.startMinutes, ebEffectiveStart);
-              return st < eb.endMinutes && s.endMinutes - st >= rawDuration;
-            });
-
-            if (targetSlot) {
-              const placedStart = Math.max(targetSlot.startMinutes, ebEffectiveStart);
-              const placedEnd = placedStart + rawDuration;
-              const avail = targetSlot.endMinutes - placedStart;
-              const effectiveBreak = Math.max(0, Math.min(breakMin, avail - rawDuration));
-              const isWeekly = isWeeklyTaskItem(fallbackPlan.task);
-
-              recompactedBlocks.push({
-                id: `block-substitute-${d}-${tid}-${eb.id}-${placedStart}`,
-                title: fallbackPlan.task.title,
-                category: fallbackPlan.task.category,
-                startMinutes: placedStart,
-                endMinutes: placedEnd,
-                isFixed: false,
-                isBreak: false,
-                breakMinutes: effectiveBreak > 0 ? effectiveBreak : undefined,
-                isWeeklyTask: isWeekly,
-                color: isWeekly ? '#8b5cf6' : getCategoryColor(fallbackPlan.task.category),
-                taskId: tid,
-                priority: fallbackPlan.task.priority,
-                taskType: fallbackPlan.task.taskType || 'task',
-                deadlineDay: fallbackPlan.task.deadlineDay,
-                dayIndex: d,
-                sourceTableId: fallbackPlan.task.sourceTableId,
-                sourceTableName: fallbackPlan.task.sourceTableName,
-                isSubstitute: true,
-                substitutedForTitle: eb.title,
-                substitutedForBlockId: eb.id,
-                isCompleted: false,
-              });
-
-              consumeIntervalFromFreeSlots(placedStart, placedEnd + effectiveBreak);
-              usedTaskIdsOnDay.add(tid);
             }
           }
         }

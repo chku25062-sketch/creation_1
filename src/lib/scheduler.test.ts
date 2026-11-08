@@ -3393,6 +3393,51 @@ describe('Theoretical Scheduler Engine', () => {
           expect(compWed.isCompleted).toBe(true);
         });
 
+        it('早期完了によって枠が開いた際、過去に完了した日課タスクや他曜日の日課タスクが代行として未完了で出現しないこと', () => {
+          const fixedSlots: FixedSlot[] = [
+            {
+              id: 'sleep-all',
+              title: '睡眠',
+              category: 'sleep',
+              startMinutes: 0,
+              endMinutes: 540,
+              color: '#6366f1',
+              daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+            },
+            {
+              id: 'lecture-wed',
+              title: '水曜1限講義',
+              category: 'lecture',
+              startMinutes: 540, // 09:00
+              endMinutes: 630, // 10:30
+              color: '#0284c7',
+              daysOfWeek: [2],
+            },
+          ];
+
+          // 月曜（0）に完了した日課タスク
+          const monDailyTask: TaskItem = {
+            id: 'task-mon-cleaning',
+            title: '月曜朝の清掃ルーチン',
+            category: 'life',
+            priority: 'medium',
+            durationMinutes: 45,
+            period: 'day',
+            targetDays: [0],
+          };
+
+          // 水曜（2）のタスクは講義のみ。講義を09:30に早期完了する
+          const result = generateTheoreticalSchedule(fixedSlots, [monDailyTask], {
+            todayIndex: 2, // 水曜
+            currentMinutes: 570, // 09:30
+            completedBlockIds: new Set(['lecture-wed', 'block-task-0-task-mon-cleaning-0']),
+          });
+
+          // 水曜日のブロックに「月曜朝の清掃ルーチン」が代行タスクとして未完了で引っ張ってこられていないこと
+          const wedSubstitute = result.dayBlocks[2].find((b) => b.title === '月曜朝の清掃ルーチン');
+          expect(wedSubstitute).toBeUndefined();
+        });
+
         it('早期完了時の再配置で、元の枠の残り時間に無理やり別タスクを切り詰めて詰め込んだりせず、本来の所要時間を維持したまま連続再配置および連鎖完了ができること', () => {
           // 火曜（dayIndex: 1）
           // 00:00〜09:00 睡眠 (0〜540分)
