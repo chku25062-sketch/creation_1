@@ -251,6 +251,18 @@ export function generatePlacementPlans(
         if (!matchedTask) continue;
         if (!isWeeklyTaskItem(matchedTask)) continue;
 
+        // 大元タスクが完了になっている場合は再配置プランを生成しない（再配置先を取り除く）
+        if (
+          realtimeContext.completedBlockIds &&
+          (realtimeContext.completedBlockIds.has(id) ||
+            realtimeContext.completedBlockIds.has(matchedTask.id) ||
+            Array.from(realtimeContext.completedBlockIds).some(
+              (cid) => cid.includes(matchedTask!.id) && !cid.startsWith('block-rescheduled-'),
+            ))
+        ) {
+          continue;
+        }
+
         // 未来の枠は未完了でも再配置しない（これから実施するため）
         if (fromDay > todayIdx) continue;
 

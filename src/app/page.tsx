@@ -791,22 +791,25 @@ export default function Home() {
         return next;
       });
 
-      // 2. 完了リストに、このブロックおよび大元ブロックのIDを追加登録
+      // 2. 完了リストの更新
       setCompletedBlockIds((prev) => {
         const next = new Set(prev);
-        next.add(block.id);
-        if (originalBlock) {
-          next.add(originalBlock.id);
-        }
-        // 再配置ブロックまたは大元ブロックに関連するブロックも完了としてマーク
-        for (const b of relatedBlocks) {
-          if (
-            b.isRescheduled ||
-            b.id === block.id ||
-            (originalBlock && b.id === originalBlock.id)
-          ) {
-            next.add(b.id);
+        if (block.isRescheduled) {
+          // 【再配置ブロックを完了にした場合】:
+          // 再配置先も完了（済）として残し、大元ブロックも連動して完了にする
+          next.add(block.id);
+          if (originalBlock) {
+            next.add(originalBlock.id);
           }
+        } else {
+          // 【大元のタスクを未完了から完了にした場合】:
+          // 大元のタスクを完了にし、不要になった再配置先を取り除く（消去する）
+          for (const b of relatedBlocks) {
+            if (b.isRescheduled) {
+              next.delete(b.id);
+            }
+          }
+          next.add(block.id);
         }
         try {
           localStorage.setItem('app_completed_block_ids', JSON.stringify(Array.from(next)));

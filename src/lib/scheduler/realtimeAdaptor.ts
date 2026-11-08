@@ -61,6 +61,30 @@ export function applyRealtimeAdaptation(params: RealtimeAdaptationParams): {
     effectiveUncompletedIds.delete(cid);
   }
 
+  // 大元タスクが手動完了（非再配置IDで完了指定）されている場合、そのタスクの再配置ブロックは取り除く（消去する）
+  const completedOrigTaskIds = new Set<string>();
+  for (const cid of userCompletedIds) {
+    if (!cid.startsWith('block-rescheduled-')) {
+      const match = cid.match(/^block-task-\d+-(.+?)(?:-\d+)?$/);
+      if (match) {
+        completedOrigTaskIds.add(match[1]);
+      } else {
+        completedOrigTaskIds.add(cid);
+      }
+    }
+  }
+
+  for (let d = 0; d < 7; d++) {
+    if (dayBlocks[d]) {
+      dayBlocks[d] = dayBlocks[d].filter((b) => {
+        if (b.isRescheduled && b.taskId && completedOrigTaskIds.has(b.taskId)) {
+          return false; // 大元タスクが完了したので、再配置先を取り除く
+        }
+        return true;
+      });
+    }
+  }
+
   const isAutoBlock = (block: TheoreticalBlock): boolean => {
     if (block.isFixed || block.isBreak || block.isWeeklyTask || block.isRescheduled) return false;
     if (block.taskId && autoTaskIds.has(block.taskId)) return true;
@@ -72,11 +96,6 @@ export function applyRealtimeAdaptation(params: RealtimeAdaptationParams): {
     if (userCompletedIds.has(block.id)) return true;
     if (!block.isFixed && block.taskId) {
       if (userCompletedIds.has(block.taskId)) return true;
-      // 再配置ブロックの大元ブロックが完了指定されている場合
-      if (block.isRescheduled && block.rescheduledFromDay !== undefined) {
-        const origId = `block-task-${block.rescheduledFromDay}-${block.taskId}-0`;
-        if (userCompletedIds.has(origId)) return true;
-      }
       // 大元ブロックの再配置先が完了指定されている場合、大元ブロックも完了とみなす
       if (!block.isRescheduled) {
         for (const cid of userCompletedIds) {

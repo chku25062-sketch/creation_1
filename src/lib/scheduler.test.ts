@@ -3438,6 +3438,61 @@ describe('Theoretical Scheduler Engine', () => {
           expect(wedSubstitute).toBeUndefined();
         });
 
+        it('再配置先ではなく元のタスクが未完了から完了になった場合、再配置先が完全に取り除かれること', () => {
+          const fixedSlots: FixedSlot[] = [
+            {
+              id: 'sleep-all',
+              title: '睡眠',
+              category: 'sleep',
+              startMinutes: 0,
+              endMinutes: 540,
+              color: '#6366f1',
+              daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+            },
+          ];
+
+          const reportTask: TaskItem = {
+            id: 'task-report-remove-rescheduled',
+            title: '月曜の物理レポート',
+            category: 'must',
+            priority: 'high',
+            durationMinutes: 60,
+            period: 'week',
+            frequencyCount: 1,
+            targetDays: [0],
+          };
+
+          // ステップ1: 月曜の物理レポートが未完了なので、水曜（2）に再配置される
+          const step1 = generateTheoreticalSchedule(fixedSlots, [reportTask], {
+            todayIndex: 2,
+            currentMinutes: 540,
+            uncompletedBlockIds: new Set(['block-task-0-task-report-remove-rescheduled-0']),
+          });
+
+          const resWed = step1.dayBlocks[2].find(
+            (b) => b.isRescheduled && b.taskId === 'task-report-remove-rescheduled',
+          );
+          expect(resWed).toBeDefined();
+
+          // ステップ2: ユーザーが大元のタスク（月曜）を完了にした！
+          const step2 = generateTheoreticalSchedule(fixedSlots, [reportTask], {
+            todayIndex: 2,
+            currentMinutes: 540,
+            completedBlockIds: new Set(['block-task-0-task-report-remove-rescheduled-0']),
+            uncompletedBlockIds: new Set(),
+          });
+
+          // 月曜の大元タスクは完了状態になっていること
+          const origMon = step2.dayBlocks[0].find((b) => b.title === '月曜の物理レポート')!;
+          expect(origMon.isCompleted).toBe(true);
+
+          // 水曜の再配置先は完全に取り除かれて存在しないこと
+          const removedResWed = step2.dayBlocks[2].find(
+            (b) => b.isRescheduled && b.taskId === 'task-report-remove-rescheduled',
+          );
+          expect(removedResWed).toBeUndefined();
+        });
+
         it('早期完了時の再配置で、元の枠の残り時間に無理やり別タスクを切り詰めて詰め込んだりせず、本来の所要時間を維持したまま連続再配置および連鎖完了ができること', () => {
           // 火曜（dayIndex: 1）
           // 00:00〜09:00 睡眠 (0〜540分)
