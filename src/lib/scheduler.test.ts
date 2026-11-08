@@ -3255,7 +3255,7 @@ describe('Theoretical Scheduler Engine', () => {
           expect(movedB.endMinutes).toBe(705);
         });
 
-        it('未完了にした週タスクの再配置ブロック（isRescheduled）に対し、元のタスクを完了に戻さなくても再配置ブロック単体で完了状態にでき、早期完了時の上からの再配置も適用されること', () => {
+        it('未完了にした週タスクの再配置ブロック（isRescheduled）を完了にした際、大元のタスクも連動して完了状態になり、早期完了時の上からの再配置も適用されること', () => {
           // 全曜日の00:00〜09:00は睡眠固定枠
           const fixedSlots: FixedSlot[] = [
             {
@@ -3319,10 +3319,10 @@ describe('Theoretical Scheduler Engine', () => {
             completedBlockIds: new Set([rescheduledBlock.id]),
           });
 
-          // 1. 月曜の元ブロックは未完了のまま維持されていること
+          // 1. 月曜の元ブロックも再配置先の完了に連動して完了状態（isCompleted: true）になること
           const origMonBlock = step2.dayBlocks[0].find((b) => b.title === '月曜の実験レポート')!;
           expect(origMonBlock).toBeDefined();
-          expect(origMonBlock.isCompleted).toBe(false);
+          expect(origMonBlock.isCompleted).toBe(true);
 
           // 2. 水曜の再配置ブロックは消滅せず、完了・早期完了（グレーアウト）状態になっていること
           const compRescheduled = step2.dayBlocks[2].find((b) => b.id === rescheduledBlock.id)!;
@@ -3335,6 +3335,62 @@ describe('Theoretical Scheduler Engine', () => {
           expect(movedWedTask).toBeDefined();
           expect(movedWedTask.startMinutes).toBe(565);
           expect(movedWedTask.endMinutes).toBe(610);
+        });
+
+        it('再配置先を完了にした時、大元の過去ブロックも連動して完了になり、未完了リストと競合しても安全に完了が維持されること', () => {
+          const fixedSlots: FixedSlot[] = [
+            {
+              id: 'sleep-all',
+              title: '睡眠',
+              category: 'sleep',
+              startMinutes: 0,
+              endMinutes: 540,
+              color: '#6366f1',
+              daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+            },
+          ];
+
+          const reportTask: TaskItem = {
+            id: 'task-report-sync',
+            title: '月曜の課題レポート',
+            category: 'must',
+            priority: 'high',
+            durationMinutes: 60,
+            period: 'week',
+            frequencyCount: 1,
+            targetDays: [0],
+          };
+
+          // 水曜時点で月曜のレポートが未完了だったため再配置される
+          const step1 = generateTheoreticalSchedule(fixedSlots, [reportTask], {
+            todayIndex: 2,
+            currentMinutes: 540,
+            uncompletedBlockIds: new Set(['block-task-0-task-report-sync-0']),
+          });
+
+          const rescheduled = step1.dayBlocks[2].find(
+            (b) => b.isRescheduled && b.taskId === 'task-report-sync',
+          )!;
+          expect(rescheduled).toBeDefined();
+
+          // 再配置先で完了にした場合
+          const step2 = generateTheoreticalSchedule(fixedSlots, [reportTask], {
+            todayIndex: 2,
+            currentMinutes: 540,
+            completedBlockIds: new Set([rescheduled.id]),
+            uncompletedBlockIds: new Set(['block-task-0-task-report-sync-0']),
+          });
+
+          // 大元（月曜）のブロックが完了状態（isCompleted: true）になっていること
+          const origMon = step2.dayBlocks[0].find((b) => b.title === '月曜の課題レポート')!;
+          expect(origMon.isCompleted).toBe(true);
+
+          // 水曜の再配置ブロックも消滅せず完了状態になっていること
+          const compWed = step2.dayBlocks[2].find(
+            (b) => b.title === '月曜の課題レポート' && b.isRescheduled,
+          )!;
+          expect(compWed).toBeDefined();
+          expect(compWed.isCompleted).toBe(true);
         });
 
         it('早期完了時の再配置で、元の枠の残り時間に無理やり別タスクを切り詰めて詰め込んだりせず、本来の所要時間を維持したまま連続再配置および連鎖完了ができること', () => {

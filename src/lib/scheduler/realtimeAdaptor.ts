@@ -55,6 +55,12 @@ export function applyRealtimeAdaptation(params: RealtimeAdaptationParams): {
     }
   }
 
+  // 完了Setと未完了Setの競合ガード（同一IDがあれば完了側を優先して未完了から除外し、連打時の膠着を完全防止）
+  const effectiveUncompletedIds = new Set(userUncompletedIds);
+  for (const cid of userCompletedIds) {
+    effectiveUncompletedIds.delete(cid);
+  }
+
   const isAutoBlock = (block: TheoreticalBlock): boolean => {
     if (block.isFixed || block.isBreak || block.isWeeklyTask || block.isRescheduled) return false;
     if (block.taskId && autoTaskIds.has(block.taskId)) return true;
@@ -62,18 +68,39 @@ export function applyRealtimeAdaptation(params: RealtimeAdaptationParams): {
     return t?.dailyRepeatMode === 'auto';
   };
 
-  const isExplicitlyUncompleted = (block: TheoreticalBlock): boolean => {
-    if (userUncompletedIds.has(block.id)) return true;
-    if (!block.isRescheduled && !block.isFixed && block.taskId) {
-      if (userUncompletedIds.has(block.taskId)) return true;
+  const isExplicitlyCompleted = (block: TheoreticalBlock): boolean => {
+    if (userCompletedIds.has(block.id)) return true;
+    if (!block.isFixed && block.taskId) {
+      if (userCompletedIds.has(block.taskId)) return true;
+      // 再配置ブロックの大元ブロックが完了指定されている場合
+      if (block.isRescheduled && block.rescheduledFromDay !== undefined) {
+        const origId = `block-task-${block.rescheduledFromDay}-${block.taskId}-0`;
+        if (userCompletedIds.has(origId)) return true;
+      }
+      // 大元ブロックの再配置先が完了指定されている場合、大元ブロックも完了とみなす
+      if (!block.isRescheduled) {
+        for (const cid of userCompletedIds) {
+          if (cid.startsWith('block-rescheduled-') && cid.includes(block.taskId)) {
+            return true;
+          }
+        }
+      }
     }
     return false;
   };
 
-  const isExplicitlyCompleted = (block: TheoreticalBlock): boolean => {
-    if (userCompletedIds.has(block.id)) return true;
-    if (!block.isRescheduled && !block.isFixed && block.taskId) {
-      if (userCompletedIds.has(block.taskId)) return true;
+  const isExplicitlyUncompleted = (block: TheoreticalBlock): boolean => {
+    // 自身または再配置先が手動完了されている場合は未完了ではない
+    if (isExplicitlyCompleted(block)) return false;
+
+    if (effectiveUncompletedIds.has(block.id)) return true;
+    if (!block.isFixed && block.taskId) {
+      if (effectiveUncompletedIds.has(block.taskId)) return true;
+      // 再配置ブロックの大元ブロックが未完了指定されている場合
+      if (block.isRescheduled && block.rescheduledFromDay !== undefined) {
+        const origId = `block-task-${block.rescheduledFromDay}-${block.taskId}-0`;
+        if (effectiveUncompletedIds.has(origId)) return true;
+      }
     }
     return false;
   };
