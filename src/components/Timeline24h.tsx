@@ -11,7 +11,6 @@ import {
   Circle,
   Sparkles,
   RotateCcw,
-  Laptop,
 } from 'lucide-react';
 import { TheoreticalBlock, TaskItem, ImportedTableData, AppThemeMode } from '@/types';
 import { minutesToTimeString, formatDuration } from '@/lib/timeUtils';
@@ -25,7 +24,6 @@ interface Timeline24hProps {
   onToggleFocus?: () => void;
   onToggleBlockComplete?: (block: TheoreticalBlock) => void;
   themeMode?: AppThemeMode;
-  onToggleThemeMode?: (mode: AppThemeMode) => void;
   selectedDayIndex?: number;
   onSelectDayIndex?: (dayIndex: number) => void;
   overrideTodayIndex?: number;
@@ -344,7 +342,6 @@ export function Timeline24h({
   focusMode = 'today',
   onToggleBlockComplete,
   themeMode = 'planner',
-  onToggleThemeMode,
   selectedDayIndex: controlledDayIndex,
   onSelectDayIndex,
   overrideTodayIndex,
@@ -584,29 +581,15 @@ export function Timeline24h({
             isPlanner ? 'border-slate-200 bg-[#f8f6f0]' : 'border-slate-200 bg-slate-50/95'
           }`}
         >
-          {/* Time axis header space ＋ テーマ切替スイッチ */}
+          {/* Time axis header space */}
           <div
-            className={`${timeAxisWidthClass} border-r border-slate-200 py-1.5 px-0.5 text-center flex flex-col items-center justify-center gap-0.5 ${
+            className={`${timeAxisWidthClass} border-r border-slate-200 py-1.5 px-0.5 text-center flex flex-col items-center justify-center ${
               isPlanner ? 'bg-[#f4f1e8]' : 'bg-slate-50'
             }`}
           >
             <span className="font-mono text-[9px] sm:text-[10px] font-bold text-slate-500">
               時間
             </span>
-            {onToggleThemeMode && (
-              <button
-                type="button"
-                onClick={() => onToggleThemeMode(isPlanner ? 'modern' : 'planner')}
-                className={`flex items-center justify-center h-4 w-11 rounded text-[8px] font-bold border transition cursor-pointer shadow-2xs ${
-                  isPlanner
-                    ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
-                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
-                }`}
-                title={isPlanner ? '付箋カードスタイルへ切替' : '手帳直書きスタイルへ切替'}
-              >
-                {isPlanner ? '📖手帳' : '💻付箋'}
-              </button>
-            )}
           </div>
 
           {/* Column Headers: フォーカスモード(1日) ⇄ 週間全体(7列) */}
@@ -673,29 +656,6 @@ export function Timeline24h({
                 <span className="font-mono text-slate-600 text-[11px]">
                   {displayedDays[0]?.month}/{displayedDays[0]?.day} ({displayedDays[0]?.dayOfWeek})
                 </span>
-                {onToggleThemeMode && (
-                  <button
-                    onClick={() => onToggleThemeMode(isPlanner ? 'modern' : 'planner')}
-                    className={`hidden sm:flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-bold border transition shadow-2xs cursor-pointer ${
-                      isPlanner
-                        ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
-                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-                    }`}
-                    title={isPlanner ? '付箋カードスタイルへ切替' : '手帳直書きスタイルへ切替'}
-                  >
-                    {isPlanner ? (
-                      <>
-                        <BookOpen className="h-3 w-3 text-amber-800" />
-                        <span>手帳直書き</span>
-                      </>
-                    ) : (
-                      <>
-                        <Laptop className="h-3 w-3 text-blue-600" />
-                        <span>付箋カード</span>
-                      </>
-                    )}
-                  </button>
-                )}
               </div>
             </div>
           ) : (

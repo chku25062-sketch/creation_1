@@ -3,10 +3,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Target,
-  Plus,
   Trash2,
   Clock,
-  Zap,
   Sun,
   CalendarDays,
   X,
@@ -16,9 +14,6 @@ import {
   Moon,
   Utensils,
   Coffee,
-  Pencil,
-  CheckCircle2,
-  Circle,
   Repeat,
   Briefcase,
   ChevronUp,
@@ -53,61 +48,6 @@ export interface TaskManagerProps {
 
 const DAY_LABELS = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'];
 const WEEKDAY_SHORT = ['月', '火', '水', '木', '金', '土', '日'];
-
-const PRESET_TASKS: Omit<TaskItem, 'id'>[] = [
-  {
-    title: 'プログラミング課題レポート',
-    category: 'must',
-    durationSize: 'medium',
-    durationMinutes: 60,
-    frequency: 'low',
-    priority: 'high',
-    period: 'week',
-    taskType: 'assignment',
-    startDay: 0,
-    deadlineDay: 4,
-  },
-  {
-    title: '基本情報・資格試験対策',
-    category: 'want',
-    durationSize: 'medium',
-    durationMinutes: 60,
-    frequency: 'high',
-    priority: 'high',
-    period: 'day',
-    taskType: 'task',
-  },
-  {
-    title: '教科書・参考書の購入',
-    category: 'must',
-    hasNoDuration: true,
-    durationMinutes: 0,
-    frequency: 'low',
-    priority: 'medium',
-    period: 'week',
-    taskType: 'todo',
-  },
-  {
-    title: 'ジム・筋トレ＆有酸素',
-    category: 'want',
-    durationSize: 'small',
-    durationMinutes: 25,
-    frequency: 'medium',
-    priority: 'high',
-    period: 'week',
-    taskType: 'task',
-  },
-  {
-    title: '個人プロダクト開発',
-    category: 'want',
-    durationSize: 'large',
-    durationMinutes: 120,
-    frequency: 'low',
-    priority: 'high',
-    period: 'week',
-    taskType: 'task',
-  },
-];
 
 export interface DurationOptionItem {
   size: TaskDurationSize;
@@ -212,7 +152,7 @@ export function TaskManager({
   const [slotSortKey, setSlotSortKey] = useState<
     'time-asc' | 'time-desc' | 'title-asc' | 'category'
   >('time-asc');
-  const [slotCategoryFilter, setSlotCategoryFilter] = useState<FixedCategory | 'all'>('all');
+  const [slotCategoryFilter, setSlotCategoryFilter] = useState<string>('all');
   const [slotDayFilter, setSlotDayFilter] = useState<number | 'all' | 'daily'>('all');
   const [isSlotFilterOpen, setIsSlotFilterOpen] = useState(false);
   const isSlotFilterActive = slotCategoryFilter !== 'all' || slotDayFilter !== 'all';
@@ -245,215 +185,13 @@ export function TaskManager({
     setModalType(null);
     setEditingTaskId(null);
     setEditingSlotId(null);
-  };
-
-  // タスク追加モーダルを開く
-  const openAddTask = (
-    presetPeriod: 'day' | 'week' = 'week',
-    options?: {
-      isAssignment?: boolean;
-      isTodo?: boolean;
-      groupName?: string;
-    },
-  ) => {
-    setEditingTaskId(null);
-    setTaskTitle(options?.isAssignment ? 'レポート課題' : '');
-    setTaskPeriodScope(presetPeriod);
-    setTaskGroupName(options?.groupName || '基本設定');
-    setDailyTimingMode('weekday');
-    setDailyRepeatMode('auto');
-    setDailyCount(1);
-    setDailyDays([0, 1, 2, 3, 4, 5, 6]);
-    setDailyCycleDays([0]);
-    setDailyCycleCount(3);
-    setWeekTimingMode('weekday');
-    setWeekTargetDays([0, 2]); // 月・水
-    setWeekCycleDays([0]);
-    setWeekCycleCount(3);
-    setFlexibleCount(2);
-    setDurationSize(options?.isTodo ? 'small' : 'medium');
-    setDurationMinutes(options?.isTodo ? 0 : 60);
-    setTaskBreakMinutes(0);
-    setIsNoDurationTodo(!!options?.isTodo);
-    setHasDeadline(!!options?.isAssignment);
-    setStartDay(0);
-    setDeadlineDay(4);
-    setScheduleAfterEnabled(false);
-    setScheduleAfterDay(0);
-    setScheduleAfterTime('12:10');
     setTaskSourceTableId(undefined);
     setTaskSourceTableName(undefined);
-    setModalType('task');
-  };
-
-  // 授業枠から課題タスク追加モーダルを開く（出題日=授業日、締切日=授業日前日、元タスクより後に時間設定）
-  const openAddAssignmentFromLecture = (slot: FixedSlot) => {
-    const lectureDay = slot.daysOfWeek && slot.daysOfWeek.length > 0 ? slot.daysOfWeek[0] : 0;
-    const calcDeadlineDay = (lectureDay - 1 + 7) % 7; // 前日
-
-    setEditingTaskId(null);
-    setTaskTitle(`${slot.title} レポート課題`);
-    setTaskPeriodScope('week');
-    setTaskGroupName(slot.sourceTableName || slot.category || '授業課題');
-    setDailyTimingMode('weekday');
-    setDailyRepeatMode('auto');
-    setDailyCount(1);
-    setDailyDays([0, 1, 2, 3, 4, 5, 6]);
-    setDailyCycleDays([0]);
-    setDailyCycleCount(3);
-    setWeekTimingMode('weekday');
-    setWeekTargetDays([lectureDay]);
-    setWeekCycleDays([0]);
-    setWeekCycleCount(3);
-    setFlexibleCount(1);
-    setDurationSize('medium');
-    setDurationMinutes(60);
-    setTaskBreakMinutes(15);
-    setIsNoDurationTodo(false);
-    setHasDeadline(true);
-    setStartDay(lectureDay);
-    setDeadlineDay(calcDeadlineDay);
-    setScheduleAfterEnabled(true);
-    setScheduleAfterDay(lectureDay);
-    setScheduleAfterTime(minutesToTimeString(slot.endMinutes));
-    setTaskSourceTableId(slot.sourceTableId);
-    setTaskSourceTableName(slot.sourceTableName);
-    setModalType('task');
-  };
-
-  // タスク編集モーダルを開く
-  const openEditTask = (task: TaskItem) => {
-    setEditingTaskId(task.id);
-    setTaskTitle(task.title);
-    setTaskBreakMinutes(task.breakMinutes || 0);
-    const isDaily = task.period === 'day' || task.frequency === 'high';
-    setTaskPeriodScope(isDaily ? 'day' : 'week');
-    setTaskGroupName(task.sourceTableName || task.category || '基本設定');
-
-    // 日の設定復元
-    if (task.dailyRepeatMode === 'custom' && task.dailyCount !== undefined) {
-      setDailyRepeatMode('custom');
-      setDailyCount(task.dailyCount);
-    } else if (task.dailyCount && task.dailyCount > 1) {
-      setDailyRepeatMode('custom');
-      setDailyCount(task.dailyCount);
-    } else if (task.dailyRepeatMode === 'auto' || task.dailyCount === undefined) {
-      setDailyRepeatMode('auto');
-      setDailyCount(1);
-    } else {
-      setDailyRepeatMode('auto');
-      setDailyCount(1);
-    }
-    if (task.cycleDays && task.cycleDays.length > 0) {
-      setDailyTimingMode('cycle');
-      setDailyCycleDays([...task.cycleDays]);
-      setDailyCycleCount(task.cycleCount || 3);
-      setDailyDays([0, 1, 2, 3, 4, 5, 6]);
-    } else {
-      setDailyTimingMode('weekday');
-      setDailyDays(
-        task.targetDays && task.targetDays.length > 0
-          ? [...task.targetDays]
-          : [0, 1, 2, 3, 4, 5, 6],
-      );
-      setDailyCycleDays([0]);
-      setDailyCycleCount(3);
-    }
-
-    // 週の設定復元
-    if (task.cycleDays && task.cycleDays.length > 0) {
-      setWeekTimingMode('cycle');
-      setWeekCycleDays([...task.cycleDays]);
-      setWeekCycleCount(task.cycleCount || 3);
-      setWeekTargetDays([0, 2]);
-      setFlexibleCount(task.cycleDays.length);
-    } else if (task.targetDays && task.targetDays.length > 0) {
-      setWeekTimingMode('weekday');
-      setWeekTargetDays([...task.targetDays]);
-      setWeekCycleDays([0]);
-      setWeekCycleCount(3);
-      setFlexibleCount(task.targetDays.length);
-    } else if (task.frequencyCount) {
-      setWeekTimingMode('flexible');
-      setFlexibleCount(task.frequencyCount);
-      setWeekTargetDays([0, 2]);
-      setWeekCycleDays([0]);
-      setWeekCycleCount(3);
-    } else {
-      setWeekTimingMode('weekday');
-      setWeekTargetDays(task.startDay !== undefined ? [task.startDay] : [0, 2]);
-      setWeekCycleDays([0]);
-      setWeekCycleCount(3);
-      setFlexibleCount(2);
-    }
-
-    // 所要時間復元
-    const isTodo = !!task.hasNoDuration || task.taskType === 'todo';
-    setIsNoDurationTodo(isTodo);
-    setDurationMinutes(task.durationMinutes || (isTodo ? 0 : 60));
-    setDurationSize(
-      task.durationSize ||
-        (task.durationMinutes < 30 ? 'small' : task.durationMinutes >= 120 ? 'large' : 'medium'),
-    );
-
-    // 締切オプション復元
-    const hasDl = task.taskType === 'assignment' || task.deadlineDay !== undefined;
-    setHasDeadline(hasDl);
-    setStartDay(task.startDay ?? 0);
-    setDeadlineDay(task.deadlineDay ?? 4);
-
-    // 指定日時以降オプション復元
-    const isScheduleAfter =
-      !!task.scheduleAfterEnabled ||
-      (task.period === 'week' &&
-        task.earliestStartTime !== undefined &&
-        !task.autoPlaceWithinRange &&
-        task.earliestStartTime > 0);
-    setScheduleAfterEnabled(isScheduleAfter);
-    setScheduleAfterDay(task.scheduleAfterDay ?? task.startDay ?? 0);
-    const formattedTime =
-      typeof task.scheduleAfterTime === 'string'
-        ? task.scheduleAfterTime
-        : task.scheduleAfterTime !== undefined
-          ? minutesToTimeString(task.scheduleAfterTime)
-          : task.earliestStartTime !== undefined && task.earliestStartTime > 0
-            ? minutesToTimeString(task.earliestStartTime)
-            : '12:10';
-    setScheduleAfterTime(formattedTime);
-
-    setTaskSourceTableId(task.sourceTableId);
-    setTaskSourceTableName(task.sourceTableName);
-    setModalType('task');
-  };
-
-  // 固定枠追加モーダルを開く
-  const openAddSlot = () => {
-    setEditingSlotId(null);
-    setSlotTitle('');
-    setSlotCategory('lecture');
-    setSlotStartTime('10:40');
-    setSlotEndTime('12:10');
-    setSlotDays([0, 2]); // 月・水
-    setAutoAddAssignment(true);
     setSlotSourceTableId(undefined);
     setSlotSourceTableName(undefined);
-    setModalType('slot');
   };
 
-  // 固定枠編集モーダルを開く
-  const openEditSlot = (slot: FixedSlot) => {
-    setEditingSlotId(slot.id);
-    setSlotTitle(slot.title);
-    setSlotCategory(slot.category);
-    setSlotStartTime(minutesToTimeString(slot.startMinutes));
-    setSlotEndTime(minutesToTimeString(slot.endMinutes));
-    setSlotDays(slot.daysOfWeek ? [...slot.daysOfWeek] : [0, 1, 2, 3, 4, 5, 6]);
-    setSlotSourceTableId(slot.sourceTableId);
-    setSlotSourceTableName(slot.sourceTableName);
-    setModalType('slot');
-  };
-
-  // タスク保存（新規・更新共通）
+  // タスク保存（更新）
   const handleSaveTask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!taskTitle.trim()) return;
@@ -680,28 +418,44 @@ export function TaskManager({
     }
   };
 
-  const handleAddPresetTask = (preset: Omit<TaskItem, 'id'>) => {
-    const newTask: TaskItem = {
-      ...preset,
-      id: `task-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      completed: false,
-    };
-    onChange([...tasks, newTask]);
-  };
-
-  const handleToggleComplete = (e: React.MouseEvent, id: string) => {
+  // 各タスクの ON / OFF (enabled) 切り替え
+  const handleToggleTaskEnabled = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    onChange(tasks.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)));
+    onChange(
+      tasks.map((t) => (t.id === id ? { ...t, enabled: t.enabled === false ? true : false } : t)),
+    );
   };
 
+  // 各固定枠の ON / OFF (enabled) 切り替え
+  const handleToggleSlotEnabled = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    onSlotsChange(
+      slots.map((s) => (s.id === id ? { ...s, enabled: s.enabled === false ? true : false } : s)),
+    );
+  };
+
+  // カードからの直接タスク削除
   const handleDeleteTask = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     onChange(tasks.filter((t) => t.id !== id));
   };
 
+  // カードからの直接固定枠削除
   const handleDeleteSlot = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     onSlotsChange(slots.filter((s) => s.id !== id));
+  };
+
+  // 表示中のタスクを一括 ON / OFF
+  const handleBulkToggleTasks = (targetList: TaskItem[], enable: boolean) => {
+    const targetIds = new Set(targetList.map((t) => t.id));
+    onChange(tasks.map((t) => (targetIds.has(t.id) ? { ...t, enabled: enable } : t)));
+  };
+
+  // 表示中の固定枠を一括 ON / OFF
+  const handleBulkToggleSlots = (targetList: FixedSlot[], enable: boolean) => {
+    const targetIds = new Set(targetList.map((s) => s.id));
+    onSlotsChange(slots.map((s) => (targetIds.has(s.id) ? { ...s, enabled: enable } : s)));
   };
 
   const toggleSlotDay = (dayIndex: number) => {
@@ -776,20 +530,60 @@ export function TaskManager({
     return null;
   };
 
+  // 固定枠のカテゴリラベル対応
+  const FIXED_CATEGORY_LABELS: Record<string, string> = {
+    lecture: '講義・授業',
+    sleep: '睡眠',
+    work: '勤務・学業',
+    routine: 'ルーティン',
+    meal: '食事',
+    other: 'その他',
+  };
+
+  // 固定枠の所属グループ名取得（取り込み表データ名 or カテゴリ名）
+  const getSlotGroupName = (slot: FixedSlot): string => {
+    const fileName = getSlotSourceFileName(slot);
+    if (fileName) return fileName;
+    if (slot.sourceTableName) return slot.sourceTableName;
+    if (slot.category && FIXED_CATEGORY_LABELS[slot.category]) {
+      return FIXED_CATEGORY_LABELS[slot.category];
+    }
+    return slot.category || '固定枠';
+  };
+
   // 分割データ: 頻度「高 (週5回以上)」または period 'day' を日ごとスタックに配置
   const dailyTasks = tasks.filter((t) => t.period === 'day' || t.frequency === 'high');
   const weeklyTasks = tasks.filter((t) => !(t.period === 'day' || t.frequency === 'high'));
 
-  const dailyTotalMinutes = dailyTasks.reduce((acc, t) => acc + (t.durationMinutes || 0), 0);
-  const weeklyTotalMinutes = weeklyTasks.reduce((acc, t) => acc + (t.durationMinutes || 0), 0);
+  const dailyTotalMinutes = dailyTasks
+    .filter((t) => t.enabled !== false)
+    .reduce((acc, t) => acc + (t.durationMinutes || 0), 0);
+  const weeklyTotalMinutes = weeklyTasks
+    .filter((t) => t.enabled !== false)
+    .reduce((acc, t) => acc + (t.durationMinutes || 0), 0);
+  const slotsTotalMinutes = slots
+    .filter((s) => s.enabled !== false)
+    .reduce((acc, s) => {
+      const dur =
+        s.endMinutes >= s.startMinutes
+          ? s.endMinutes - s.startMinutes
+          : 1440 - s.startMinutes + s.endMinutes;
+      return acc + dur;
+    }, 0);
 
   // 絞り込み & 並び替えされた固定枠
   const filteredAndSortedSlots = useMemo(() => {
     let result = [...slots];
 
-    // 1. カテゴリ絞り込み
+    // 1. カテゴリ/グループ絞り込み
     if (slotCategoryFilter !== 'all') {
-      result = result.filter((s) => s.category === slotCategoryFilter);
+      result = result.filter(
+        (s) =>
+          getSlotGroupName(s) === slotCategoryFilter ||
+          s.category === slotCategoryFilter ||
+          s.sourceTableName === slotCategoryFilter ||
+          getSlotSourceFileName(s) === slotCategoryFilter,
+      );
     }
 
     // 2. 曜日絞り込み
@@ -828,11 +622,15 @@ export function TaskManager({
     return result;
   }, [slots, slotCategoryFilter, slotDayFilter, slotSortKey]);
 
-  // 選択された曜日にタスクが該当・実行されるかの判定
+  // 選択された曜日にタスクが該当・実行されるかの判定（周期の頭 cycleStartDay を考慮）
   const isTaskActiveOnDay = (t: TaskItem, day: number) => {
     if (t.cycleDays && t.cycleDays.length > 0) {
       const cCount = t.cycleCount || 3;
-      return t.cycleDays.includes(day % cCount);
+      const cycleStart =
+        typeof t.cycleStartDay === 'number' && !isNaN(t.cycleStartDay)
+          ? ((t.cycleStartDay % 7) + 7) % 7
+          : 0;
+      return t.cycleDays.includes(((day - cycleStart + 7) % 7) % cCount);
     }
     if (t.targetDays && t.targetDays.length > 0) {
       return t.targetDays.includes(day);
@@ -933,7 +731,11 @@ export function TaskManager({
       result = result.filter((t) => {
         if (t.cycleDays && t.cycleDays.length > 0) {
           const cCount = t.cycleCount || 3;
-          if (t.cycleDays.includes(targetDay % cCount)) return true;
+          const cycleStart =
+            typeof t.cycleStartDay === 'number' && !isNaN(t.cycleStartDay)
+              ? ((t.cycleStartDay % 7) + 7) % 7
+              : 0;
+          if (t.cycleDays.includes(((targetDay - cycleStart + 7) % 7) % cCount)) return true;
         }
         if (t.targetDays && t.targetDays.length > 0) {
           return t.targetDays.includes(targetDay);
@@ -977,30 +779,37 @@ export function TaskManager({
       className={`flex flex-1 min-h-0 flex-col gap-2.5 ${
         embedded
           ? 'bg-transparent p-0'
-          : 'rounded-2xl border border-amber-900/10 bg-[#fbfaf5]/90 p-3 shadow-xs sm:p-4'
+          : 'rounded-none border border-amber-900/10 bg-[#fbfaf5]/90 p-3 shadow-xs sm:p-4'
       }`}
     >
-      {/* Top Header & Presets (slotsモード時は追加・並び替え・絞り込みツールバーに切り替え) */}
+      {/* Top Header (Plan13: 各タスク・固定枠のON/OFF管理専用ツールバー) */}
       {viewMode === 'slots' ? (
-        <div className="flex flex-col gap-2 shrink-0 rounded-xl border border-slate-200/90 bg-white/80 backdrop-blur-xs p-2.5 shadow-2xs">
+        <div className="flex flex-col gap-2 shrink-0 rounded-none border border-slate-200 bg-white p-2.5 shadow-2xs">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            {/* ファイル（固定枠）追加ボタン & クイック例 */}
-            <div className="flex items-center gap-2">
+            {/* 一括ON/OFF & 絞り込みトグルボタン */}
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={openAddSlot}
-                className="flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-bold text-white shadow-2xs transition hover:bg-sky-700 active:scale-98"
-                title="新しい固定枠を追加する"
+                onClick={() => handleBulkToggleSlots(filteredAndSortedSlots, true)}
+                className="rounded-none border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 shadow-2xs transition hover:bg-emerald-100 active:scale-95"
+                title="表示中の固定枠をすべてONにする"
               >
-                <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
-                <span>固定枠を追加</span>
+                すべてON
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBulkToggleSlots(filteredAndSortedSlots, false)}
+                className="rounded-none border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 shadow-2xs transition hover:bg-slate-200 active:scale-95"
+                title="表示中の固定枠をすべてOFFにする"
+              >
+                すべてOFF
               </button>
 
               {/* 絞り込みトグルボタン */}
               <button
                 type="button"
                 onClick={() => setIsSlotFilterOpen(!isSlotFilterOpen)}
-                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition shadow-2xs active:scale-95 ${
+                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1 text-xs font-semibold transition shadow-2xs active:scale-95 ${
                   isSlotFilterOpen
                     ? 'border-sky-300 bg-sky-50 text-sky-700'
                     : isSlotFilterActive
@@ -1021,8 +830,11 @@ export function TaskManager({
               </button>
             </div>
 
-            {/* 並び替え & 件数 */}
-            <div className="flex items-center gap-2">
+            {/* 並び替え & ON件数 & 追加ボタン */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-semibold text-sky-800 bg-sky-50 border border-sky-200 rounded-none px-2 py-1">
+                ON合計: {formatDuration(slotsTotalMinutes)}
+              </span>
               <div className="flex items-center gap-1.5 text-xs">
                 <span className="text-slate-400 hidden xs:inline font-medium text-[11px]">
                   並び替え:
@@ -1036,7 +848,7 @@ export function TaskManager({
                         e.target.value as 'time-asc' | 'time-desc' | 'title-asc' | 'category',
                       )
                     }
-                    className="rounded-lg border border-slate-200 bg-white pl-6.5 pr-6 py-1 text-xs font-semibold text-slate-700 shadow-2xs hover:border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-sky-500 appearance-none cursor-pointer"
+                    className="rounded-none border border-slate-200 bg-white pl-6.5 pr-6 py-1 text-xs font-semibold text-slate-700 shadow-2xs hover:border-slate-300 focus:outline-hidden focus:ring-1 focus:ring-sky-500 appearance-none cursor-pointer"
                   >
                     <option value="time-asc">時間順 (早→遅)</option>
                     <option value="time-desc">時間順 (遅→早)</option>
@@ -1047,43 +859,50 @@ export function TaskManager({
                 </div>
               </div>
 
-              <span className="text-[11px] font-bold text-slate-500 font-mono bg-slate-100 rounded-md px-2 py-0.5">
-                {filteredAndSortedSlots.length}/{slots.length}件
+              <span className="text-[11px] font-bold text-emerald-700 font-mono bg-emerald-50 border border-emerald-200 rounded-none px-2 py-1">
+                ON: {filteredAndSortedSlots.filter((s) => s.enabled !== false).length}/
+                {filteredAndSortedSlots.length}件
               </span>
             </div>
           </div>
 
-          {/* 絞り込み行: カテゴリ & 曜日 (折り畳み式) */}
+          {/* 絞り込み行: カテゴリ/グループ & 曜日 (折り畳み式) */}
           {isSlotFilterOpen && (
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-100 text-xs animate-in fade-in duration-150">
-              {/* カテゴリ絞り込み */}
+              {/* カテゴリ/グループ絞り込み */}
               <div className="flex flex-wrap items-center gap-1">
-                <span className="text-[10px] font-bold text-slate-400 mr-0.5">カテゴリ:</span>
-                {[
-                  { id: 'all', label: 'すべて' },
-                  { id: 'sleep', label: '睡眠' },
-                  { id: 'lecture', label: '講義' },
-                  { id: 'routine', label: 'ルーティン' },
-                  { id: 'meal', label: '食事' },
-                  { id: 'work', label: '勤務' },
-                  { id: 'other', label: 'その他' },
-                ].map((cat) => {
-                  const isActive = slotCategoryFilter === cat.id;
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => setSlotCategoryFilter(cat.id as FixedCategory | 'all')}
-                      className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
-                        isActive
-                          ? 'bg-sky-600 text-white shadow-2xs'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
-                      }`}
-                    >
-                      {cat.label}
-                    </button>
-                  );
-                })}
+                <span className="text-[10px] font-bold text-slate-400 mr-0.5">グループ:</span>
+                <button
+                  type="button"
+                  onClick={() => setSlotCategoryFilter('all')}
+                  className={`rounded-none px-2 py-0.5 text-[11px] font-semibold transition ${
+                    slotCategoryFilter === 'all'
+                      ? 'bg-sky-600 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
+                  }`}
+                >
+                  すべて
+                </button>
+                {/* ユニークな表名・カテゴリ一覧からチップ生成 */}
+                {Array.from(new Set(slots.map((s) => getSlotGroupName(s)).filter(Boolean))).map(
+                  (groupName) => {
+                    const isActive = slotCategoryFilter === groupName;
+                    return (
+                      <button
+                        key={groupName}
+                        type="button"
+                        onClick={() => setSlotCategoryFilter(groupName)}
+                        className={`rounded-none px-2 py-0.5 text-[11px] font-semibold transition ${
+                          isActive
+                            ? 'bg-sky-600 text-white shadow-2xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
+                        }`}
+                      >
+                        {groupName}
+                      </button>
+                    );
+                  },
+                )}
               </div>
 
               {/* 曜日絞り込み */}
@@ -1092,7 +911,7 @@ export function TaskManager({
                 <button
                   type="button"
                   onClick={() => setSlotDayFilter('all')}
-                  className={`rounded-lg px-1.5 py-0.5 text-[11px] font-semibold transition ${
+                  className={`rounded-none px-1.5 py-0.5 text-[11px] font-semibold transition ${
                     slotDayFilter === 'all'
                       ? 'bg-slate-800 text-white shadow-2xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -1115,7 +934,7 @@ export function TaskManager({
                       key={d.day}
                       type="button"
                       onClick={() => setSlotDayFilter(isActive ? 'all' : d.day)}
-                      className={`h-5.5 w-5.5 rounded-md text-[11px] font-bold flex items-center justify-center transition ${
+                      className={`h-5.5 w-5.5 rounded-none text-[11px] font-bold flex items-center justify-center transition ${
                         isActive
                           ? 'bg-sky-600 text-white shadow-2xs'
                           : d.day === 5
@@ -1147,22 +966,12 @@ export function TaskManager({
         </div>
       ) : viewMode === 'daily' ? (
         /* 📅 今日用いられているタスク（曜日切り替えセレクタ付き） */
-        <div className="flex flex-col gap-2 shrink-0 rounded-xl border border-amber-200/90 bg-white/90 backdrop-blur-xs p-2.5 shadow-2xs">
-          {/* サブツール案内バナー */}
-          <div className="flex items-center justify-between text-[11px] bg-amber-50/80 border border-amber-200/60 rounded-lg px-2.5 py-1 text-amber-900">
-            <span className="flex items-center gap-1.5 font-medium">
-              <span className="text-amber-600 font-bold">💡</span>
-              <span>
-                表データ（時間割・週間計画等）がタスク登録の主役です。ここでは選択した曜日に割り振られるタスクの詳細確認・管理が行えます。
-              </span>
-            </span>
-          </div>
-
+        <div className="flex flex-col gap-2 shrink-0 rounded-none border border-slate-200 bg-white p-2.5 shadow-2xs">
           {/* 曜日切り替えタブバー */}
-          <div className="flex items-center justify-between gap-1 bg-amber-100/40 p-1 rounded-lg border border-amber-200/60">
+          <div className="flex items-center justify-between gap-1 bg-slate-50 p-1 rounded-none border border-slate-200">
             <div className="flex items-center gap-1 overflow-x-auto py-0.5">
-              <span className="text-[11px] font-bold text-amber-900 px-1 shrink-0 flex items-center gap-1">
-                <Sun className="h-3.5 w-3.5 text-amber-600" />
+              <span className="text-[11px] font-bold text-slate-700 px-1 shrink-0 flex items-center gap-1">
+                <Sun className="h-3.5 w-3.5 text-amber-500" />
                 <span>表示する曜日:</span>
               </span>
               {[
@@ -1181,12 +990,12 @@ export function TaskManager({
                     key={d.day}
                     type="button"
                     onClick={() => setSelectedTodayDayIndex(d.day)}
-                    className={`relative px-2.5 py-1 rounded-md text-xs font-bold transition flex items-center gap-1 shrink-0 ${
+                    className={`relative px-2.5 py-1 rounded-none text-xs font-bold transition flex items-center gap-1 shrink-0 ${
                       isSelected
                         ? 'bg-amber-600 text-white shadow-2xs'
                         : isRealToday
-                          ? 'bg-amber-200/80 text-amber-900 hover:bg-amber-300'
-                          : 'bg-white/80 text-slate-700 hover:bg-white hover:text-slate-900'
+                          ? 'bg-amber-100 text-amber-900 hover:bg-amber-200'
+                          : 'bg-white text-slate-700 hover:bg-slate-100'
                     }`}
                   >
                     <span>{d.label}</span>
@@ -1214,23 +1023,30 @@ export function TaskManager({
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2">
-            {/* 追加ボタン & プリセット */}
-            <div className="flex items-center gap-2">
+            {/* 一括ON/OFF & 絞り込み */}
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => openAddTask('day')}
-                className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white shadow-2xs transition hover:bg-amber-700 active:scale-98"
-                title="新しい日課タスクを追加する"
+                onClick={() => handleBulkToggleTasks(filteredAndSortedDailyTasks, true)}
+                className="rounded-none border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 shadow-2xs transition hover:bg-emerald-100 active:scale-95"
+                title="表示中のタスクをすべてONにする"
               >
-                <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
-                <span>日課タスクを追加</span>
+                すべてON
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBulkToggleTasks(filteredAndSortedDailyTasks, false)}
+                className="rounded-none border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 shadow-2xs transition hover:bg-slate-200 active:scale-95"
+                title="表示中のタスクをすべてOFFにする"
+              >
+                すべてOFF
               </button>
 
               {/* 絞り込みトグルボタン */}
               <button
                 type="button"
                 onClick={() => setIsDailyFilterOpen(!isDailyFilterOpen)}
-                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition shadow-2xs active:scale-95 ${
+                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1 text-xs font-semibold transition shadow-2xs active:scale-95 ${
                   isDailyFilterOpen
                     ? 'border-amber-300 bg-amber-50 text-amber-800'
                     : isDailyFilterActive
@@ -1251,10 +1067,10 @@ export function TaskManager({
               </button>
             </div>
 
-            {/* 並び替え & 件数 */}
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-0.5">
-                合計: {formatDuration(dailyTotalMinutes)}
+            {/* 並び替え & ON件数 & 追加ボタン */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-none px-2 py-1">
+                ON合計: {formatDuration(dailyTotalMinutes)}
               </span>
               <div className="flex items-center gap-1.5 text-xs">
                 <span className="text-slate-400 hidden xs:inline font-medium text-[11px]">
@@ -1270,7 +1086,7 @@ export function TaskManager({
                           'priority' | 'duration-asc' | 'duration-desc' | 'title-asc' | 'category',
                       )
                     }
-                    className="rounded-lg border border-slate-200 bg-white pl-6.5 pr-6 py-1 text-xs font-semibold text-slate-700 shadow-2xs hover:border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-amber-500 appearance-none cursor-pointer"
+                    className="rounded-none border border-slate-200 bg-white pl-6.5 pr-6 py-1 text-xs font-semibold text-slate-700 shadow-2xs hover:border-slate-300 focus:outline-hidden focus:ring-1 focus:ring-amber-500 appearance-none cursor-pointer"
                   >
                     <option value="priority">優先度順 (高→低)</option>
                     <option value="duration-asc">時間順 (短→長)</option>
@@ -1282,7 +1098,8 @@ export function TaskManager({
                 </div>
               </div>
 
-              <span className="text-[11px] font-bold text-slate-500 font-mono bg-slate-100 rounded-md px-2 py-0.5">
+              <span className="text-[11px] font-bold text-emerald-700 font-mono bg-emerald-50 border border-emerald-200 rounded-none px-2 py-1">
+                ON: {filteredAndSortedDailyTasks.filter((t) => t.enabled !== false).length}/
                 {filteredAndSortedDailyTasks.length}件
               </span>
             </div>
@@ -1297,7 +1114,7 @@ export function TaskManager({
                 <button
                   type="button"
                   onClick={() => setTaskCategoryFilter('all')}
-                  className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
+                  className={`rounded-none px-2 py-0.5 text-[11px] font-semibold transition ${
                     taskCategoryFilter === 'all'
                       ? 'bg-amber-600 text-white shadow-2xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
@@ -1319,7 +1136,7 @@ export function TaskManager({
                       key={catName}
                       type="button"
                       onClick={() => setTaskCategoryFilter(catName)}
-                      className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
+                      className={`rounded-none px-2 py-0.5 text-[11px] font-semibold transition ${
                         isActive
                           ? 'bg-amber-600 text-white shadow-2xs'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
@@ -1337,7 +1154,7 @@ export function TaskManager({
                 <button
                   type="button"
                   onClick={() => setTaskDayFilter('all')}
-                  className={`rounded-lg px-1.5 py-0.5 text-[11px] font-semibold transition ${
+                  className={`rounded-none px-1.5 py-0.5 text-[11px] font-semibold transition ${
                     taskDayFilter === 'all'
                       ? 'bg-slate-800 text-white shadow-2xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -1360,7 +1177,7 @@ export function TaskManager({
                       key={d.day}
                       type="button"
                       onClick={() => setTaskDayFilter(isActive ? 'all' : d.day)}
-                      className={`h-5.5 w-5.5 rounded-md text-[11px] font-bold flex items-center justify-center transition ${
+                      className={`h-5.5 w-5.5 rounded-none text-[11px] font-bold flex items-center justify-center transition ${
                         isActive
                           ? 'bg-amber-600 text-white shadow-2xs'
                           : d.day === 5
@@ -1392,55 +1209,32 @@ export function TaskManager({
         </div>
       ) : viewMode === 'weekly' ? (
         /* 🗓️ 今週用いられているタスク（週次タスク・課題・ToDo）ツールバー */
-        <div className="flex flex-col gap-2 shrink-0 rounded-xl border border-purple-200/90 bg-white/90 backdrop-blur-xs p-2.5 shadow-2xs">
-          {/* サブツール案内バナー */}
-          <div className="flex items-center justify-between text-[11px] bg-purple-50/80 border border-purple-200/60 rounded-lg px-2.5 py-1 text-purple-900">
-            <span className="flex items-center gap-1.5 font-medium">
-              <span className="text-purple-600 font-bold">💡</span>
-              <span>
-                表データ（時間割・週間計画等）がタスク登録の主役です。ここでは今週用いられている全タスク（週次タスク・課題・ToDo）の詳細確認・管理が行えます。
-              </span>
-            </span>
-          </div>
-
+        <div className="flex flex-col gap-2 shrink-0 rounded-none border border-slate-200 bg-white p-2.5 shadow-2xs">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            {/* 追加ボタン & プリセット */}
+            {/* 一括ON/OFF & 絞り込み */}
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => openAddTask('week')}
-                className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-bold text-white shadow-2xs transition hover:bg-purple-700 active:scale-98"
-                title="新しい週次タスクを追加する"
+                onClick={() => handleBulkToggleTasks(filteredAndSortedWeeklyTasks, true)}
+                className="rounded-none border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 shadow-2xs transition hover:bg-emerald-100 active:scale-95"
+                title="表示中のタスクをすべてONにする"
               >
-                <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
-                <span>週次タスクを追加</span>
+                すべてON
               </button>
-
               <button
                 type="button"
-                onClick={() => openAddTask('week', { isAssignment: true })}
-                className="hidden xs:flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2 py-1.5 text-xs font-bold text-purple-700 shadow-2xs transition hover:bg-purple-100"
-                title="課題レポートを追加"
+                onClick={() => handleBulkToggleTasks(filteredAndSortedWeeklyTasks, false)}
+                className="rounded-none border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 shadow-2xs transition hover:bg-slate-200 active:scale-95"
+                title="表示中のタスクをすべてOFFにする"
               >
-                <GraduationCap className="h-3.5 w-3.5" />
-                <span>+課題</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => openAddTask('week', { isTodo: true })}
-                className="hidden xs:flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs font-bold text-amber-800 shadow-2xs transition hover:bg-amber-100"
-                title="ToDoタスクを追加"
-              >
-                <CheckSquare className="h-3.5 w-3.5" />
-                <span>+ToDo</span>
+                すべてOFF
               </button>
 
               {/* 絞り込みトグルボタン */}
               <button
                 type="button"
                 onClick={() => setIsWeeklyFilterOpen(!isWeeklyFilterOpen)}
-                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition shadow-2xs active:scale-95 ${
+                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1 text-xs font-semibold transition shadow-2xs active:scale-95 ${
                   isWeeklyFilterOpen
                     ? 'border-purple-300 bg-purple-50 text-purple-800'
                     : isWeeklyFilterActive
@@ -1463,10 +1257,10 @@ export function TaskManager({
               </button>
             </div>
 
-            {/* 並び替え & 件数 */}
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 rounded-md px-2 py-0.5">
-                合計: {formatDuration(weeklyTotalMinutes)}
+            {/* 並び替え & ON件数 & 追加ボタン */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-semibold text-purple-800 bg-purple-50 border border-purple-200 rounded-none px-2 py-1">
+                ON合計: {formatDuration(weeklyTotalMinutes)}
               </span>
               <div className="flex items-center gap-1.5 text-xs">
                 <span className="text-slate-400 hidden xs:inline font-medium text-[11px]">
@@ -1482,7 +1276,7 @@ export function TaskManager({
                           'priority' | 'duration-asc' | 'duration-desc' | 'title-asc' | 'category',
                       )
                     }
-                    className="rounded-lg border border-slate-200 bg-white pl-6.5 pr-6 py-1 text-xs font-semibold text-slate-700 shadow-2xs hover:border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-purple-500 appearance-none cursor-pointer"
+                    className="rounded-none border border-slate-200 bg-white pl-6.5 pr-6 py-1 text-xs font-semibold text-slate-700 shadow-2xs hover:border-slate-300 focus:outline-hidden focus:ring-1 focus:ring-purple-500 appearance-none cursor-pointer"
                   >
                     <option value="priority">優先度順 (高→低)</option>
                     <option value="duration-asc">時間順 (短→長)</option>
@@ -1494,8 +1288,9 @@ export function TaskManager({
                 </div>
               </div>
 
-              <span className="text-[11px] font-bold text-slate-500 font-mono bg-slate-100 rounded-md px-2 py-0.5">
-                {filteredAndSortedWeeklyTasks.length}/{weeklyTasks.length}件
+              <span className="text-[11px] font-bold text-emerald-700 font-mono bg-emerald-50 border border-emerald-200 rounded-none px-2 py-1">
+                ON: {filteredAndSortedWeeklyTasks.filter((t) => t.enabled !== false).length}/
+                {filteredAndSortedWeeklyTasks.length}件
               </span>
             </div>
           </div>
@@ -1509,7 +1304,7 @@ export function TaskManager({
                 <button
                   type="button"
                   onClick={() => setTaskCategoryFilter('all')}
-                  className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
+                  className={`rounded-none px-2 py-0.5 text-[11px] font-semibold transition ${
                     taskCategoryFilter === 'all'
                       ? 'bg-purple-600 text-white shadow-2xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
@@ -1520,7 +1315,7 @@ export function TaskManager({
                 <button
                   type="button"
                   onClick={() => setTaskCategoryFilter('assignment')}
-                  className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
+                  className={`rounded-none px-2 py-0.5 text-[11px] font-semibold transition ${
                     taskCategoryFilter === 'assignment'
                       ? 'bg-purple-600 text-white shadow-2xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
@@ -1531,7 +1326,7 @@ export function TaskManager({
                 <button
                   type="button"
                   onClick={() => setTaskCategoryFilter('todo')}
-                  className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
+                  className={`rounded-none px-2 py-0.5 text-[11px] font-semibold transition ${
                     taskCategoryFilter === 'todo'
                       ? 'bg-purple-600 text-white shadow-2xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
@@ -1553,7 +1348,7 @@ export function TaskManager({
                       key={catName}
                       type="button"
                       onClick={() => setTaskCategoryFilter(catName)}
-                      className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition ${
+                      className={`rounded-none px-2 py-0.5 text-[11px] font-semibold transition ${
                         isActive
                           ? 'bg-purple-600 text-white shadow-2xs'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
@@ -1571,7 +1366,7 @@ export function TaskManager({
                 <button
                   type="button"
                   onClick={() => setTaskDayFilter('all')}
-                  className={`rounded-lg px-1.5 py-0.5 text-[11px] font-semibold transition ${
+                  className={`rounded-none px-1.5 py-0.5 text-[11px] font-semibold transition ${
                     taskDayFilter === 'all'
                       ? 'bg-slate-800 text-white shadow-2xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -1594,7 +1389,7 @@ export function TaskManager({
                       key={d.day}
                       type="button"
                       onClick={() => setTaskDayFilter(isActive ? 'all' : d.day)}
-                      className={`h-5.5 w-5.5 rounded-md text-[11px] font-bold flex items-center justify-center transition ${
+                      className={`h-5.5 w-5.5 rounded-none text-[11px] font-bold flex items-center justify-center transition ${
                         isActive
                           ? 'bg-purple-600 text-white shadow-2xs'
                           : d.day === 5
@@ -1633,34 +1428,17 @@ export function TaskManager({
               日課・週次タスク・生活固定枠スタック
             </h3>
             <span className="hidden text-[11px] text-slate-500 sm:inline">
-              (カードタップで編集、余白タップで新規追加)
+              (カードタップで編集)
             </span>
             {onNavigateToTimeline && (
               <button
                 onClick={onNavigateToTimeline}
-                className="ml-2 inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-900 shadow-sm transition hover:bg-amber-100"
+                className="ml-2 inline-flex items-center gap-1 rounded-none border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-900 shadow-xs transition hover:bg-amber-100"
                 title="計画表（タイムライン）シートへ移動"
               >
                 計画表シートへ →
               </button>
             )}
-          </div>
-
-          {/* Quick Presets Bar */}
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="flex items-center gap-1 text-[11px] font-medium text-slate-500">
-              <Zap className="h-3 w-3 text-amber-500" />
-              プリセット:
-            </span>
-            {PRESET_TASKS.slice(0, 3).map((preset) => (
-              <button
-                key={preset.title}
-                onClick={() => handleAddPresetTask(preset)}
-                className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-              >
-                + {preset.title}
-              </button>
-            ))}
           </div>
         </div>
       )}
@@ -1676,24 +1454,17 @@ export function TaskManager({
         {/* Column 1: Daily Tasks Stack (頻度: 高 / 週5回以上) */}
         {(viewMode === 'all' || viewMode === 'daily') && (
           <div
-            onClick={(e) => {
-              if (e.target === e.currentTarget) openAddTask('day');
-            }}
             className={`flex flex-col gap-2 h-full min-h-0 flex-1 ${
               viewMode === 'daily'
                 ? 'p-0.5'
-                : 'rounded-xl border border-slate-200 bg-slate-50/60 p-3 cursor-pointer transition hover:border-slate-300'
+                : 'rounded-none border border-slate-200 bg-slate-50/60 p-3'
             }`}
-            title="クリックして日次タスクを追加"
           >
             {/* Column Header (viewMode === 'all' のみ表示) */}
             {viewMode === 'all' && (
-              <div
-                onClick={(e) => e.stopPropagation()}
-                className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default shrink-0"
-              >
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default shrink-0">
                 <div className="flex items-center gap-1.5">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-100 text-amber-700">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-none bg-amber-100 text-amber-700">
                     <Sun className="h-3.5 w-3.5" />
                   </div>
                   <div>
@@ -1701,7 +1472,7 @@ export function TaskManager({
                       📅 今日・日課タスク (今日用いられているタスク)
                     </h4>
                   </div>
-                  <span className="rounded-full bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
+                  <span className="rounded-none bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
                     {dailyTasks.length}件
                   </span>
                 </div>
@@ -1710,44 +1481,21 @@ export function TaskManager({
                   <span className="text-[10px] font-semibold text-blue-600">
                     計 {formatDuration(dailyTotalMinutes)}
                   </span>
-                  <button
-                    onClick={() => openAddTask('day')}
-                    title="日次タスクを追加"
-                    className="flex items-center gap-0.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-100 hover:border-blue-300"
-                  >
-                    <Plus className="h-3 w-3" />
-                    追加
-                  </button>
                 </div>
               </div>
             )}
 
-            {/* Daily Blocks Stack List */}
-            <div
-              onClick={(e) => {
-                if (e.target === e.currentTarget) openAddTask('day');
-              }}
-              className={`pt-1 flex-1 min-h-[140px] ${
-                viewMode !== 'all'
-                  ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 items-stretch overflow-y-auto'
-                  : 'flex flex-col gap-2 overflow-y-auto'
-              }`}
-            >
+            {/* Daily Blocks Stack List (全モード共通の均一リスト形式で統一) */}
+            <div className="pt-1 flex-1 min-h-[140px] flex flex-col gap-2 overflow-y-auto">
               {dailyTasks.length === 0 ? (
-                <div
-                  onClick={() => openAddTask('day')}
-                  className="col-span-full flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-10 text-center text-xs text-slate-500 hover:border-amber-300 hover:text-amber-700 transition bg-white/40"
-                >
+                <div className="col-span-full flex flex-1 flex-col items-center justify-center rounded-none border border-dashed border-slate-200 py-10 text-center text-xs text-slate-500 bg-white/40">
                   <Sun className="h-8 w-8 text-amber-300 mb-2" />
                   <span className="font-semibold text-slate-700">
                     高頻度・毎日のタスクがありません
                   </span>
-                  <span className="mt-1 text-xs font-bold text-amber-600">
-                    + タップしてタスクを追加
-                  </span>
                 </div>
               ) : filteredAndSortedDailyTasks.length === 0 ? (
-                <div className="col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-12 text-center text-xs text-slate-500 bg-white/40">
+                <div className="col-span-full flex flex-col items-center justify-center rounded-none border border-dashed border-slate-200 py-12 text-center text-xs text-slate-500 bg-white/40">
                   <p className="font-semibold text-slate-700">条件に一致するタスクがありません</p>
                   <p className="text-[11px] text-slate-400 mt-0.5">
                     選択中の曜日や絞り込み条件を変更してください
@@ -1758,7 +1506,7 @@ export function TaskManager({
                       setTaskCategoryFilter('all');
                       setTaskDayFilter('all');
                     }}
-                    className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100 transition shadow-2xs"
+                    className="mt-3 rounded-none border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100 transition shadow-2xs"
                   >
                     絞り込みを解除する
                   </button>
@@ -1767,13 +1515,14 @@ export function TaskManager({
                 <>
                   {filteredAndSortedDailyTasks.map((task) => {
                     const groupLabel = getTaskSourceFileName(task) || task.category || '日課';
+                    const isEnabled = task.enabled !== false;
                     return (
                       <div
                         key={task.id}
-                        onClick={() => openEditTask(task)}
-                        title="タップして編集"
-                        className={`group relative flex items-center justify-between overflow-hidden rounded-xl border p-2.5 transition cursor-pointer shrink-0 min-h-[64px] ${
-                          task.completed
+                        onClick={(e) => handleToggleTaskEnabled(e, task.id)}
+                        title={`クリックして ${isEnabled ? 'OFF' : 'ON'} に切り替え`}
+                        className={`group relative flex items-center justify-between overflow-hidden rounded-none border px-3 py-2.5 transition cursor-pointer shrink-0 min-h-[58px] ${
+                          !isEnabled
                             ? 'border-slate-200 bg-slate-100/70 opacity-60'
                             : 'border-amber-200/90 bg-amber-50/30 hover:border-amber-300 hover:bg-white hover:shadow-xs'
                         }`}
@@ -1781,28 +1530,16 @@ export function TaskManager({
                         {/* Left Accent Bar */}
                         <div
                           className={`absolute inset-y-0 left-0 w-1 ${
-                            task.completed ? 'bg-slate-300' : 'bg-amber-500'
+                            !isEnabled ? 'bg-slate-300' : 'bg-amber-500'
                           }`}
                         />
 
                         <div className="flex items-center gap-2 pl-1 min-w-0 flex-1">
-                          <button
-                            onClick={(e) => handleToggleComplete(e, task.id)}
-                            title={task.completed ? '未完了に戻す' : '完了にする'}
-                            className="shrink-0 text-slate-400 transition hover:text-amber-600"
-                          >
-                            {task.completed ? (
-                              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                            ) : (
-                              <Circle className="h-4 w-4 text-slate-400 hover:text-slate-600" />
-                            )}
-                          </button>
-
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                               <h5
                                 className={`text-xs font-semibold break-words leading-snug ${
-                                  task.completed ? 'text-slate-400 line-through' : 'text-slate-900'
+                                  !isEnabled ? 'text-slate-500' : 'text-slate-900'
                                 }`}
                               >
                                 {task.title}
@@ -1862,14 +1599,40 @@ export function TaskManager({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1 shrink-0 ml-1.5">
-                          <div className="opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-slate-600 p-1">
-                            <Pencil className="h-3 w-3" />
-                          </div>
+                        {/* ON / OFF Switch & Delete */}
+                        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full select-none ${
+                              isEnabled
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-slate-200 text-slate-500'
+                            }`}
+                          >
+                            {isEnabled ? 'ON' : 'OFF'}
+                          </span>
                           <button
+                            type="button"
+                            role="switch"
+                            aria-checked={isEnabled}
+                            onClick={(e) => handleToggleTaskEnabled(e, task.id)}
+                            title={`計画表への反映を${isEnabled ? 'OFF' : 'ON'}にする`}
+                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                              isEnabled ? 'bg-emerald-500' : 'bg-slate-300'
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                isEnabled ? 'translate-x-4' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+
+                          {/* 削除ボタン */}
+                          <button
+                            type="button"
                             onClick={(e) => handleDeleteTask(e, task.id)}
-                            title="タスクを削除"
-                            className="rounded-md p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                            title="このタスクを削除"
+                            className="p-1 rounded-none text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition shrink-0"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -1877,13 +1640,6 @@ export function TaskManager({
                       </div>
                     );
                   })}
-
-                  <button
-                    onClick={() => openAddTask('day')}
-                    className="shrink-0 flex items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 bg-white py-2 text-[11px] font-medium text-slate-600 transition hover:border-amber-400 hover:bg-amber-50/50 hover:text-amber-700 min-h-[40px]"
-                  >
-                    <Plus className="h-3.5 w-3.5" />+ タスクを追加
-                  </button>
                 </>
               )}
             </div>
@@ -1893,24 +1649,17 @@ export function TaskManager({
         {/* Column 2: Weekly Tasks Stack (頻度: 低/中、課題、ToDo) */}
         {(viewMode === 'all' || viewMode === 'weekly') && (
           <div
-            onClick={(e) => {
-              if (e.target === e.currentTarget) openAddTask('week');
-            }}
             className={`flex flex-col gap-2 h-full min-h-0 flex-1 ${
               viewMode === 'weekly'
                 ? 'p-0.5'
-                : 'rounded-xl border border-slate-200 bg-slate-50/60 p-3 cursor-pointer transition hover:border-slate-300'
+                : 'rounded-none border border-slate-200 bg-slate-50/60 p-3'
             }`}
-            title="クリックして週次タスク・課題を追加"
           >
             {/* Column Header (viewMode === 'all' のみ表示) */}
             {viewMode === 'all' && (
-              <div
-                onClick={(e) => e.stopPropagation()}
-                className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default shrink-0"
-              >
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default shrink-0">
                 <div className="flex items-center gap-1.5">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-100 text-purple-700">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-none bg-purple-100 text-purple-700">
                     <CalendarDays className="h-3.5 w-3.5" />
                   </div>
                   <div>
@@ -1918,7 +1667,7 @@ export function TaskManager({
                       🗓️ 今週タスク (今週用いられているタスク)
                     </h4>
                   </div>
-                  <span className="rounded-full bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
+                  <span className="rounded-none bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
                     {weeklyTasks.length}件
                   </span>
                 </div>
@@ -1927,62 +1676,21 @@ export function TaskManager({
                   <span className="text-[10px] font-semibold text-purple-700">
                     計 {formatDuration(weeklyTotalMinutes)}
                   </span>
-                  <button
-                    onClick={() => {
-                      openAddTask('week', { isAssignment: true });
-                    }}
-                    title="課題を追加"
-                    className="flex items-center gap-0.5 rounded-md border border-purple-200 bg-purple-50 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 transition hover:bg-purple-100 hover:border-purple-300"
-                  >
-                    <GraduationCap className="h-2.5 w-2.5" />
-                    +課題
-                  </button>
-                  <button
-                    onClick={() => {
-                      openAddTask('week', { isTodo: true });
-                    }}
-                    title="ToDoを追加"
-                    className="flex items-center gap-0.5 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 transition hover:bg-amber-100 hover:border-amber-300"
-                  >
-                    <CheckSquare className="h-2.5 w-2.5" />
-                    +ToDo
-                  </button>
-                  <button
-                    onClick={() => openAddTask('week')}
-                    title="タスクを追加"
-                    className="flex items-center gap-0.5 rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 transition hover:bg-blue-100 hover:border-blue-300"
-                  >
-                    <Plus className="h-2.5 w-2.5" />
-                    +追加
-                  </button>
                 </div>
               </div>
             )}
 
-            {/* Weekly Blocks Stack List */}
-            <div
-              onClick={(e) => {
-                if (e.target === e.currentTarget) openAddTask('week');
-              }}
-              className={`pt-1 flex-1 min-h-[140px] ${
-                viewMode !== 'all'
-                  ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 items-stretch overflow-y-auto'
-                  : 'flex flex-col gap-2 overflow-y-auto'
-              }`}
-            >
+            {/* Weekly Blocks Stack List (全モード共通の均一リスト形式で統一) */}
+            <div className="pt-1 flex-1 min-h-[140px] flex flex-col gap-2 overflow-y-auto">
               {weeklyTasks.length === 0 ? (
-                <div
-                  onClick={() => openAddTask('week')}
-                  className="col-span-full flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-10 text-center text-xs text-slate-500 hover:border-purple-300 hover:text-purple-700 transition bg-white/40"
-                >
+                <div className="col-span-full flex flex-1 flex-col items-center justify-center rounded-none border border-dashed border-slate-200 py-10 text-center text-xs text-slate-500 bg-white/40">
                   <CalendarDays className="h-8 w-8 text-purple-300 mb-2" />
                   <span className="font-semibold text-slate-700">
                     今週のタスク・課題がありません
                   </span>
-                  <span className="mt-1 text-xs font-bold text-purple-600">+ タップして追加</span>
                 </div>
               ) : filteredAndSortedWeeklyTasks.length === 0 ? (
-                <div className="col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-12 text-center text-xs text-slate-500 bg-white/40">
+                <div className="col-span-full flex flex-col items-center justify-center rounded-none border border-dashed border-slate-200 py-12 text-center text-xs text-slate-500 bg-white/40">
                   <p className="font-semibold text-slate-700">条件に一致するタスクがありません</p>
                   <p className="text-[11px] text-slate-400 mt-0.5">
                     カテゴリまたは曜日の絞り込み条件を変更してください
@@ -1993,7 +1701,7 @@ export function TaskManager({
                       setTaskCategoryFilter('all');
                       setTaskDayFilter('all');
                     }}
-                    className="mt-3 rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-800 hover:bg-purple-100 transition shadow-2xs"
+                    className="mt-3 rounded-none border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-800 hover:bg-purple-100 transition shadow-2xs"
                   >
                     絞り込みを解除する
                   </button>
@@ -2004,14 +1712,15 @@ export function TaskManager({
                     const isAssign = task.taskType === 'assignment';
                     const isTodo = task.taskType === 'todo' || task.hasNoDuration;
                     const groupLabel = getTaskSourceFileName(task) || task.category || '週次';
+                    const isEnabled = task.enabled !== false;
 
                     return (
                       <div
                         key={task.id}
-                        onClick={() => openEditTask(task)}
-                        title="タップして編集"
-                        className={`group relative flex items-center justify-between overflow-hidden rounded-xl border p-2.5 transition cursor-pointer shrink-0 min-h-[64px] ${
-                          task.completed
+                        onClick={(e) => handleToggleTaskEnabled(e, task.id)}
+                        title={`クリックして ${isEnabled ? 'OFF' : 'ON'} に切り替え`}
+                        className={`group relative flex items-center justify-between overflow-hidden rounded-none border px-3 py-2.5 transition cursor-pointer shrink-0 min-h-[58px] ${
+                          !isEnabled
                             ? 'border-slate-200 bg-slate-100/70 opacity-60'
                             : isAssign
                               ? 'border-purple-200/90 bg-purple-50/40 hover:border-purple-300 hover:bg-white hover:shadow-xs'
@@ -2023,7 +1732,7 @@ export function TaskManager({
                         {/* Left Accent Bar */}
                         <div
                           className={`absolute inset-y-0 left-0 w-1 ${
-                            task.completed
+                            !isEnabled
                               ? 'bg-slate-300'
                               : isAssign
                                 ? 'bg-purple-600'
@@ -2034,23 +1743,11 @@ export function TaskManager({
                         />
 
                         <div className="flex items-center gap-2 pl-1 min-w-0 flex-1">
-                          <button
-                            onClick={(e) => handleToggleComplete(e, task.id)}
-                            title={task.completed ? '未完了に戻す' : '完了にする'}
-                            className="shrink-0 text-slate-400 transition hover:text-purple-600"
-                          >
-                            {task.completed ? (
-                              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                            ) : (
-                              <Circle className="h-4 w-4 text-slate-400 hover:text-slate-600" />
-                            )}
-                          </button>
-
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                               <h5
                                 className={`text-xs font-semibold break-words leading-snug ${
-                                  task.completed ? 'text-slate-400 line-through' : 'text-slate-900'
+                                  !isEnabled ? 'text-slate-500' : 'text-slate-900'
                                 }`}
                               >
                                 {task.title}
@@ -2145,14 +1842,40 @@ export function TaskManager({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1 shrink-0 ml-1.5">
-                          <div className="opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-slate-600 p-1">
-                            <Pencil className="h-3 w-3" />
-                          </div>
+                        {/* ON / OFF Switch & Delete */}
+                        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full select-none ${
+                              isEnabled
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-slate-200 text-slate-500'
+                            }`}
+                          >
+                            {isEnabled ? 'ON' : 'OFF'}
+                          </span>
                           <button
+                            type="button"
+                            role="switch"
+                            aria-checked={isEnabled}
+                            onClick={(e) => handleToggleTaskEnabled(e, task.id)}
+                            title={`計画表への反映を${isEnabled ? 'OFF' : 'ON'}にする`}
+                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                              isEnabled ? 'bg-emerald-500' : 'bg-slate-300'
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                isEnabled ? 'translate-x-4' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+
+                          {/* 削除ボタン */}
+                          <button
+                            type="button"
                             onClick={(e) => handleDeleteTask(e, task.id)}
-                            title="タスクを削除"
-                            className="rounded-md p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                            title="このタスクを削除"
+                            className="p-1 rounded-none text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition shrink-0"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -2160,13 +1883,6 @@ export function TaskManager({
                       </div>
                     );
                   })}
-
-                  <button
-                    onClick={() => openAddTask('week')}
-                    className="shrink-0 flex items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 bg-white py-2 text-[11px] font-medium text-slate-600 transition hover:border-purple-400 hover:bg-purple-50/50 hover:text-purple-700 min-h-[40px]"
-                  >
-                    <Plus className="h-3.5 w-3.5" />+ タスク・課題を追加
-                  </button>
                 </>
               )}
             </div>
@@ -2176,67 +1892,36 @@ export function TaskManager({
         {/* Column 3: Fixed Slots Stack */}
         {(viewMode === 'all' || viewMode === 'slots') && (
           <div
-            onClick={(e) => {
-              if (e.target === e.currentTarget) openAddSlot();
-            }}
             className={`flex flex-col gap-2 h-full min-h-0 flex-1 ${
               viewMode === 'slots'
                 ? 'p-0.5'
-                : 'rounded-xl border border-slate-200 bg-slate-50/60 p-3 cursor-pointer transition hover:border-slate-300'
+                : 'rounded-none border border-slate-200 bg-slate-50/60 p-3'
             }`}
-            title="クリックして固定枠を追加"
           >
             {/* Column Header (viewMode === 'all' のみ表示) */}
             {viewMode === 'all' && (
-              <div
-                onClick={(e) => e.stopPropagation()}
-                className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default shrink-0"
-              >
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2 cursor-default shrink-0">
                 <div className="flex items-center gap-1.5">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-sky-100 text-sky-700">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-none bg-sky-100 text-sky-700">
                     <Shield className="h-3.5 w-3.5" />
                   </div>
                   <h4 className="text-xs font-bold text-slate-900">固定枠 (講義・睡眠)</h4>
-                  <span className="rounded-full bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
+                  <span className="rounded-none bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
                     {slots.length}件
                   </span>
                 </div>
-
-                <button
-                  onClick={openAddSlot}
-                  title="固定枠・講義を追加"
-                  className="flex items-center gap-0.5 rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 transition hover:bg-sky-100 hover:border-sky-300"
-                >
-                  <Plus className="h-3 w-3" />
-                  追加
-                </button>
               </div>
             )}
 
-            {/* Fixed Slots List */}
-            <div
-              onClick={(e) => {
-                if (e.target === e.currentTarget) openAddSlot();
-              }}
-              className={`pt-1 flex-1 min-h-[140px] ${
-                viewMode !== 'all'
-                  ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 items-stretch overflow-y-auto'
-                  : 'flex flex-col gap-2 overflow-y-auto'
-              }`}
-            >
+            {/* Fixed Slots List (全モード共通の均一リスト形式で統一) */}
+            <div className="pt-1 flex-1 min-h-[140px] flex flex-col gap-2 overflow-y-auto">
               {slots.length === 0 ? (
-                <div
-                  onClick={openAddSlot}
-                  className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-10 text-center text-xs text-slate-500 hover:border-sky-300 hover:text-sky-600 transition bg-white/40"
-                >
+                <div className="flex flex-1 flex-col items-center justify-center rounded-none border border-dashed border-slate-200 py-10 text-center text-xs text-slate-500 bg-white/40">
                   <Shield className="h-8 w-8 text-slate-300 mb-2" />
                   <span className="font-semibold text-slate-700">登録された固定枠がありません</span>
-                  <span className="mt-1 text-xs font-bold text-sky-600">
-                    + タップして固定枠を追加
-                  </span>
                 </div>
               ) : filteredAndSortedSlots.length === 0 ? (
-                <div className="col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 py-12 text-center text-xs text-slate-500 bg-white/40">
+                <div className="col-span-full flex flex-col items-center justify-center rounded-none border border-dashed border-slate-200 py-12 text-center text-xs text-slate-500 bg-white/40">
                   <p className="font-semibold text-slate-700">条件に一致する固定枠がありません</p>
                   <p className="text-[11px] text-slate-400 mt-0.5">
                     カテゴリまたは曜日の絞り込み条件を変更してください
@@ -2247,7 +1932,7 @@ export function TaskManager({
                       setSlotCategoryFilter('all');
                       setSlotDayFilter('all');
                     }}
-                    className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-700 hover:bg-sky-100 transition shadow-2xs"
+                    className="mt-3 rounded-none border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-700 hover:bg-sky-100 transition shadow-2xs"
                   >
                     絞り込みを解除する
                   </button>
@@ -2259,17 +1944,24 @@ export function TaskManager({
                       slot.endMinutes >= slot.startMinutes
                         ? slot.endMinutes - slot.startMinutes
                         : 1440 - slot.startMinutes + slot.endMinutes;
+                    const isEnabled = slot.enabled !== false;
 
                     return (
                       <div
                         key={slot.id}
-                        onClick={() => openEditSlot(slot)}
-                        title="タップして編集"
-                        className="group relative flex items-center justify-between overflow-hidden rounded-xl border border-slate-200 bg-white p-2.5 transition cursor-pointer hover:border-sky-300 hover:shadow-xs shrink-0 min-h-[64px]"
+                        onClick={(e) => handleToggleSlotEnabled(e, slot.id)}
+                        title={`クリックして ${isEnabled ? 'OFF' : 'ON'} に切り替え`}
+                        className={`group relative flex items-center justify-between overflow-hidden rounded-none border px-3 py-2.5 transition cursor-pointer shrink-0 min-h-[58px] ${
+                          !isEnabled
+                            ? 'border-slate-200 bg-slate-100/70 opacity-60'
+                            : 'border-slate-200 bg-white hover:border-sky-300 hover:shadow-xs'
+                        }`}
                       >
                         <div
                           className="absolute inset-y-0 left-0 w-1"
-                          style={{ backgroundColor: slot.color || '#0284c7' }}
+                          style={{
+                            backgroundColor: !isEnabled ? '#cbd5e1' : slot.color || '#0284c7',
+                          }}
                         />
 
                         <div className="flex items-center gap-2 pl-1 min-w-0 flex-1">
@@ -2279,24 +1971,28 @@ export function TaskManager({
 
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                              <h5 className="text-xs font-semibold text-slate-900 break-words leading-snug">
+                              <h5
+                                className={`text-xs font-semibold break-words leading-snug ${
+                                  !isEnabled ? 'text-slate-500' : 'text-slate-900'
+                                }`}
+                              >
                                 {slot.title}
                               </h5>
                               <span className="shrink-0 rounded bg-sky-50 border border-sky-200 px-1 py-0.2 text-[9px] font-bold text-sky-700">
                                 {formatDaysString(slot.daysOfWeek)}
                               </span>
 
-                              {getSlotSourceFileName(slot) && (
-                                <span
-                                  className="shrink-0 inline-flex items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.2 text-[9px] font-medium text-emerald-800"
-                                  title={`参照元表データ: ${getSlotSourceFileName(slot)}`}
-                                >
-                                  <FileSpreadsheet className="h-2.5 w-2.5 text-emerald-600" />
-                                  <span className="max-w-[120px] truncate">
-                                    {getSlotSourceFileName(slot)}
-                                  </span>
+                              <span
+                                className="shrink-0 inline-flex items-center gap-1 rounded border border-sky-200 bg-sky-50 px-1.5 py-0.2 text-[9px] font-medium text-sky-800"
+                                title={`所属グループ: ${getSlotGroupName(slot)}`}
+                              >
+                                {getSlotSourceFileName(slot) && (
+                                  <FileSpreadsheet className="h-2.5 w-2.5 text-sky-600" />
+                                )}
+                                <span className="max-w-[120px] truncate">
+                                  {getSlotGroupName(slot)}
                                 </span>
-                              )}
+                              </span>
                             </div>
 
                             <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-0.5">
@@ -2312,28 +2008,40 @@ export function TaskManager({
                           </div>
                         </div>
 
-                        <div className="shrink-0 flex items-center gap-1.5">
-                          {slot.category === 'lecture' && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openAddAssignmentFromLecture(slot);
-                              }}
-                              title="この授業の課題タスクを作成"
-                              className="flex items-center gap-0.5 rounded-md border border-purple-200 bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-700 transition hover:bg-purple-100"
-                            >
-                              <GraduationCap className="h-3 w-3 text-purple-600" />
-                              <span>+課題</span>
-                            </button>
-                          )}
-                          <div className="opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-slate-600 p-1">
-                            <Pencil className="h-3 w-3" />
-                          </div>
+                        {/* ON / OFF Switch & Delete */}
+                        <div className="shrink-0 flex items-center gap-1.5 ml-2">
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full select-none ${
+                              isEnabled
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-slate-200 text-slate-500'
+                            }`}
+                          >
+                            {isEnabled ? 'ON' : 'OFF'}
+                          </span>
                           <button
+                            type="button"
+                            role="switch"
+                            aria-checked={isEnabled}
+                            onClick={(e) => handleToggleSlotEnabled(e, slot.id)}
+                            title={`計画表への反映を${isEnabled ? 'OFF' : 'ON'}にする`}
+                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                              isEnabled ? 'bg-emerald-500' : 'bg-slate-300'
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                isEnabled ? 'translate-x-4' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+
+                          {/* 削除ボタン */}
+                          <button
+                            type="button"
                             onClick={(e) => handleDeleteSlot(e, slot.id)}
-                            title="固定枠を削除"
-                            className="rounded-md p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                            title="この固定枠を削除"
+                            className="p-1 rounded-none text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition shrink-0"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -2341,13 +2049,6 @@ export function TaskManager({
                       </div>
                     );
                   })}
-
-                  <button
-                    onClick={openAddSlot}
-                    className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 bg-white py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-sky-400 hover:bg-sky-50/50 hover:text-sky-700 shrink-0 min-h-[40px]"
-                  >
-                    <Plus className="h-3 w-3" />+ 固定枠・講義を追加
-                  </button>
                 </>
               )}
             </div>

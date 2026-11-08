@@ -29,6 +29,8 @@ import { GridAreaBounds } from '@/lib/importers/gridDetection';
 interface FileImportModalProps {
   isOpen: boolean;
   initialFile?: File | null;
+  targetTableId?: string;
+  targetTableName?: string;
   onClose: () => void;
   onImport: (newFixedSlots: FixedSlot[], newTasks: TaskItem[], mode: 'add' | 'replace') => void;
   onSaveTableData?: (table: ImportedTableData) => void;
@@ -39,6 +41,8 @@ type ModalStep = 'upload' | 'crop' | 'grid_adjust' | 'grid_review' | 'list_revie
 export function FileImportModal({
   isOpen,
   initialFile,
+  targetTableId,
+  targetTableName,
   onClose,
   onImport,
   onSaveTableData,
@@ -172,10 +176,12 @@ export function FileImportModal({
       const defaultColHeaders = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'];
 
       const tableData: ImportedTableData = {
-        id: `imported-table-${Date.now()}`,
-        name: file?.name
-          ? file.name.replace(/\.[^/.]+$/, '')
-          : `取り込み時間割 (${new Date().toLocaleDateString('ja-JP')})`,
+        id: targetTableId || `imported-table-${Date.now()}`,
+        name:
+          targetTableName ||
+          (file?.name
+            ? file.name.replace(/\.[^/.]+$/, '')
+            : `取り込み時間割 (${new Date().toLocaleDateString('ja-JP')})`),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         numRows,
@@ -202,17 +208,20 @@ export function FileImportModal({
       onSaveTableData(tableData);
     }
 
-    const fixedSlots: FixedSlot[] = validCells.map((cell, idx) => ({
-      id: `grid-fixed-${Date.now()}-${idx}`,
-      title: cell.title,
-      category: 'lecture',
-      startMinutes: cell.startMinutes,
-      endMinutes: cell.endMinutes,
-      color: '#0ea5e9',
-      daysOfWeek: [cell.dayIndex],
-    }));
+    // targetTableId が指定されていない（新規取り込みの）場合のみ、独立スロットとしてタイムラインに直接反映
+    if (!targetTableId) {
+      const fixedSlots: FixedSlot[] = validCells.map((cell, idx) => ({
+        id: `grid-fixed-${Date.now()}-${idx}`,
+        title: cell.title,
+        category: 'lecture',
+        startMinutes: cell.startMinutes,
+        endMinutes: cell.endMinutes,
+        color: '#0ea5e9',
+        daysOfWeek: [cell.dayIndex],
+      }));
 
-    onImport(fixedSlots, [], importMode);
+      onImport(fixedSlots, [], importMode);
+    }
     handleReset();
     onClose();
   };
@@ -309,6 +318,11 @@ export function FileImportModal({
                 <span className="shrink-0 rounded bg-blue-50 border border-blue-200 px-1.5 py-0.2 text-[9px] sm:text-[10px] font-bold text-blue-700">
                   区画OCR v5
                 </span>
+                {targetTableName && (
+                  <span className="shrink-0 rounded bg-amber-50 border border-amber-300 px-1.5 py-0.2 text-[9px] sm:text-[10px] font-bold text-amber-800">
+                    上書き先: {targetTableName}
+                  </span>
+                )}
               </div>
               <p className="text-[10px] sm:text-[11px] text-slate-500 truncate">
                 {step === 'crop'

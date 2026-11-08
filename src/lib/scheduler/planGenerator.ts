@@ -17,9 +17,12 @@ export function generatePlacementPlans(
   todayIdx: number,
   currMinutes: number,
 ): PlanGenerationResult {
-  // 1. 所要時間なしToDoは時間割に配置しない
+  // 1. 所要時間なしToDoおよびOFF（enabled === false）のタスクは時間割に配置しない
   const schedulableTasks = tasks.filter(
-    (t) => !t.hasNoDuration && (t.durationMinutes > 0 || t.durationSize !== undefined),
+    (t) =>
+      t.enabled !== false &&
+      !t.hasNoDuration &&
+      (t.durationMinutes > 0 || t.durationSize !== undefined),
   );
 
   // 2. 各タスクの配置計画を策定
@@ -106,6 +109,11 @@ export function generatePlacementPlans(
       };
     }
 
+    const cycleStartDay =
+      typeof task.cycleStartDay === 'number' && !isNaN(task.cycleStartDay)
+        ? ((task.cycleStartDay % 7) + 7) % 7
+        : 0;
+
     // ③ 日課タスク（日タスク: period === 'day'、または period未指定かつ frequency === 'high'）
     // （※ period === 'week' や課題・付随タスクは絶対に日課タスクにしない！）
     const isDaily =
@@ -119,14 +127,14 @@ export function generatePlacementPlans(
       } else if (task.cycleDays && task.cycleDays.length > 0) {
         const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
         candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) =>
-          task.cycleDays!.includes(d % cycleLength),
+          task.cycleDays!.includes(((d - cycleStartDay + 7) % 7) % cycleLength),
         );
       } else if (task.startDay !== undefined) {
         candidateDays = [task.startDay];
       } else if (task.cycleIndex !== undefined) {
         const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
         candidateDays = [0, 1, 2, 3, 4, 5, 6].filter(
-          (d) => d % cycleLength === task.cycleIndex! % cycleLength,
+          (d) => ((d - cycleStartDay + 7) % 7) % cycleLength === task.cycleIndex! % cycleLength,
         );
       }
 
@@ -148,7 +156,7 @@ export function generatePlacementPlans(
     if (task.cycleDays && task.cycleDays.length > 0) {
       const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
       const candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) =>
-        task.cycleDays!.includes(d % cycleLength),
+        task.cycleDays!.includes(((d - cycleStartDay + 7) % 7) % cycleLength),
       );
       return {
         task,
@@ -187,7 +195,9 @@ export function generatePlacementPlans(
     } else if (task.cycleIndex !== undefined) {
       const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
       const cyclePrimary = task.cycleIndex % cycleLength;
-      const cycleDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => d % cycleLength === cyclePrimary);
+      const cycleDays = [0, 1, 2, 3, 4, 5, 6].filter(
+        (d) => ((d - cycleStartDay + 7) % 7) % cycleLength === cyclePrimary,
+      );
       const others = allDaysByFree.filter((d) => !cycleDays.includes(d));
       candidateDays = [...cycleDays, ...others];
     } else {

@@ -3566,6 +3566,103 @@ describe('Theoretical Scheduler Engine', () => {
           }
         });
       });
+
+      describe('Plan13: タスク管理のON/OFF（enabled）と周期の頭（cycleStartDay）の反映', () => {
+        it('enabled: false に設定されたタスクや固定枠は計画表に配置されないこと', () => {
+          const slots: FixedSlot[] = [
+            {
+              id: 'slot-enabled',
+              title: '有効な固定枠',
+              category: 'lecture',
+              startMinutes: 540,
+              endMinutes: 600,
+              color: '#0284c7',
+              daysOfWeek: [0],
+              enabled: true,
+            },
+            {
+              id: 'slot-disabled',
+              title: 'OFFの固定枠',
+              category: 'lecture',
+              startMinutes: 600,
+              endMinutes: 660,
+              color: '#0284c7',
+              daysOfWeek: [0],
+              enabled: false,
+            },
+          ];
+
+          const tasks: TaskItem[] = [
+            {
+              id: 'task-enabled',
+              title: '有効なタスク',
+              category: 'must',
+              durationMinutes: 60,
+              priority: 'high',
+              period: 'week',
+              targetDays: [0],
+              frequencyCount: 1,
+              enabled: true,
+            },
+            {
+              id: 'task-disabled',
+              title: 'OFFのタスク',
+              category: 'must',
+              durationMinutes: 60,
+              priority: 'high',
+              period: 'week',
+              targetDays: [0],
+              frequencyCount: 1,
+              enabled: false,
+            },
+          ];
+
+          const result = generateTheoreticalSchedule(slots, tasks);
+          const monTitles = result.dayBlocks[0].map((b) => b.title);
+          expect(monTitles).toContain('有効な固定枠');
+          expect(monTitles).not.toContain('OFFの固定枠');
+          expect(monTitles).toContain('有効なタスク');
+          expect(monTitles).not.toContain('OFFのタスク');
+        });
+
+        it('cycleStartDay が指定された周期タスクは、指定した開始曜日を Day 1 として配置されること', () => {
+          const cyclicTask: TaskItem = {
+            id: 'task-cycle-wed',
+            title: '水曜始まりの3日周期タスク',
+            category: 'want',
+            durationMinutes: 60,
+            priority: 'high',
+            period: 'week',
+            cycleDays: [0], // Day 1 のみ
+            cycleCount: 3, // 3日周期
+            cycleStartDay: 2, // 水曜(2)を Day 1 に設定 -> 水(2), 土(5), 火(1) が該当
+          };
+
+          const result = generateTheoreticalSchedule([], [cyclicTask]);
+          // 該当曜日: 火(1), 水(2), 土(5) に配置され、月(0), 木(3), 金(4), 日(6) には配置されない
+          expect(result.dayBlocks[1].some((b) => b.title === '水曜始まりの3日周期タスク')).toBe(
+            true,
+          );
+          expect(result.dayBlocks[2].some((b) => b.title === '水曜始まりの3日周期タスク')).toBe(
+            true,
+          );
+          expect(result.dayBlocks[5].some((b) => b.title === '水曜始まりの3日周期タスク')).toBe(
+            true,
+          );
+          expect(result.dayBlocks[0].some((b) => b.title === '水曜始まりの3日周期タスク')).toBe(
+            false,
+          );
+          expect(result.dayBlocks[3].some((b) => b.title === '水曜始まりの3日周期タスク')).toBe(
+            false,
+          );
+          expect(result.dayBlocks[4].some((b) => b.title === '水曜始まりの3日周期タスク')).toBe(
+            false,
+          );
+          expect(result.dayBlocks[6].some((b) => b.title === '水曜始まりの3日周期タスク')).toBe(
+            false,
+          );
+        });
+      });
     });
   });
 });

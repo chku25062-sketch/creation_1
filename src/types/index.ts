@@ -11,6 +11,7 @@ export interface FixedSlot {
   breakMinutes?: number; // 固定枠後の休憩時間（分）
   sourceTableId?: string; // 参照元テーブルID
   sourceTableName?: string; // 参照元テーブル名
+  enabled?: boolean; // 計画表への個別反映ON/OFF（未指定またはtrueはON、falseはOFF）
 }
 
 export type TaskType = 'task' | 'assignment' | 'todo';
@@ -51,6 +52,9 @@ export interface TaskItem {
   breakMinutes?: number; // タスク後の休憩時間（分）。0または未指定は休憩なし
   cycleIndex?: number; // 3日周期などのローテーション番号 (単一または代表値)
   cycleCount?: number; // 周期全体の長さ (例: 3日周期なら3)
+  cycleStartDay?: number; // 周期の頭（開始曜日インデックス 0:月〜6:日、デフォルト0）
+  cycleStartDate?: string; // 周期の頭の日付 ("YYYY-MM-DD")
+  enabled?: boolean; // 計画表への個別反映ON/OFF（未指定またはtrueはON、falseはOFF）
   sourceTableId?: string; // 参照元テーブルID
   sourceTableName?: string; // 参照元テーブル名
   earliestStartTime?: number; // これより前の時刻にはタスク配置を行わない下限時刻（分。未設定時は0=00:00）
@@ -205,6 +209,8 @@ export interface ImportedTableData {
   isApplied?: boolean; // 計画表に反映中かどうか
   classificationOverride?: TableClassification; // 手動で日・週・固定枠を明示上書きしたい場合の設定
   columnMode?: TableColumnMode; // 列の管理方式: 曜日で管理 ('weekday') または 周期で管理 ('cycle')
+  cycleStartDay?: number; // 周期の頭の位置（開始曜日インデックス 0:月〜6:日、デフォルト0）
+  cycleStartDate?: string; // 周期の頭の日付 ("YYYY-MM-DD")
   placementMode?: TablePlacementMode; // 配置方法: 固定枠として固定時間帯に配置 ('fixed') または タスクとして空き枠・指定区間に自動配置 ('auto')
   dailyRepeatCount?: number | 'auto'; // 1日の中の繰り返し回数 (未指定または 'auto' は指定なし)
   weeklyRepeatCount?: number | 'auto'; // 週に入れる日ブロックの量 (週あたりの日数・回数、未指定または 'auto' は指定なし)

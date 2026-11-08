@@ -402,6 +402,10 @@ export function generateScheduleItemsForTable(
       : 1;
 
   const tableCategory = table.name || '表タスク';
+  const cycleStartDay =
+    typeof table.cycleStartDay === 'number' && !isNaN(table.cycleStartDay)
+      ? ((table.cycleStartDay % 7) + 7) % 7
+      : 0;
 
   const tableStartTimeMinutes =
     table.axisConfig.startTime &&
@@ -439,6 +443,10 @@ export function generateScheduleItemsForTable(
 
       const isWeekday =
         !isCycleMode && colInfo.type === 'weekday' && colInfo.dayIndex !== undefined;
+      const effectiveWeekday =
+        isWeekday && colInfo.dayIndex !== undefined
+          ? (colInfo.dayIndex + cycleStartDay) % 7
+          : undefined;
       const isCycle = isCycleMode;
       const cycleIdx = colInfo.cycleIndex !== undefined ? colInfo.cycleIndex : c;
 
@@ -467,10 +475,12 @@ export function generateScheduleItemsForTable(
         // 同じ時限（時間帯）かつ同じタイトルのセルは、曜日（daysOfWeek）を結合して1つのスロットに集約
         if (timeSlot && (timeSlot.startMinutes > 0 || timeSlot.endMinutes > 0)) {
           let days: number[];
-          if (isWeekday) {
-            days = [colInfo.dayIndex!];
+          if (isWeekday && effectiveWeekday !== undefined) {
+            days = [effectiveWeekday];
           } else if (isCycle) {
-            days = [0, 1, 2, 3, 4, 5, 6].filter((d) => d % cycleCount === cycleIdx % cycleCount);
+            days = [0, 1, 2, 3, 4, 5, 6].filter(
+              (d) => ((d - cycleStartDay + 7) % 7) % cycleCount === cycleIdx % cycleCount,
+            );
           } else {
             days = [0, 1, 2, 3, 4, 5, 6];
           }
@@ -535,10 +545,10 @@ export function generateScheduleItemsForTable(
           if (effectiveBreakMinutes !== undefined) {
             existing.breakMinutes = Math.max(existing.breakMinutes || 0, effectiveBreakMinutes);
           }
-          if (isWeekday && colInfo.dayIndex !== undefined) {
+          if (isWeekday && effectiveWeekday !== undefined) {
             const curDays = existing.targetDays || [];
-            if (!curDays.includes(colInfo.dayIndex)) {
-              existing.targetDays = [...curDays, colInfo.dayIndex].sort((a, b) => a - b);
+            if (!curDays.includes(effectiveWeekday)) {
+              existing.targetDays = [...curDays, effectiveWeekday].sort((a, b) => a - b);
             }
           } else if (isCycle) {
             const curCycles = existing.cycleDays || [];
@@ -561,12 +571,15 @@ export function generateScheduleItemsForTable(
             period: 'day',
             dailyCount: tableDailyCount ?? 1,
             dailyRepeatMode: tableDailyCount ? 'custom' : 'auto',
-            targetDays: isWeekday ? [colInfo.dayIndex!] : undefined,
-            startDay: isWeekday ? colInfo.dayIndex : undefined,
-            deadlineDay: isWeekday ? colInfo.dayIndex : undefined,
+            targetDays:
+              isWeekday && effectiveWeekday !== undefined ? [effectiveWeekday] : undefined,
+            startDay: isWeekday ? effectiveWeekday : undefined,
+            deadlineDay: isWeekday ? effectiveWeekday : undefined,
             cycleDays: isCycle ? [cycleIdx] : undefined,
             cycleIndex: isCycle ? cycleIdx : undefined,
             cycleCount: isCycle ? cycleCount : undefined,
+            cycleStartDay: table.cycleStartDay,
+            cycleStartDate: table.cycleStartDate,
             earliestStartTime: tableStartTimeMinutes,
             latestEndTime: tableEndTimeMinutes,
             autoPlaceWithinRange: isAutoRange,
@@ -613,10 +626,10 @@ export function generateScheduleItemsForTable(
             existing.frequency = 'custom';
             existing.frequencyCount = tableWeeklyCount;
           }
-          if (isWeekday && colInfo.dayIndex !== undefined) {
+          if (isWeekday && effectiveWeekday !== undefined) {
             const curDays = existing.targetDays || [];
-            if (!curDays.includes(colInfo.dayIndex)) {
-              existing.targetDays = [...curDays, colInfo.dayIndex].sort((a, b) => a - b);
+            if (!curDays.includes(effectiveWeekday)) {
+              existing.targetDays = [...curDays, effectiveWeekday].sort((a, b) => a - b);
               existing.startDay = existing.targetDays[0];
             }
           } else if (isCycle) {
@@ -642,14 +655,17 @@ export function generateScheduleItemsForTable(
             dailyCount: tableDailyCount ?? 1,
             dailyRepeatMode: tableDailyCount ? 'custom' : 'auto',
             period: 'week',
-            targetDays: isWeekday
-              ? [colInfo.dayIndex!]
-              : !isCycle && !tableWeeklyCount
-                ? [0, 1, 2, 3, 4, 5, 6]
-                : undefined,
+            targetDays:
+              isWeekday && effectiveWeekday !== undefined
+                ? [effectiveWeekday]
+                : !isCycle && !tableWeeklyCount
+                  ? [0, 1, 2, 3, 4, 5, 6]
+                  : undefined,
             cycleDays: isCycle ? [cycleIdx] : undefined,
             cycleCount: isCycle ? cycleCount : undefined,
-            startDay: isWeekday ? colInfo.dayIndex : undefined,
+            cycleStartDay: table.cycleStartDay,
+            cycleStartDate: table.cycleStartDate,
+            startDay: isWeekday ? effectiveWeekday : undefined,
             deadlineDay: undefined, // 表の列は開始/対象曜日であり、週タスクの締切ではない（他曜日への柔軟配置を許可）
             cycleIndex: isCycle ? cycleIdx : undefined,
             earliestStartTime: tableStartTimeMinutes,
@@ -696,9 +712,9 @@ export function generateScheduleItemsForTable(
           if (classification === 'fixed_slot') {
             const parentEndMinutesByDay: Record<number, number> = {};
             let parentEnd: number | undefined = undefined;
-            if (isWeekday && colInfo.dayIndex !== undefined && timeSlot) {
+            if (isWeekday && effectiveWeekday !== undefined && timeSlot) {
               parentEnd = timeSlot.endMinutes + (effectiveBreakMinutes || 0);
-              parentEndMinutesByDay[colInfo.dayIndex] = parentEnd;
+              parentEndMinutesByDay[effectiveWeekday] = parentEnd;
             }
 
             attachedTaskMap.set(attachedKey, {
@@ -714,12 +730,12 @@ export function generateScheduleItemsForTable(
               parentTitle: fullTitle,
               parentEndMinutesByDay,
               targetDays:
-                isWeekday && colInfo.dayIndex !== undefined ? [colInfo.dayIndex] : undefined,
-              startDay: isWeekday && colInfo.dayIndex !== undefined ? colInfo.dayIndex : undefined,
+                isWeekday && effectiveWeekday !== undefined ? [effectiveWeekday] : undefined,
+              startDay: isWeekday && effectiveWeekday !== undefined ? effectiveWeekday : undefined,
               // ★ 指定日時以降に配置（元タスクより後に時間を設定）
               scheduleAfterEnabled: true,
               scheduleAfterDay:
-                isWeekday && colInfo.dayIndex !== undefined ? colInfo.dayIndex : undefined,
+                isWeekday && effectiveWeekday !== undefined ? effectiveWeekday : undefined,
               scheduleAfterTime:
                 parentEnd !== undefined ? minutesToTimeString(parentEnd) : undefined,
               earliestStartTime: parentEnd,
@@ -730,6 +746,8 @@ export function generateScheduleItemsForTable(
               completed: false,
               sourceTableId: table.id,
               sourceTableName: table.name,
+              cycleStartDay: table.cycleStartDay,
+              cycleStartDate: table.cycleStartDate,
               expiryWeeks:
                 table.weeklyTaskExpiryWeeks ?? table.axisConfig?.weeklyTaskExpiryWeeks ?? 1,
             });
@@ -745,11 +763,14 @@ export function generateScheduleItemsForTable(
               period: 'week', // 週のタスク
               dailyCount: 1, // 1日の中の繰り返しなし
               dailyRepeatMode: 'custom',
-              targetDays: isWeekday ? [colInfo.dayIndex!] : undefined,
-              startDay: isWeekday ? colInfo.dayIndex! : undefined,
+              targetDays:
+                isWeekday && effectiveWeekday !== undefined ? [effectiveWeekday] : undefined,
+              startDay: isWeekday && effectiveWeekday !== undefined ? effectiveWeekday : undefined,
               cycleDays: isCycle ? [cycleIdx] : undefined,
               cycleIndex: isCycle ? cycleIdx : undefined,
               cycleCount: isCycle ? cycleCount : undefined,
+              cycleStartDay: table.cycleStartDay,
+              cycleStartDate: table.cycleStartDate,
               isAttachedTask: true,
               parentTitle: fullTitle,
               taskType: 'task',
@@ -767,22 +788,22 @@ export function generateScheduleItemsForTable(
           existingAttached.durationMinutes = attachedDuration;
           existingAttached.durationSize = undefined;
           if (classification === 'fixed_slot') {
-            if (isWeekday && colInfo.dayIndex !== undefined) {
+            if (isWeekday && effectiveWeekday !== undefined) {
               const curDays = existingAttached.targetDays || [];
-              if (!curDays.includes(colInfo.dayIndex)) {
-                existingAttached.targetDays = [...curDays, colInfo.dayIndex].sort((a, b) => a - b);
+              if (!curDays.includes(effectiveWeekday)) {
+                existingAttached.targetDays = [...curDays, effectiveWeekday].sort((a, b) => a - b);
               }
               if (timeSlot) {
                 if (!existingAttached.parentEndMinutesByDay)
                   existingAttached.parentEndMinutesByDay = {};
                 const endWithBreak = timeSlot.endMinutes + (effectiveBreakMinutes || 0);
-                existingAttached.parentEndMinutesByDay[colInfo.dayIndex] = Math.max(
-                  existingAttached.parentEndMinutesByDay[colInfo.dayIndex] || 0,
+                existingAttached.parentEndMinutesByDay[effectiveWeekday] = Math.max(
+                  existingAttached.parentEndMinutesByDay[effectiveWeekday] || 0,
                   endWithBreak,
                 );
                 existingAttached.scheduleAfterEnabled = true;
                 if (existingAttached.scheduleAfterDay === undefined) {
-                  existingAttached.scheduleAfterDay = colInfo.dayIndex;
+                  existingAttached.scheduleAfterDay = effectiveWeekday;
                 }
                 if (
                   existingAttached.earliestStartTime === undefined ||
@@ -800,10 +821,10 @@ export function generateScheduleItemsForTable(
             existingAttached.frequencyCount = 1;
             existingAttached.period = 'week';
           } else {
-            if (isWeekday && colInfo.dayIndex !== undefined) {
+            if (isWeekday && effectiveWeekday !== undefined) {
               const curDays = existingAttached.targetDays || [];
-              if (!curDays.includes(colInfo.dayIndex)) {
-                existingAttached.targetDays = [...curDays, colInfo.dayIndex].sort((a, b) => a - b);
+              if (!curDays.includes(effectiveWeekday)) {
+                existingAttached.targetDays = [...curDays, effectiveWeekday].sort((a, b) => a - b);
               }
             } else if (isCycle) {
               const curCycles = existingAttached.cycleDays || [];

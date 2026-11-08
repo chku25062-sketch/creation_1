@@ -72,6 +72,7 @@ export function calculateFreeSlots(normalizedFixedSlots: FixedSlot[]): FreeSlot[
  */
 export function getFixedSlotsForDay(fixedSlots: FixedSlot[], dayIndex: number): FixedSlot[] {
   return fixedSlots.filter((slot) => {
+    if (slot.enabled === false) return false;
     if (!slot.daysOfWeek || slot.daysOfWeek.length === 0) return true;
     return slot.daysOfWeek.includes(dayIndex);
   });
@@ -101,6 +102,7 @@ export class SlotManager {
     };
 
     for (const slot of fixedSlots) {
+      if (slot.enabled === false) continue;
       if (slot.startMinutes === slot.endMinutes) continue;
       const targetDays =
         slot.daysOfWeek && slot.daysOfWeek.length > 0 ? slot.daysOfWeek : [0, 1, 2, 3, 4, 5, 6];

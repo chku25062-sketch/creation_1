@@ -699,4 +699,52 @@ describe('tableUtils', () => {
       expect(task.autoPlaceWithinRange).toBe(true);
     });
   });
+
+  describe('Plan13: 周期の頭（cycleStartDay / cycleStartDate）の位置指定による曜日マッピング', () => {
+    it('固定枠（fixed_slot）かつ周期管理の場合、cycleStartDay のオフセットに応じて daysOfWeek がシフトされること', () => {
+      const table = createBaseTable('09:00');
+      table.columnMode = 'cycle';
+      table.numCols = 3;
+      table.colHeaders = ['Day 1', 'Day 2', 'Day 3'];
+      table.cycleStartDay = 2; // 水曜(2)を周期の頭（Day 1）に設定
+      table.cycleStartDate = '2026-11-04';
+      table.cells = [
+        [
+          { ...table.cells[0][0], title: '筋トレA', dayIndex: 0 },
+          { ...table.cells[0][1], title: '', dayIndex: 1 },
+          { ...table.cells[0][0], title: '', dayIndex: 2 },
+        ],
+      ];
+
+      const res = generateScheduleItemsForTable(table);
+      expect(res.slots.length).toBe(1);
+      // Day 1 (cycleIdx=0, cycleCount=3), cycleStartDay=2 (水)
+      // ((d - 2 + 7) % 7) % 3 === 0 となる曜日 d:
+      // d=0(月): (5)%3=2, d=1(火): (6)%3=0, d=2(水): (0)%3=0, d=5(土): (3)%3=0 -> [1, 2, 5]
+      expect(res.slots[0].daysOfWeek).toEqual([1, 2, 5]);
+    });
+
+    it('タスク生成時に cycleStartDay および cycleStartDate が TaskItem に引き継がれること', () => {
+      const table = createBaseTable(null);
+      table.columnMode = 'cycle';
+      table.numCols = 3;
+      table.colHeaders = ['Day 1', 'Day 2', 'Day 3'];
+      table.cycleStartDay = 4; // 金曜(4)始まり
+      table.cycleStartDate = '2026-11-06';
+      table.cells = [
+        [
+          { ...table.cells[0][0], title: '有酸素運動', dayIndex: 0 },
+          { ...table.cells[0][1], title: '', dayIndex: 1 },
+          { ...table.cells[0][0], title: '', dayIndex: 2 },
+        ],
+      ];
+
+      const res = generateScheduleItemsForTable(table);
+      expect(res.tasks.length).toBe(1);
+      expect(res.tasks[0].cycleStartDay).toBe(4);
+      expect(res.tasks[0].cycleStartDate).toBe('2026-11-06');
+      expect(res.tasks[0].cycleDays).toEqual([0]);
+      expect(res.tasks[0].cycleCount).toBe(3);
+    });
+  });
 });

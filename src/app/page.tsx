@@ -9,6 +9,7 @@ import { FileImportModal } from '@/components/FileImportModal';
 import {
   FixedSlot,
   TaskItem,
+  GridCell,
   ImportedTableData,
   ScheduleInclusionSettings,
   AppThemeMode,
@@ -41,6 +42,7 @@ export default function Home() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importInitialFile, setImportInitialFile] = useState<File | null>(null);
+  const [importTargetTableId, setImportTargetTableId] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [focusMode, setFocusMode] = useState<'week' | 'today'>('today');
@@ -109,8 +111,13 @@ export default function Home() {
     }
   }, []);
 
-  const effectiveTodayIndex = debugTime.enabled ? debugTime.dayIndex : realTime.dayIndex;
-  const effectiveCurrentMinutes = debugTime.enabled ? debugTime.minutes : realTime.minutes;
+  // 開発環境（npm run dev）でのみデバッグ機能を有効化し、本番デプロイ（production）では自動非表示・無効化
+  const isDevelopment = process.env.NODE_ENV === 'development';
+
+  const effectiveTodayIndex =
+    isDevelopment && debugTime.enabled ? debugTime.dayIndex : realTime.dayIndex;
+  const effectiveCurrentMinutes =
+    isDevelopment && debugTime.enabled ? debugTime.minutes : realTime.minutes;
 
   const handleChangeDebugTime = (next: Partial<DebugTimeConfig>) => {
     setDebugTime((prev) => {
@@ -255,8 +262,9 @@ export default function Home() {
     }
   };
 
-  const handleFileSelectFromSidebar = (file: File) => {
+  const handleFileSelectFromSidebar = (file: File, targetTableId?: string) => {
     setImportInitialFile(file);
+    setImportTargetTableId(targetTableId || null);
     setIsImportOpen(true);
   };
 
@@ -457,20 +465,139 @@ export default function Home() {
   };
 
   const handleSaveTableData = (table: ImportedTableData) => {
-    const existing = importedTables.find((t) => t.id === table.id);
-    const tableWithColor: ImportedTableData = {
-      ...table,
-      colorIndex:
-        table.colorIndex !== undefined
-          ? table.colorIndex
-          : existing?.colorIndex !== undefined
-            ? existing.colorIndex
-            : importedTables.length % 12,
-    };
-    const updated = [tableWithColor, ...importedTables.filter((t) => t.id !== table.id)];
-    setImportedTables(updated);
-    saveImportedTables(updated);
-    // 取り込んだ表の軸・インターバル定義を行えるようデータ管理Sheetへ遷移
+    const targetId = importTargetTableId || table.id;
+    const existing = importedTables.find((t) => t.id === targetId);
+
+    if (existing) {
+      // 既存テーブルに対して OR 上書きマージ（新セルの値があれば優先、空なら既存セルの値を維持）
+      const mergedRows = Math.max(existing.numRows, table.numRows);
+      const mergedCols = Math.max(existing.numCols, table.numCols);
+
+      const mergedCells: GridCell[][] = Array.from({ length: mergedRows }, (_, r) =>
+        Array.from({ length: mergedCols }, (_, c) => {
+          const newCell = table.cells?.[r]?.[c];
+          const oldCell = existing.cells?.[r]?.[c];
+          const hasNew = !!(
+            newCell &&
+            ((newCell.text && newCell.text.trim()) ||
+              (newCell.title && newCell.title.trim()) ||
+              (newCell.fullText && newCell.fullText.trim()))
+          );
+
+          if (hasNew && newCell) {
+            return {
+              ...newCell,
+              attachedTask: newCell.attachedTask ?? oldCell?.attachedTask,
+              category: newCell.category || oldCell?.category,
+            };
+          }
+          if (oldCell) {
+            return oldCell;
+          }
+          return (
+            newCell || {
+              dayIndex: c % 7,
+              periodIndex: r + 1,
+              text: null,
+              rawLines: [],
+              fullText: '',
+              title: '',
+              roomOrNote: '',
+              startMinutes: 530,
+              endMinutes: 620,
+            }
+          );
+        }),
+      );
+
+      const defaultColHeaders = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'];
+      const mergedColHeaders = Array.from({ length: mergedCols }, (_, c) => {
+        return (
+          table.colHeaders?.[c] || existing.colHeaders?.[c] || defaultColHeaders[c] || `列 ${c + 1}`
+        );
+      });
+
+      const mergedRowHeaders = Array.from({ length: mergedRows }, (_, r) => {
+        return table.rowHeaders?.[r] || existing.rowHeaders?.[r] || `${r + 1}限`;
+      });
+
+      const updatedTable: ImportedTableData = {
+        ...existing,
+        numRows: mergedRows,
+        numCols: mergedCols,
+        cells: mergedCells,
+        colHeaders: mergedColHeaders,
+        rowHeaders: mergedRowHeaders,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const updated = importedTables.map((t) => (t.id === existing.id ? updatedTable : t));
+      setImportedTables(updated);
+      saveImportedTables(updated);
+
+      // 計画表に反映中（isApplied）であれば、固定枠・タスクも自動再同期
+      const isApplied =
+        existing.isApplied !== undefined
+          ? existing.isApplied
+          : fixedSlots.some((s) => s.sourceTableId === existing.id) ||
+            tasks.some((t) => t.sourceTableId === existing.id);
+
+      if (isApplied) {
+        const { slots: newSlots, tasks: newTasks } = generateScheduleItemsForTable(updatedTable);
+
+        const prevSlotEnabledMap = new Map<string, boolean | undefined>();
+        fixedSlots.forEach((s) => {
+          if (s.sourceTableId === existing.id || s.id.startsWith(`slot-table-${existing.id}-`)) {
+            prevSlotEnabledMap.set(s.id, s.enabled);
+            prevSlotEnabledMap.set(`${s.title}_${s.startMinutes}`, s.enabled);
+          }
+        });
+        const mergedNewSlots = newSlots.map((s) => {
+          const prevEnabled =
+            prevSlotEnabledMap.get(s.id) ?? prevSlotEnabledMap.get(`${s.title}_${s.startMinutes}`);
+          return prevEnabled !== undefined ? { ...s, enabled: prevEnabled } : s;
+        });
+
+        const filteredSlots = fixedSlots.filter(
+          (s) =>
+            s.sourceTableId !== existing.id &&
+            !s.id.startsWith(`slot-table-${existing.id}-`) &&
+            !s.id.startsWith(`slot-lecture-${existing.id}-`),
+        );
+        setFixedSlots([...filteredSlots, ...mergedNewSlots]);
+
+        const prevTaskEnabledMap = new Map<string, boolean | undefined>();
+        tasks.forEach((t) => {
+          if (t.sourceTableId === existing.id || t.id.startsWith(`task-table-${existing.id}-`)) {
+            prevTaskEnabledMap.set(t.id, t.enabled);
+            prevTaskEnabledMap.set(t.title, t.enabled);
+          }
+        });
+        const mergedNewTasks = newTasks.map((t) => {
+          const prevEnabled = prevTaskEnabledMap.get(t.id) ?? prevTaskEnabledMap.get(t.title);
+          return prevEnabled !== undefined ? { ...t, enabled: prevEnabled } : t;
+        });
+
+        const filteredTasks = tasks.filter(
+          (t) =>
+            t.sourceTableId !== existing.id &&
+            !t.id.startsWith(`task-table-${existing.id}-`) &&
+            !t.id.startsWith(`task-attached-${existing.id}-`),
+        );
+        setTasks([...filteredTasks, ...mergedNewTasks]);
+      }
+    } else {
+      // 新規テーブルとして追加
+      const tableWithColor: ImportedTableData = {
+        ...table,
+        colorIndex: table.colorIndex !== undefined ? table.colorIndex : importedTables.length % 12,
+      };
+      const updated = [tableWithColor, ...importedTables.filter((t) => t.id !== table.id)];
+      setImportedTables(updated);
+      saveImportedTables(updated);
+    }
+
+    setImportTargetTableId(null);
     setActiveTab('data');
   };
 
@@ -487,16 +614,18 @@ export default function Home() {
     saveInclusionSettings(newSettings);
   };
 
-  // 計画表に反映する有効な固定枠（生活リズム枠のON/OFF考慮）
+  // 計画表に反映する有効な固定枠（生活リズム枠のON/OFF ＆ 個別スロットのenabled考慮）
   const effectiveFixedSlots = useMemo(() => {
-    if (inclusionSettings.enableSlots) return fixedSlots;
+    const enabledSlots = fixedSlots.filter((s) => s.enabled !== false);
+    if (inclusionSettings.enableSlots) return enabledSlots;
     // 生活リズム（睡眠、ルーティン等）がOFFの場合は講義枠のみ残す
-    return fixedSlots.filter((s) => s.category === 'lecture');
+    return enabledSlots.filter((s) => s.category === 'lecture');
   }, [fixedSlots, inclusionSettings.enableSlots]);
 
-  // 計画表に反映する有効なタスク（日課タスク・週次タスクのON/OFF考慮）
+  // 計画表に反映する有効なタスク（日課タスク・週次タスクのON/OFF ＆ 個別タスクのenabled考慮）
   const effectiveTasks = useMemo(() => {
     return tasks.filter((t) => {
+      if (t.enabled === false) return false;
       const isDaily = t.period === 'day' || t.frequency === 'high';
       if (isDaily && !inclusionSettings.enableDailyTasks) return false;
       if (!isDaily && !inclusionSettings.enableWeeklyTasks) return false;
@@ -655,7 +784,7 @@ export default function Home() {
         themeMode === 'planner' ? 'bg-[#f4efe8] bg-notebook-grid' : 'bg-[#f8fafc] modern-grid-bg'
       }`}
     >
-      <main className="mx-auto flex w-full flex-1 min-h-0 flex-col p-1 sm:p-1.5 max-w-full">
+      <main className="flex w-full flex-1 min-h-0 flex-col p-0 max-w-full">
         {/* Sheet 1: 計画表 (メインタイムライン) */}
         <div className={`flex flex-1 min-h-0 flex-col ${activeTab === 'timeline' ? '' : 'hidden'}`}>
           <Timeline24h
@@ -667,12 +796,11 @@ export default function Home() {
             onToggleFocus={handleToggleFocus}
             onToggleBlockComplete={handleToggleBlockComplete}
             themeMode={themeMode}
-            onToggleThemeMode={handleToggleThemeMode}
             selectedDayIndex={selectedDayIndex}
             onSelectDayIndex={setSelectedDayIndex}
             overrideTodayIndex={effectiveTodayIndex}
             overrideCurrentMinutes={effectiveCurrentMinutes}
-            isDebugTime={debugTime.enabled}
+            isDebugTime={isDevelopment && debugTime.enabled}
           />
         </div>
 
@@ -692,8 +820,9 @@ export default function Home() {
             inclusionSettings={inclusionSettings}
             onInclusionSettingsChange={handleInclusionSettingsChange}
             onNavigateToTimeline={() => setActiveTab('timeline')}
-            onOpenImport={() => {
+            onOpenImport={(targetTableId) => {
               setImportInitialFile(null);
+              setImportTargetTableId(targetTableId || null);
               setIsImportOpen(true);
             }}
             onFileSelect={handleFileSelectFromSidebar}
@@ -721,14 +850,18 @@ export default function Home() {
         selectedDayIndex={selectedDayIndex}
         placementStrategy={placementStrategy}
         onTogglePlacementStrategy={handleTogglePlacementStrategy}
-        debugTime={{
-          enabled: debugTime.enabled,
-          dayIndex: effectiveTodayIndex,
-          minutes: effectiveCurrentMinutes,
-        }}
-        onChangeDebugTime={handleChangeDebugTime}
-        onResetDebugTime={handleResetDebugTime}
-        onResetCompletionStates={handleResetCompletionStates}
+        debugTime={
+          isDevelopment
+            ? {
+                enabled: debugTime.enabled,
+                dayIndex: effectiveTodayIndex,
+                minutes: effectiveCurrentMinutes,
+              }
+            : undefined
+        }
+        onChangeDebugTime={isDevelopment ? handleChangeDebugTime : undefined}
+        onResetDebugTime={isDevelopment ? handleResetDebugTime : undefined}
+        onResetCompletionStates={isDevelopment ? handleResetCompletionStates : undefined}
         onSelectDayIndex={(idx) => {
           setSelectedDayIndex(idx);
           if (focusMode !== 'today') {
@@ -756,9 +889,16 @@ export default function Home() {
       <FileImportModal
         isOpen={isImportOpen}
         initialFile={importInitialFile}
+        targetTableId={importTargetTableId || undefined}
+        targetTableName={
+          importTargetTableId
+            ? importedTables.find((t) => t.id === importTargetTableId)?.name
+            : undefined
+        }
         onClose={() => {
           setIsImportOpen(false);
           setImportInitialFile(null);
+          setImportTargetTableId(null);
         }}
         onImport={handleImport}
         onSaveTableData={handleSaveTableData}
