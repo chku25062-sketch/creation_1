@@ -3797,6 +3797,29 @@ describe('Theoretical Scheduler Engine', () => {
             const nextStart = monWave2Active[i + 1].startMinutes;
             expect(nextStart - currEnd).toBe(0);
           }
+
+          // Step 3: 代行タスクから代行元の早期完了ブロック（lectureBlock）が特定でき、「戻す」操作で代行が解消されること
+          expect(firstSubstitute.substitutedForBlockId).toBe(lectureBlock.id);
+          expect(firstSubstitute.substitutedForTitle).toBe(lectureBlock.title);
+
+          // 早期完了を解除（completedIds から lectureBlock.id を削除して未完了に戻す）
+          completedIds.delete(lectureBlock.id);
+          completedIds.delete(firstSubstitute.id);
+          const restoredResult = generateTheoreticalSchedule(testFixedSlots, testTasks, {
+            todayIndex: 0,
+            currentMinutes: 540,
+            completedBlockIds: completedIds,
+          });
+
+          // 講義ブロックが未完了で復帰し、代行タスクが解消されていること
+          const restoredLecture = restoredResult.dayBlocks[0].find((b) => b.id === lectureBlock.id);
+          expect(restoredLecture).toBeDefined();
+          expect(restoredLecture!.isCompleted).toBe(false);
+          expect(restoredLecture!.isEarlyCompleted).toBeFalsy();
+          const restoredSubs = restoredResult.dayBlocks[0].filter(
+            (b) => b.isSubstitute && b.substitutedForBlockId === lectureBlock.id,
+          );
+          expect(restoredSubs.length).toBe(0);
         });
       });
 

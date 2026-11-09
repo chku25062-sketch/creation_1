@@ -267,6 +267,18 @@ export function SheetFooter({
                 {customBadge}
               </span>
             )}
+            {block.isSubstitute && (
+              <span
+                className="shrink-0 rounded bg-blue-100 border border-blue-300 px-1 py-0.2 text-[9px] font-bold text-blue-800"
+                title={
+                  block.substitutedForTitle
+                    ? `「${block.substitutedForTitle}」の早期完了に伴う代行配置`
+                    : '代行タスク'
+                }
+              >
+                代行
+              </span>
+            )}
             {block.isRescheduled && (
               <span
                 className="shrink-0 rounded bg-amber-100 border border-amber-300 px-1 py-0.2 text-[9px] font-bold text-amber-800"

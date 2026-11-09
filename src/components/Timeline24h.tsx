@@ -926,27 +926,39 @@ export function Timeline24h({
                       }[] = [];
 
                       for (const eb of earlyBlocks) {
+                        // 代行タスク（isSubstitute）で明示的にこの eb を代替しているタスクを優先検索
+                        const directlySubstituted = activeBlocks.find(
+                          (a) =>
+                            a.isSubstitute &&
+                            ((a.substitutedForBlockId && a.substitutedForBlockId === eb.id) ||
+                              (a.substitutedForTitle && a.substitutedForTitle === eb.title)),
+                        );
+
                         const overlappingActives = activeBlocks
                           .filter(
                             (a) => a.startMinutes < eb.endMinutes && a.endMinutes > eb.startMinutes,
                           )
                           .sort((a, b) => a.startMinutes - b.startMinutes);
-                        const firstOverlappingActive = overlappingActives[0];
 
-                        if (
-                          firstOverlappingActive &&
-                          firstOverlappingActive.startMinutes <= eb.startMinutes + 10
-                        ) {
-                          const list = coveredEarlyByActiveId.get(firstOverlappingActive.id) || [];
+                        const primaryCoveringActive = directlySubstituted || overlappingActives[0];
+
+                        if (primaryCoveringActive) {
+                          const list = coveredEarlyByActiveId.get(primaryCoveringActive.id) || [];
                           list.push(eb);
-                          coveredEarlyByActiveId.set(firstOverlappingActive.id, list);
+                          coveredEarlyByActiveId.set(primaryCoveringActive.id, list);
+
+                          // 代行タスク等の開始時刻までに15分以上の空きがある場合のみ、前方の早期完了ブロックとして最小限描画
+                          if (primaryCoveringActive.startMinutes > eb.startMinutes + 15) {
+                            renderItems.push({
+                              block: eb,
+                              displayEndMinutes: primaryCoveringActive.startMinutes,
+                              coveredEarlyBlocks: [],
+                            });
+                          }
                         } else {
-                          const displayEndMinutes = firstOverlappingActive
-                            ? firstOverlappingActive.startMinutes
-                            : eb.endMinutes;
                           renderItems.push({
                             block: eb,
-                            displayEndMinutes,
+                            displayEndMinutes: eb.endMinutes,
                             coveredEarlyBlocks: [],
                           });
                         }
@@ -974,10 +986,29 @@ export function Timeline24h({
                           !block.isBreak &&
                           (block.isWeeklyTask === true || block.isRescheduled === true);
                         const isCompletableBlock = !block.isBreak;
-                        const latestCoveredEarly =
-                          coveredEarlyBlocks.length > 0
+
+                        // ★ 代行タスク（isSubstitute）の場合は、代行元の早期完了ブロックを確実に特定して「戻す」ボタンを提供
+                        const substituteSourceBlock =
+                          (block.isSubstitute
+                            ? currentDayBlocks.find(
+                                (b) =>
+                                  b.isEarlyCompleted &&
+                                  ((block.substitutedForBlockId &&
+                                    b.id === block.substitutedForBlockId) ||
+                                    (block.substitutedForTitle &&
+                                      b.title === block.substitutedForTitle)),
+                              ) ||
+                              earlyBlocks.find(
+                                (eb) =>
+                                  eb.startMinutes < block.endMinutes &&
+                                  eb.endMinutes > block.startMinutes,
+                              )
+                            : undefined) ||
+                          (coveredEarlyBlocks.length > 0
                             ? coveredEarlyBlocks[coveredEarlyBlocks.length - 1]
-                            : undefined;
+                            : undefined);
+
+                        const latestCoveredEarly = substituteSourceBlock;
 
                         // ★ 枠の高さ（所要時間）に応じて、タスク名を表示できる最大行数を動的に算出（最低1行は必ず確保）
                         const hasTimeRow = !isShort;

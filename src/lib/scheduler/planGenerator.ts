@@ -277,7 +277,7 @@ export function generatePlacementPlans(
         let fromDay = -1;
         let matchedTask: TaskItem | undefined;
 
-        const match = id.match(/^block-(?:task|rescheduled)-(\d+)-(.+?)(?:-(\d+))?$/);
+        const match = id.match(/^block-(?:task|rescheduled|substitute)-(\d+)-(.+?)(?:-.*)?$/);
         if (match) {
           fromDay = parseInt(match[1], 10);
           const taskIdCandidate = match[2];

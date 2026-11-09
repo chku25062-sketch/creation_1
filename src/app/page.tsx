@@ -733,7 +733,7 @@ export default function Home() {
           b.dayIndex !== undefined &&
           (b.dayIndex < todayIdx || (b.dayIndex === todayIdx && b.endMinutes <= currMinutes)),
       ) ||
-      (isPast && !block.isRescheduled ? block : undefined);
+      (isPast && !block.isRescheduled && !block.isSubstitute ? block : undefined);
 
     const isCurrentlyCompleted = block.isCompleted;
 
