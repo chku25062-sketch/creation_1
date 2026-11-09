@@ -5,6 +5,7 @@ import {
   generateTheoreticalSchedule,
   getAdjustedDuration,
   classifyWeeklyTask,
+  classifyWeeklyBlock,
   classifyDailyBlock,
 } from './scheduler';
 import { FixedSlot, TaskItem, TheoreticalBlock } from '@/types';
@@ -3998,6 +3999,40 @@ describe('Theoretical Scheduler Engine', () => {
 
           // 講義終了後（11:00 / 660分）: 付随元タスクの時間を超えたため「出題中」
           expect(classifyWeeklyTask(attachedTask, 0, 660)).toBe('active');
+
+          // ⑤ 先週の分のタスクが未完了状態のまま持ち越されている場合、先週分のタスクに分類されること
+          const lastWeekUncompletedBlock: TheoreticalBlock = {
+            id: 'block-rescheduled-1-last-task',
+            title: '先週の未完了課題',
+            category: 'study',
+            startMinutes: 600,
+            endMinutes: 660,
+            color: '#8b5cf6',
+            isFixed: false,
+            dayIndex: 1, // 火曜
+            isWeeklyTask: true,
+            isRescheduled: true,
+            isCompleted: false, // 未完了
+            taskOriginWeek: 'last',
+          };
+          expect(classifyWeeklyBlock(lastWeekUncompletedBlock, todayIdx)).toBe('last_week');
+
+          // 週跨ぎ課題（木曜出題〜翌週火曜締切）で未完了のまま持ち越されたブロック
+          const crossWeekUncompletedBlock: TheoreticalBlock = {
+            id: 'block-task-0-cross-task-0',
+            title: '週跨ぎの未完了課題',
+            category: 'study',
+            startMinutes: 600,
+            endMinutes: 660,
+            color: '#8b5cf6',
+            isFixed: false,
+            dayIndex: 0, // 月曜
+            isWeeklyTask: true,
+            isCompleted: false, // 未完了
+            deadlineDay: 1, // 火曜締切
+            rescheduledFromDay: 3, // 先週木曜から持ち越し
+          };
+          expect(classifyWeeklyBlock(crossWeekUncompletedBlock, todayIdx)).toBe('last_week');
         });
 
         it('未出題タスクが出題曜日より前にフライング配置されないこと', () => {

@@ -102,31 +102,55 @@ export function classifyWeeklyBlock(
   taskMap?: Map<string, TaskItem>,
   currentMinutes?: number,
 ): WeeklyTaskClassification {
-  if (block.weeklyClassification) {
-    return block.weeklyClassification;
-  }
-
+  // 1. 先週タスクの判定を最優先（ブロック自身のフラグ、または大元タスクの先週フラグ）
+  // ★ ユーザー指示: 先週の分のタスクが未完了状態のまま持ち越されている奴は先週分のタスクに入れる！
   if (block.taskOriginWeek === 'last' || block.isFromLastWeek) {
     return 'last_week';
   }
 
-  if (block.taskId && taskMap) {
-    const parentTask = taskMap.get(block.taskId);
-    if (parentTask) {
-      return classifyWeeklyTask(parentTask, todayIndex, currentMinutes);
+  const parentTask = block.taskId && taskMap ? taskMap.get(block.taskId) : undefined;
+  if (parentTask) {
+    if (parentTask.taskOriginWeek === 'last' || parentTask.isFromLastWeek) {
+      return 'last_week';
     }
   }
 
-  // 締切と出題曜日による先週タスク判定
+  // 再配置ブロック（isRescheduled）で、先週から未完了のまま持ち越されたもの
+  if (block.isRescheduled) {
+    if (parentTask && (parentTask.taskOriginWeek === 'last' || parentTask.isFromLastWeek)) {
+      return 'last_week';
+    }
+    // 再配置元の曜日が出題曜日や締切曜日より後（週跨ぎで未完了持ち越し）
+    if (
+      block.rescheduledFromDay !== undefined &&
+      block.deadlineDay !== undefined &&
+      block.rescheduledFromDay > block.deadlineDay
+    ) {
+      return 'last_week';
+    }
+  }
+
+  // 締切と出題曜日による先週タスク判定（木曜出題〜翌週火曜締切など）
   if (
     block.deadlineDay !== undefined &&
     block.dayIndex !== undefined &&
     block.dayIndex <= block.deadlineDay
   ) {
-    // 関連タスク等から週跨ぎ判定
+    const startDay = parentTask?.startDay;
+    if (startDay !== undefined && startDay > block.deadlineDay) {
+      return 'last_week';
+    }
     if (block.rescheduledFromDay !== undefined && block.rescheduledFromDay > block.deadlineDay) {
       return 'last_week';
     }
+  }
+
+  if (block.weeklyClassification) {
+    return block.weeklyClassification;
+  }
+
+  if (parentTask) {
+    return classifyWeeklyTask(parentTask, todayIndex, currentMinutes);
   }
 
   // 当日のブロックで、もし付随元タスクがあり開始前なら未出題

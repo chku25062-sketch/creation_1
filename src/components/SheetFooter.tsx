@@ -1075,7 +1075,7 @@ export function SheetFooter({
                     <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 px-0.5">
                       <span className="flex items-center gap-1 text-amber-800">
                         <History className="h-3 w-3 text-amber-600" />
-                        先週タスク（有効期限内）
+                        先週分のタスク（未完了持越・有効期限内）
                       </span>
                       <span className="text-[10px] font-mono text-amber-700 bg-amber-50 px-1 py-0.2 border border-amber-200">
                         {lastWeekWeeklyBlocks.length}件
@@ -1085,12 +1085,15 @@ export function SheetFooter({
                     {lastWeekWeeklyBlocks.length > 0 ? (
                       <div className="space-y-1.5">
                         {lastWeekWeeklyBlocks.map((block: TheoreticalBlock) =>
-                          renderWeeklyBlockItem(block, '先週'),
+                          renderWeeklyBlockItem(
+                            block,
+                            block.isRescheduled ? '先週持越' : '先週分',
+                          ),
                         )}
                       </div>
                     ) : (
                       <div className="py-2 text-center text-slate-400 text-[11px] border border-dashed border-slate-200 bg-slate-50/50">
-                        先週からの有効な課題はありません
+                        先週からの未完了タスク・有効な課題はありません
                       </div>
                     )}
                   </div>

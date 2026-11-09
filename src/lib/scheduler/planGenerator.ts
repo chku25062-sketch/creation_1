@@ -321,6 +321,14 @@ export function generatePlacementPlans(
         if (processedTaskIds.has(matchedTask.id)) continue;
         processedTaskIds.add(matchedTask.id);
 
+        const isFromLast =
+          matchedTask.taskOriginWeek === 'last' ||
+          matchedTask.isFromLastWeek === true ||
+          (matchedTask.startDay !== undefined &&
+            matchedTask.deadlineDay !== undefined &&
+            matchedTask.startDay > matchedTask.deadlineDay &&
+            todayIdx <= matchedTask.deadlineDay);
+
         const rescheduledTask: TaskItem = {
           ...matchedTask,
           id: `${matchedTask.id}-rescheduled`,
@@ -333,6 +341,9 @@ export function generatePlacementPlans(
           isAttachedTask: false,
           parentEndMinutesByDay: undefined,
           priority: 'high',
+          taskOriginWeek: isFromLast ? 'last' : matchedTask.taskOriginWeek,
+          isFromLastWeek: isFromLast,
+          weeklyClassification: isFromLast ? 'last_week' : undefined,
         };
 
         const strategy = realtimeContext.placementStrategy || 'balanced';
