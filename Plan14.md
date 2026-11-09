@@ -283,4 +283,231 @@ graph TD
 4. **自動日課タスクの代行除外**:
    - 余白敷き詰め日課タスクは純粋なルーティンとして配置し、代行バッジや「戻す」ボタンの対象外とする。
 
-本書の整理に基づき、次回以降のステップでこれらの構造的改善を段階的に進めることを提案します。
+---
+
+## 7. 課題に対する具体的な修正案（Detailed Technical Proposals）
+
+前章の指針に基づき、各課題を根本から解決するための具体的なアーキテクチャおよび実装修正案を以下に詳述します。
+
+### 修正案①：日付（Date）と週（Week）の概念を導入したタスク・ブロックの分類モデル
+
+現行の「0〜6の曜日数値のみ」による判定を廃止し、**「週（先週/今週/来週）」** および **「基準日からの相対日付（前日/当日/翌日以降）」** を型安全に定義します。
+
+#### 1. 型定義の拡張 ([`src/types/index.ts`](file:///c:/Users/kousu/OneDrive/Desktop/creation_1/src/types/index.ts))
+```typescript
+// 週タスクの3分類
+export type WeeklyTaskClassification =
+  | 'last_week'  // 先週タスク: 先週の課題でまだ有効期限内のもの、または先週の未完了持ち越し
+  | 'in_session' // 出題中タスク: 今週の課題で、付随元タスクの終了時刻（または出題日時）を超えたもの
+  | 'upcoming';   // 未出題タスク: 今週の課題で、まだ出題時刻を迎えていないもの
+
+// 日タスクの2分類
+export type DailyTaskClassification =
+  | 'yesterday' // 前日分タスク: 前日以前から日付を跨いで持ち越された再配置タスク
+  | 'today';    // 今日分タスク: 本日の通常予定タスク
+
+export interface TaskItem {
+  // ... 既存プロパティ
+  taskOriginWeek?: 'last' | 'current' | 'next'; // タスクの所属週
+  weeklyClassification?: WeeklyTaskClassification; // 週タスクの現在状態
+  issueDateTime?: string; // ISO形式の出題日時 (例: "2026-11-09T10:20:00")
+  dueDateTime?: string;   // ISO形式の締切日時 (例: "2026-11-13T23:59:59")
+}
+
+export interface TheoreticalBlock {
+  // ... 既存プロパティ
+  taskOriginWeek?: 'last' | 'current' | 'next';
+  dailyClassification?: DailyTaskClassification; // 日タスクとしての分類（前日分 / 今日分）
+  targetDate?: string; // 実際のカレンダー日付 "YYYY-MM-DD"
+}
+```
+
+#### 2. 分類ロジックの実装方針 ([`src/lib/scheduler/taskClassifier.ts`](file:///c:/Users/kousu/OneDrive/Desktop/creation_1/src/lib/scheduler/taskClassifier.ts))
+- **出題中（`in_session`）の定義**:
+  - 親講義（付随元）があるタスクの場合：`当日 d === 親の講義曜日 && 現在時刻 >= 親講義の終了時刻`、または `当日 d > 親講義の曜日` であれば「出題中」。
+  - 出題曜日（`startDay`）がある場合：`当日 d > startDay`、または `当日 d === startDay && 現在時刻 >= (出題時刻 || 0)` であれば「出題中」。
+- **未出題（`upcoming`）の定義**:
+  - まだ上記「出題中」の条件を満たしていない今週のタスク。
+  - **配置ルール**: 出題曜日より前の曜日には**絶対に配置しない**（`candidateDays = candidateDays.filter(d => d >= startDay)`）。
+- **先週タスク（`last_week`）の定義**:
+  - `taskOriginWeek === 'last'`、または先週の未完了リストから持ち越されたタスク。
+  - **配置ルール**: 最優先で今週の前半〜締切日までに配置。
+- **前日分タスク（`yesterday`）の定義**:
+  - `isRescheduled === true` かつ `rescheduledFromDay < todayIdx` であるブロック。フッターやメニューで「前日分のやり残し」として明確に独立表示。
+
+---
+
+### 修正案②：ブロックIDの構造化・メタデータ直参照化（文字列パースの全廃）
+
+正規表現（`match`）や `split('-')`、`includes()` による文字列パースを完全に撤廃し、**ブロックオブジェクト自身が持つプロパティから直接情報を取得する設計**へ移行します。
+
+#### 1. メタデータの第一級プロパティ化
+```typescript
+export interface TheoreticalBlock {
+  id: string; // 一意なID (UUID または block_${Date.now()}_${random})
+  taskId?: string; // 大元タスクID（完全一致で使用）
+  sourceSlotId?: string; // 固定枠の元スロットID
+  originDayIndex?: number; // 本来配置されていた曜日 (0..6)
+  dayIndex: number; // 現在配置されている曜日 (0..6)
+  
+  // 再配置関連メタデータ
+  isRescheduled?: boolean; // 再配置ブロックか
+  rescheduledFromDay?: number; // どこから再配置されたか
+  originalBlockId?: string; // 再配置元の大元ブロックID
+  
+  // 代行関連メタデータ
+  isSubstitute?: boolean; // 代行タスクか
+  substitutedForBlockId?: string; // 代行元の早期完了ブロックID
+  substitutedForTitle?: string; // 代行元のタイトル
+}
+```
+
+#### 2. 判定コードの刷新
+- **大元タスクの完了連動**:
+  ```typescript
+  // 【Before】脆弱な文字列パース
+  for (const cid of userCompletedIds) {
+    if (cid.startsWith('block-rescheduled-') && cid.includes(block.taskId)) ...
+  }
+
+  // 【After】安全なプロパティ直接参照
+  const isRescheduledCompleted = (b: TheoreticalBlock): boolean => {
+    if (b.isRescheduled) return userCompletedIds.has(b.id);
+    // 過去の元ブロックの場合、自身の再配置先ブロックIDが完了しているかをチェック
+    return Array.from(userCompletedIds).some(cid => {
+      const targetBlock = blockMap.get(cid);
+      return targetBlock?.isRescheduled && targetBlock.originalBlockId === b.id;
+    });
+  };
+  ```
+
+---
+
+### 修正案③：スロット駆動型（Slot-Driven）代行タスクモデルへの転換
+
+事後的な「時間重複判定（`findOverlappedEarlyBlock`）」をやめ、**「早期完了によって生まれた空きスロット（SubstituteSlot）」にタスクを充当するモデル**に刷新します。
+
+```mermaid
+flowchart TD
+    A["ユーザーがブロックを手動完了"] --> B["早期完了スロット (SubstituteSlot) を生成"]
+    B --> C["SubstituteSlot { start, end, originBlockId, originTitle }"]
+    C --> D{"タスク配置パス"}
+    D -->|"Pass 1: 前倒し課題・通常タスク"| E["SubstituteSlot に割り当てられたタスクのみ isSubstitute: true"]
+    D -->|"Pass 2: 未配置週タスク"| E
+    D -->|"Pass 3: 自動日課タスク (ポモドーロ等)"| F["通常空きスロットとしてのみ配置 (isSubstitute: false)"]
+```
+
+#### 1. 代行可能スロットの明示的実体化
+```typescript
+interface SubstituteSlot {
+  startMinutes: number;
+  endMinutes: number;
+  originBlockId: string;
+  originTitle: string;
+}
+```
+1. 早期完了が発生した際、その時間区間を `substituteSlots` リストに登録。
+2. Pass 1（前倒しタスク）および Pass 2（未配置週タスク）の配置時：
+   - 割り当て先スロットが `substituteSlots` に含まれる場合のみ、`isSubstitute: true`、`substitutedForBlockId`、`substitutedForTitle` を付与。
+3. **Pass 3（自動敷き詰め日課タスク）の代行除外**:
+   - 自動敷き詰めタスクは「日常のルーティン」であるため、早期完了枠に入った場合でも `isSubstitute` は付与せず、通常ブロックとして配置（「戻す」ボタンや代行バッジを表示させない）。
+
+---
+
+### 修正案④：状態管理の純粋関数モジュール化（`page.tsx` の肥大化解消）
+
+[`src/app/page.tsx`](file:///c:/Users/kousu/OneDrive/Desktop/creation_1/src/app/page.tsx) に書かれている約160行の完了トグルロジックを、独立したサービスクラス・関数モジュール [`src/lib/scheduler/completionManager.ts`](file:///c:/Users/kousu/OneDrive/Desktop/creation_1/src/lib/scheduler/completionManager.ts) に切り出します。
+
+#### 1. 新設モジュール `completionManager.ts` の設計
+```typescript
+export interface CompletionToggleResult {
+  nextCompletedIds: Set<string>;
+  nextUncompletedIds: Set<string>;
+}
+
+export function toggleBlockCompletion(params: {
+  targetBlock: TheoreticalBlock;
+  allBlocks: TheoreticalBlock[];
+  completedBlockIds: Set<string>;
+  uncompletedBlockIds: Set<string>;
+  todayIdx: number;
+  currMinutes: number;
+}): CompletionToggleResult {
+  const { targetBlock, allBlocks, completedBlockIds, uncompletedBlockIds, todayIdx, currMinutes } = params;
+  
+  const nextCompleted = new Set(completedBlockIds);
+  const nextUncompleted = new Set(uncompletedBlockIds);
+
+  const isCurrentlyCompleted = targetBlock.isCompleted;
+
+  if (isCurrentlyCompleted) {
+    // 完了 -> 未完了に戻す
+    nextCompleted.delete(targetBlock.id);
+    if (targetBlock.originalBlockId) nextCompleted.delete(targetBlock.originalBlockId);
+
+    // 過去枠の場合は「やり残し（持ち越し）」として未完了セットへ登録
+    const isPast = targetBlock.dayIndex < todayIdx || (targetBlock.dayIndex === todayIdx && targetBlock.endMinutes <= currMinutes);
+    if (isPast) {
+      nextUncompleted.add(targetBlock.originalBlockId || targetBlock.id);
+    }
+  } else {
+    // 未完了 -> 完了にする
+    nextUncompleted.delete(targetBlock.id);
+    if (targetBlock.originalBlockId) nextUncompleted.delete(targetBlock.originalBlockId);
+    
+    nextCompleted.add(targetBlock.id);
+    if (targetBlock.isRescheduled && targetBlock.originalBlockId) {
+      // 再配置先が完了したら大元も完了にする
+      nextCompleted.add(targetBlock.originalBlockId);
+    }
+  }
+
+  // 競合防止ガード: 完了にあるものは未完了から確実に抹消
+  for (const cid of nextCompleted) {
+    nextUncompleted.delete(cid);
+  }
+
+  return { nextCompletedIds: nextCompleted, nextUncompletedIds: nextUncompleted };
+}
+```
+
+#### 2. `page.tsx` のハンドラ簡素化
+```typescript
+const handleToggleBlockComplete = (block: TheoreticalBlock) => {
+  if (block.isBreak) return;
+
+  const { nextCompletedIds, nextUncompletedIds } = toggleBlockCompletion({
+    targetBlock: block,
+    allBlocks: schedulingResult.allBlocks || [],
+    completedBlockIds,
+    uncompletedBlockIds,
+    todayIdx: effectiveTodayIndex,
+    currMinutes: effectiveCurrentMinutes,
+  });
+
+  setCompletedBlockIds(nextCompletedIds);
+  setUncompletedBlockIds(nextUncompletedIds);
+  saveCompletionStates(nextCompletedIds, nextUncompletedIds);
+};
+```
+これにより、`page.tsx` から150行以上の複雑なロジックが排除され、テスト容易性と保守性が劇的に向上します。
+
+---
+
+### 修正案⑤：段階的マイグレーション計画（移行ステップ）
+
+| フェーズ | 実装内容 | 期待される効果 | リスク |
+| :--- | :--- | :--- | :--- |
+| **Phase 1** | **状態管理の切り出しと正規表現パースの排除**<br>・`completionManager.ts` の新設<br>・`originalBlockId` などのメタデータプロパティ直参照化 | `page.tsx` のスリム化、大元タスク連動時の部分一致誤爆の完全撲滅 | 極小（既存の動作を変えずに内部整理） |
+| **Phase 2** | **代行モデルの適正化**<br>・Pass 3（自動日課タスク）の代行除外<br>・スロット駆動型代行割り当てへの移行 | 日課タスクに代行バッジが付く違和感の解消、代行判定の安定化 | 小 |
+| **Phase 3** | **日付・週概念とタスク分類の導入**<br>・`WeeklyTaskClassification`（先週/出題中/未出題）の導入<br>・`DailyTaskClassification`（前日分/今日分）の導入<br>・UI（タイムライン・フッター）でのカテゴリ別表示 | 週跨ぎ課題の破綻防止、ユーザーが状況を一目で把握できる直感的なUI | 中（UI表示とスケジューラの連動） |
+
+---
+
+## 8. 結論
+
+本修正案を実施することにより、これまでアドホックなパッチ対応で複雑化していたスケジュールエンジンが、**「明確な日付・週モデル」「型安全なメタデータ参照」「スロット駆動の代行判定」**という堅牢なアーキテクチャへと生まれ変わります。
+
+ユーザーの構想通り、バグの発生しづらいシンプルで保守性の高いシステムを実現するため、Phase 1 より順次リファクタリングを適用することを強く推奨します。
+
+
