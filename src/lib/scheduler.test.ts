@@ -4,8 +4,10 @@ import {
   calculateFreeSlots,
   generateTheoreticalSchedule,
   getAdjustedDuration,
+  classifyWeeklyTask,
+  classifyDailyBlock,
 } from './scheduler';
-import { FixedSlot, TaskItem } from '@/types';
+import { FixedSlot, TaskItem, TheoreticalBlock } from '@/types';
 
 describe('Theoretical Scheduler Engine', () => {
   describe('normalizeFixedSlots', () => {
@@ -3917,6 +3919,129 @@ describe('Theoretical Scheduler Engine', () => {
             (b) => b.title === '睡眠' && b.startMinutes === 0 && b.endMinutes === 420,
           );
           expect(tueSleep).toBeDefined();
+        });
+      });
+
+      describe('Plan14: 日付・週の概念によるタスク分類と配置制御', () => {
+        it('週タスクの分類（先週タスク・出題中タスク・未出題タスク）が正しく判定されること', () => {
+          // 基準日: 月曜日 (todayIndex: 0)
+          const todayIdx = 0;
+
+          // ① 未出題タスク: 木曜出題 (startDay: 3)
+          const upcomingTask: TaskItem = {
+            id: 'task-upcoming',
+            title: '木曜出題の課題',
+            period: 'week',
+            startDay: 3,
+            deadlineDay: 6,
+            durationMinutes: 60,
+            priority: 'medium',
+            category: 'study',
+          };
+          expect(classifyWeeklyTask(upcomingTask, todayIdx)).toBe('upcoming');
+
+          // ② 出題中タスク: 月曜出題 (startDay: 0)
+          const activeTask: TaskItem = {
+            id: 'task-active',
+            title: '月曜出題の課題',
+            period: 'week',
+            startDay: 0,
+            deadlineDay: 4,
+            durationMinutes: 60,
+            priority: 'medium',
+            category: 'study',
+          };
+          expect(classifyWeeklyTask(activeTask, todayIdx)).toBe('active');
+
+          // ③ 先週タスク: 木曜出題〜翌週火曜締切で月曜時点
+          const lastWeekTask: TaskItem = {
+            id: 'task-last-week',
+            title: '前週出題の週跨ぎ課題',
+            period: 'week',
+            taskType: 'assignment',
+            startDay: 3, // 木曜
+            deadlineDay: 1, // 翌週火曜
+            durationMinutes: 60,
+            priority: 'high',
+            category: 'study',
+          };
+          expect(classifyWeeklyTask(lastWeekTask, todayIdx)).toBe('last_week');
+
+          // 明示的な先週フラグ
+          const explicitLastWeek: TaskItem = {
+            id: 'task-explicit-last',
+            title: '先週フラグ付きタスク',
+            period: 'week',
+            taskOriginWeek: 'last',
+            durationMinutes: 60,
+            priority: 'medium',
+            category: 'study',
+          };
+          expect(classifyWeeklyTask(explicitLastWeek, todayIdx)).toBe('last_week');
+        });
+
+        it('未出題タスクが出題曜日より前にフライング配置されないこと', () => {
+          // 木曜日（3）に出題される課題タスク
+          const task: TaskItem = {
+            id: 'thu-assignment',
+            title: '木曜日の課題',
+            period: 'week',
+            taskType: 'assignment',
+            startDay: 3, // 木曜
+            deadlineDay: 5, // 土曜
+            durationMinutes: 90,
+            priority: 'high',
+            category: 'study',
+          };
+
+          // 月曜（todayIndex: 0）時点でスケジューリング
+          const schedule = generateTheoreticalSchedule([], [task], {
+            todayIndex: 0,
+            currentMinutes: 540,
+          });
+
+          // 月(0), 火(1), 水(2) には配置されていないこと！
+          expect(schedule.dayBlocks[0].some((b) => b.title === '木曜日の課題')).toBe(false);
+          expect(schedule.dayBlocks[1].some((b) => b.title === '木曜日の課題')).toBe(false);
+          expect(schedule.dayBlocks[2].some((b) => b.title === '木曜日の課題')).toBe(false);
+
+          // 木(3) 以降に配置されていること
+          const placedDay3 = schedule.dayBlocks[3].some((b) => b.title === '木曜日の課題');
+          const placedDay4 = schedule.dayBlocks[4].some((b) => b.title === '木曜日の課題');
+          const placedDay5 = schedule.dayBlocks[5].some((b) => b.title === '木曜日の課題');
+          expect(placedDay3 || placedDay4 || placedDay5).toBe(true);
+        });
+
+        it('日タスクの分類（前日分のタスクと今日の分のタスク）が正しく識別されること', () => {
+          const todayIdx = 2; // 水曜
+
+          // 前日（火曜: 1）から持ち越された再配置タスク
+          const yesterdayBlock: TheoreticalBlock = {
+            id: 'block-rescheduled-1-task1',
+            title: '前日未完了タスク',
+            category: 'routine',
+            startMinutes: 600,
+            endMinutes: 660,
+            color: '#64748b',
+            isFixed: false,
+            dayIndex: todayIdx,
+            isRescheduled: true,
+            rescheduledFromDay: 1, // 火曜
+          };
+          expect(classifyDailyBlock(yesterdayBlock, todayIdx)).toBe('yesterday');
+
+          // 今日のタスク
+          const todayBlock: TheoreticalBlock = {
+            id: 'block-task-2-task2-0',
+            title: '今日のタスク',
+            category: 'routine',
+            startMinutes: 700,
+            endMinutes: 760,
+            color: '#64748b',
+            isFixed: false,
+            dayIndex: todayIdx,
+          };
+          expect(classifyDailyBlock(todayBlock, todayIdx)).toBe('today');
         });
       });
     });

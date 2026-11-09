@@ -940,6 +940,8 @@ export default function Home() {
         onToggleThemeMode={handleToggleThemeMode}
         weeklyBlocks={weeklyBlocks}
         unassignedWeeklyTasks={unassignedWeeklyTasks}
+        allBlocks={schedulingResult.allBlocks}
+        allTasks={effectiveTasks}
         onToggleBlockComplete={handleToggleBlockComplete}
         selectedDayIndex={selectedDayIndex}
         placementStrategy={placementStrategy}

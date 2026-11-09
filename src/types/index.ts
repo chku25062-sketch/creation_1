@@ -30,6 +30,10 @@ export type TaskDurationSize = 'small' | 'medium' | 'large'; // 小: 15〜30分�
 export type TaskFrequency = 'low' | 'medium' | 'high' | 'custom'; // 低: 週1〜2回, 中: 週3〜4回, 高: 週5回以上, カスタム
 export type TaskPeriod = 'day' | 'week' | 'month';
 
+// Plan14: 週タスク・日タスクの分類型
+export type WeeklyTaskClassification = 'last_week' | 'active' | 'upcoming';
+export type DailyTaskClassification = 'yesterday' | 'today';
+
 export interface TaskItem {
   id: string;
   title: string;
@@ -69,6 +73,10 @@ export interface TaskItem {
   parentTitle?: string; // 付随先の本タスク名
   parentEndMinutesByDay?: Record<number, number>; // 各曜日における本タスクの終了時刻（分）
   expiryWeeks?: number | 'none'; // 週タスク有効期限（週数）
+  // Plan14: 日付・週の概念
+  taskOriginWeek?: 'last' | 'current'; // タスクが出題された週（先週か今週か）
+  isFromLastWeek?: boolean; // 先週から引き継がれた課題かどうか
+  weeklyClassification?: WeeklyTaskClassification; // 週タスク分類
 }
 
 export interface TheoreticalBlock {
@@ -100,6 +108,12 @@ export interface TheoreticalBlock {
   substitutedForBlockId?: string; // 代替元のブロックID
   isRescheduled?: boolean; // 未完了のため現在時刻以降に再スケジュールされたタスクか
   rescheduledFromDay?: number; // 再スケジュール元の曜日
+  // Plan14: 日付・週の概念による分類
+  weeklyClassification?: WeeklyTaskClassification; // 'last_week' | 'active' | 'upcoming'
+  dailyClassification?: DailyTaskClassification; // 'yesterday' | 'today'
+  taskOriginWeek?: 'last' | 'current';
+  isFromLastWeek?: boolean;
+  isYesterdayTask?: boolean; // 前日分のタスク（日付またぎ・前日からの未完了持ち越し）かどうか
 }
 
 export interface FreeSlot {

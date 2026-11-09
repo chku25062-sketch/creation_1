@@ -2,6 +2,7 @@ import { TaskItem } from '@/types';
 import { TaskPlacementPlan, SchedulingRealtimeContext } from './types';
 import { getTargetPlacementDays, isWeeklyTaskItem } from './constants';
 import { SlotManager } from './slotManager';
+import { classifyWeeklyTask } from './taskClassifier';
 
 export interface PlanGenerationResult {
   schedulableTasks: TaskItem[];
@@ -54,16 +55,40 @@ export function generatePlacementPlans(
         ? Infinity
         : task.dailyCount || 1;
 
+    // Plan14: 週タスクの分類（先週タスク・出題中タスク・未出題タスク）
+    const weeklyClassification = isWeeklyTaskItem(task)
+      ? classifyWeeklyTask(task, todayIdx)
+      : undefined;
+    task.weeklyClassification = weeklyClassification;
+
     // ① 課題タスク（出題日〜締切日の範囲）判定（付随タスクは課題扱いしない）
     if (isAssignment) {
       const startD = task.startDay !== undefined ? task.startDay : 0;
       const endD = task.deadlineDay !== undefined ? task.deadlineDay : 6;
       const candidateDays: number[] = [];
-      if (startD <= endD) {
-        for (let d = startD; d <= endD; d++) candidateDays.push(d);
+
+      if (weeklyClassification === 'last_week') {
+        // 先週タスク: 週跨ぎ等の課題で、今週有効期限（締切）までの範囲
+        if (startD > endD) {
+          for (let d = 0; d <= endD; d++) candidateDays.push(d);
+        } else {
+          for (let d = 0; d <= endD; d++) candidateDays.push(d);
+        }
+      } else if (weeklyClassification === 'upcoming') {
+        // 未出題タスク: まだ出題されていないので、出題曜日以降（d >= startD）にのみ配置！
+        if (startD <= endD) {
+          for (let d = startD; d <= endD; d++) candidateDays.push(d);
+        } else {
+          for (let d = startD; d < 7; d++) candidateDays.push(d);
+        }
       } else {
-        for (let d = startD; d < 7; d++) candidateDays.push(d);
-        for (let d = 0; d <= endD; d++) candidateDays.push(d);
+        // 出題中タスク
+        if (startD <= endD) {
+          for (let d = startD; d <= endD; d++) candidateDays.push(d);
+        } else {
+          // 週跨ぎ課題で今週出題された分は startD..6
+          for (let d = startD; d < 7; d++) candidateDays.push(d);
+        }
       }
 
       return {
@@ -209,6 +234,18 @@ export function generatePlacementPlans(
       task.scheduleAfterDay ?? (task.scheduleAfterEnabled ? task.startDay : undefined);
     if (scheduleAfterDay !== undefined) {
       candidateDays = candidateDays.filter((d) => d >= scheduleAfterDay);
+    }
+
+    // Plan14: 未出題タスク（upcoming）の場合、出題曜日（startDay）より前の曜日には絶対に配置しない！
+    if (weeklyClassification === 'upcoming' && task.startDay !== undefined) {
+      candidateDays = candidateDays.filter((d) => d >= task.startDay!);
+    }
+
+    // Plan14: 先週タスク（last_week）かつ締切曜日がある場合、締切曜日までの曜日を優先
+    if (weeklyClassification === 'last_week' && task.deadlineDay !== undefined) {
+      const validDays = candidateDays.filter((d) => d <= task.deadlineDay!);
+      const otherDays = candidateDays.filter((d) => d > task.deadlineDay!);
+      candidateDays = [...validDays, ...otherDays];
     }
 
     return {

@@ -18,6 +18,7 @@ export * from './placementPipeline';
 export * from './planGenerator';
 export * from './realtimeAdaptor';
 export * from './metricsCalculator';
+export * from './taskClassifier';
 
 /**
  * 1週間（7日間: 月曜=0 〜 日曜=6）の自律的理論値スケジューリングエンジン

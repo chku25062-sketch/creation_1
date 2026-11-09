@@ -1,6 +1,7 @@
 import { PlacementPhase, SchedulingExecutionContext, DayTaskContext } from './types';
 import { getCategoryColor, WEEKLY_TASK_COLOR } from './constants';
 import { timeStringToMinutes } from '../timeUtils';
+import { classifyWeeklyTask } from './taskClassifier';
 import { WeeklyPlacementPhase } from './phases/weeklyPlacementPhase';
 import { DailyFairPlacementPhase } from './phases/dailyFairPlacementPhase';
 import { AttachedFallbackPhase } from './phases/attachedFallbackPhase';
@@ -143,6 +144,20 @@ export function createPlaceContextHelper(ctx: SchedulingExecutionContext) {
       const taskStart = effectiveSlotStart;
       const taskEnd = taskStart + effectiveDuration;
 
+      // Plan14: 分類の算出
+      const weeklyClassification = isWeekly
+        ? taskCtx.task.weeklyClassification || classifyWeeklyTask(taskCtx.task, ctx.todayIdx)
+        : undefined;
+
+      const isYesterday =
+        !isWeekly &&
+        (d < ctx.todayIdx ||
+          (taskCtx.plan.isRescheduledPlan &&
+            taskCtx.plan.rescheduledFromDay !== undefined &&
+            taskCtx.plan.rescheduledFromDay < ctx.todayIdx));
+
+      const dailyClassification = !isWeekly ? (isYesterday ? 'yesterday' : 'today') : undefined;
+
       // タスク本体ブロックの配置
       ctx.dayBlocks[d].push({
         id: taskCtx.plan.isRescheduledPlan
@@ -166,6 +181,12 @@ export function createPlaceContextHelper(ctx: SchedulingExecutionContext) {
         isWeeklyTask: isWeekly,
         isRescheduled: taskCtx.plan.isRescheduledPlan,
         rescheduledFromDay: taskCtx.plan.rescheduledFromDay,
+        // Plan14: 日付・週の概念による分類情報
+        weeklyClassification,
+        dailyClassification,
+        taskOriginWeek: taskCtx.task.taskOriginWeek,
+        isFromLastWeek: taskCtx.task.isFromLastWeek,
+        isYesterdayTask: isYesterday,
       });
 
       // スロット消費 & 分割
