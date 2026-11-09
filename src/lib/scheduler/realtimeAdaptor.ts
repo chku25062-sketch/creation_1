@@ -345,9 +345,7 @@ export function applyRealtimeAdaptation(params: RealtimeAdaptationParams): {
             const placedStart = effectiveStart;
             const placedEnd = placedStart + blockDur;
             const effectiveBreak = Math.max(0, Math.min(breakMin, avail - blockDur));
-            const overlappedEarly =
-              findOverlappedEarlyBlock(placedStart, placedEnd) ||
-              (placedStart < nextEarlyBlock.endMinutes ? nextEarlyBlock : undefined);
+            const overlappedEarly = findOverlappedEarlyBlock(placedStart, placedEnd);
 
             recompactedBlocks.push({
               ...block,
@@ -443,14 +441,16 @@ export function applyRealtimeAdaptation(params: RealtimeAdaptationParams): {
             const placedStart = slot.startMinutes;
             const placedEnd = placedStart + rawDuration;
             const effectiveBreak = Math.max(0, Math.min(breakMin, avail - rawDuration));
-            const overlappedEarly =
-              findOverlappedEarlyBlock(placedStart, placedEnd) || nextEarlyBlock;
+            const overlappedEarly = findOverlappedEarlyBlock(placedStart, placedEnd);
+            const isActualSubstitute = !!overlappedEarly;
             const isWeekly = isWeeklyTaskItem(plan.task);
 
             recompactedBlocks.push({
               id: plan.isRescheduledPlan
                 ? `block-rescheduled-${d}-${taskId}`
-                : `block-substitute-${d}-${taskId}-${overlappedEarly.id}-${placedStart}`,
+                : isActualSubstitute
+                  ? `block-substitute-${d}-${taskId}-${overlappedEarly.id}-${placedStart}`
+                  : `block-task-${d}-${taskId}-${plan.placedCount}`,
               title: plan.task.title,
               category: plan.task.category,
               startMinutes: placedStart,
@@ -469,9 +469,9 @@ export function applyRealtimeAdaptation(params: RealtimeAdaptationParams): {
               dayIndex: d,
               sourceTableId: plan.task.sourceTableId,
               sourceTableName: plan.task.sourceTableName,
-              isSubstitute: true,
-              substitutedForTitle: overlappedEarly.title,
-              substitutedForBlockId: overlappedEarly.id,
+              isSubstitute: isActualSubstitute ? true : undefined,
+              substitutedForTitle: isActualSubstitute ? overlappedEarly.title : undefined,
+              substitutedForBlockId: isActualSubstitute ? overlappedEarly.id : undefined,
               isCompleted: false,
             });
 
@@ -553,9 +553,7 @@ export function applyRealtimeAdaptation(params: RealtimeAdaptationParams): {
 
           const placedStart = targetSlot.startMinutes;
           const placedEnd = placedStart + effectiveDuration;
-          const overlappedEarly =
-            findOverlappedEarlyBlock(placedStart, placedEnd) ||
-            (placedStart < nextEarlyBlock.endMinutes ? nextEarlyBlock : undefined);
+          const overlappedEarly = findOverlappedEarlyBlock(placedStart, placedEnd);
 
           const countIdx = autoCountByTaskId.get(tid) || 0;
           autoCountByTaskId.set(tid, countIdx + 1);

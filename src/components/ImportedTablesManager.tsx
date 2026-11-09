@@ -420,6 +420,24 @@ export function ImportedTablesManager({
       );
       onTablesChange(updated);
 
+      // このテーブル由来のブロックIDをローカルストレージの完了・未完了リストからもクリーンアップ
+      try {
+        const savedCompleted = localStorage.getItem('app_completed_block_ids');
+        if (savedCompleted) {
+          const ids: string[] = JSON.parse(savedCompleted);
+          const filtered = ids.filter((id) => !id.includes(table.id));
+          localStorage.setItem('app_completed_block_ids', JSON.stringify(filtered));
+        }
+        const savedUncompleted = localStorage.getItem('app_uncompleted_block_ids');
+        if (savedUncompleted) {
+          const ids: string[] = JSON.parse(savedUncompleted);
+          const filtered = ids.filter((id) => !id.includes(table.id));
+          localStorage.setItem('app_uncompleted_block_ids', JSON.stringify(filtered));
+        }
+      } catch {
+        // ignore
+      }
+
       setApplySuccessMsg(`「${table.name}」の反映を解除しました`);
       setTimeout(() => setApplySuccessMsg(null), 3000);
     } else {
@@ -811,7 +829,38 @@ export function ImportedTablesManager({
       alert('最後の1件は削除できません。');
       return;
     }
-    if (confirm(`この読み込みデータ「${tables.find((t) => t.id === id)?.name}」を削除しますか？`)) {
+    const targetTable = tables.find((t) => t.id === id);
+    if (confirm(`この読み込みデータ「${targetTable?.name}」を削除しますか？`)) {
+      if (targetTable) {
+        // 反映されていたスロットやタスクを解除
+        const slotIdsToRemove = new Set(targetTable.appliedSlotIds || []);
+        const taskIdsToRemove = new Set(targetTable.appliedTaskIds || []);
+        if (slotIdsToRemove.size > 0) {
+          onSlotsChange(fixedSlots.filter((s) => !slotIdsToRemove.has(s.id) && !s.id.includes(id)));
+        }
+        if (taskIdsToRemove.size > 0) {
+          onTasksChange(tasks.filter((t) => !taskIdsToRemove.has(t.id) && !t.id.includes(id)));
+        }
+
+        // localStorageの完了/未完了IDをクリーンアップ
+        try {
+          const savedCompleted = localStorage.getItem('app_completed_block_ids');
+          if (savedCompleted) {
+            const ids: string[] = JSON.parse(savedCompleted);
+            const filtered = ids.filter((bId) => !bId.includes(id));
+            localStorage.setItem('app_completed_block_ids', JSON.stringify(filtered));
+          }
+          const savedUncompleted = localStorage.getItem('app_uncompleted_block_ids');
+          if (savedUncompleted) {
+            const ids: string[] = JSON.parse(savedUncompleted);
+            const filtered = ids.filter((bId) => !bId.includes(id));
+            localStorage.setItem('app_uncompleted_block_ids', JSON.stringify(filtered));
+          }
+        } catch {
+          // ignore
+        }
+      }
+
       const filtered = tables.filter((t) => t.id !== id);
       onTablesChange(filtered);
       if (selectedItemId === id) {

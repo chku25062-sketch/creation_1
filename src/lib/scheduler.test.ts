@@ -4121,6 +4121,78 @@ describe('Theoretical Scheduler Engine', () => {
           };
           expect(classifyDailyBlock(todayBlock, todayIdx)).toBe('today');
         });
+
+        it('早期完了枠と時間帯が重複していない空き時間に配置されたタスクは代行タスク（isSubstitute）にならないこと', () => {
+          // 月曜(dayIndex: 0)
+          // 09:00〜10:00 (540〜600分) の固定枠（これが早期完了される）
+          // 13:00〜14:00 (780〜840分) に別の空き時間がある
+          const fixedSlots: FixedSlot[] = [
+            {
+              id: 'slot-morning-meeting',
+              title: '朝ミーティング',
+              category: 'meeting',
+              startMinutes: 540,
+              endMinutes: 600,
+              color: '#3b82f6',
+              daysOfWeek: [0],
+            },
+            {
+              id: 'slot-afternoon-work',
+              title: '午後枠',
+              category: 'study',
+              startMinutes: 600,
+              endMinutes: 720,
+              color: '#10b981',
+              daysOfWeek: [0],
+            },
+          ];
+
+          // 2つの週タスクを用意（1つは代行枠、もう1つは午後の空き枠などに配置される想定）
+          const task1: TaskItem = {
+            id: 'task-substitute-target',
+            title: '代行枠に入るタスク',
+            category: 'study',
+            period: 'week',
+            durationMinutes: 60,
+            priority: 'high',
+          };
+          const task2: TaskItem = {
+            id: 'task-normal-target',
+            title: '通常空き枠に入るタスク',
+            category: 'hobby',
+            period: 'week',
+            durationMinutes: 60,
+            priority: 'low',
+          };
+
+          // 朝ミーティングを早期完了にする
+          const morningBlockId = 'block-fixed-0-slot-morning-meeting';
+          const result = generateTheoreticalSchedule(fixedSlots, [task1, task2], {
+            todayIndex: 0,
+            currentMinutes: 480,
+            completedBlockIds: new Set([morningBlockId]),
+          });
+
+          const monBlocks = result.dayBlocks[0];
+
+          // 早期完了枠（540〜600分）と重複した位置にあるタスクは代行タスク
+          const substituteBlock = monBlocks.find((b) => b.isSubstitute);
+          if (substituteBlock) {
+            expect(substituteBlock.startMinutes).toBeLessThan(600);
+            expect(substituteBlock.endMinutes).toBeGreaterThan(540);
+            expect(substituteBlock.substitutedForBlockId).toBe(morningBlockId);
+          }
+
+          // 早期完了枠と重複していない通常枠に配置されたブロックは代行タスクではないこと
+          const nonSubstituteTasks = monBlocks.filter(
+            (b) => !b.isFixed && b.startMinutes >= 600,
+          );
+          expect(nonSubstituteTasks.length).toBeGreaterThan(0);
+          for (const block of nonSubstituteTasks) {
+            expect(block.isSubstitute).toBeFalsy();
+            expect(block.substitutedForBlockId).toBeUndefined();
+          }
+        });
       });
     });
   });
