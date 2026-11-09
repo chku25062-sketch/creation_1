@@ -989,7 +989,7 @@ export function Timeline24h({
 
                         // ★ 代行タスク（isSubstitute）の場合は、代行元の早期完了ブロックを確実に特定して「戻す」ボタンを提供
                         const substituteSourceBlock =
-                          (block.isSubstitute
+                          block.isSubstitute
                             ? currentDayBlocks.find(
                                 (b) =>
                                   b.isEarlyCompleted &&
@@ -1002,11 +1002,11 @@ export function Timeline24h({
                                 (eb) =>
                                   eb.startMinutes < block.endMinutes &&
                                   eb.endMinutes > block.startMinutes,
-                              )
-                            : undefined) ||
-                          (coveredEarlyBlocks.length > 0
-                            ? coveredEarlyBlocks[coveredEarlyBlocks.length - 1]
-                            : undefined);
+                              ) ||
+                              (coveredEarlyBlocks.length > 0
+                                ? coveredEarlyBlocks[coveredEarlyBlocks.length - 1]
+                                : undefined)
+                            : undefined;
 
                         const latestCoveredEarly = substituteSourceBlock;
 

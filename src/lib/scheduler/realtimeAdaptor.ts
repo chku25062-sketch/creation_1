@@ -95,12 +95,19 @@ export function applyRealtimeAdaptation(params: RealtimeAdaptationParams): {
   const isExplicitlyCompleted = (block: TheoreticalBlock): boolean => {
     if (userCompletedIds.has(block.id)) return true;
     if (!block.isFixed && block.taskId) {
-      if (userCompletedIds.has(block.taskId)) return true;
-      // 大元ブロックの再配置先が完了指定されている場合、大元ブロックも完了とみなす
-      if (!block.isRescheduled) {
+      // 大元ブロックの再配置先が完了指定されている場合、該当する過去の大元ブロックのみ完了とみなす
+      // （※未来の未完了ブロックを誤って完了扱いにして早期完了代行が暴発するのを厳密に防止）
+      if (!block.isRescheduled && block.dayIndex !== undefined) {
         for (const cid of userCompletedIds) {
-          if (cid.startsWith('block-rescheduled-') && cid.includes(block.taskId)) {
-            return true;
+          if (cid.startsWith('block-rescheduled-')) {
+            const parts = cid.split('-');
+            // cid: block-rescheduled-{destDay}-{taskId}
+            const rescheduledTaskId = parts.slice(3).join('-');
+            if (rescheduledTaskId === block.taskId) {
+              if (isTimePast(block.dayIndex, block.endMinutes)) {
+                return true;
+              }
+            }
           }
         }
       }
@@ -184,11 +191,12 @@ export function applyRealtimeAdaptation(params: RealtimeAdaptationParams): {
       const blocksInDay = dayBlocks[d] || [];
 
       // この日でまだ早期完了処理されていない手動完了ブロックを、ユーザーの完了操作順（同順なら開始時刻順）で1件取得
+      // ※早期完了枠として開放できるのは、ユーザーが明示的にこのブロック自身を完了トグルした場合のみ（未完了の未来枠が代行枠になるのを完全防止）
       const nextEarlyBlock = blocksInDay
         .filter((b) => {
           if (b.isBreak || b.isEarlyCompleted || processedEarlyIds.has(b.id)) return false;
           if (isTimePast(d, b.endMinutes)) return false;
-          return isExplicitlyCompleted(b);
+          return userCompletedIds.has(b.id);
         })
         .sort(
           (a, b) => getCompletedOrder(a) - getCompletedOrder(b) || a.startMinutes - b.startMinutes,
@@ -346,19 +354,16 @@ export function applyRealtimeAdaptation(params: RealtimeAdaptationParams): {
             const placedEnd = placedStart + blockDur;
             const effectiveBreak = Math.max(0, Math.min(breakMin, avail - blockDur));
             const overlappedEarly = findOverlappedEarlyBlock(placedStart, placedEnd);
+            const isActualSubstitute = !!overlappedEarly;
 
             recompactedBlocks.push({
               ...block,
               startMinutes: placedStart,
               endMinutes: placedEnd,
               breakMinutes: effectiveBreak > 0 ? effectiveBreak : undefined,
-              isSubstitute: overlappedEarly ? true : block.isSubstitute,
-              substitutedForTitle: overlappedEarly
-                ? overlappedEarly.title
-                : block.substitutedForTitle,
-              substitutedForBlockId: overlappedEarly
-                ? overlappedEarly.id
-                : block.substitutedForBlockId,
+              isSubstitute: isActualSubstitute ? true : undefined,
+              substitutedForTitle: isActualSubstitute ? overlappedEarly.title : undefined,
+              substitutedForBlockId: isActualSubstitute ? overlappedEarly.id : undefined,
             });
 
             consumeIntervalFromFreeSlots(placedStart, placedEnd + effectiveBreak);

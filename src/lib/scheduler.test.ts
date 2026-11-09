@@ -4193,6 +4193,97 @@ describe('Theoretical Scheduler Engine', () => {
             expect(block.substitutedForBlockId).toBeUndefined();
           }
         });
+
+        it('完了状態になっていない未来のタスク枠や固定枠に代行タスクが勝手に発生しないこと', () => {
+          // 水曜(dayIndex: 2) 10:00 (600分)
+          // 木曜(dayIndex: 3)に日課タスクや固定枠が予定されている
+          const fixedSlots: FixedSlot[] = [
+            {
+              id: 'slot-thu-lecture',
+              title: '木曜の講義',
+              category: 'lecture',
+              startMinutes: 540,
+              endMinutes: 630,
+              color: '#3b82f6',
+              daysOfWeek: [3],
+            },
+          ];
+          const taskA: TaskItem = {
+            id: 'task-report',
+            title: 'レポート作成',
+            category: 'study',
+            period: 'week',
+            durationMinutes: 60,
+            priority: 'high',
+          };
+
+          // ユーザーは何も完了にしていない（completedBlockIds は空）
+          const result = generateTheoreticalSchedule(fixedSlots, [taskA], {
+            todayIndex: 2,
+            currentMinutes: 600,
+            completedBlockIds: new Set(),
+            uncompletedBlockIds: new Set(),
+          });
+
+          // 全ての曜日において代行タスク（isSubstitute: true）が0件であること
+          for (let d = 0; d < 7; d++) {
+            const subs = result.dayBlocks[d].filter((b) => b.isSubstitute);
+            expect(subs.length).toBe(0);
+          }
+        });
+
+        it('過去の再配置タスクを完了にしても、未来の同じタスク枠が早期完了扱いになって代行を発生させないこと', () => {
+          // 火曜(1)から水曜(2)に持ち越された再配置タスクを水曜に完了にした場合
+          // 木曜(3)にある同じタスク（未完了）が完了扱いになって代行タスクを誘発しないこと
+          const fixedSlots: FixedSlot[] = [
+            {
+              id: 'slot-thu-base',
+              title: '木曜固定枠',
+              category: 'lecture',
+              startMinutes: 540,
+              endMinutes: 630,
+              color: '#3b82f6',
+              daysOfWeek: [3],
+            },
+          ];
+          const repeatedTask: TaskItem = {
+            id: 'task-routine-kintore',
+            title: '筋トレ',
+            category: 'workout',
+            period: 'day',
+            frequency: 'high',
+            durationMinutes: 45,
+            priority: 'medium',
+          };
+          const weeklyTask: TaskItem = {
+            id: 'task-extra-study',
+            title: '資格勉強',
+            category: 'study',
+            period: 'week',
+            durationMinutes: 60,
+            priority: 'high',
+          };
+
+          // 水曜日の再配置タスクを完了したID: block-rescheduled-2-task-routine-kintore
+          const completedIds = new Set(['block-rescheduled-2-task-routine-kintore']);
+
+          const result = generateTheoreticalSchedule(fixedSlots, [repeatedTask, weeklyTask], {
+            todayIndex: 2, // 水曜
+            currentMinutes: 600,
+            completedBlockIds: completedIds,
+          });
+
+          // 木曜(3)の筋トレ（未完了の未来枠）が早期完了扱いになって代行（資格勉強）が発生していないこと
+          const thuBlocks = result.dayBlocks[3];
+          const thuSubs = thuBlocks.filter((b) => b.isSubstitute);
+          expect(thuSubs.length).toBe(0);
+
+          // 木曜の筋トレは通常通り未完了（isCompleted: false）であること
+          const thuKintore = thuBlocks.find((b) => b.taskId === 'task-routine-kintore');
+          if (thuKintore) {
+            expect(thuKintore.isCompleted).toBe(false);
+          }
+        });
       });
     });
   });
