@@ -6,7 +6,6 @@ import {
   getAdjustedDuration,
 } from './scheduler';
 import { FixedSlot, TaskItem } from '@/types';
-import { INITIAL_FIXED_SLOTS, INITIAL_TASKS } from './storage';
 
 describe('Theoretical Scheduler Engine', () => {
   describe('normalizeFixedSlots', () => {
@@ -3661,7 +3660,82 @@ describe('Theoretical Scheduler Engine', () => {
         });
 
         it('固定講義やタスクを早期完了した際に1日の予定に隙間が生まれず（0分）、さらに代行タスク自体も連鎖的に完了状態にできること', () => {
-          const baseResult = generateTheoreticalSchedule(INITIAL_FIXED_SLOTS, INITIAL_TASKS, {
+          const testFixedSlots: FixedSlot[] = [
+            {
+              id: 'fixed-sleep',
+              title: '睡眠 (良質な8時間休養)',
+              category: 'sleep',
+              startMinutes: 23 * 60,
+              endMinutes: 7 * 60,
+              color: '#6366f1',
+              daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+            },
+            {
+              id: 'fixed-morning',
+              title: '朝のルーティン & 準備',
+              category: 'routine',
+              startMinutes: 7 * 60,
+              endMinutes: 8 * 60,
+              color: '#64748b',
+              daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+            },
+            {
+              id: 'fixed-lecture-mw',
+              title: '大学講義 (2限・3限)',
+              category: 'lecture',
+              startMinutes: 10 * 60 + 40, // 640
+              endMinutes: 14 * 60 + 40, // 880
+              color: '#0284c7',
+              daysOfWeek: [0, 2],
+            },
+            {
+              id: 'fixed-dinner',
+              title: '夕食 & リフレッシュ',
+              category: 'meal',
+              startMinutes: 19 * 60,
+              endMinutes: 20 * 60 + 30,
+              color: '#f59e0b',
+              daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+            },
+          ];
+
+          const testTasks: TaskItem[] = [
+            {
+              id: 'task-study-daily',
+              title: '基本情報・資格試験対策',
+              taskType: 'task',
+              durationMinutes: 60,
+              durationSize: 'medium',
+              frequency: 'high',
+              priority: 'high',
+              category: 'must',
+              period: 'day',
+            },
+            {
+              id: 'task-workout-daily',
+              title: 'ランニング & ストレッチ',
+              taskType: 'task',
+              durationMinutes: 25,
+              durationSize: 'small',
+              frequency: 'high',
+              priority: 'medium',
+              category: 'want',
+              period: 'day',
+            },
+            {
+              id: 'task-creative-week',
+              title: '個人プロダクト開発・実装',
+              taskType: 'task',
+              durationMinutes: 90,
+              durationSize: 'medium',
+              frequency: 'medium',
+              priority: 'high',
+              category: 'want',
+              period: 'week',
+            },
+          ];
+
+          const baseResult = generateTheoreticalSchedule(testFixedSlots, testTasks, {
             todayIndex: 0,
             currentMinutes: 540, // 月曜 09:00
           });
@@ -3673,7 +3747,7 @@ describe('Theoretical Scheduler Engine', () => {
 
           // Step 1: 大学講義 (10:40〜14:40) を早期完了にする
           const completedIds = new Set<string>([lectureBlock.id]);
-          const wave1Result = generateTheoreticalSchedule(INITIAL_FIXED_SLOTS, INITIAL_TASKS, {
+          const wave1Result = generateTheoreticalSchedule(testFixedSlots, testTasks, {
             todayIndex: 0,
             currentMinutes: 540,
             completedBlockIds: completedIds,
@@ -3698,7 +3772,7 @@ describe('Theoretical Scheduler Engine', () => {
 
           // Step 2: 配置された代行タスク (firstSubstitute) をさらに完了状態にする
           completedIds.add(firstSubstitute.id);
-          const wave2Result = generateTheoreticalSchedule(INITIAL_FIXED_SLOTS, INITIAL_TASKS, {
+          const wave2Result = generateTheoreticalSchedule(testFixedSlots, testTasks, {
             todayIndex: 0,
             currentMinutes: 540,
             completedBlockIds: completedIds,

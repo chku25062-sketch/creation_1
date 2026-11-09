@@ -4,124 +4,26 @@ import { supabase, isSupabaseConfigured } from './supabase';
 
 export const LOCAL_STORAGE_KEY_INCLUSION_SETTINGS = 'schedule_inclusion_settings';
 
-export const INITIAL_FIXED_SLOTS: FixedSlot[] = [
-  {
-    id: 'fixed-sleep',
-    title: '睡眠 (良質な8時間休養)',
-    category: 'sleep',
-    startMinutes: 23 * 60, // 23:00
-    endMinutes: 7 * 60, // 07:00
-    color: '#6366f1',
-    daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
-  },
-  {
-    id: 'fixed-morning',
-    title: '朝のルーティン & 準備',
-    category: 'routine',
-    startMinutes: 7 * 60, // 07:00
-    endMinutes: 8 * 60, // 08:00
-    color: '#64748b',
-    daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
-  },
-  {
-    id: 'fixed-lecture-mw',
-    title: '大学講義 (2限・3限)',
-    category: 'lecture',
-    startMinutes: 10 * 60 + 40, // 10:40
-    endMinutes: 14 * 60 + 40, // 14:40
-    color: '#0284c7',
-    daysOfWeek: [0, 2], // 月・水
-    sourceTableId: 'sample-table-1',
-    sourceTableName: 'サンプル時間割 (前期)',
-  },
-  {
-    id: 'fixed-lecture-tuth',
-    title: '大学講義 (3限・4限)',
-    category: 'lecture',
-    startMinutes: 13 * 60, // 13:00
-    endMinutes: 16 * 60 + 30, // 16:30
-    color: '#0284c7',
-    daysOfWeek: [1, 3], // 火・木
-    sourceTableId: 'sample-table-1',
-    sourceTableName: 'サンプル時間割 (前期)',
-  },
-  {
-    id: 'fixed-dinner',
-    title: '夕食 & リフレッシュ',
-    category: 'meal',
-    startMinutes: 19 * 60, // 19:00
-    endMinutes: 20 * 60 + 30, // 20:30
-    color: '#f59e0b',
-    daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
-  },
-];
+// 初期固定枠・初期タスク: 古いデフォルトタスクは全廃し、空配列とする
+export const INITIAL_FIXED_SLOTS: FixedSlot[] = [];
+export const INITIAL_TASKS: TaskItem[] = [];
 
-export const INITIAL_TASKS: TaskItem[] = [
-  {
-    id: 'task-attached-lecture',
-    title: '大学講義 (2限・3限) のタスク',
-    taskType: 'task',
-    isAttachedTask: true,
-    parentTitle: '大学講義 (2限・3限)',
-    parentEndMinutesByDay: { 0: 880, 2: 880 }, // 14:40
-    durationMinutes: 15,
-    durationSize: undefined,
-    frequency: 'custom',
-    frequencyCount: 1,
-    priority: 'high',
-    category: 'lecture',
-    period: 'week',
-    dailyCount: 1,
-    dailyRepeatMode: 'custom',
-    sourceTableId: 'sample-table-1',
-    sourceTableName: 'サンプル時間割 (前期)',
-  },
-  {
-    id: 'task-study-daily',
-    title: '基本情報・資格試験対策',
-    taskType: 'task',
-    durationMinutes: 60,
-    durationSize: 'medium',
-    frequency: 'high',
-    priority: 'high',
-    category: 'must',
-    period: 'day',
-  },
-  {
-    id: 'task-workout-daily',
-    title: 'ランニング & ストレッチ',
-    taskType: 'task',
-    durationMinutes: 25,
-    durationSize: 'small',
-    frequency: 'high',
-    priority: 'medium',
-    category: 'want',
-    period: 'day',
-  },
-  {
-    id: 'task-creative-week',
-    title: '個人プロダクト開発・実装',
-    taskType: 'task',
-    durationMinutes: 90,
-    durationSize: 'medium',
-    frequency: 'medium',
-    priority: 'high',
-    category: 'want',
-    period: 'week',
-  },
-  {
-    id: 'task-todo-syllabus',
-    title: '履修登録・教科書購入',
-    taskType: 'todo',
-    hasNoDuration: true,
-    durationMinutes: 0,
-    durationSize: 'small',
-    frequency: 'low',
-    priority: 'medium',
-    category: 'must',
-    period: 'week',
-  },
-];
+// 過去のローカルストレージデータに残っている旧デフォルトアイテムを自動クリーンアップするためのID一覧
+export const LEGACY_DEFAULT_TASK_IDS = new Set([
+  'task-attached-lecture',
+  'task-study-daily',
+  'task-workout-daily',
+  'task-creative-week',
+  'task-todo-syllabus',
+]);
+
+export const LEGACY_DEFAULT_SLOT_IDS = new Set([
+  'fixed-sleep',
+  'fixed-morning',
+  'fixed-lecture-mw',
+  'fixed-lecture-tuth',
+  'fixed-dinner',
+]);
 
 const LOCAL_STORAGE_KEY_FIXED = 'theoretical_planner_fixed_slots_v1';
 const LOCAL_STORAGE_KEY_TASKS = 'theoretical_planner_tasks_v1';
@@ -136,12 +38,44 @@ export function loadLocalData(): { fixedSlots: FixedSlot[]; tasks: TaskItem[] } 
     const rawFixed = localStorage.getItem(LOCAL_STORAGE_KEY_FIXED);
     const rawTasks = localStorage.getItem(LOCAL_STORAGE_KEY_TASKS);
 
-    const fixedSlots: FixedSlot[] = rawFixed ? JSON.parse(rawFixed) : INITIAL_FIXED_SLOTS;
+    const fixedSlotsRaw: FixedSlot[] = rawFixed ? JSON.parse(rawFixed) : INITIAL_FIXED_SLOTS;
     const rawParsedTasks: TaskItem[] = rawTasks ? JSON.parse(rawTasks) : INITIAL_TASKS;
+
+    // ★ 古いデフォルトタスクおよび旧サンプルテーブル由来のタスクを除去
+    const filteredTasks = rawParsedTasks.filter((t) => {
+      if (LEGACY_DEFAULT_TASK_IDS.has(t.id)) return false;
+      if (t.sourceTableId === 'sample-table-1') return false;
+      if (
+        t.title === '基本情報・資格試験対策' ||
+        t.title === 'ランニング & ストレッチ' ||
+        t.title === '個人プロダクト開発・実装' ||
+        t.title === '履修登録・教科書購入' ||
+        t.title === '大学講義 (2限・3限) のタスク'
+      ) {
+        return false;
+      }
+      return true;
+    });
+
+    // ★ 古いデフォルト固定枠および旧サンプルテーブル由来のスロットを除去
+    const fixedSlots = fixedSlotsRaw.filter((s) => {
+      if (LEGACY_DEFAULT_SLOT_IDS.has(s.id)) return false;
+      if (s.sourceTableId === 'sample-table-1') return false;
+      if (
+        s.title === '睡眠 (良質な8時間休養)' ||
+        s.title === '朝のルーティン & 準備' ||
+        s.title === '大学講義 (2限・3限)' ||
+        s.title === '大学講義 (3限・4限)' ||
+        s.title === '夕食 & リフレッシュ'
+      ) {
+        return false;
+      }
+      return true;
+    });
 
     // ★ 付随タスク名称の自動マイグレーション:
     // 過去のローカルストレージデータにある「〇〇 の課題レポート」「〇〇 レポート課題」を「〇〇 のタスク」に自動正規化
-    const tasks: TaskItem[] = rawParsedTasks.map((t) => {
+    const tasks: TaskItem[] = filteredTasks.map((t) => {
       if (
         t.title.includes('の課題レポート') ||
         t.title.includes('レポート課題') ||
@@ -187,11 +121,18 @@ export function saveLocalData(fixedSlots: FixedSlot[], tasks: TaskItem[]): void 
 
 import { ImportedTableData } from '@/types';
 
-export const INITIAL_IMPORTED_TABLE: ImportedTableData = {
-  id: 'sample-table-1',
-  name: 'サンプル時間割 (前期)',
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
+// ========================================================
+// デフォルトの6つの表（授業・睡眠・食事・筋トレ・英語・趣味）
+// ========================================================
+
+export const TABLE_CLASSES: ImportedTableData = {
+  id: 'default-table-classes',
+  name: '授業',
+  colorIndex: 0,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  placementMode: 'fixed',
+  isApplied: true,
   numRows: 5,
   numCols: 5,
   colHeaders: ['月曜', '火曜', '水曜', '木曜', '金曜'],
@@ -205,15 +146,16 @@ export const INITIAL_IMPORTED_TABLE: ImportedTableData = {
     lunchMinutes: 50,
   },
   cells: [
+    // 1限: 08:50〜10:20
     [
       {
         dayIndex: 0,
         periodIndex: 1,
         text: '線形代数学\n3号館301',
-        rawLines: ['線形代数学', '3号館301'],
-        fullText: '線形代数学\n3号館301',
         title: '線形代数学',
         roomOrNote: '3号館301',
+        rawLines: ['線形代数学', '3号館301'],
+        fullText: '線形代数学\n3号館301',
         startMinutes: 530,
         endMinutes: 620,
       },
@@ -221,10 +163,10 @@ export const INITIAL_IMPORTED_TABLE: ImportedTableData = {
         dayIndex: 1,
         periodIndex: 1,
         text: null,
-        rawLines: [],
-        fullText: '',
         title: '',
         roomOrNote: '',
+        rawLines: [],
+        fullText: '',
         startMinutes: 530,
         endMinutes: 620,
       },
@@ -232,10 +174,10 @@ export const INITIAL_IMPORTED_TABLE: ImportedTableData = {
         dayIndex: 2,
         periodIndex: 1,
         text: '英語コミュニケーション\nLL教室',
-        rawLines: ['英語コミュニケーション', 'LL教室'],
-        fullText: '英語コミュニケーション\nLL教室',
         title: '英語コミュニケーション',
         roomOrNote: 'LL教室',
+        rawLines: ['英語コミュニケーション', 'LL教室'],
+        fullText: '英語コミュニケーション\nLL教室',
         startMinutes: 530,
         endMinutes: 620,
       },
@@ -243,10 +185,10 @@ export const INITIAL_IMPORTED_TABLE: ImportedTableData = {
         dayIndex: 3,
         periodIndex: 1,
         text: null,
-        rawLines: [],
-        fullText: '',
         title: '',
         roomOrNote: '',
+        rawLines: [],
+        fullText: '',
         startMinutes: 530,
         endMinutes: 620,
       },
@@ -254,23 +196,24 @@ export const INITIAL_IMPORTED_TABLE: ImportedTableData = {
         dayIndex: 4,
         periodIndex: 1,
         text: '微分積分学\n大講義室A',
-        rawLines: ['微分積分学', '大講義室A'],
-        fullText: '微分積分学\n大講義室A',
         title: '微分積分学',
         roomOrNote: '大講義室A',
+        rawLines: ['微分積分学', '大講義室A'],
+        fullText: '微分積分学\n大講義室A',
         startMinutes: 530,
         endMinutes: 620,
       },
     ],
+    // 2限: 10:30〜12:00
     [
       {
         dayIndex: 0,
         periodIndex: 2,
         text: '情報基礎理論\n電算室1',
-        rawLines: ['情報基礎理論', '電算室1'],
-        fullText: '情報基礎理論\n電算室1',
         title: '情報基礎理論',
         roomOrNote: '電算室1',
+        rawLines: ['情報基礎理論', '電算室1'],
+        fullText: '情報基礎理論\n電算室1',
         startMinutes: 630,
         endMinutes: 720,
       },
@@ -278,10 +221,10 @@ export const INITIAL_IMPORTED_TABLE: ImportedTableData = {
         dayIndex: 1,
         periodIndex: 2,
         text: '統計学入門\n5号館202',
-        rawLines: ['統計学入門', '5号館202'],
-        fullText: '統計学入門\n5号館202',
         title: '統計学入門',
         roomOrNote: '5号館202',
+        rawLines: ['統計学入門', '5号館202'],
+        fullText: '統計学入門\n5号館202',
         startMinutes: 630,
         endMinutes: 720,
       },
@@ -289,135 +232,137 @@ export const INITIAL_IMPORTED_TABLE: ImportedTableData = {
         dayIndex: 2,
         periodIndex: 2,
         text: null,
-        rawLines: [],
-        fullText: '',
         title: '',
         roomOrNote: '',
+        rawLines: [],
+        fullText: '',
         startMinutes: 630,
         endMinutes: 720,
       },
       {
         dayIndex: 3,
         periodIndex: 2,
-        text: '物理学実験\n第2実験室',
-        rawLines: ['物理学実験', '第2実験室'],
-        fullText: '物理学実験\n第2実験室',
-        title: '物理学実験',
-        roomOrNote: '第2実験室',
+        text: null,
+        title: '',
+        roomOrNote: '',
+        rawLines: [],
+        fullText: '',
         startMinutes: 630,
         endMinutes: 720,
       },
       {
         dayIndex: 4,
         periodIndex: 2,
-        text: null,
-        rawLines: [],
-        fullText: '',
-        title: '',
-        roomOrNote: '',
+        text: 'Web工学演習\n情報棟PC室',
+        title: 'Web工学演習',
+        roomOrNote: '情報棟PC室',
+        rawLines: ['Web工学演習', '情報棟PC室'],
+        fullText: 'Web工学演習\n情報棟PC室',
         startMinutes: 630,
         endMinutes: 720,
       },
     ],
+    // 3限: 12:50〜14:20
     [
       {
         dayIndex: 0,
         periodIndex: 3,
         text: null,
-        rawLines: [],
-        fullText: '',
         title: '',
         roomOrNote: '',
+        rawLines: [],
+        fullText: '',
         startMinutes: 770,
         endMinutes: 860,
       },
       {
         dayIndex: 1,
         periodIndex: 3,
-        text: 'アルゴリズムとデータ構造\n電算室2',
-        rawLines: ['アルゴリズムとデータ構造', '電算室2'],
-        fullText: 'アルゴリズムとデータ構造\n電算室2',
-        title: 'アルゴリズムとデータ構造',
+        text: '英語コミュニケーション\nLL教室',
+        title: '英語コミュニケーション',
+        roomOrNote: 'LL教室',
+        rawLines: ['英語コミュニケーション', 'LL教室'],
+        fullText: '英語コミュニケーション\nLL教室',
+        startMinutes: 770,
+        endMinutes: 860,
+      },
+      {
+        dayIndex: 2,
+        periodIndex: 3,
+        text: 'アルゴリズム論\n大講義室B',
+        title: 'アルゴリズム論',
+        roomOrNote: '大講義室B',
+        rawLines: ['アルゴリズム論', '大講義室B'],
+        fullText: 'アルゴリズム論\n大講義室B',
+        startMinutes: 770,
+        endMinutes: 860,
+      },
+      {
+        dayIndex: 3,
+        periodIndex: 3,
+        text: 'コンピュータアーキテクチャ\n3号館204',
+        title: 'コンピュータアーキテクチャ',
+        roomOrNote: '3号館204',
+        rawLines: ['コンピュータアーキテクチャ', '3号館204'],
+        fullText: 'コンピュータアーキテクチャ\n3号館204',
+        startMinutes: 770,
+        endMinutes: 860,
+      },
+      {
+        dayIndex: 4,
+        periodIndex: 3,
+        text: null,
+        title: '',
+        roomOrNote: '',
+        rawLines: [],
+        fullText: '',
+        startMinutes: 770,
+        endMinutes: 860,
+      },
+    ],
+    // 4限: 14:30〜16:00
+    [
+      {
+        dayIndex: 0,
+        periodIndex: 4,
+        text: null,
+        title: '',
+        roomOrNote: '',
+        rawLines: [],
+        fullText: '',
+        startMinutes: 870,
+        endMinutes: 960,
+      },
+      {
+        dayIndex: 1,
+        periodIndex: 4,
+        text: null,
+        title: '',
+        roomOrNote: '',
+        rawLines: [],
+        fullText: '',
+        startMinutes: 870,
+        endMinutes: 960,
+      },
+      {
+        dayIndex: 2,
+        periodIndex: 4,
+        text: null,
+        title: '',
+        roomOrNote: '',
+        rawLines: [],
+        fullText: '',
+        startMinutes: 870,
+        endMinutes: 960,
+      },
+      {
+        dayIndex: 3,
+        periodIndex: 4,
+        text: 'データベース工学\n電算室2',
+        title: 'データベース工学',
         roomOrNote: '電算室2',
-        startMinutes: 770,
-        endMinutes: 860,
-      },
-      {
-        dayIndex: 2,
-        periodIndex: 3,
-        text: '科学技術倫理\n中講堂',
-        rawLines: ['科学技術倫理', '中講堂'],
-        fullText: '科学技術倫理\n中講堂',
-        title: '科学技術倫理',
-        roomOrNote: '中講堂',
-        startMinutes: 770,
-        endMinutes: 860,
-      },
-      {
-        dayIndex: 3,
-        periodIndex: 3,
-        text: '物理学実験\n第2実験室',
-        rawLines: ['物理学実験', '第2実験室'],
-        fullText: '物理学実験\n第2実験室',
-        title: '物理学実験',
-        roomOrNote: '第2実験室',
-        startMinutes: 770,
-        endMinutes: 860,
-      },
-      {
-        dayIndex: 4,
-        periodIndex: 3,
-        text: '経済学概論\n1号館101',
-        rawLines: ['経済学概論', '1号館101'],
-        fullText: '経済学概論\n1号館101',
-        title: '経済学概論',
-        roomOrNote: '1号館101',
-        startMinutes: 770,
-        endMinutes: 860,
-      },
-    ],
-    [
-      {
-        dayIndex: 0,
-        periodIndex: 4,
-        text: null,
-        rawLines: [],
-        fullText: '',
-        title: '',
-        roomOrNote: '',
-        startMinutes: 870,
-        endMinutes: 960,
-      },
-      {
-        dayIndex: 1,
-        periodIndex: 4,
-        text: null,
-        rawLines: [],
-        fullText: '',
-        title: '',
-        roomOrNote: '',
-        startMinutes: 870,
-        endMinutes: 960,
-      },
-      {
-        dayIndex: 2,
-        periodIndex: 4,
-        text: null,
-        rawLines: [],
-        fullText: '',
-        title: '',
-        roomOrNote: '',
-        startMinutes: 870,
-        endMinutes: 960,
-      },
-      {
-        dayIndex: 3,
-        periodIndex: 4,
-        text: null,
-        rawLines: [],
-        fullText: '',
-        title: '',
-        roomOrNote: '',
+        rawLines: ['データベース工学', '電算室2'],
+        fullText: 'データベース工学\n電算室2',
         startMinutes: 870,
         endMinutes: 960,
       },
@@ -425,23 +370,24 @@ export const INITIAL_IMPORTED_TABLE: ImportedTableData = {
         dayIndex: 4,
         periodIndex: 4,
         text: null,
-        rawLines: [],
-        fullText: '',
         title: '',
         roomOrNote: '',
+        rawLines: [],
+        fullText: '',
         startMinutes: 870,
         endMinutes: 960,
       },
     ],
+    // 5限: 16:10〜17:40
     [
       {
         dayIndex: 0,
         periodIndex: 5,
         text: null,
-        rawLines: [],
-        fullText: '',
         title: '',
         roomOrNote: '',
+        rawLines: [],
+        fullText: '',
         startMinutes: 970,
         endMinutes: 1060,
       },
@@ -449,10 +395,10 @@ export const INITIAL_IMPORTED_TABLE: ImportedTableData = {
         dayIndex: 1,
         periodIndex: 5,
         text: null,
-        rawLines: [],
-        fullText: '',
         title: '',
         roomOrNote: '',
+        rawLines: [],
+        fullText: '',
         startMinutes: 970,
         endMinutes: 1060,
       },
@@ -460,10 +406,10 @@ export const INITIAL_IMPORTED_TABLE: ImportedTableData = {
         dayIndex: 2,
         periodIndex: 5,
         text: null,
-        rawLines: [],
-        fullText: '',
         title: '',
         roomOrNote: '',
+        rawLines: [],
+        fullText: '',
         startMinutes: 970,
         endMinutes: 1060,
       },
@@ -471,10 +417,10 @@ export const INITIAL_IMPORTED_TABLE: ImportedTableData = {
         dayIndex: 3,
         periodIndex: 5,
         text: null,
-        rawLines: [],
-        fullText: '',
         title: '',
         roomOrNote: '',
+        rawLines: [],
+        fullText: '',
         startMinutes: 970,
         endMinutes: 1060,
       },
@@ -482,10 +428,10 @@ export const INITIAL_IMPORTED_TABLE: ImportedTableData = {
         dayIndex: 4,
         periodIndex: 5,
         text: null,
-        rawLines: [],
-        fullText: '',
         title: '',
         roomOrNote: '',
+        rawLines: [],
+        fullText: '',
         startMinutes: 970,
         endMinutes: 1060,
       },
@@ -493,15 +439,715 @@ export const INITIAL_IMPORTED_TABLE: ImportedTableData = {
   ],
 };
 
+export const TABLE_SLEEP: ImportedTableData = {
+  id: 'default-table-sleep',
+  name: '睡眠',
+  colorIndex: 1,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  placementMode: 'fixed',
+  isApplied: true,
+  numRows: 1,
+  numCols: 7,
+  colHeaders: ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'],
+  rowHeaders: ['睡眠'],
+  axisConfig: {
+    startTime: '23:00',
+    periodMinutes: 480, // 8時間
+    intervalMinutes: 0,
+    hasLunch: false,
+    lunchAfterPeriod: 1,
+    lunchMinutes: 0,
+  },
+  cells: [
+    [
+      {
+        dayIndex: 0,
+        periodIndex: 1,
+        text: '睡眠',
+        title: '睡眠',
+        roomOrNote: '',
+        rawLines: ['睡眠'],
+        fullText: '睡眠',
+        startMinutes: 1380,
+        endMinutes: 420,
+      },
+      {
+        dayIndex: 1,
+        periodIndex: 1,
+        text: '睡眠',
+        title: '睡眠',
+        roomOrNote: '',
+        rawLines: ['睡眠'],
+        fullText: '睡眠',
+        startMinutes: 1380,
+        endMinutes: 420,
+      },
+      {
+        dayIndex: 2,
+        periodIndex: 1,
+        text: '睡眠',
+        title: '睡眠',
+        roomOrNote: '',
+        rawLines: ['睡眠'],
+        fullText: '睡眠',
+        startMinutes: 1380,
+        endMinutes: 420,
+      },
+      {
+        dayIndex: 3,
+        periodIndex: 1,
+        text: '睡眠',
+        title: '睡眠',
+        roomOrNote: '',
+        rawLines: ['睡眠'],
+        fullText: '睡眠',
+        startMinutes: 1380,
+        endMinutes: 420,
+      },
+      {
+        dayIndex: 4,
+        periodIndex: 1,
+        text: '睡眠',
+        title: '睡眠',
+        roomOrNote: '',
+        rawLines: ['睡眠'],
+        fullText: '睡眠',
+        startMinutes: 1380,
+        endMinutes: 420,
+      },
+      {
+        dayIndex: 5,
+        periodIndex: 1,
+        text: '睡眠',
+        title: '睡眠',
+        roomOrNote: '',
+        rawLines: ['睡眠'],
+        fullText: '睡眠',
+        startMinutes: 1380,
+        endMinutes: 420,
+      },
+      {
+        dayIndex: 6,
+        periodIndex: 1,
+        text: '睡眠',
+        title: '睡眠',
+        roomOrNote: '',
+        rawLines: ['睡眠'],
+        fullText: '睡眠',
+        startMinutes: 1380,
+        endMinutes: 420,
+      },
+    ],
+  ],
+};
+
+export const TABLE_MEAL: ImportedTableData = {
+  id: 'default-table-meal',
+  name: '食事',
+  colorIndex: 2,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  placementMode: 'fixed',
+  isApplied: true,
+  numRows: 3,
+  numCols: 7,
+  colHeaders: ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'],
+  rowHeaders: ['朝食', '昼食', '夕食'],
+  axisConfig: {
+    startTime: '07:30',
+    periodMinutes: 30,
+    intervalMinutes: 0,
+    hasLunch: false,
+    lunchAfterPeriod: 1,
+    lunchMinutes: 0,
+    customRowTimes: {
+      1: { startMinutes: 450, endMinutes: 480 }, // 07:30〜08:00 (30分)
+      2: { startMinutes: 730, endMinutes: 780 }, // 12:10〜13:00 (50分)
+      3: { startMinutes: 1140, endMinutes: 1200 }, // 19:00〜20:00 (60分)
+    },
+  },
+  cells: [
+    // 1行目: 朝食 (07:30〜08:00)
+    [
+      {
+        dayIndex: 0,
+        periodIndex: 1,
+        text: '朝食',
+        title: '朝食',
+        roomOrNote: '',
+        rawLines: ['朝食'],
+        fullText: '朝食',
+        startMinutes: 450,
+        endMinutes: 480,
+      },
+      {
+        dayIndex: 1,
+        periodIndex: 1,
+        text: '朝食',
+        title: '朝食',
+        roomOrNote: '',
+        rawLines: ['朝食'],
+        fullText: '朝食',
+        startMinutes: 450,
+        endMinutes: 480,
+      },
+      {
+        dayIndex: 2,
+        periodIndex: 1,
+        text: '朝食',
+        title: '朝食',
+        roomOrNote: '',
+        rawLines: ['朝食'],
+        fullText: '朝食',
+        startMinutes: 450,
+        endMinutes: 480,
+      },
+      {
+        dayIndex: 3,
+        periodIndex: 1,
+        text: '朝食',
+        title: '朝食',
+        roomOrNote: '',
+        rawLines: ['朝食'],
+        fullText: '朝食',
+        startMinutes: 450,
+        endMinutes: 480,
+      },
+      {
+        dayIndex: 4,
+        periodIndex: 1,
+        text: '朝食',
+        title: '朝食',
+        roomOrNote: '',
+        rawLines: ['朝食'],
+        fullText: '朝食',
+        startMinutes: 450,
+        endMinutes: 480,
+      },
+      {
+        dayIndex: 5,
+        periodIndex: 1,
+        text: '朝食',
+        title: '朝食',
+        roomOrNote: '',
+        rawLines: ['朝食'],
+        fullText: '朝食',
+        startMinutes: 450,
+        endMinutes: 480,
+      },
+      {
+        dayIndex: 6,
+        periodIndex: 1,
+        text: '朝食',
+        title: '朝食',
+        roomOrNote: '',
+        rawLines: ['朝食'],
+        fullText: '朝食',
+        startMinutes: 450,
+        endMinutes: 480,
+      },
+    ],
+    // 2行目: 昼食 (12:10〜13:00)
+    [
+      {
+        dayIndex: 0,
+        periodIndex: 2,
+        text: '昼食',
+        title: '昼食',
+        roomOrNote: '',
+        rawLines: ['昼食'],
+        fullText: '昼食',
+        startMinutes: 730,
+        endMinutes: 780,
+      },
+      {
+        dayIndex: 1,
+        periodIndex: 2,
+        text: '昼食',
+        title: '昼食',
+        roomOrNote: '',
+        rawLines: ['昼食'],
+        fullText: '昼食',
+        startMinutes: 730,
+        endMinutes: 780,
+      },
+      {
+        dayIndex: 2,
+        periodIndex: 2,
+        text: '昼食',
+        title: '昼食',
+        roomOrNote: '',
+        rawLines: ['昼食'],
+        fullText: '昼食',
+        startMinutes: 730,
+        endMinutes: 780,
+      },
+      {
+        dayIndex: 3,
+        periodIndex: 2,
+        text: '昼食',
+        title: '昼食',
+        roomOrNote: '',
+        rawLines: ['昼食'],
+        fullText: '昼食',
+        startMinutes: 730,
+        endMinutes: 780,
+      },
+      {
+        dayIndex: 4,
+        periodIndex: 2,
+        text: '昼食',
+        title: '昼食',
+        roomOrNote: '',
+        rawLines: ['昼食'],
+        fullText: '昼食',
+        startMinutes: 730,
+        endMinutes: 780,
+      },
+      {
+        dayIndex: 5,
+        periodIndex: 2,
+        text: '昼食',
+        title: '昼食',
+        roomOrNote: '',
+        rawLines: ['昼食'],
+        fullText: '昼食',
+        startMinutes: 730,
+        endMinutes: 780,
+      },
+      {
+        dayIndex: 6,
+        periodIndex: 2,
+        text: '昼食',
+        title: '昼食',
+        roomOrNote: '',
+        rawLines: ['昼食'],
+        fullText: '昼食',
+        startMinutes: 730,
+        endMinutes: 780,
+      },
+    ],
+    // 3行目: 夕食 (19:00〜20:00)
+    [
+      {
+        dayIndex: 0,
+        periodIndex: 3,
+        text: '夕食',
+        title: '夕食',
+        roomOrNote: '',
+        rawLines: ['夕食'],
+        fullText: '夕食',
+        startMinutes: 1140,
+        endMinutes: 1200,
+      },
+      {
+        dayIndex: 1,
+        periodIndex: 3,
+        text: '夕食',
+        title: '夕食',
+        roomOrNote: '',
+        rawLines: ['夕食'],
+        fullText: '夕食',
+        startMinutes: 1140,
+        endMinutes: 1200,
+      },
+      {
+        dayIndex: 2,
+        periodIndex: 3,
+        text: '夕食',
+        title: '夕食',
+        roomOrNote: '',
+        rawLines: ['夕食'],
+        fullText: '夕食',
+        startMinutes: 1140,
+        endMinutes: 1200,
+      },
+      {
+        dayIndex: 3,
+        periodIndex: 3,
+        text: '夕食',
+        title: '夕食',
+        roomOrNote: '',
+        rawLines: ['夕食'],
+        fullText: '夕食',
+        startMinutes: 1140,
+        endMinutes: 1200,
+      },
+      {
+        dayIndex: 4,
+        periodIndex: 3,
+        text: '夕食',
+        title: '夕食',
+        roomOrNote: '',
+        rawLines: ['夕食'],
+        fullText: '夕食',
+        startMinutes: 1140,
+        endMinutes: 1200,
+      },
+      {
+        dayIndex: 5,
+        periodIndex: 3,
+        text: '夕食',
+        title: '夕食',
+        roomOrNote: '',
+        rawLines: ['夕食'],
+        fullText: '夕食',
+        startMinutes: 1140,
+        endMinutes: 1200,
+      },
+      {
+        dayIndex: 6,
+        periodIndex: 3,
+        text: '夕食',
+        title: '夕食',
+        roomOrNote: '',
+        rawLines: ['夕食'],
+        fullText: '夕食',
+        startMinutes: 1140,
+        endMinutes: 1200,
+      },
+    ],
+  ],
+};
+
+export const TABLE_WORKOUT: ImportedTableData = {
+  id: 'default-table-workout',
+  name: '筋トレ',
+  colorIndex: 3,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  placementMode: 'fixed',
+  isApplied: true,
+  numRows: 1,
+  numCols: 7,
+  colHeaders: ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'],
+  rowHeaders: ['筋トレ'],
+  axisConfig: {
+    startTime: '17:45',
+    periodMinutes: 60,
+    intervalMinutes: 10,
+    hasLunch: false,
+    lunchAfterPeriod: 1,
+    lunchMinutes: 0,
+  },
+  cells: [
+    [
+      {
+        dayIndex: 0,
+        periodIndex: 1,
+        text: null,
+        title: '',
+        roomOrNote: '',
+        rawLines: [],
+        fullText: '',
+        startMinutes: 1065,
+        endMinutes: 1125,
+      },
+      {
+        dayIndex: 1,
+        periodIndex: 1,
+        text: '筋トレ',
+        title: '筋トレ',
+        roomOrNote: '',
+        rawLines: ['筋トレ'],
+        fullText: '筋トレ',
+        startMinutes: 1065,
+        endMinutes: 1125,
+      },
+      {
+        dayIndex: 2,
+        periodIndex: 1,
+        text: null,
+        title: '',
+        roomOrNote: '',
+        rawLines: [],
+        fullText: '',
+        startMinutes: 1065,
+        endMinutes: 1125,
+      },
+      {
+        dayIndex: 3,
+        periodIndex: 1,
+        text: '筋トレ',
+        title: '筋トレ',
+        roomOrNote: '',
+        rawLines: ['筋トレ'],
+        fullText: '筋トレ',
+        startMinutes: 1065,
+        endMinutes: 1125,
+      },
+      {
+        dayIndex: 4,
+        periodIndex: 1,
+        text: null,
+        title: '',
+        roomOrNote: '',
+        rawLines: [],
+        fullText: '',
+        startMinutes: 1065,
+        endMinutes: 1125,
+      },
+      {
+        dayIndex: 5,
+        periodIndex: 1,
+        text: '筋トレ',
+        title: '筋トレ',
+        roomOrNote: '',
+        rawLines: ['筋トレ'],
+        fullText: '筋トレ',
+        startMinutes: 1065,
+        endMinutes: 1125,
+      },
+      {
+        dayIndex: 6,
+        periodIndex: 1,
+        text: null,
+        title: '',
+        roomOrNote: '',
+        rawLines: [],
+        fullText: '',
+        startMinutes: 1065,
+        endMinutes: 1125,
+      },
+    ],
+  ],
+};
+
+export const TABLE_ENGLISH: ImportedTableData = {
+  id: 'default-table-english',
+  name: '英語',
+  colorIndex: 4,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  placementMode: 'fixed',
+  isApplied: true,
+  numRows: 1,
+  numCols: 7,
+  colHeaders: ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'],
+  rowHeaders: ['英語学習'],
+  axisConfig: {
+    startTime: '20:15',
+    periodMinutes: 45,
+    intervalMinutes: 10,
+    hasLunch: false,
+    lunchAfterPeriod: 1,
+    lunchMinutes: 0,
+  },
+  cells: [
+    [
+      {
+        dayIndex: 0,
+        periodIndex: 1,
+        text: '英語',
+        title: '英語',
+        roomOrNote: '',
+        rawLines: ['英語'],
+        fullText: '英語',
+        startMinutes: 1215,
+        endMinutes: 1260,
+      },
+      {
+        dayIndex: 1,
+        periodIndex: 1,
+        text: '英語',
+        title: '英語',
+        roomOrNote: '',
+        rawLines: ['英語'],
+        fullText: '英語',
+        startMinutes: 1215,
+        endMinutes: 1260,
+      },
+      {
+        dayIndex: 2,
+        periodIndex: 1,
+        text: '英語',
+        title: '英語',
+        roomOrNote: '',
+        rawLines: ['英語'],
+        fullText: '英語',
+        startMinutes: 1215,
+        endMinutes: 1260,
+      },
+      {
+        dayIndex: 3,
+        periodIndex: 1,
+        text: '英語',
+        title: '英語',
+        roomOrNote: '',
+        rawLines: ['英語'],
+        fullText: '英語',
+        startMinutes: 1215,
+        endMinutes: 1260,
+      },
+      {
+        dayIndex: 4,
+        periodIndex: 1,
+        text: '英語',
+        title: '英語',
+        roomOrNote: '',
+        rawLines: ['英語'],
+        fullText: '英語',
+        startMinutes: 1215,
+        endMinutes: 1260,
+      },
+      {
+        dayIndex: 5,
+        periodIndex: 1,
+        text: null,
+        title: '',
+        roomOrNote: '',
+        rawLines: [],
+        fullText: '',
+        startMinutes: 1215,
+        endMinutes: 1260,
+      },
+      {
+        dayIndex: 6,
+        periodIndex: 1,
+        text: null,
+        title: '',
+        roomOrNote: '',
+        rawLines: [],
+        fullText: '',
+        startMinutes: 1215,
+        endMinutes: 1260,
+      },
+    ],
+  ],
+};
+
+export const TABLE_HOBBY: ImportedTableData = {
+  id: 'default-table-hobby',
+  name: '趣味',
+  colorIndex: 5,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  placementMode: 'fixed',
+  isApplied: true,
+  numRows: 1,
+  numCols: 7,
+  colHeaders: ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'],
+  rowHeaders: ['趣味'],
+  axisConfig: {
+    startTime: '21:30',
+    periodMinutes: 60,
+    intervalMinutes: 10,
+    hasLunch: false,
+    lunchAfterPeriod: 1,
+    lunchMinutes: 0,
+  },
+  cells: [
+    [
+      {
+        dayIndex: 0,
+        periodIndex: 1,
+        text: '趣味',
+        title: '趣味',
+        roomOrNote: '',
+        rawLines: ['趣味'],
+        fullText: '趣味',
+        startMinutes: 1290,
+        endMinutes: 1350,
+      },
+      {
+        dayIndex: 1,
+        periodIndex: 1,
+        text: '趣味',
+        title: '趣味',
+        roomOrNote: '',
+        rawLines: ['趣味'],
+        fullText: '趣味',
+        startMinutes: 1290,
+        endMinutes: 1350,
+      },
+      {
+        dayIndex: 2,
+        periodIndex: 1,
+        text: '趣味',
+        title: '趣味',
+        roomOrNote: '',
+        rawLines: ['趣味'],
+        fullText: '趣味',
+        startMinutes: 1290,
+        endMinutes: 1350,
+      },
+      {
+        dayIndex: 3,
+        periodIndex: 1,
+        text: '趣味',
+        title: '趣味',
+        roomOrNote: '',
+        rawLines: ['趣味'],
+        fullText: '趣味',
+        startMinutes: 1290,
+        endMinutes: 1350,
+      },
+      {
+        dayIndex: 4,
+        periodIndex: 1,
+        text: '趣味',
+        title: '趣味',
+        roomOrNote: '',
+        rawLines: ['趣味'],
+        fullText: '趣味',
+        startMinutes: 1290,
+        endMinutes: 1350,
+      },
+      {
+        dayIndex: 5,
+        periodIndex: 1,
+        text: '趣味',
+        title: '趣味',
+        roomOrNote: '',
+        rawLines: ['趣味'],
+        fullText: '趣味',
+        startMinutes: 1290,
+        endMinutes: 1350,
+      },
+      {
+        dayIndex: 6,
+        periodIndex: 1,
+        text: '趣味',
+        title: '趣味',
+        roomOrNote: '',
+        rawLines: ['趣味'],
+        fullText: '趣味',
+        startMinutes: 1290,
+        endMinutes: 1350,
+      },
+    ],
+  ],
+};
+
+export const INITIAL_IMPORTED_TABLES: ImportedTableData[] = [
+  TABLE_CLASSES,
+  TABLE_SLEEP,
+  TABLE_MEAL,
+  TABLE_WORKOUT,
+  TABLE_ENGLISH,
+  TABLE_HOBBY,
+];
+
+// 後方互換性用
+export const INITIAL_IMPORTED_TABLE: ImportedTableData = TABLE_CLASSES;
+
 export function loadImportedTables(): ImportedTableData[] {
   if (typeof window === 'undefined') {
-    return [INITIAL_IMPORTED_TABLE];
+    return INITIAL_IMPORTED_TABLES;
   }
 
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY_IMPORTED_TABLES);
-    if (!raw) return [INITIAL_IMPORTED_TABLE];
+    if (!raw) return INITIAL_IMPORTED_TABLES;
     const parsed: ImportedTableData[] = JSON.parse(raw);
+
+    // 旧バージョンの単一サンプルテーブル (sample-table-1) のみの場合は新デフォルトに差し替え
+    if (parsed.length === 0 || (parsed.length === 1 && parsed[0].id === 'sample-table-1')) {
+      saveImportedTables(INITIAL_IMPORTED_TABLES);
+      return INITIAL_IMPORTED_TABLES;
+    }
+
     const migratedTables = parsed.map((table) => {
       // 表全体の付随タスク設定の正規化
       let attachedConfig = table.attachedTaskConfig;
@@ -553,10 +1199,10 @@ export function loadImportedTables(): ImportedTableData[] {
       };
     });
 
-    return migratedTables.length > 0 ? migratedTables : [INITIAL_IMPORTED_TABLE];
+    return migratedTables.length > 0 ? migratedTables : INITIAL_IMPORTED_TABLES;
   } catch (err) {
     console.error('Failed to load imported tables from localStorage', err);
-    return [INITIAL_IMPORTED_TABLE];
+    return INITIAL_IMPORTED_TABLES;
   }
 }
 

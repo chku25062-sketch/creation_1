@@ -15,6 +15,7 @@ import {
   parseColHeader,
 } from './tableUtils';
 import { ImportedTableData } from '@/types';
+import { INITIAL_IMPORTED_TABLES, INITIAL_TASKS, INITIAL_FIXED_SLOTS } from './storage';
 
 const createBaseTable = (startTime: string | null = '09:00'): ImportedTableData => ({
   id: 'test-table',
@@ -745,6 +746,26 @@ describe('tableUtils', () => {
       expect(res.tasks[0].cycleStartDate).toBe('2026-11-06');
       expect(res.tasks[0].cycleDays).toEqual([0]);
       expect(res.tasks[0].cycleCount).toBe(3);
+    });
+  });
+
+  describe('デフォルトの表（授業・睡眠・食事・筋トレ・英語・趣味）の初期化とスケジュール生成', () => {
+    it('INITIAL_IMPORTED_TABLES に 授業・睡眠・食事・筋トレ・英語・趣味 の6つの表が存在すること', () => {
+      const names = INITIAL_IMPORTED_TABLES.map((t) => t.name);
+      expect(names).toEqual(['授業', '睡眠', '食事', '筋トレ', '英語', '趣味']);
+    });
+
+    it('古いデフォルトタスクおよび古い固定枠が INITIAL_TASKS / INITIAL_FIXED_SLOTS から消去されていること', () => {
+      expect(INITIAL_TASKS).toEqual([]);
+      expect(INITIAL_FIXED_SLOTS).toEqual([]);
+    });
+
+    it('各デフォルト表からスケジュールアイテムが正常に生成されること', () => {
+      for (const table of INITIAL_IMPORTED_TABLES) {
+        const { slots, tasks } = generateScheduleItemsForTable(table);
+        const totalItems = slots.length + tasks.length;
+        expect(totalItems).toBeGreaterThan(0);
+      }
     });
   });
 });
