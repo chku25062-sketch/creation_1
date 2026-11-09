@@ -35,6 +35,7 @@ import {
   classifyWeeklyBlock,
   classifyDailyBlock,
   isWeeklyTaskItem,
+  getParentEndTimeForDay,
 } from '@/lib/scheduler';
 
 export type SheetTab = 'timeline' | 'data';
@@ -141,6 +142,15 @@ export function SheetFooter({
     ? debugTime.dayIndex
     : (selectedDayIndex ?? ((new Date().getDay() + 6) % 7));
 
+  // 基準日時の現在時刻（分）
+  const currentMinutes = useMemo(() => {
+    if (debugTime?.enabled) {
+      return debugTime.minutes;
+    }
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+  }, [debugTime?.enabled, debugTime?.minutes]);
+
   // タスクマップ
   const taskMap = useMemo(() => {
     const map = new Map<string, TaskItem>();
@@ -149,27 +159,28 @@ export function SheetFooter({
   }, [allTasks]);
 
   // 週タスクブロックの分類（先週タスク・出題中タスク）
+  // 出題中の定義: 現在時刻が付随元のタスクの時間を超えているもの
   const lastWeekWeeklyBlocks = useMemo(() => {
     return weeklyBlocks.filter(
-      (b) => classifyWeeklyBlock(b, currentTodayIdx, taskMap) === 'last_week',
+      (b) => classifyWeeklyBlock(b, currentTodayIdx, taskMap, currentMinutes) === 'last_week',
     );
-  }, [weeklyBlocks, currentTodayIdx, taskMap]);
+  }, [weeklyBlocks, currentTodayIdx, taskMap, currentMinutes]);
 
   const activeWeeklyBlocks = useMemo(() => {
     return weeklyBlocks.filter(
-      (b) => classifyWeeklyBlock(b, currentTodayIdx, taskMap) === 'active',
+      (b) => classifyWeeklyBlock(b, currentTodayIdx, taskMap, currentMinutes) === 'active',
     );
-  }, [weeklyBlocks, currentTodayIdx, taskMap]);
+  }, [weeklyBlocks, currentTodayIdx, taskMap, currentMinutes]);
 
-  // 未出題タスク（今週の課題でまだ出題されていないタスク）
+  // 未出題タスク（今週の課題でまだ出題されていないタスク / 現在時刻が付随元時間を超えていないもの）
   const upcomingWeeklyTasks = useMemo(() => {
     return allTasks.filter(
       (t) =>
         isWeeklyTaskItem(t) &&
         t.enabled !== false &&
-        classifyWeeklyTask(t, currentTodayIdx) === 'upcoming',
+        classifyWeeklyTask(t, currentTodayIdx, currentMinutes) === 'upcoming',
     );
-  }, [allTasks, currentTodayIdx]);
+  }, [allTasks, currentTodayIdx, currentMinutes]);
 
   // 日タスクブロックの分類（今日の分のタスク・前日分のタスク）
   const allDailyBlocks = useMemo(() => {
@@ -1099,8 +1110,18 @@ export function SheetFooter({
                     {upcomingWeeklyTasks.length > 0 ? (
                       <div className="space-y-1.5">
                         {upcomingWeeklyTasks.map((task: TaskItem) => {
+                          const parentEndTime = getParentEndTimeForDay(task, currentTodayIdx);
+                          const isToday =
+                            task.startDay === currentTodayIdx ||
+                            (task.startDay === undefined && parentEndTime !== undefined);
                           const startDayName =
-                            task.startDay !== undefined ? WEEKDAY_NAMES[task.startDay] : '未定';
+                            task.startDay !== undefined ? WEEKDAY_NAMES[task.startDay] : '今日';
+
+                          const scheduleLabel =
+                            isToday && parentEndTime !== undefined
+                              ? `本日 ${minutesToTimeString(parentEndTime)}〜`
+                              : `${startDayName}曜出題`;
+
                           return (
                             <div
                               key={`upcoming-${task.id}`}
@@ -1108,7 +1129,7 @@ export function SheetFooter({
                             >
                               <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                 <span className="shrink-0 flex items-center justify-center h-5 px-1.5 font-bold text-[10px] border border-blue-300 bg-blue-100 text-blue-800">
-                                  {startDayName}曜出題
+                                  {scheduleLabel}
                                 </span>
                                 <span className="text-xs font-bold text-slate-800 truncate" title={task.title}>
                                   {task.title}

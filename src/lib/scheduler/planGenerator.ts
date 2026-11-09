@@ -56,8 +56,9 @@ export function generatePlacementPlans(
         : task.dailyCount || 1;
 
     // Plan14: 週タスクの分類（先週タスク・出題中タスク・未出題タスク）
+    // 出題中の定義: 現在時刻が付随元のタスクの時間を超えているもの
     const weeklyClassification = isWeeklyTaskItem(task)
-      ? classifyWeeklyTask(task, todayIdx)
+      ? classifyWeeklyTask(task, todayIdx, currMinutes)
       : undefined;
     task.weeklyClassification = weeklyClassification;
 

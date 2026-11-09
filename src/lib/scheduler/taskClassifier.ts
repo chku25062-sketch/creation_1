@@ -1,12 +1,53 @@
 import { TaskItem, TheoreticalBlock, WeeklyTaskClassification, DailyTaskClassification } from '@/types';
+import { timeStringToMinutes } from '../timeUtils';
+
+/**
+ * タスクの付随元（本タスク・講義等）の終了時刻（分: 0〜1440）を取得
+ */
+export function getParentEndTimeForDay(task: TaskItem, dayIndex: number): number | undefined {
+  if (task.parentEndMinutesByDay && task.parentEndMinutesByDay[dayIndex] !== undefined) {
+    return task.parentEndMinutesByDay[dayIndex];
+  }
+  if (task.scheduleAfterDay === undefined || task.scheduleAfterDay === dayIndex) {
+    if (task.scheduleAfterTime !== undefined) {
+      return typeof task.scheduleAfterTime === 'string'
+        ? timeStringToMinutes(task.scheduleAfterTime)
+        : task.scheduleAfterTime;
+    }
+  }
+  if (task.earliestStartTime !== undefined && task.earliestStartTime > 0) {
+    return task.earliestStartTime;
+  }
+  return undefined;
+}
+
+/**
+ * タスクの出題曜日を取得
+ */
+export function getTaskStartDay(task: TaskItem): number | undefined {
+  if (task.startDay !== undefined) return task.startDay;
+  if (task.scheduleAfterDay !== undefined) return task.scheduleAfterDay;
+  if (task.parentEndMinutesByDay && Object.keys(task.parentEndMinutesByDay).length > 0) {
+    const days = Object.keys(task.parentEndMinutesByDay).map(Number).sort((a, b) => a - b);
+    return days[0];
+  }
+  if (task.targetDays && task.targetDays.length > 0) {
+    return task.targetDays[0];
+  }
+  return undefined;
+}
 
 /**
  * 週タスクの分類を判定
  * - 'last_week' (先週タスク): 先週の課題でまだ有効期限が来ていないもの
- * - 'active' (出題中タスク): 今週の課題で既に出題中のもの
- * - 'upcoming' (未出題タスク): 今週の課題でまだ出題されていないもの
+ * - 'active' (出題中タスク): 今週の課題で現在時刻が付随元のタスクの時間を超えているもの
+ * - 'upcoming' (未出題タスク): 今週の課題でまだ出題されていないもの（未来曜日、または現在時刻が付随元のタスクの時間に達していないもの）
  */
-export function classifyWeeklyTask(task: TaskItem, todayIndex: number): WeeklyTaskClassification {
+export function classifyWeeklyTask(
+  task: TaskItem,
+  todayIndex: number,
+  currentMinutes?: number,
+): WeeklyTaskClassification {
   if (task.weeklyClassification) {
     return task.weeklyClassification;
   }
@@ -28,12 +69,27 @@ export function classifyWeeklyTask(task: TaskItem, todayIndex: number): WeeklyTa
     return 'last_week';
   }
 
-  // 2. 未出題タスクの判定: 今週の課題で出題曜日が現在曜日より未来
-  if (task.startDay !== undefined && task.startDay > todayIndex) {
+  const effectiveStartDay = getTaskStartDay(task);
+
+  // 2. 出題曜日が未来の場合 -> 未出題タスク
+  if (effectiveStartDay !== undefined && effectiveStartDay > todayIndex) {
     return 'upcoming';
   }
 
-  // 3. 出題中タスクの判定: 今週の課題ですでに出題中（startDay <= todayIndex、または曜日指定なし）
+  // 3. 出題曜日が今日の場合（または曜日未定で今日出題される場合）
+  if (effectiveStartDay === undefined || effectiveStartDay === todayIndex) {
+    const parentEndTime = getParentEndTimeForDay(task, todayIndex);
+
+    // ★ ユーザー定義: 出題中の定義は「現在時刻が付随元のタスクの時間を超えているもの」
+    if (parentEndTime !== undefined && currentMinutes !== undefined) {
+      if (currentMinutes < parentEndTime) {
+        // まだ付随元のタスクの時間を超えていない（講義前・講義中など）-> 未出題タスク！
+        return 'upcoming';
+      }
+    }
+  }
+
+  // 4. 上記以外（過去曜日出題、または現在時刻が付随元のタスクの時間を超えている）-> 出題中タスク！
   return 'active';
 }
 
@@ -44,6 +100,7 @@ export function classifyWeeklyBlock(
   block: TheoreticalBlock,
   todayIndex: number,
   taskMap?: Map<string, TaskItem>,
+  currentMinutes?: number,
 ): WeeklyTaskClassification {
   if (block.weeklyClassification) {
     return block.weeklyClassification;
@@ -56,7 +113,7 @@ export function classifyWeeklyBlock(
   if (block.taskId && taskMap) {
     const parentTask = taskMap.get(block.taskId);
     if (parentTask) {
-      return classifyWeeklyTask(parentTask, todayIndex);
+      return classifyWeeklyTask(parentTask, todayIndex, currentMinutes);
     }
   }
 
@@ -72,8 +129,12 @@ export function classifyWeeklyBlock(
     }
   }
 
-  // 配置された曜日が今日より未来で、出題前タスクとして配置された場合
-  // （通常未出題タスクは出題日以降に配置されるため、出題日以前の曜日のブロックは出題中）
+  // 当日のブロックで、もし付随元タスクがあり開始前なら未出題
+  if (block.dayIndex !== undefined && block.dayIndex > todayIndex) {
+    // 未来曜日のブロック
+    return 'upcoming';
+  }
+
   return 'active';
 }
 

@@ -3978,6 +3978,26 @@ describe('Theoretical Scheduler Engine', () => {
             category: 'study',
           };
           expect(classifyWeeklyTask(explicitLastWeek, todayIdx)).toBe('last_week');
+
+          // ④ 出題中の定義: 現在時刻が付随元のタスクの時間を超えているもの
+          // 月曜日の講義（10:30 / 630分 終了）に付随する課題タスク
+          const attachedTask: TaskItem = {
+            id: 'task-attached-lecture',
+            title: '情報数学の課題レポート',
+            period: 'week',
+            isAttachedTask: true,
+            startDay: 0, // 月曜出題
+            parentEndMinutesByDay: { 0: 630 }, // 10:30 終了
+            durationMinutes: 45,
+            priority: 'high',
+            category: 'study',
+          };
+
+          // 講義中（09:30 / 570分）: まだ付随元タスクの時間を超えていないため「未出題」
+          expect(classifyWeeklyTask(attachedTask, 0, 570)).toBe('upcoming');
+
+          // 講義終了後（11:00 / 660分）: 付随元タスクの時間を超えたため「出題中」
+          expect(classifyWeeklyTask(attachedTask, 0, 660)).toBe('active');
         });
 
         it('未出題タスクが出題曜日より前にフライング配置されないこと', () => {

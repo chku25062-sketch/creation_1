@@ -144,9 +144,10 @@ export function createPlaceContextHelper(ctx: SchedulingExecutionContext) {
       const taskStart = effectiveSlotStart;
       const taskEnd = taskStart + effectiveDuration;
 
-      // Plan14: 分類の算出
+      // Plan14: 分類の算出（出題中: 現在時刻が付随元のタスクの時間を超えているもの）
       const weeklyClassification = isWeekly
-        ? taskCtx.task.weeklyClassification || classifyWeeklyTask(taskCtx.task, ctx.todayIdx)
+        ? taskCtx.task.weeklyClassification ||
+          classifyWeeklyTask(taskCtx.task, ctx.todayIdx, ctx.currMinutes)
         : undefined;
 
       const isYesterday =
