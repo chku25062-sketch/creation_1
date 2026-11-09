@@ -767,5 +767,17 @@ describe('tableUtils', () => {
         expect(totalItems).toBeGreaterThan(0);
       }
     });
+
+    it('睡眠表から生成される固定枠が日跨ぎ（23:00〜07:00）として正しく翌日に分割配置されること', () => {
+      const sleepTable = INITIAL_IMPORTED_TABLES.find((t) => t.name === '睡眠')!;
+      const { slots } = generateScheduleItemsForTable(sleepTable);
+      expect(slots.length).toBeGreaterThan(0);
+
+      const sleepSlot = slots[0];
+      expect(sleepSlot.startMinutes).toBe(23 * 60); // 1380 (23:00)
+      expect(sleepSlot.endMinutes).toBe(7 * 60); // 420 (07:00)
+      // 日跨ぎ（startMinutes > endMinutes）が成立していること
+      expect(sleepSlot.startMinutes).toBeGreaterThan(sleepSlot.endMinutes);
+    });
   });
 });

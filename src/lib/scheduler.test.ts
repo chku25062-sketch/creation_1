@@ -3892,6 +3892,32 @@ describe('Theoretical Scheduler Engine', () => {
             false,
           );
         });
+
+        it('日跨ぎ固定枠（23:00〜07:00 / 1380〜420分）が当日の夜と翌日の朝に正しく分割されて配置されること', () => {
+          const overnightSlot: FixedSlot = {
+            id: 'slot-overnight-sleep',
+            title: '睡眠',
+            category: 'sleep',
+            color: '#6366f1',
+            startMinutes: 1380, // 23:00
+            endMinutes: 420, // 07:00
+            daysOfWeek: [0], // 月曜夜の睡眠
+          };
+
+          const schedule = generateTheoreticalSchedule([overnightSlot], []);
+
+          // 月曜（0）の夜: 23:00〜24:00 (1380〜1440分) にブロックが存在すること
+          const monSleep = schedule.dayBlocks[0].find(
+            (b) => b.title === '睡眠' && b.startMinutes === 1380 && b.endMinutes === 1440,
+          );
+          expect(monSleep).toBeDefined();
+
+          // 火曜（1）の朝: 00:00〜07:00 (0〜420分) にブロックが存在すること
+          const tueSleep = schedule.dayBlocks[1].find(
+            (b) => b.title === '睡眠' && b.startMinutes === 0 && b.endMinutes === 420,
+          );
+          expect(tueSleep).toBeDefined();
+        });
       });
     });
   });

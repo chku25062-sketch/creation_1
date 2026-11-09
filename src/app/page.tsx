@@ -119,7 +119,19 @@ export default function Home() {
   const effectiveCurrentMinutes =
     isDevelopment && debugTime.enabled ? debugTime.minutes : realTime.minutes;
 
+  // 有効な今日（effectiveTodayIndex）が深夜0時を跨ぐかデバッグ日時変更で切り替わった際、日フォーカスも新しい今日へ自動追従
+  const prevTodayRef = useRef(effectiveTodayIndex);
+  useEffect(() => {
+    if (prevTodayRef.current !== effectiveTodayIndex) {
+      setSelectedDayIndex(effectiveTodayIndex);
+      prevTodayRef.current = effectiveTodayIndex;
+    }
+  }, [effectiveTodayIndex]);
+
   const handleChangeDebugTime = (next: Partial<DebugTimeConfig>) => {
+    if (next.dayIndex !== undefined) {
+      setSelectedDayIndex(next.dayIndex);
+    }
     setDebugTime((prev) => {
       const base = prev.enabled
         ? prev

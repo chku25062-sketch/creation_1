@@ -371,12 +371,18 @@ export function Timeline24h({
 
   const totalHeight = TOTAL_HOURS * hourHeight;
 
+  // 日付の切り替わり監視キー (YYYY-M-D)
+  const [realDateKey, setRealDateKey] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+  });
+
   // 今日の曜日インデックス (0=月 ... 6=日) — デバッグ日時が指定されている場合はそれを優先
   const todayIndex = useMemo(() => {
     if (overrideTodayIndex !== undefined) return overrideTodayIndex;
     const now = new Date();
     return (now.getDay() + 6) % 7;
-  }, [overrideTodayIndex]);
+  }, [overrideTodayIndex, realDateKey]);
 
   // 今週（月曜〜日曜）の7日間の日付情報を算出
   const weekDays = useMemo(() => {
@@ -401,11 +407,16 @@ export function Timeline24h({
         isSunday: i === 6,
       };
     });
-  }, [todayIndex]);
+  }, [todayIndex, realDateKey]);
 
   // フォーカスモードで現在選択されている曜日のインデックス (外部制御対応)
   const [internalDayIndex, setInternalDayIndex] = useState<number>(todayIndex);
   const selectedDayIndex = controlledDayIndex !== undefined ? controlledDayIndex : internalDayIndex;
+
+  // 今日のインデックス（todayIndex）が深夜0時やデバッグ変更で変わった際、内部選択曜日も追従
+  useEffect(() => {
+    setInternalDayIndex(todayIndex);
+  }, [todayIndex]);
 
   const handleSelectDayIndex = (updater: number | ((prev: number) => number)) => {
     const next = typeof updater === 'function' ? updater(selectedDayIndex) : updater;
@@ -437,6 +448,7 @@ export function Timeline24h({
       const mins = now.getHours() * 60 + now.getMinutes();
       setRealCurrentMinutes(mins);
       setNowTimeString(minutesToTimeString(mins));
+      setRealDateKey(`${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`);
     };
     update();
     const interval = setInterval(update, 30000); // 30秒ごとに更新

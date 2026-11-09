@@ -12,19 +12,22 @@ export function normalizeFixedSlots(slots: FixedSlot[]): FixedSlot[] {
       continue;
     }
 
-    if (slot.startMinutes > slot.endMinutes) {
+    const isOvernight = slot.startMinutes > slot.endMinutes || slot.endMinutes > 1440;
+    const realEnd = slot.endMinutes > 1440 ? slot.endMinutes % 1440 : slot.endMinutes;
+
+    if (isOvernight) {
       result.push({
         ...slot,
         id: `${slot.id}-part1`,
         startMinutes: slot.startMinutes,
         endMinutes: 1440,
       });
-      if (slot.endMinutes > 0) {
+      if (realEnd > 0) {
         result.push({
           ...slot,
           id: `${slot.id}-part2`,
           startMinutes: 0,
-          endMinutes: slot.endMinutes,
+          endMinutes: realEnd,
         });
       }
     } else {
@@ -108,8 +111,11 @@ export class SlotManager {
         slot.daysOfWeek && slot.daysOfWeek.length > 0 ? slot.daysOfWeek : [0, 1, 2, 3, 4, 5, 6];
 
       for (const d of targetDays) {
-        if (slot.startMinutes > slot.endMinutes) {
-          // 日跨ぎ固定枠（例: 23:00 - 07:00）:
+        const isOvernight = slot.startMinutes > slot.endMinutes || slot.endMinutes > 1440;
+        const realEnd = slot.endMinutes > 1440 ? slot.endMinutes % 1440 : slot.endMinutes;
+
+        if (isOvernight) {
+          // 日跨ぎ固定枠（例: 23:00 - 07:00 / 1380 - 420 / 1380 - 1860）:
           // 当日夜 (startMinutes -> 1440)
           rawSlotsByDay[d].push({
             ...slot,
@@ -117,14 +123,14 @@ export class SlotManager {
             startMinutes: slot.startMinutes,
             endMinutes: 1440,
           });
-          // 翌日朝 (0 -> endMinutes): 翌日のインデックス (d + 1) % 7 へ割り当て
-          if (slot.endMinutes > 0) {
+          // 翌日朝 (0 -> realEnd): 翌日のインデックス (d + 1) % 7 へ割り当て
+          if (realEnd > 0) {
             const nextDay = (d + 1) % 7;
             rawSlotsByDay[nextDay].push({
               ...slot,
               id: `${slot.id}-part2`,
               startMinutes: 0,
-              endMinutes: slot.endMinutes,
+              endMinutes: realEnd,
             });
           }
         } else {

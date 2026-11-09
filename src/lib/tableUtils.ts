@@ -500,12 +500,17 @@ export function generateScheduleItemsForTable(
             }
           } else {
             const slotId = `slot-table-${table.id}-${r}-${c}`;
+            const slotStart =
+              timeSlot.startMinutes >= 1440 ? timeSlot.startMinutes % 1440 : timeSlot.startMinutes;
+            const slotEnd =
+              timeSlot.endMinutes > 1440 ? timeSlot.endMinutes % 1440 : timeSlot.endMinutes;
+
             slotMap.set(slotKey, {
               id: slotId,
               title: fullTitle,
               category: tableCategory, // 表の名前でカテゴリを代用
-              startMinutes: timeSlot.startMinutes,
-              endMinutes: timeSlot.endMinutes,
+              startMinutes: slotStart,
+              endMinutes: slotEnd,
               breakMinutes: effectiveBreakMinutes,
               color: '#0284c7',
               daysOfWeek: days,

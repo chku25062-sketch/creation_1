@@ -73,12 +73,16 @@ export function calculatePeriodTimes(
       if (custom.endMinutes !== undefined) periodEnd = custom.endMinutes;
     }
 
+    // 日跨ぎ（1440分超）の正規化: 24:00 (1440分) を超える場合は翌日の時刻 (0..1439分) にラップ
+    const effectiveStart = periodStart >= 1440 ? periodStart % 1440 : periodStart;
+    const effectiveEnd = periodEnd > 1440 ? periodEnd % 1440 : periodEnd;
+
     result.push({
       periodIndex,
-      startMinutes: periodStart,
-      endMinutes: periodEnd,
-      startTime: minutesToTimeString(periodStart),
-      endTime: minutesToTimeString(periodEnd),
+      startMinutes: effectiveStart,
+      endMinutes: effectiveEnd,
+      startTime: minutesToTimeString(effectiveStart),
+      endTime: minutesToTimeString(effectiveEnd),
     });
 
     // 次のコマの開始時間
