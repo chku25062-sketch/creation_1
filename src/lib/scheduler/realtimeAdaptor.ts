@@ -77,8 +77,14 @@ export function applyRealtimeAdaptation(params: RealtimeAdaptationParams): {
   for (let d = 0; d < 7; d++) {
     if (dayBlocks[d]) {
       dayBlocks[d] = dayBlocks[d].filter((b) => {
-        if (b.isRescheduled && b.taskId && completedOrigTaskIds.has(b.taskId)) {
-          return false; // 大元タスクが完了したので、再配置先を取り除く
+        if (b.isRescheduled) {
+          // メタデータ直接参照またはタスクID完全一致で大元タスク完了を判定
+          if (b.originalBlockId && userCompletedIds.has(b.originalBlockId)) {
+            return false;
+          }
+          if (b.taskId && completedOrigTaskIds.has(b.taskId)) {
+            return false; // 大元タスクが完了したので、再配置先を取り除く
+          }
         }
         return true;
       });
@@ -361,6 +367,9 @@ export function applyRealtimeAdaptation(params: RealtimeAdaptationParams): {
               startMinutes: placedStart,
               endMinutes: placedEnd,
               breakMinutes: effectiveBreak > 0 ? effectiveBreak : undefined,
+              originalBlockId: block.originalBlockId,
+              originDayIndex:
+                block.originDayIndex !== undefined ? block.originDayIndex : block.dayIndex,
               isSubstitute: isActualSubstitute ? true : undefined,
               substitutedForTitle: isActualSubstitute ? overlappedEarly.title : undefined,
               substitutedForBlockId: isActualSubstitute ? overlappedEarly.id : undefined,
@@ -466,6 +475,8 @@ export function applyRealtimeAdaptation(params: RealtimeAdaptationParams): {
               isWeeklyTask: isWeekly,
               isRescheduled: plan.isRescheduledPlan,
               rescheduledFromDay: plan.rescheduledFromDay,
+              originalBlockId: plan.originalBlockId,
+              originDayIndex: plan.rescheduledFromDay !== undefined ? plan.rescheduledFromDay : d,
               color: isWeekly ? '#8b5cf6' : getCategoryColor(plan.task.category),
               taskId,
               priority: plan.task.priority,

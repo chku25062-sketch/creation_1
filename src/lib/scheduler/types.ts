@@ -22,6 +22,7 @@ export interface TaskPlacementPlan {
   isRescheduledPlan?: boolean; // 未完了週タスクの再配置プランかどうか
   rescheduledFromDay?: number; // 再スケジュール元の曜日
   origTaskId?: string; // 元のタスクID
+  originalBlockId?: string; // 再スケジュール元の大元ブロックID
 }
 
 export interface DayTaskContext {

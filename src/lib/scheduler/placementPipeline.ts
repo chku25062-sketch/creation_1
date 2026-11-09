@@ -182,6 +182,9 @@ export function createPlaceContextHelper(ctx: SchedulingExecutionContext) {
         isWeeklyTask: isWeekly,
         isRescheduled: taskCtx.plan.isRescheduledPlan,
         rescheduledFromDay: taskCtx.plan.rescheduledFromDay,
+        originalBlockId: taskCtx.plan.originalBlockId,
+        originDayIndex:
+          taskCtx.plan.rescheduledFromDay !== undefined ? taskCtx.plan.rescheduledFromDay : d,
         // Plan14: 日付・週の概念による分類情報
         weeklyClassification,
         dailyClassification,

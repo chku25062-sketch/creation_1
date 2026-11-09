@@ -362,6 +362,7 @@ export function generatePlacementPlans(
           isRescheduledPlan: true,
           rescheduledFromDay: fromDay >= 0 ? fromDay : undefined,
           origTaskId: matchedTask.id,
+          originalBlockId: id,
         });
       }
     }

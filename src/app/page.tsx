@@ -15,7 +15,11 @@ import {
   AppThemeMode,
   TaskPlacementStrategy,
 } from '@/types';
-import { generateTheoreticalSchedule } from '@/lib/scheduler';
+import {
+  generateTheoreticalSchedule,
+  toggleBlockCompletion,
+  persistCompletionStates,
+} from '@/lib/scheduler';
 import {
   loadLocalData,
   saveLocalData,
@@ -688,9 +692,8 @@ export default function Home() {
   const lastToggleRef = useRef<{ blockId: string; time: number } | null>(null);
 
   // 固定枠・週タスク・再配置タスク・代行タスクの完了状態トグルハンドラ
-  // 再配置先で完了にした場合に元の大元ブロックも連動して完了にし、連打時の排他性と整合性を完全保証
+  // completionManager 純粋関数モジュールに状態遷移・連動処理・永続化を一元委譲
   const handleToggleBlockComplete = (block: import('@/types').TheoreticalBlock) => {
-    // 休憩ブロック以外はすべて完了/未完了トグル可能
     if (block.isBreak) return;
 
     // 高速連打（150ms以内の同一ブロック連打）による状態不整合・レースコンディションを防止
@@ -704,133 +707,18 @@ export default function Home() {
     }
     lastToggleRef.current = { blockId: block.id, time: now };
 
-    const todayIdx = effectiveTodayIndex;
-    const currMinutes = effectiveCurrentMinutes;
-    const isPast =
-      block.dayIndex !== undefined &&
-      (block.dayIndex < todayIdx ||
-        (block.dayIndex === todayIdx && block.endMinutes <= currMinutes));
+    const { nextCompletedIds, nextUncompletedIds } = toggleBlockCompletion({
+      targetBlock: block,
+      allBlocks: schedulingResult.allBlocks || [],
+      completedBlockIds,
+      uncompletedBlockIds,
+      todayIdx: effectiveTodayIndex,
+      currMinutes: effectiveCurrentMinutes,
+    });
 
-    const targetTaskId = block.taskId;
-    const allBlocks = schedulingResult.allBlocks || [];
-
-    // 同一タスクに関連するすべてのブロックを特定（大元ブロック・再配置ブロック・代行ブロック）
-    const relatedBlocks = targetTaskId
-      ? allBlocks.filter((b) => b.taskId === targetTaskId)
-      : [block];
-    const relatedBlockIds = new Set(relatedBlocks.map((b) => b.id));
-    relatedBlockIds.add(block.id);
-
-    // 大元のブロック（過去に本来配置されていた元ブロック）を特定
-    const originalBlock =
-      (block.rescheduledFromDay !== undefined
-        ? relatedBlocks.find((b) => !b.isRescheduled && b.dayIndex === block.rescheduledFromDay)
-        : undefined) ||
-      relatedBlocks.find(
-        (b) =>
-          !b.isRescheduled &&
-          !b.isSubstitute &&
-          b.dayIndex !== undefined &&
-          (b.dayIndex < todayIdx || (b.dayIndex === todayIdx && b.endMinutes <= currMinutes)),
-      ) ||
-      (isPast && !block.isRescheduled && !block.isSubstitute ? block : undefined);
-
-    const isCurrentlyCompleted = block.isCompleted;
-
-    if (isCurrentlyCompleted) {
-      // 現在完了 -> 未完了に戻す（「まだ終わってないよ」）
-      setCompletedBlockIds((prev) => {
-        const next = new Set(prev);
-        for (const id of relatedBlockIds) {
-          next.delete(id);
-        }
-        if (targetTaskId) next.delete(targetTaskId);
-        try {
-          localStorage.setItem('app_completed_block_ids', JSON.stringify(Array.from(next)));
-        } catch {
-          // ignore
-        }
-        return next;
-      });
-
-      // 過去枠（または再配置ブロックの大元が過去枠）の場合のみ未完了登録して未来に再配置
-      const originalPast = originalBlock || (isPast ? block : undefined);
-      if (originalPast) {
-        setUncompletedBlockIds((prev) => {
-          const next = new Set(prev);
-          // 既存の関連IDを一旦綺麗にしてから、正統な大元IDを登録
-          for (const id of relatedBlockIds) {
-            next.delete(id);
-          }
-          next.add(originalPast.id);
-          try {
-            localStorage.setItem('app_uncompleted_block_ids', JSON.stringify(Array.from(next)));
-          } catch {
-            // ignore
-          }
-          return next;
-        });
-      } else {
-        // 未来枠の場合はデフォルト未完了なので、未完了リストから関連IDを削除して初期状態へ
-        setUncompletedBlockIds((prev) => {
-          const next = new Set(prev);
-          for (const id of relatedBlockIds) {
-            next.delete(id);
-          }
-          if (targetTaskId) next.delete(targetTaskId);
-          try {
-            localStorage.setItem('app_uncompleted_block_ids', JSON.stringify(Array.from(next)));
-          } catch {
-            // ignore
-          }
-          return next;
-        });
-      }
-    } else {
-      // 現在未完了 -> 完了にする（「これはもう終わっている」）
-      // 1. 未完了リストからこのタスクに関するすべてのIDを確実に抹消（排他性の完全保証）
-      setUncompletedBlockIds((prev) => {
-        const next = new Set(prev);
-        for (const id of relatedBlockIds) {
-          next.delete(id);
-        }
-        if (targetTaskId) next.delete(targetTaskId);
-        try {
-          localStorage.setItem('app_uncompleted_block_ids', JSON.stringify(Array.from(next)));
-        } catch {
-          // ignore
-        }
-        return next;
-      });
-
-      // 2. 完了リストの更新
-      setCompletedBlockIds((prev) => {
-        const next = new Set(prev);
-        if (block.isRescheduled) {
-          // 【再配置ブロックを完了にした場合】:
-          // 再配置先も完了（済）として残し、大元ブロックも連動して完了にする
-          next.add(block.id);
-          if (originalBlock) {
-            next.add(originalBlock.id);
-          }
-        } else {
-          // 【大元のタスクを未完了から完了にした場合】:
-          // 大元のタスクを完了にし、不要になった再配置先を取り除く（消去する）
-          for (const b of relatedBlocks) {
-            if (b.isRescheduled) {
-              next.delete(b.id);
-            }
-          }
-          next.add(block.id);
-        }
-        try {
-          localStorage.setItem('app_completed_block_ids', JSON.stringify(Array.from(next)));
-        } catch {
-          // ignore
-        }
-        return next;
-      });
-    }
+    setCompletedBlockIds(nextCompletedIds);
+    setUncompletedBlockIds(nextUncompletedIds);
+    persistCompletionStates(nextCompletedIds, nextUncompletedIds);
   };
 
   // 今週配置された全週タスク一覧（日フォーカス時も週全体を俯瞰できるよう抽出）

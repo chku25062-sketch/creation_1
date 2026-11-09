@@ -108,6 +108,9 @@ export interface TheoreticalBlock {
   substitutedForBlockId?: string; // 代替元のブロックID
   isRescheduled?: boolean; // 未完了のため現在時刻以降に再スケジュールされたタスクか
   rescheduledFromDay?: number; // 再スケジュール元の曜日
+  originalBlockId?: string; // 再配置元の大元ブロックID（メタデータ直接参照用）
+  originDayIndex?: number; // 本来配置されていた曜日 (0..6)
+  targetDate?: string; // 実際のカレンダー日付 "YYYY-MM-DD"
   // Plan14: 日付・週の概念による分類
   weeklyClassification?: WeeklyTaskClassification; // 'last_week' | 'active' | 'upcoming'
   dailyClassification?: DailyTaskClassification; // 'yesterday' | 'today'
