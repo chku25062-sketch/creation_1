@@ -24,7 +24,6 @@ import {
   Repeat,
   Upload,
   X,
-  Palette,
   Hourglass,
 } from 'lucide-react';
 import { TABLE_PALETTE_OPTIONS, getTableColorSchemeByIndex } from '@/components/Timeline24h';
@@ -253,35 +252,6 @@ export function ImportedTablesManager({
   // テーブル名編集モーダル/ステート
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempTableName, setTempTableName] = useState('');
-
-  // 表カラーピッカーの開閉ステート
-  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
-  const colorPickerRef = useRef<HTMLDivElement>(null);
-
-  // カラーピッカー外側クリックで閉じる
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
-        setIsColorPickerOpen(false);
-      }
-    };
-    if (isColorPickerOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isColorPickerOpen]);
-
-  // 現在選択中の表の有効カラーインデックス
-  const activeTableColorIndex = useMemo(() => {
-    if (!activeTable) return 0;
-    if (activeTable.colorIndex !== undefined) return activeTable.colorIndex;
-    const idx = tables.findIndex((t) => t.id === activeTable.id);
-    return (idx >= 0 ? idx : 0) % TABLE_PALETTE_OPTIONS.length;
-  }, [activeTable, tables]);
-
-  const activeTablePalette = useMemo(() => {
-    return getTableColorSchemeByIndex(activeTableColorIndex);
-  }, [activeTableColorIndex]);
 
   // 低優先度設定バー（詳細設定）の開閉
   const [showLowPrioritySettings, setShowLowPrioritySettings] = useState(false);
@@ -977,7 +947,7 @@ export function ImportedTablesManager({
                         onClick={() => {
                           handleSelectItem(t.id);
                         }}
-                        title={`${t.name} (カラー: ${tColor.strip})`}
+                        title={t.name}
                         className={`group relative flex items-center rounded-none cursor-pointer transition ${
                           isSidebarOpen
                             ? 'justify-between px-2.5 py-2 text-xs'
@@ -1041,7 +1011,7 @@ export function ImportedTablesManager({
                                 {t.name}
                               </div>
                             )}
-                            {isSidebarOpen ? (
+                            {isSidebarOpen && (
                               <div className="mt-0.5 flex items-center justify-between text-[10px] text-slate-400 font-mono font-normal">
                                 <span className="flex items-center gap-1.5">
                                   <span>
@@ -1049,47 +1019,69 @@ export function ImportedTablesManager({
                                   </span>
                                   {dateStr && <span>{dateStr}</span>}
                                 </span>
-                                {isTableApplied(t) && (
-                                  <span className="rounded-full bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-700">
-                                    ON
-                                  </span>
-                                )}
                               </div>
-                            ) : (
-                              isTableApplied(t) && (
-                                <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                              )
                             )}
                           </div>
                         </div>
 
-                        {/* Actions on Hover (展開時のみ) */}
-                        {isSidebarOpen && (
-                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition shrink-0">
-                            {isSelected && !isEditingName && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setTempTableName(t.name);
-                                  setIsEditingName(true);
-                                }}
-                                title="名前を変更"
-                                className="rounded p-1 text-slate-400 hover:bg-slate-200/80 hover:text-blue-600"
-                              >
-                                <Edit2 className="h-3 w-3" />
-                              </button>
-                            )}
-                            {tables.length > 1 && (
-                              <button
-                                onClick={(e) => handleDeleteTable(t.id, e)}
-                                title="表を削除"
-                                className="rounded p-1 text-slate-400 hover:bg-rose-100 hover:text-rose-600"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            )}
-                          </div>
-                        )}
+                        {/* オンオフトグル & アクション */}
+                        <div className="flex items-center gap-1 shrink-0 ml-1">
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={isTableApplied(t)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleTableApply(t);
+                            }}
+                            title={`「${t.name}」の計画表への反映を${isTableApplied(t) ? 'オフ' : 'オン'}にする`}
+                            className={`relative inline-flex ${
+                              isSidebarOpen ? 'h-4 w-7' : 'h-3.5 w-6'
+                            } shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                              isTableApplied(t) ? 'bg-emerald-500' : 'bg-slate-300'
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block ${
+                                isSidebarOpen ? 'h-3 w-3' : 'h-2.5 w-2.5'
+                              } transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                isTableApplied(t)
+                                  ? isSidebarOpen
+                                    ? 'translate-x-3'
+                                    : 'translate-x-2.5'
+                                  : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+
+                          {/* Actions on Hover (展開時のみ) */}
+                          {isSidebarOpen && (
+                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition shrink-0">
+                              {isSelected && !isEditingName && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setTempTableName(t.name);
+                                    setIsEditingName(true);
+                                  }}
+                                  title="名前を変更"
+                                  className="rounded p-1 text-slate-400 hover:bg-slate-200/80 hover:text-blue-600"
+                                >
+                                  <Edit2 className="h-3 w-3" />
+                                </button>
+                              )}
+                              {tables.length > 1 && (
+                                <button
+                                  onClick={(e) => handleDeleteTable(t.id, e)}
+                                  title="表を削除"
+                                  className="rounded p-1 text-slate-400 hover:bg-rose-100 hover:text-rose-600"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   })
@@ -1143,21 +1135,54 @@ export function ImportedTablesManager({
                         >
                           固定枠
                         </div>
-                        {isSidebarOpen ? (
+                        {isSidebarOpen && (
                           <div className="mt-0.5 flex items-center justify-between text-[10px] text-slate-400 font-mono">
                             <span>睡眠・講義・勤務等 ({fixedSlots.length}件)</span>
-                            {isSlotsApplied && (
-                              <span className="rounded bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-700">
-                                ON
-                              </span>
-                            )}
                           </div>
-                        ) : (
-                          isSlotsApplied && (
-                            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          )
                         )}
                       </div>
+                    </div>
+
+                    {/* オンオフトグル */}
+                    <div className="flex items-center shrink-0 ml-1">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={isSlotsApplied}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const next = !isSlotsApplied;
+                          onInclusionSettingsChange?.({
+                            enableSlots: next,
+                            enableDailyTasks: isDailyApplied,
+                            enableWeeklyTasks: isWeeklyApplied,
+                          });
+                          setApplySuccessMsg(
+                            next
+                              ? '生活リズム枠を計画表に反映しました'
+                              : '生活リズム枠の反映を解除しました',
+                          );
+                          setTimeout(() => setApplySuccessMsg(null), 3000);
+                        }}
+                        title={`固定枠の計画表への反映を${isSlotsApplied ? 'オフ' : 'オン'}にする`}
+                        className={`relative inline-flex ${
+                          isSidebarOpen ? 'h-4 w-7' : 'h-3.5 w-6'
+                        } shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                          isSlotsApplied ? 'bg-emerald-500' : 'bg-slate-300'
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block ${
+                            isSidebarOpen ? 'h-3 w-3' : 'h-2.5 w-2.5'
+                          } transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                            isSlotsApplied
+                              ? isSidebarOpen
+                                ? 'translate-x-3'
+                                : 'translate-x-2.5'
+                              : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
                     </div>
                   </div>
                 )}
@@ -1196,21 +1221,54 @@ export function ImportedTablesManager({
                         >
                           {isSidebarOpen ? '📅 今日のタスク' : '今日'}
                         </div>
-                        {isSidebarOpen ? (
+                        {isSidebarOpen && (
                           <div className="mt-0.5 flex items-center justify-between text-[10px] text-slate-400 font-mono">
                             <span>今日用いられているタスク</span>
-                            {isDailyApplied && (
-                              <span className="rounded bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-700">
-                                ON
-                              </span>
-                            )}
                           </div>
-                        ) : (
-                          isDailyApplied && (
-                            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          )
                         )}
                       </div>
+                    </div>
+
+                    {/* オンオフトグル */}
+                    <div className="flex items-center shrink-0 ml-1">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={isDailyApplied}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const next = !isDailyApplied;
+                          onInclusionSettingsChange?.({
+                            enableSlots: isSlotsApplied,
+                            enableDailyTasks: next,
+                            enableWeeklyTasks: isWeeklyApplied,
+                          });
+                          setApplySuccessMsg(
+                            next
+                              ? '日課タスクを計画表に反映しました'
+                              : '日課タスクの反映を解除しました',
+                          );
+                          setTimeout(() => setApplySuccessMsg(null), 3000);
+                        }}
+                        title={`今日のタスクの計画表への反映を${isDailyApplied ? 'オフ' : 'オン'}にする`}
+                        className={`relative inline-flex ${
+                          isSidebarOpen ? 'h-4 w-7' : 'h-3.5 w-6'
+                        } shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                          isDailyApplied ? 'bg-emerald-500' : 'bg-slate-300'
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block ${
+                            isSidebarOpen ? 'h-3 w-3' : 'h-2.5 w-2.5'
+                          } transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                            isDailyApplied
+                              ? isSidebarOpen
+                                ? 'translate-x-3'
+                                : 'translate-x-2.5'
+                              : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
                     </div>
                   </div>
                 )}
@@ -1249,21 +1307,54 @@ export function ImportedTablesManager({
                         >
                           {isSidebarOpen ? '🗓️ 今週のタスク' : '今週'}
                         </div>
-                        {isSidebarOpen ? (
+                        {isSidebarOpen && (
                           <div className="mt-0.5 flex items-center justify-between text-[10px] text-slate-400 font-mono">
                             <span>今週用いられているタスク ({tasks.length}件)</span>
-                            {isWeeklyApplied && (
-                              <span className="rounded bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-700">
-                                ON
-                              </span>
-                            )}
                           </div>
-                        ) : (
-                          isWeeklyApplied && (
-                            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          )
                         )}
                       </div>
+                    </div>
+
+                    {/* オンオフトグル */}
+                    <div className="flex items-center shrink-0 ml-1">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={isWeeklyApplied}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const next = !isWeeklyApplied;
+                          onInclusionSettingsChange?.({
+                            enableSlots: isSlotsApplied,
+                            enableDailyTasks: isDailyApplied,
+                            enableWeeklyTasks: next,
+                          });
+                          setApplySuccessMsg(
+                            next
+                              ? '週次タスクを計画表に反映しました'
+                              : '週次タスクの反映を解除しました',
+                          );
+                          setTimeout(() => setApplySuccessMsg(null), 3000);
+                        }}
+                        title={`今週のタスクの計画表への反映を${isWeeklyApplied ? 'オフ' : 'オン'}にする`}
+                        className={`relative inline-flex ${
+                          isSidebarOpen ? 'h-4 w-7' : 'h-3.5 w-6'
+                        } shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                          isWeeklyApplied ? 'bg-emerald-500' : 'bg-slate-300'
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block ${
+                            isSidebarOpen ? 'h-3 w-3' : 'h-2.5 w-2.5'
+                          } transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                            isWeeklyApplied
+                              ? isSidebarOpen
+                                ? 'translate-x-3'
+                                : 'translate-x-2.5'
+                              : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
                     </div>
                   </div>
                 )}
@@ -1320,22 +1411,6 @@ export function ImportedTablesManager({
                 <span className="font-medium text-slate-600 shrink-0">取り込み表データ</span>
                 <span className="text-slate-300">/</span>
                 <span className="font-bold text-slate-900 truncate">{activeTable.name}</span>
-                {/* 表カラーインジケーター（丸型ボタン） */}
-                <button
-                  type="button"
-                  onClick={() => setIsColorPickerOpen((prev) => !prev)}
-                  className="inline-flex h-5 w-5 items-center justify-center rounded-full border transition hover:scale-110 cursor-pointer shadow-2xs p-0.5"
-                  style={{
-                    backgroundColor: activeTablePalette.badgeBg,
-                    borderColor: activeTablePalette.badgeBorder,
-                  }}
-                  title={`表のカラー: ${TABLE_PALETTE_OPTIONS[activeTableColorIndex]?.name || 'カラー'} (クリックで変更)`}
-                >
-                  <span
-                    className="h-2.5 w-2.5 rounded-full ring-1 ring-black/10"
-                    style={{ backgroundColor: activeTablePalette.strip }}
-                  />
-                </button>
                 {!isEditingName && (
                   <button
                     onClick={() => {
@@ -1358,10 +1433,7 @@ export function ImportedTablesManager({
 
           {/* 計画表への反映 ON/OFF トグル */}
           {(isSystemFile || activeTable) && (
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] sm:text-xs font-semibold text-slate-500">
-                計画表へ反映:
-              </span>
+            <div className="flex items-center">
               <button
                 type="button"
                 role="switch"
@@ -1378,15 +1450,6 @@ export function ImportedTablesManager({
                   }`}
                 />
               </button>
-              <span
-                className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full select-none ${
-                  isCurrentItemApplied
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-slate-200 text-slate-500'
-                }`}
-              >
-                {isCurrentItemApplied ? 'ON' : 'OFF'}
-              </span>
             </div>
           )}
         </div>
@@ -1442,7 +1505,7 @@ export function ImportedTablesManager({
           <div className="flex-1 min-h-0 flex flex-col gap-2 overflow-hidden">
             {/* ========================================================
                 Excel風 コンパクトツールバー (Plan13: 優先度階層化)
-                - 高優先度（常時表示）: 配置モード、周期の頭（日付・曜日）、開始、1コマ、休憩、表カラー・行列ステッパー、詳細設定開閉ボタン
+                - 高優先度（常時表示）: 配置モード、周期の頭（日付・曜日）、開始、1コマ、休憩、行列ステッパー、詳細設定開閉ボタン
                 - 低優先度（折りたたみバー内）: 分類表示、終了、1日回数、週回数、有効期限、昼休、時間微調整、付随タスク
                 ======================================================== */}
             <div className="shrink-0 flex flex-col gap-1.5">
@@ -1678,81 +1741,6 @@ export function ImportedTablesManager({
                       ]}
                       title="コマ間の休憩/タスク後余白（手入力または候補選択）"
                     />
-                  </div>
-
-                  {/* 6. 表カラー選択（丸型ボタン） */}
-                  <div className="relative" ref={colorPickerRef}>
-                    <button
-                      type="button"
-                      onClick={() => setIsColorPickerOpen((prev) => !prev)}
-                      className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 shadow-2xs hover:bg-slate-50 hover:border-slate-300 transition cursor-pointer"
-                      title={`表カラー: ${TABLE_PALETTE_OPTIONS[activeTableColorIndex]?.name || 'カスタム'} (クリックで変更)`}
-                    >
-                      <span
-                        className="h-3.5 w-3.5 rounded-full ring-1 ring-black/10 shadow-2xs shrink-0"
-                        style={{ backgroundColor: activeTablePalette.strip }}
-                      />
-                      <ChevronDown className="h-2.5 w-2.5 text-slate-400" />
-                    </button>
-
-                    {isColorPickerOpen && (
-                      <div className="absolute top-full left-0 mt-1 z-50 w-64 rounded-xl border border-slate-200 bg-white p-2.5 shadow-xl animate-in fade-in zoom-in-95 duration-100">
-                        <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-slate-100">
-                          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                            <Palette className="h-3.5 w-3.5 text-slate-500" />
-                            表のカラーを選択
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setIsColorPickerOpen(false)}
-                            className="text-slate-400 hover:text-slate-600 rounded-full p-0.5"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {TABLE_PALETTE_OPTIONS.map((opt) => {
-                            const isSelected = activeTableColorIndex === opt.index;
-                            return (
-                              <button
-                                key={`color-opt-${opt.index}`}
-                                type="button"
-                                onClick={() => {
-                                  updateActiveTable((prev) => ({
-                                    ...prev,
-                                    colorIndex: opt.index,
-                                    updatedAt: new Date().toISOString(),
-                                  }));
-                                  setIsColorPickerOpen(false);
-                                  setApplySuccessMsg(`表のカラーを「${opt.name}」に変更しました`);
-                                  setTimeout(() => setApplySuccessMsg(null), 2500);
-                                }}
-                                className={`group relative flex flex-col items-center justify-center rounded-xl p-1.5 transition ${
-                                  isSelected ? 'bg-slate-100 font-bold' : 'hover:bg-slate-50'
-                                }`}
-                                title={opt.name}
-                              >
-                                <div
-                                  className={`h-6 w-6 rounded-full shadow-2xs flex items-center justify-center transition-transform ${
-                                    isSelected
-                                      ? 'ring-2 ring-blue-500 ring-offset-1 scale-110'
-                                      : 'ring-1 ring-black/10 group-hover:scale-105 group-hover:ring-slate-400'
-                                  }`}
-                                  style={{ backgroundColor: opt.color.strip }}
-                                >
-                                  {isSelected && (
-                                    <Check className="h-3 w-3 text-white stroke-[3] drop-shadow-xs" />
-                                  )}
-                                </div>
-                                <span className="mt-1 text-[9px] truncate max-w-full leading-tight font-medium text-slate-600">
-                                  {opt.name}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {/* 行数・列数ステッパー */}
