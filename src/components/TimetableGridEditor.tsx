@@ -6,11 +6,18 @@ import { GridCell } from '@/lib/importers/gridOcrParser';
 import { minutesToTimeString } from '@/lib/timeUtils';
 import { formatCellText, matrixToCsv, TimetableCsvMatrix } from '@/lib/importers/gridDetection';
 
+export interface TimetableGridEditorApplyData {
+  validCells: GridCell[];
+  grid: GridCell[][];
+  colHeaders: string[];
+  rowHeaders: string[];
+}
+
 interface TimetableGridEditorProps {
   initialGrid: GridCell[][];
   initialColHeaders?: string[];
   initialRowHeaders?: string[];
-  onApply: (cells: GridCell[]) => void;
+  onApply: (data: TimetableGridEditorApplyData) => void;
   onCancel: () => void;
 }
 
@@ -222,7 +229,12 @@ export function TimetableGridEditor({
         }
       });
     });
-    onApply(validCells);
+    onApply({
+      validCells,
+      grid,
+      colHeaders,
+      rowHeaders,
+    });
   };
 
   return (

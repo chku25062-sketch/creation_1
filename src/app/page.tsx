@@ -485,65 +485,46 @@ export default function Home() {
     const existing = importedTables.find((t) => t.id === targetId);
 
     if (existing) {
-      // 既存テーブルに対して OR 上書きマージ（新セルの値があれば優先、空なら既存セルの値を維持）
-      const mergedRows = Math.max(existing.numRows, table.numRows);
-      const mergedCols = Math.max(existing.numCols, table.numCols);
+      // 渡された table の cells がある場合は、ユーザーが編集・確定したデータをそのまま反映
+      // 既存セルの付随タスク（attachedTask）は位置が一致すれば引き継ぐ
+      const updatedRows = table.numRows ?? existing.numRows;
+      const updatedCols = table.numCols ?? existing.numCols;
 
-      const mergedCells: GridCell[][] = Array.from({ length: mergedRows }, (_, r) =>
-        Array.from({ length: mergedCols }, (_, c) => {
-          const newCell = table.cells?.[r]?.[c];
-          const oldCell = existing.cells?.[r]?.[c];
-          const hasNew = !!(
-            newCell &&
-            ((newCell.text && newCell.text.trim()) ||
-              (newCell.title && newCell.title.trim()) ||
-              (newCell.fullText && newCell.fullText.trim()))
-          );
-
-          if (hasNew && newCell) {
-            return {
-              ...newCell,
-              attachedTask: newCell.attachedTask ?? oldCell?.attachedTask,
-              category: newCell.category || oldCell?.category,
-            };
-          }
-          if (oldCell) {
-            return oldCell;
-          }
-          return (
-            newCell || {
-              dayIndex: c % 7,
-              periodIndex: r + 1,
-              text: null,
-              rawLines: [],
-              fullText: '',
-              title: '',
-              roomOrNote: '',
-              startMinutes: 530,
-              endMinutes: 620,
-            }
-          );
-        }),
-      );
+      const updatedCells: GridCell[][] =
+        table.cells && table.cells.length > 0
+          ? table.cells.map((row, r) =>
+              row.map((newCell, c) => {
+                const oldCell = existing.cells?.[r]?.[c];
+                return {
+                  ...newCell,
+                  attachedTask: newCell.attachedTask ?? oldCell?.attachedTask,
+                  category: newCell.category || oldCell?.category,
+                };
+              }),
+            )
+          : existing.cells;
 
       const defaultColHeaders = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'];
-      const mergedColHeaders = Array.from({ length: mergedCols }, (_, c) => {
-        return (
-          table.colHeaders?.[c] || existing.colHeaders?.[c] || defaultColHeaders[c] || `列 ${c + 1}`
-        );
-      });
+      const updatedColHeaders =
+        table.colHeaders && table.colHeaders.length > 0
+          ? table.colHeaders
+          : existing.colHeaders ||
+            Array.from({ length: updatedCols }, (_, c) => defaultColHeaders[c] || `列 ${c + 1}`);
 
-      const mergedRowHeaders = Array.from({ length: mergedRows }, (_, r) => {
-        return table.rowHeaders?.[r] || existing.rowHeaders?.[r] || `${r + 1}限`;
-      });
+      const updatedRowHeaders =
+        table.rowHeaders && table.rowHeaders.length > 0
+          ? table.rowHeaders
+          : existing.rowHeaders ||
+            Array.from({ length: updatedRows }, (_, r) => `${r + 1}限`);
 
       const updatedTable: ImportedTableData = {
         ...existing,
-        numRows: mergedRows,
-        numCols: mergedCols,
-        cells: mergedCells,
-        colHeaders: mergedColHeaders,
-        rowHeaders: mergedRowHeaders,
+        ...table,
+        numRows: updatedRows,
+        numCols: updatedCols,
+        cells: updatedCells,
+        colHeaders: updatedColHeaders,
+        rowHeaders: updatedRowHeaders,
         updatedAt: new Date().toISOString(),
       };
 

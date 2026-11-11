@@ -22,7 +22,7 @@ import { GridCell } from '@/lib/importers/gridOcrParser';
 import { minutesToTimeString, formatDuration } from '@/lib/timeUtils';
 import { ImageCropper } from '@/components/ImageCropper';
 import { GridAdjuster } from '@/components/GridAdjuster';
-import { TimetableGridEditor } from '@/components/TimetableGridEditor';
+import { TimetableGridEditor, TimetableGridEditorApplyData } from '@/components/TimetableGridEditor';
 import { runCellBatchOcr } from '@/lib/importers/cellOcrRunner';
 import { GridAreaBounds } from '@/lib/importers/gridDetection';
 
@@ -168,12 +168,16 @@ export function FileImportModal({
   };
 
   // グリッド表からの取り込み確定
-  const handleApplyGrid = (validCells: GridCell[]) => {
+  const handleApplyGrid = ({
+    validCells,
+    grid,
+    colHeaders,
+    rowHeaders,
+  }: TimetableGridEditorApplyData) => {
     // 読み込みデータ（ImportedTableData）として保存
-    if (onSaveTableData && gridData && gridData.length > 0) {
-      const numRows = gridData.length;
-      const numCols = gridData[0].length;
-      const defaultColHeaders = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'];
+    if (onSaveTableData && grid && grid.length > 0) {
+      const numRows = grid.length;
+      const numCols = grid[0]?.length || 0;
 
       const tableData: ImportedTableData = {
         id: targetTableId || `imported-table-${Date.now()}`,
@@ -186,14 +190,8 @@ export function FileImportModal({
         updatedAt: new Date().toISOString(),
         numRows,
         numCols,
-        colHeaders:
-          detectedColHeaders && detectedColHeaders.length === numCols
-            ? detectedColHeaders
-            : Array.from({ length: numCols }, (_, c) => defaultColHeaders[c] || `列 ${c + 1}`),
-        rowHeaders:
-          detectedRowHeaders && detectedRowHeaders.length === numRows
-            ? detectedRowHeaders
-            : Array.from({ length: numRows }, (_, r) => `${r + 1}限`),
+        colHeaders,
+        rowHeaders,
         axisConfig: {
           startTime: '08:50',
           periodMinutes: 90,
@@ -202,7 +200,7 @@ export function FileImportModal({
           lunchAfterPeriod: 2,
           lunchMinutes: 50,
         },
-        cells: gridData,
+        cells: grid,
       };
 
       onSaveTableData(tableData);
