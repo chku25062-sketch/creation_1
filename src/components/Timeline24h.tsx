@@ -586,23 +586,33 @@ export function Timeline24h({
       )}
 
       {/* 7-Day Vertical Weekly Grid Container */}
-      <div className="flex flex-1 min-h-0 flex-col overflow-hidden border border-slate-200/90 bg-white">
-        {/* Sticky Weekday Header Row */}
+      <div
+        ref={scrollContainerRef}
+        className={`relative flex flex-1 min-h-0 overflow-y-auto overflow-x-auto border border-slate-200/90 scroll-instant ${
+          isPlanner ? 'planner-paper-bg' : 'bg-[#fdfcf9]'
+        }`}
+      >
         <div
-          className={`flex shrink-0 border-b px-1 sm:px-1.5 transition-colors ${
-            isPlanner ? 'border-slate-200 bg-[#f8f6f0]' : 'border-slate-200 bg-slate-50/95'
+          className={`relative flex flex-col ${
+            focusMode === 'today' ? 'w-full min-w-0' : 'min-w-[720px] sm:min-w-[800px] w-full'
           }`}
         >
-          {/* Time axis header space */}
+          {/* Sticky Weekday Header Row (縦スクロール時に上端固定) */}
           <div
-            className={`${timeAxisWidthClass} border-r border-slate-200 py-1.5 px-0.5 text-center flex flex-col items-center justify-center ${
-              isPlanner ? 'bg-[#f4f1e8]' : 'bg-slate-50'
+            className={`sticky top-0 z-40 flex border-b transition-colors shadow-2xs ${
+              isPlanner ? 'border-slate-200 bg-[#f8f6f0]' : 'border-slate-200 bg-slate-50'
             }`}
           >
-            <span className="font-mono text-[9px] sm:text-[10px] font-bold text-slate-500">
-              時間
-            </span>
-          </div>
+            {/* Time axis header space (縦横両スクロール時に左上角に完全固定) */}
+            <div
+              className={`sticky left-0 z-50 ${timeAxisWidthClass} border-r border-slate-200 py-1.5 px-0.5 text-center flex flex-col items-center justify-center shrink-0 ${
+                isPlanner ? 'bg-[#f4f1e8]' : 'bg-slate-100'
+              }`}
+            >
+              <span className="font-mono text-[9px] sm:text-[10px] font-bold text-slate-500">
+                時間
+              </span>
+            </div>
 
           {/* Column Headers: フォーカスモード(1日) ⇄ 週間全体(7列) */}
           {focusMode === 'today' ? (
@@ -715,17 +725,11 @@ export function Timeline24h({
           )}
         </div>
 
-        {/* Scrollable 24-Hour Grid Area (ノート調方眼罫線) */}
+        {/* 24-Hour Grid Area (ノート調方眼罫線) */}
         <div
-          ref={scrollContainerRef}
-          className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-auto px-1 sm:px-1.5 scroll-instant ${
-            isPlanner ? 'planner-paper-bg' : 'bg-[#fdfcf9]'
-          }`}
+          className="relative flex flex-1"
+          style={{ height: `${totalHeight}px` }}
         >
-          <div
-            className={`relative flex ${focusMode === 'today' ? 'w-full min-w-0' : 'min-w-[700px]'}`}
-            style={{ height: `${totalHeight}px` }}
-          >
             {/* 全幅共通の水平グリッド罫線レイヤー（10分・30分・正時の目盛り線） */}
             <div className="pointer-events-none absolute inset-0 z-0">
               {Array.from({ length: TOTAL_HOURS }).map((_, hour) => {
@@ -783,11 +787,11 @@ export function Timeline24h({
               })}
             </div>
 
-            {/* Left Time Axis (00:00 - 24:00) */}
+            {/* Left Time Axis (00:00 - 24:00: 横スクロール時に画面端に固定) */}
             <div
-              className={`relative ${timeAxisWidthClass} select-none border-r ${
-                isPlanner ? 'border-[#d6cbbe] bg-[#faf7f0]/95' : 'border-slate-200 bg-[#fbfaf5]/90'
-              } z-20`}
+              className={`sticky left-0 z-30 ${timeAxisWidthClass} select-none border-r shrink-0 shadow-[1px_0_0_0_rgba(0,0,0,0.05)] ${
+                isPlanner ? 'border-[#d6cbbe] bg-[#faf7f0]' : 'border-slate-200 bg-[#fbfaf5]'
+              }`}
             >
               {Array.from({ length: TOTAL_HOURS }).map((_, hour) => {
                 const hourBase = hour * hourHeight;
