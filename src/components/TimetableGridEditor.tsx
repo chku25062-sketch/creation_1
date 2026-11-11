@@ -75,37 +75,59 @@ export function TimetableGridEditor({
   const [editText, setEditText] = useState('');
   const [copied, setCopied] = useState(false);
 
+  // 指定セルの編集内容をグリッドに反映する純粋ヘルパー関数
+  const applyCellEditToGrid = (
+    currentGrid: GridCell[][],
+    r: number,
+    c: number,
+    textValue: string,
+  ): GridCell[][] => {
+    const formatted = formatCellText(textValue);
+    const lines = formatted ? formatted.split('\n').map((l) => l.trim()).filter(Boolean) : [];
+    const title = lines.length > 0 ? lines[0] : '';
+    const roomOrNote = lines.length > 1 ? lines.slice(1).join('\n') : '';
+
+    return currentGrid.map((row, rowIdx) =>
+      row.map((cell, colIdx) => {
+        if (rowIdx === r && colIdx === c) {
+          return {
+            ...cell,
+            text: formatted || null,
+            fullText: formatted || '',
+            rawLines: lines,
+            title,
+            roomOrNote,
+          };
+        }
+        return cell;
+      }),
+    );
+  };
+
   // セル編集の開始・保存
   const handleStartEdit = (r: number, c: number) => {
+    let currentGrid = grid;
+    if (editingCell) {
+      // 直前に編集中だったセルの内容をコミット
+      currentGrid = applyCellEditToGrid(currentGrid, editingCell.r, editingCell.c, editText);
+      setGrid(currentGrid);
+    }
     setEditingCell({ r, c });
-    setEditText(grid[r][c].text || grid[r][c].title || '');
+    setEditText(currentGrid[r]?.[c]?.text || currentGrid[r]?.[c]?.title || '');
   };
 
   const handleSaveEdit = () => {
     if (!editingCell) return;
-    const { r, c } = editingCell;
-
-    const formatted = formatCellText(editText);
-    const title = formatted || '';
-    const lines = formatted ? formatted.split('\n') : [];
-    const roomOrNote =
-      formatted && formatted.includes('\n') ? formatted.split('\n').slice(1).join('\n') : '';
-
-    setGrid((prev) => {
-      const next = prev.map((row) => row.map((cell) => ({ ...cell })));
-      next[r][c].text = formatted;
-      next[r][c].fullText = title;
-      next[r][c].rawLines = lines;
-      next[r][c].title = title;
-      next[r][c].roomOrNote = roomOrNote;
-      return next;
-    });
-
+    const updatedGrid = applyCellEditToGrid(grid, editingCell.r, editingCell.c, editText);
+    setGrid(updatedGrid);
     setEditingCell(null);
   };
 
   const handleClearCell = (r: number, c: number, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (editingCell?.r === r && editingCell?.c === c) {
+      setEditingCell(null);
+    }
     setGrid((prev) => {
       const next = prev.map((row) => row.map((cell) => ({ ...cell })));
       next[r][c].text = null;
@@ -206,8 +228,16 @@ export function TimetableGridEditor({
 
   // 計画表への反映
   const handleExecuteApply = () => {
+    // もし現在編集中であれば、直ちにその内容を反映したグリッドを使用
+    let effectiveGrid = grid;
+    if (editingCell) {
+      effectiveGrid = applyCellEditToGrid(effectiveGrid, editingCell.r, editingCell.c, editText);
+      setGrid(effectiveGrid);
+      setEditingCell(null);
+    }
+
     const validCells: GridCell[] = [];
-    grid.forEach((row, r) => {
+    effectiveGrid.forEach((row, r) => {
       row.forEach((cell, c) => {
         if (cell.text && cell.title.trim()) {
           // 列名から曜日を自動判定
@@ -231,7 +261,7 @@ export function TimetableGridEditor({
     });
     onApply({
       validCells,
-      grid,
+      grid: effectiveGrid,
       colHeaders,
       rowHeaders,
     });
@@ -444,6 +474,13 @@ export function TimetableGridEditor({
                               rows={3}
                               value={editText}
                               onChange={(e) => setEditText(e.target.value)}
+                              onBlur={handleSaveEdit}
+                              onKeyDown={(e) => {
+                                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleSaveEdit();
+                                }
+                              }}
                               placeholder="セル内容 (空にするとnull)"
                               className="w-full resize-none rounded border border-blue-500 bg-white p-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-hidden shadow-2xs"
                               autoFocus
@@ -451,6 +488,7 @@ export function TimetableGridEditor({
                             <div className="flex justify-end gap-1">
                               <button
                                 type="button"
+                                onMouseDown={(e) => e.preventDefault()}
                                 onClick={() => setEditingCell(null)}
                                 className="rounded px-2 py-0.5 text-[10px] text-slate-500 hover:text-slate-800"
                               >
@@ -458,6 +496,7 @@ export function TimetableGridEditor({
                               </button>
                               <button
                                 type="button"
+                                onMouseDown={(e) => e.preventDefault()}
                                 onClick={handleSaveEdit}
                                 className="flex items-center gap-0.5 rounded bg-blue-600 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-blue-700 shadow-2xs"
                               >
