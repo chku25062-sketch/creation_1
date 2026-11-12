@@ -77,70 +77,6 @@ const CYCLE_HEADER_OPTIONS = [
   '除外',
 ];
 
-interface SemiInputProps {
-  value: string;
-  onChange: (val: string) => void;
-  options: { label: string; value: string }[];
-  placeholder?: string;
-  unit?: string;
-  inputClassName?: string;
-  title?: string;
-}
-
-/**
- * 手入力 ＋ プリセット選択が可能な半入力式コンボボックス
- */
-function SemiInput({
-  value,
-  onChange,
-  options,
-  placeholder,
-  unit,
-  inputClassName = 'w-14 text-center',
-  title,
-}: SemiInputProps) {
-  return (
-    <div
-      className="relative flex items-center rounded border border-slate-200/90 bg-white shadow-2xs hover:border-slate-300 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition"
-      title={title}
-    >
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className={`bg-transparent px-1.5 py-0.5 text-xs font-bold text-slate-800 focus:outline-hidden ${inputClassName}`}
-      />
-      {unit && (
-        <span className="text-[10px] text-slate-400 font-medium pr-0.5 pointer-events-none select-none shrink-0">
-          {unit}
-        </span>
-      )}
-      <div className="relative flex items-center pr-1 cursor-pointer shrink-0">
-        <select
-          value=""
-          onChange={(e) => {
-            onChange(e.target.value);
-            e.target.value = '';
-          }}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-          title="候補から選択"
-        >
-          <option value="" disabled>
-            候補から選択
-          </option>
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-        <ChevronDown className="h-3 w-3 text-slate-400 hover:text-slate-600 transition pointer-events-none" />
-      </div>
-    </div>
-  );
-}
-
 export function ImportedTablesManager({
   tables,
   onTablesChange,
@@ -1623,173 +1559,101 @@ export function ImportedTablesManager({
                     <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
                       時間:
                     </span>
-                    <SemiInput
+                    <input
+                      type="time"
                       value={activeTable.axisConfig.startTime ?? ''}
-                      onChange={(val) => {
-                        const trimmed = val.trim();
-                        if (
-                          !trimmed ||
-                          trimmed === 'unset' ||
-                          trimmed === '未設定' ||
-                          trimmed === '自動'
-                        ) {
-                          handleAxisConfigChange('startTime', null);
-                        } else {
-                          handleAxisConfigChange('startTime', trimmed);
-                        }
+                      onChange={(e) => {
+                        const val = e.target.value.trim();
+                        handleAxisConfigChange('startTime', val ? val : null);
                       }}
-                      placeholder="開始 (自動)"
-                      inputClassName="w-20 text-center"
-                      options={[
-                        { label: '🌟 未設定 (自動)', value: 'unset' },
-                        { label: '06:00', value: '06:00' },
-                        { label: '07:00', value: '07:00' },
-                        { label: '08:00', value: '08:00' },
-                        { label: '08:30', value: '08:30' },
-                        { label: '08:50', value: '08:50' },
-                        { label: '09:00', value: '09:00' },
-                        { label: '09:30', value: '09:30' },
-                        { label: '10:00', value: '10:00' },
-                        { label: '13:00', value: '13:00' },
-                        { label: '17:00', value: '17:00' },
-                        { label: '18:00', value: '18:00' },
-                        { label: '19:00', value: '19:00' },
-                      ]}
-                      title="開始時間（例: 08:30、手入力または候補選択）"
+                      title="開始時刻（未入力で自動）"
+                      className="w-20 rounded border border-slate-200/80 bg-white/80 px-1 py-0.5 font-mono text-xs text-center text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-blue-500 hover:border-slate-300 transition"
                     />
                     <span className="text-slate-400 text-xs select-none">〜</span>
-                    <SemiInput
+                    <input
+                      type="time"
                       value={activeTable.axisConfig.endTime ?? ''}
-                      onChange={(val) => {
-                        const trimmed = val.trim();
-                        if (
-                          !trimmed ||
-                          trimmed === 'unset' ||
-                          trimmed === '未設定' ||
-                          trimmed === '自動' ||
-                          trimmed === '最大値' ||
-                          trimmed === '自動 (最大値)'
-                        ) {
-                          handleAxisConfigChange('endTime', null);
-                        } else {
-                          handleAxisConfigChange('endTime', trimmed);
-                        }
+                      onChange={(e) => {
+                        const val = e.target.value.trim();
+                        handleAxisConfigChange('endTime', val ? val : null);
                       }}
-                      placeholder="終了 (自動)"
-                      inputClassName="w-20 text-center"
-                      options={[
-                        { label: '🌟 自動 (最大値)', value: 'unset' },
-                        { label: '12:00', value: '12:00' },
-                        { label: '13:00', value: '13:00' },
-                        { label: '15:00', value: '15:00' },
-                        { label: '17:00', value: '17:00' },
-                        { label: '18:00', value: '18:00' },
-                        { label: '19:00', value: '19:00' },
-                        { label: '20:00', value: '20:00' },
-                        { label: '21:00', value: '21:00' },
-                        { label: '22:00', value: '22:00' },
-                        { label: '23:00', value: '23:00' },
-                        { label: '24:00', value: '24:00' },
-                      ]}
-                      title="終了上限時刻（これ以上先の時刻には配置しない。手入力または候補選択）"
+                      title="終了上限時刻（未入力で自動）"
+                      className="w-20 rounded border border-slate-200/80 bg-white/80 px-1 py-0.5 font-mono text-xs text-center text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-blue-500 hover:border-slate-300 transition"
                     />
                   </div>
 
-                  {/* 4. 1コマ分数（半入力式） */}
+                  {/* 4. 1コマ分数 */}
                   <div className="flex items-center gap-1 rounded-none border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
                     <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
                       1コマ:
                     </span>
-                    <SemiInput
-                      value={
-                        activeTable.axisConfig.periodMinutes !== null &&
-                        activeTable.axisConfig.periodMinutes !== undefined
-                          ? String(activeTable.axisConfig.periodMinutes)
-                          : ''
-                      }
-                      onChange={(val) => {
-                        const trimmed = val.trim();
-                        if (
-                          !trimmed ||
-                          trimmed === '0' ||
-                          trimmed === 'unset' ||
-                          trimmed === '未設定' ||
-                          trimmed === '自動'
-                        ) {
-                          handleAxisConfigChange('periodMinutes', null);
-                        } else {
-                          const num = parseInt(trimmed.replace(/[^0-9]/g, ''), 10);
-                          handleAxisConfigChange(
-                            'periodMinutes',
-                            isNaN(num) || num <= 0 ? null : num,
-                          );
+                    <div className="flex items-center gap-0.5">
+                      <input
+                        type="number"
+                        min={1}
+                        max={300}
+                        step={5}
+                        value={
+                          activeTable.axisConfig.periodMinutes !== null &&
+                          activeTable.axisConfig.periodMinutes !== undefined
+                            ? activeTable.axisConfig.periodMinutes
+                            : ''
                         }
-                      }}
-                      placeholder="自動"
-                      unit="分"
-                      inputClassName="w-12 text-center"
-                      options={[
-                        { label: '🌟 未設定 (自動)', value: 'unset' },
-                        { label: '90分', value: '90' },
-                        { label: '60分', value: '60' },
-                        { label: '50分', value: '50' },
-                        { label: '45分', value: '45' },
-                        { label: '40分', value: '40' },
-                        { label: '30分', value: '30' },
-                        { label: '25分', value: '25' },
-                        { label: '20分', value: '20' },
-                        { label: '15分', value: '15' },
-                      ]}
-                      title="1コマの分数（手入力または候補選択）"
-                    />
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          if (!val || val === '0') {
+                            handleAxisConfigChange('periodMinutes', null);
+                          } else {
+                            const num = parseInt(val, 10);
+                            handleAxisConfigChange(
+                              'periodMinutes',
+                              isNaN(num) || num <= 0 ? null : num,
+                            );
+                          }
+                        }}
+                        placeholder="自動"
+                        title="1コマの分数（例: 90、未入力で自動）"
+                        className="w-14 rounded border border-slate-200/80 bg-white/80 px-1 py-0.5 font-mono text-xs text-center text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-blue-500 hover:border-slate-300 transition"
+                      />
+                      <span className="text-[10px] text-slate-500 font-medium select-none">分</span>
+                    </div>
                   </div>
 
-                  {/* 5. コマ間休憩（半入力式・高優先度） */}
+                  {/* 5. コマ間休憩 */}
                   <div className="flex items-center gap-1 rounded-none border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
                     <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
                       休憩:
                     </span>
-                    <SemiInput
-                      value={
-                        activeTable.axisConfig.intervalMinutes === null ||
-                        activeTable.axisConfig.intervalMinutes === undefined
-                          ? ''
-                          : activeTable.axisConfig.intervalMinutes === 0
-                            ? '0'
-                            : String(activeTable.axisConfig.intervalMinutes)
-                      }
-                      onChange={(val) => {
-                        const trimmed = val.trim();
-                        if (
-                          !trimmed ||
-                          trimmed === 'unset' ||
-                          trimmed === '未設定' ||
-                          trimmed === '自動'
-                        ) {
-                          handleAxisConfigChange('intervalMinutes', null);
-                        } else if (trimmed === '0' || trimmed === 'なし') {
-                          handleAxisConfigChange('intervalMinutes', 0);
-                        } else {
-                          const num = parseInt(trimmed.replace(/[^0-9]/g, ''), 10);
-                          handleAxisConfigChange('intervalMinutes', isNaN(num) ? null : num);
+                    <div className="flex items-center gap-0.5">
+                      <input
+                        type="number"
+                        min={0}
+                        max={120}
+                        step={5}
+                        value={
+                          activeTable.axisConfig.intervalMinutes === null ||
+                          activeTable.axisConfig.intervalMinutes === undefined
+                            ? ''
+                            : activeTable.axisConfig.intervalMinutes
                         }
-                      }}
-                      placeholder="自動"
-                      unit="分"
-                      inputClassName="w-12 text-center"
-                      options={[
-                        { label: '🌟 未設定 (自動)', value: 'unset' },
-                        { label: '0分 (なし)', value: '0' },
-                        { label: '5分', value: '5' },
-                        { label: '10分', value: '10' },
-                        { label: '15分', value: '15' },
-                        { label: '20分', value: '20' },
-                        { label: '30分', value: '30' },
-                        { label: '45分', value: '45' },
-                        { label: '60分', value: '60' },
-                      ]}
-                      title="コマ間の休憩/タスク後余白（手入力または候補選択）"
-                    />
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          if (val === '') {
+                            handleAxisConfigChange('intervalMinutes', null);
+                          } else {
+                            const num = parseInt(val, 10);
+                            handleAxisConfigChange(
+                              'intervalMinutes',
+                              isNaN(num) || num < 0 ? null : num,
+                            );
+                          }
+                        }}
+                        placeholder="自動"
+                        title="コマ間の休憩分数（例: 10、0で休憩なし、未入力で自動）"
+                        className="w-14 rounded border border-slate-200/80 bg-white/80 px-1 py-0.5 font-mono text-xs text-center text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-blue-500 hover:border-slate-300 transition"
+                      />
+                      <span className="text-[10px] text-slate-500 font-medium select-none">分</span>
+                    </div>
                   </div>
 
                   {/* 行数・列数ステッパー */}
@@ -1970,154 +1834,110 @@ export function ImportedTablesManager({
                     </div>
                   )}
 
-                  {/* 3. 1日の中の繰り返し回数（半入力式） */}
+                  {/* 3. 1日の中の繰り返し回数 */}
                   <div className="flex items-center gap-1 rounded-none border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
                     <Repeat className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                     <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
                       1日:
                     </span>
-                    <SemiInput
-                      value={
-                        activeTable.dailyRepeatCount === 'auto' ||
-                        activeTable.dailyRepeatCount === undefined
-                          ? '指定なし'
-                          : String(activeTable.dailyRepeatCount)
-                      }
-                      onChange={(val) => {
-                        const trimmed = val.trim();
-                        if (
-                          trimmed === '指定なし' ||
-                          trimmed === '自動' ||
-                          trimmed === 'auto' ||
-                          trimmed === '' ||
-                          trimmed === '0'
-                        ) {
-                          updateActiveTable((prev) => ({ ...prev, dailyRepeatCount: 'auto' }));
-                        } else {
-                          const num = parseInt(trimmed.replace(/[^0-9]/g, ''), 10);
-                          updateActiveTable((prev) => ({
-                            ...prev,
-                            dailyRepeatCount: isNaN(num) || num <= 0 ? 'auto' : num,
-                          }));
+                    <div className="flex items-center gap-0.5">
+                      <input
+                        type="number"
+                        min={1}
+                        max={24}
+                        value={
+                          activeTable.dailyRepeatCount === 'auto' ||
+                          activeTable.dailyRepeatCount === undefined
+                            ? ''
+                            : activeTable.dailyRepeatCount
                         }
-                      }}
-                      placeholder="指定なし"
-                      unit="回"
-                      inputClassName="w-13 text-center"
-                      options={[
-                        { label: '🌟 指定なし', value: 'auto' },
-                        { label: '1回', value: '1' },
-                        { label: '2回', value: '2' },
-                        { label: '3回', value: '3' },
-                        { label: '4回', value: '4' },
-                        { label: '5回', value: '5' },
-                        { label: '6回', value: '6' },
-                        { label: '7回', value: '7' },
-                        { label: '8回', value: '8' },
-                        { label: '10回', value: '10' },
-                      ]}
-                      title="1日の中での繰り返し回数（手入力または候補選択）"
-                    />
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          if (!val || val === '0') {
+                            updateActiveTable((prev) => ({ ...prev, dailyRepeatCount: 'auto' }));
+                          } else {
+                            const num = parseInt(val, 10);
+                            updateActiveTable((prev) => ({
+                              ...prev,
+                              dailyRepeatCount: isNaN(num) || num <= 0 ? 'auto' : num,
+                            }));
+                          }
+                        }}
+                        placeholder="自動"
+                        title="1日の中での繰り返し回数（未入力で指定なし）"
+                        className="w-12 rounded border border-slate-200/80 bg-white/80 px-1 py-0.5 font-mono text-xs text-center text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-blue-500 hover:border-slate-300 transition"
+                      />
+                      <span className="text-[10px] text-slate-500 font-medium select-none">回</span>
+                    </div>
                   </div>
 
-                  {/* 4. 週に入れる日ブロックの量（半入力式） */}
+                  {/* 4. 週に入れる日ブロックの量 */}
                   <div className="flex items-center gap-1 rounded-none border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
                     <CalendarRange className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                     <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
                       週:
                     </span>
-                    <SemiInput
-                      value={
-                        activeTable.weeklyRepeatCount === 'auto' ||
-                        activeTable.weeklyRepeatCount === undefined
-                          ? '指定なし'
-                          : String(activeTable.weeklyRepeatCount)
-                      }
-                      onChange={(val) => {
-                        const trimmed = val.trim();
-                        if (
-                          trimmed === '指定なし' ||
-                          trimmed === '自動' ||
-                          trimmed === 'auto' ||
-                          trimmed === '' ||
-                          trimmed === '0'
-                        ) {
-                          updateActiveTable((prev) => ({ ...prev, weeklyRepeatCount: 'auto' }));
-                        } else {
-                          const num = parseInt(trimmed.replace(/[^0-9]/g, ''), 10);
-                          updateActiveTable((prev) => ({
-                            ...prev,
-                            weeklyRepeatCount: isNaN(num) || num <= 0 ? 'auto' : Math.min(7, num),
-                          }));
+                    <div className="flex items-center gap-0.5">
+                      <input
+                        type="number"
+                        min={1}
+                        max={7}
+                        value={
+                          activeTable.weeklyRepeatCount === 'auto' ||
+                          activeTable.weeklyRepeatCount === undefined
+                            ? ''
+                            : activeTable.weeklyRepeatCount
                         }
-                      }}
-                      placeholder="指定なし"
-                      unit="回"
-                      inputClassName="w-13 text-center"
-                      options={[
-                        { label: '🌟 指定なし', value: 'auto' },
-                        { label: '週1回 (週1日)', value: '1' },
-                        { label: '週2回 (週2日)', value: '2' },
-                        { label: '週3回 (週3日)', value: '3' },
-                        { label: '週4回 (週4日)', value: '4' },
-                        { label: '週5回 (週5日)', value: '5' },
-                        { label: '週6回 (週6日)', value: '6' },
-                        { label: '週7回 (毎日)', value: '7' },
-                      ]}
-                      title="週に入れる日ブロックの量（週何日行うか、手入力または候補選択）"
-                    />
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          if (!val || val === '0') {
+                            updateActiveTable((prev) => ({ ...prev, weeklyRepeatCount: 'auto' }));
+                          } else {
+                            const num = parseInt(val, 10);
+                            updateActiveTable((prev) => ({
+                              ...prev,
+                              weeklyRepeatCount:
+                                isNaN(num) || num <= 0 ? 'auto' : Math.min(7, num),
+                            }));
+                          }
+                        }}
+                        placeholder="自動"
+                        title="週に入れる日ブロックの量（週何日行うか、未入力で指定なし）"
+                        className="w-12 rounded border border-slate-200/80 bg-white/80 px-1 py-0.5 font-mono text-xs text-center text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-blue-500 hover:border-slate-300 transition"
+                      />
+                      <span className="text-[10px] text-slate-500 font-medium select-none">日</span>
+                    </div>
                   </div>
 
-                  {/* 5. 週タスク有効期限（半入力式） */}
+                  {/* 5. 週タスク有効期限 */}
                   <div className="flex items-center gap-1 rounded-none border border-slate-200 bg-white px-2 py-0.5 shadow-2xs">
                     <Hourglass className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                     <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 whitespace-nowrap">
                       有効期限:
                     </span>
-                    <SemiInput
+                    <select
                       value={
                         activeTable.weeklyTaskExpiryWeeks === 'none'
-                          ? '期限なし'
+                          ? 'none'
                           : activeTable.weeklyTaskExpiryWeeks === 2
-                            ? '2週間'
-                            : '1週間'
+                            ? '2'
+                            : '1'
                       }
-                      onChange={(val) => {
-                        const trimmed = val.trim();
-                        if (
-                          trimmed === '期限なし' ||
-                          trimmed === 'なし' ||
-                          trimmed === 'none' ||
-                          trimmed === '無制限'
-                        ) {
-                          updateActiveTable((prev) => ({
-                            ...prev,
-                            weeklyTaskExpiryWeeks: 'none',
-                            axisConfig: { ...prev.axisConfig, weeklyTaskExpiryWeeks: 'none' },
-                          }));
-                        } else if (trimmed.includes('2')) {
-                          updateActiveTable((prev) => ({
-                            ...prev,
-                            weeklyTaskExpiryWeeks: 2,
-                            axisConfig: { ...prev.axisConfig, weeklyTaskExpiryWeeks: 2 },
-                          }));
-                        } else {
-                          updateActiveTable((prev) => ({
-                            ...prev,
-                            weeklyTaskExpiryWeeks: 1,
-                            axisConfig: { ...prev.axisConfig, weeklyTaskExpiryWeeks: 1 },
-                          }));
-                        }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const expiry = val === 'none' ? 'none' : val === '2' ? 2 : 1;
+                        updateActiveTable((prev) => ({
+                          ...prev,
+                          weeklyTaskExpiryWeeks: expiry,
+                          axisConfig: { ...prev.axisConfig, weeklyTaskExpiryWeeks: expiry },
+                        }));
                       }}
-                      placeholder="1週間 (基本)"
-                      inputClassName="w-16 text-center"
-                      options={[
-                        { label: '🌟 1週間 (当週内・基本)', value: '1週間' },
-                        { label: '2週間', value: '2週間' },
-                        { label: '期限なし', value: '期限なし' },
-                      ]}
-                      title="週タスクの有効期限（手入力または候補選択）"
-                    />
+                      className="rounded border border-slate-200/80 bg-white/80 px-1 py-0.5 text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-blue-500 hover:border-slate-300 transition cursor-pointer"
+                    >
+                      <option value="1">1週間 (基本)</option>
+                      <option value="2">2週間</option>
+                      <option value="none">期限なし</option>
+                    </select>
                   </div>
 
                   {/* 6. 昼休み (丸型トグルスイッチ) */}
@@ -2145,34 +1965,46 @@ export function ImportedTablesManager({
                         />
                       </button>
                       {activeTable.axisConfig.hasLunch ? (
-                        <div className="flex items-center gap-0.5">
-                          <select
-                            value={activeTable.axisConfig.lunchAfterPeriod}
-                            onChange={(e) =>
-                              handleAxisConfigChange('lunchAfterPeriod', Number(e.target.value))
-                            }
-                            className="text-[11px] font-bold text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
-                          >
-                            {Array.from({ length: Math.max(1, activeTable.numRows - 1) }).map(
-                              (_, idx) => (
-                                <option key={idx + 1} value={idx + 1}>
-                                  {idx + 1}行後
-                                </option>
-                              ),
-                            )}
-                          </select>
-                          <select
-                            value={activeTable.axisConfig.lunchMinutes}
-                            onChange={(e) =>
-                              handleAxisConfigChange('lunchMinutes', Number(e.target.value))
-                            }
-                            className="text-[11px] font-bold text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
-                          >
-                            <option value={40}>40分</option>
-                            <option value={50}>50分</option>
-                            <option value={60}>60分</option>
-                            <option value={70}>70分</option>
-                          </select>
+                        <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-0.5">
+                            <input
+                              type="number"
+                              min={1}
+                              max={Math.max(1, activeTable.numRows - 1)}
+                              value={activeTable.axisConfig.lunchAfterPeriod}
+                              onChange={(e) => {
+                                const num = parseInt(e.target.value, 10);
+                                if (!isNaN(num) && num >= 1) {
+                                  handleAxisConfigChange('lunchAfterPeriod', num);
+                                }
+                              }}
+                              title="何行目の後に昼休みを挿入するか"
+                              className="w-10 rounded border border-slate-200/80 bg-white/80 px-1 py-0.5 font-mono text-xs text-center text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-blue-500 hover:border-slate-300 transition"
+                            />
+                            <span className="text-[10px] text-slate-500 font-medium select-none">
+                              行後
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-0.5">
+                            <input
+                              type="number"
+                              min={10}
+                              max={180}
+                              step={5}
+                              value={activeTable.axisConfig.lunchMinutes}
+                              onChange={(e) => {
+                                const num = parseInt(e.target.value, 10);
+                                if (!isNaN(num) && num >= 1) {
+                                  handleAxisConfigChange('lunchMinutes', num);
+                                }
+                              }}
+                              title="昼休みの長さ（分）"
+                              className="w-12 rounded border border-slate-200/80 bg-white/80 px-1 py-0.5 font-mono text-xs text-center text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-blue-500 hover:border-slate-300 transition"
+                            />
+                            <span className="text-[10px] text-slate-500 font-medium select-none">
+                              分
+                            </span>
+                          </div>
                         </div>
                       ) : (
                         <span className="text-[10px] text-slate-400 font-mono">OFF</span>
@@ -2215,47 +2047,33 @@ export function ImportedTablesManager({
                       />
                     </button>
                     {activeTable.attachedTaskConfig?.enabled ? (
-                      <div className="flex items-center gap-1">
-                        <select
-                          value={activeTable.attachedTaskConfig.titleTemplate || '{title} のタスク'}
+                      <div className="flex items-center gap-0.5">
+                        <input
+                          type="number"
+                          min={1}
+                          max={180}
+                          step={5}
+                          value={activeTable.attachedTaskConfig.durationMinutes || 15}
                           onChange={(e) => {
-                            const val = e.target.value;
-                            updateActiveTable((prev) => ({
-                              ...prev,
-                              attachedTaskConfig: {
-                                enabled: true,
-                                titleTemplate: val,
-                                durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
-                              },
-                            }));
+                            const num = parseInt(e.target.value, 10);
+                            if (!isNaN(num) && num >= 1) {
+                              updateActiveTable((prev) => ({
+                                ...prev,
+                                attachedTaskConfig: {
+                                  enabled: true,
+                                  titleTemplate:
+                                    prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
+                                  durationMinutes: num,
+                                },
+                              }));
+                            }
                           }}
-                          className="text-[11px] font-bold text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
-                        >
-                          <option value="{title} のタスク">〜のタスク</option>
-                        </select>
-                        <select
-                          value={activeTable.attachedTaskConfig.durationMinutes}
-                          onChange={(e) => {
-                            const val = Number(e.target.value);
-                            updateActiveTable((prev) => ({
-                              ...prev,
-                              attachedTaskConfig: {
-                                enabled: true,
-                                titleTemplate:
-                                  prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
-                                durationMinutes: val,
-                              },
-                            }));
-                          }}
-                          className="text-[11px] font-bold text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
-                        >
-                          <option value={10}>10分</option>
-                          <option value={15}>15分</option>
-                          <option value={30}>30分</option>
-                          <option value={45}>45分</option>
-                          <option value={60}>60分</option>
-                          <option value={90}>90分</option>
-                        </select>
+                          title="付随タスクの所要時間（分）"
+                          className="w-12 rounded border border-slate-200/80 bg-white/80 px-1 py-0.5 font-mono text-xs text-center text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-blue-500 hover:border-slate-300 transition"
+                        />
+                        <span className="text-[10px] text-slate-500 font-medium select-none">
+                          分
+                        </span>
                       </div>
                     ) : (
                       <span className="text-[10px] text-slate-400 font-mono">OFF</span>
@@ -2623,20 +2441,20 @@ export function ImportedTablesManager({
                   <div className="text-[10px] text-slate-500">直後に確保する休憩</div>
                 </div>
               </div>
-              <select
-                value={cellBreakMinutes}
-                onChange={(e) => setCellBreakMinutes(Number(e.target.value))}
-                className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-hidden"
-              >
-                <option value={0}>なし (0分)</option>
-                <option value={5}>5分</option>
-                <option value={10}>10分</option>
-                <option value={15}>15分 (おすすめ)</option>
-                <option value={20}>20分</option>
-                <option value={30}>30分</option>
-                <option value={45}>45分</option>
-                <option value={60}>60分</option>
-              </select>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  min={0}
+                  max={120}
+                  step={5}
+                  value={cellBreakMinutes}
+                  onChange={(e) =>
+                    setCellBreakMinutes(Math.max(0, parseInt(e.target.value, 10) || 0))
+                  }
+                  className="w-16 rounded border border-slate-300 bg-white px-2 py-1 font-mono text-xs text-center text-slate-800 focus:border-emerald-500 focus:outline-hidden"
+                />
+                <span className="text-xs text-slate-500 font-medium">分</span>
+              </div>
             </div>
 
             {/* 付随タスク（連動タスク）設定 */}
@@ -2668,19 +2486,20 @@ export function ImportedTablesManager({
                   </div>
                   <div className="flex items-center gap-2">
                     <label className="text-[10px] text-slate-500 shrink-0">所要時間:</label>
-                    <select
-                      value={cellAttachedDuration}
-                      onChange={(e) => setCellAttachedDuration(Number(e.target.value))}
-                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs focus:border-blue-500 focus:outline-hidden"
-                    >
-                      <option value={5}>5分</option>
-                      <option value={10}>10分</option>
-                      <option value={15}>15分</option>
-                      <option value={20}>20分</option>
-                      <option value={30}>30分</option>
-                      <option value={45}>45分</option>
-                      <option value={60}>60分</option>
-                    </select>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={1}
+                        max={180}
+                        step={5}
+                        value={cellAttachedDuration}
+                        onChange={(e) =>
+                          setCellAttachedDuration(Math.max(1, parseInt(e.target.value, 10) || 15))
+                        }
+                        className="w-16 rounded border border-slate-300 bg-white px-2 py-1 font-mono text-xs text-center text-slate-800 focus:border-blue-500 focus:outline-hidden"
+                      />
+                      <span className="text-xs text-slate-500 font-medium">分</span>
+                    </div>
                   </div>
                 </div>
               )}
