@@ -29,6 +29,7 @@ import {
   Smartphone,
   Settings,
   Copy,
+  RotateCcw,
 } from 'lucide-react';
 import { TABLE_PALETTE_OPTIONS, getTableColorSchemeByIndex } from '@/components/Timeline24h';
 import {
@@ -1411,25 +1412,33 @@ export function ImportedTablesManager({
           ======================================================== */}
       <main className="flex flex-1 min-w-0 w-full flex-col bg-white p-1.5 sm:p-2 gap-1.5 overflow-hidden min-h-0">
         {/* Top Header & Actions Bar (Desktop vs Mobile 分岐) */}
-        {viewMode === 'mobile' && activeTable && !isSystemFile ? (
-          /* モバイル専用アプリ風ヘッダー */
+        {viewMode === 'mobile' ? (
+          /* モバイル専用アプリ風ヘッダー (表データ・タスク管理共通) */
           <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2 px-0.5">
-            {/* 左側: 表切り替えピル */}
+            {/* 左側: 表またはタスク切り替えピル */}
             <div className="flex items-center gap-1.5 min-w-0">
               <button
                 type="button"
                 onClick={() => setIsMobileSwitcherOpen(true)}
-                className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/90 px-3 py-1.5 text-xs font-bold text-blue-900 shadow-2xs hover:bg-blue-100 active:scale-95 transition max-w-[150px] sm:max-w-[220px]"
-                title="タップして時間割を切り替え"
+                className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/90 px-3 py-1.5 text-xs font-bold text-blue-900 shadow-2xs hover:bg-blue-100 active:scale-95 transition max-w-[170px] sm:max-w-[240px]"
+                title="タップして時間割やタスクを切り替え"
               >
-                <span className="truncate">{activeTable.name}</span>
+                <span className="truncate">
+                  {isSystemFile
+                    ? selectedItemId === 'sys-slots'
+                      ? '📌 固定枠 (生活リズム)'
+                      : selectedItemId === 'sys-daily'
+                        ? '📅 今日のタスク'
+                        : '🗓️ 今週のタスク'
+                    : activeTable?.name || '表データ'}
+                </span>
                 <ChevronDown className="h-3.5 w-3.5 text-blue-600 shrink-0" />
               </button>
             </div>
 
             {/* 右側アクション群: 反映スイッチ, モード切替, ⚙️設定ボタン */}
             <div className="flex items-center gap-1.5 shrink-0">
-              {/* 反映トグル */}
+              {/* 反映トグル (表データまたは固定枠の場合) */}
               <div className="flex items-center gap-1">
                 <span className="text-[10px] font-bold text-slate-500 hidden sm:inline">反映</span>
                 <button
@@ -1461,16 +1470,18 @@ export function ImportedTablesManager({
                 <span className="hidden sm:inline">PC版</span>
               </button>
 
-              {/* ⚙️ 設定ドロワー開閉ボタン */}
-              <button
-                type="button"
-                onClick={() => setIsMobileSettingsOpen(true)}
-                title="時間割の詳細設定を開く"
-                className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 active:scale-95 transition"
-              >
-                <Settings className="h-4 w-4" />
-                <span>設定</span>
-              </button>
+              {/* ⚙️ 設定ドロワー開閉ボタン (activeTable がある場合のみ表示) */}
+              {activeTable && !isSystemFile && (
+                <button
+                  type="button"
+                  onClick={() => setIsMobileSettingsOpen(true)}
+                  title="時間割の詳細設定を開く"
+                  className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 active:scale-95 transition"
+                >
+                  <Settings className="h-4 w-4" />
+                  <span>設定</span>
+                </button>
+              )}
             </div>
           </div>
         ) : (
@@ -1536,7 +1547,7 @@ export function ImportedTablesManager({
                   onClick={() => handleToggleViewMode('desktop')}
                   title="デスクトップ版レイアウトに切り替え"
                   className={`flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold transition ${
-                    viewMode === 'desktop'
+                    (viewMode as string) === 'desktop'
                       ? 'bg-white text-blue-600 shadow-2xs'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
@@ -1549,7 +1560,7 @@ export function ImportedTablesManager({
                   onClick={() => handleToggleViewMode('mobile')}
                   title="モバイル版（時間割アプリ風）レイアウトに切り替え"
                   className={`flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold transition ${
-                    viewMode === 'mobile'
+                    (viewMode as string) === 'mobile'
                       ? 'bg-white text-blue-600 shadow-2xs'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
@@ -2233,28 +2244,43 @@ export function ImportedTablesManager({
                 Big Spreadsheet Screen: Excel風 大画面テーブル
                 - flex-1 min-h-0 で縦横いっぱいに広がる大画面
                 - 見出し（列ヘッダー・行ヘッダー）は sticky 固定
+                - モバイル版では5列以上ある場合も1画面にピッタリ収まる均等フィット
                 ======================================================== */}
             <div className="flex-1 min-h-0 flex flex-col rounded-none border border-slate-300 bg-white overflow-hidden shadow-2xs">
               {/* スクロール領域 */}
               <div className="flex-1 min-h-0 overflow-auto">
-                <table className="w-full border-separate border-spacing-0 text-left text-xs">
+                <table className={`w-full border-separate border-spacing-0 text-left text-xs ${
+                  viewMode === 'mobile' ? 'table-fixed' : ''
+                }`}>
                   <thead>
                     <tr>
                       {/* 左上 交差見出し: 一律周期管理 ＆ 周期の頭（日付・曜日）設定 */}
-                      <th className="sticky top-0 left-0 z-30 w-24 sm:w-28 min-w-[96px] sm:min-w-[110px] border-b-2 border-r-2 border-slate-300 bg-slate-100 p-1.5 text-center select-none shadow-2xs">
-                        <div className="flex flex-col items-center gap-1">
-                          <span className="text-[9px] font-bold text-emerald-700 uppercase tracking-wider">
-                            🔄 周期の頭
+                      <th
+                        className={`sticky top-0 left-0 z-30 ${
+                          viewMode === 'mobile'
+                            ? 'w-11 min-w-[44px] max-w-[44px] p-1'
+                            : 'w-24 sm:w-28 min-w-[96px] sm:min-w-[110px] p-1.5'
+                        } border-b-2 border-r-2 border-slate-300 bg-slate-100 text-center select-none shadow-2xs`}
+                      >
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className={`font-bold text-emerald-700 uppercase tracking-wider ${
+                            viewMode === 'mobile' ? 'text-[8px]' : 'text-[9px]'
+                          }`}>
+                            {viewMode === 'mobile' ? '周期' : '🔄 周期の頭'}
                           </span>
                           <select
                             value={activeTable.cycleStartDay ?? 0}
                             onChange={(e) => handleCycleStartDayChange(Number(e.target.value))}
-                            className="w-full rounded-md border border-emerald-300 bg-emerald-50 px-1.5 py-1 text-[11px] font-bold text-emerald-800 shadow-2xs hover:border-emerald-400 focus:outline-hidden cursor-pointer transition"
+                            className={`w-full rounded border border-emerald-300 bg-emerald-50 font-bold text-emerald-800 shadow-2xs hover:border-emerald-400 focus:outline-hidden cursor-pointer transition ${
+                              viewMode === 'mobile'
+                                ? 'px-0.5 py-0.5 text-[9px] text-center'
+                                : 'px-1.5 py-1 text-[11px]'
+                            }`}
                             title="周期の始まり（Day 1）となる日付（曜日）を月〜日から指定します"
                           >
                             {weekDateOptions.map((opt) => (
                               <option key={opt.dayIndex} value={opt.dayIndex}>
-                                {opt.label}
+                                {viewMode === 'mobile' ? opt.label.slice(0, 1) : opt.label}
                               </option>
                             ))}
                           </select>
@@ -2281,37 +2307,57 @@ export function ImportedTablesManager({
                           (r) => !r[cIdx]?.title?.trim(),
                         );
 
+                        // 5列以上ある場合は 1画面幅(100vw - 行ヘッダー44px) の中に5列がピッタリ収まるように均等計算
+                        const colWidthStyle =
+                          viewMode === 'mobile'
+                            ? activeTable.numCols >= 5
+                              ? 'w-[calc((100vw-44px)/5)] min-w-[60px]'
+                              : `w-[calc((100vw-44px)/${activeTable.numCols})] min-w-[70px]`
+                            : 'min-w-[140px] sm:min-w-[160px]';
+
                         return (
                           <th
                             key={`col-header-${cIdx}`}
-                            className={`sticky top-0 z-20 border-b-2 border-r border-slate-300 p-2 text-center transition min-w-[140px] sm:min-w-[160px] ${
+                            className={`sticky top-0 z-20 border-b-2 border-r border-slate-300 text-center transition ${colWidthStyle} ${
+                              viewMode === 'mobile' ? 'p-1' : 'p-2'
+                            } ${
                               isExcluded ? 'bg-slate-200/60 text-slate-400' : 'bg-emerald-50/50'
                             }`}
                           >
-                            <div className="flex flex-col items-center gap-1">
-                              <div className="flex items-center justify-between w-full px-1 gap-1">
-                                <div className="flex items-center gap-1">
-                                  <span className="font-mono text-[10px] font-bold text-slate-400">
+                            <div className="flex flex-col items-center gap-0.5 sm:gap-1">
+                              <div className="flex items-center justify-between w-full px-0.5 gap-0.5">
+                                <div className="flex items-center gap-0.5">
+                                  <span className="font-mono text-[9px] sm:text-[10px] font-bold text-slate-400">
                                     {colLetter}
                                   </span>
                                   {!isExcluded && mappedWeekOpt && (
                                     <span
-                                      className="inline-flex items-center rounded bg-white/90 border border-emerald-200 px-1 py-0.2 text-[9px] font-bold text-emerald-700"
+                                      className={`inline-flex items-center rounded bg-white/90 border border-emerald-200 font-bold text-emerald-700 ${
+                                        viewMode === 'mobile'
+                                          ? 'px-0.5 py-0 text-[8px]'
+                                          : 'px-1 py-0.2 text-[9px]'
+                                      }`}
                                       title={`周期の頭からの対応日: ${mappedWeekOpt.label}`}
                                     >
-                                      {mappedWeekOpt.label}
+                                      {viewMode === 'mobile'
+                                        ? mappedWeekOpt.label.slice(0, 1)
+                                        : mappedWeekOpt.label}
                                     </span>
                                   )}
                                 </div>
                                 {!isExcluded && isColumnEmpty && (
                                   <span
-                                    className="inline-flex items-center gap-0.5 rounded bg-emerald-100 border border-emerald-300/80 px-1 py-0.2 text-[9px] font-bold text-emerald-800"
+                                    className={`inline-flex items-center gap-0.5 rounded bg-emerald-100 border border-emerald-300/80 font-bold text-emerald-800 ${
+                                      viewMode === 'mobile'
+                                        ? 'px-0.5 text-[8px]'
+                                        : 'px-1 py-0.2 text-[9px]'
+                                    }`}
                                     title="空列のため、周期内で何もしないオフ日になります"
                                   >
-                                    💤 オフ日
+                                    {viewMode === 'mobile' ? '💤' : '💤 オフ日'}
                                   </span>
                                 )}
-                                {activeTable.numCols > 1 && (
+                                {viewMode === 'desktop' && activeTable.numCols > 1 && (
                                   <button
                                     type="button"
                                     onClick={() =>
@@ -2327,7 +2373,11 @@ export function ImportedTablesManager({
                               <select
                                 value={displayHeaderValue}
                                 onChange={(e) => handleColHeaderChange(cIdx, e.target.value)}
-                                className={`w-full rounded-md border px-1.5 py-0.5 text-xs font-bold transition shadow-2xs focus:outline-hidden cursor-pointer ${
+                                className={`w-full rounded border font-bold transition shadow-2xs focus:outline-hidden cursor-pointer ${
+                                  viewMode === 'mobile'
+                                    ? 'px-0.5 py-0.5 text-[10px]'
+                                    : 'px-1.5 py-0.5 text-xs'
+                                } ${
                                   isExcluded
                                     ? 'border-slate-300 bg-slate-100 text-slate-400'
                                     : 'border-emerald-300 bg-white text-emerald-700 hover:border-emerald-400'
@@ -2347,29 +2397,31 @@ export function ImportedTablesManager({
                         );
                       })}
 
-                      {/* 列増減ヘッダー */}
-                      <th className="sticky top-0 z-20 border-b-2 border-r border-slate-300 bg-slate-100/70 p-1.5 text-center w-14 min-w-[56px]">
-                        <div className="flex flex-col items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => updateActiveTable(addColToTable)}
-                            title="列を右端に追加"
-                            className="flex h-6 w-6 items-center justify-center rounded-md border border-dashed border-slate-300 bg-white text-slate-500 hover:border-blue-400 hover:text-blue-600 transition shadow-2xs active:scale-95"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                          </button>
-                          {activeTable.numCols > 1 && (
+                      {/* 列増減ヘッダー (デスクトップ版のみ表示。モバイル版は設定ドロワーで操作可能) */}
+                      {viewMode === 'desktop' && (
+                        <th className="sticky top-0 z-20 border-b-2 border-r border-slate-300 bg-slate-100/70 p-1.5 text-center w-14 min-w-[56px]">
+                          <div className="flex flex-col items-center gap-1">
                             <button
                               type="button"
-                              onClick={() => updateActiveTable(removeColFromTable)}
-                              title="右端の列を削除"
-                              className="flex h-6 w-6 items-center justify-center rounded-md border border-dashed border-slate-300 bg-white text-slate-500 hover:border-red-400 hover:text-red-600 transition shadow-2xs active:scale-95"
+                              onClick={() => updateActiveTable(addColToTable)}
+                              title="列を右端に追加"
+                              className="flex h-6 w-6 items-center justify-center rounded-md border border-dashed border-slate-300 bg-white text-slate-500 hover:border-blue-400 hover:text-blue-600 transition shadow-2xs active:scale-95"
                             >
-                              <Minus className="h-3.5 w-3.5" />
+                              <Plus className="h-3.5 w-3.5" />
                             </button>
-                          )}
-                        </div>
-                      </th>
+                            {activeTable.numCols > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => updateActiveTable(removeColFromTable)}
+                                title="右端の列を削除"
+                                className="flex h-6 w-6 items-center justify-center rounded-md border border-dashed border-slate-300 bg-white text-slate-500 hover:border-red-400 hover:text-red-600 transition shadow-2xs active:scale-95"
+                              >
+                                <Minus className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -2380,32 +2432,46 @@ export function ImportedTablesManager({
                         activeTable.axisConfig.customRowTimes &&
                         activeTable.axisConfig.customRowTimes[periodIndex]
                       );
+
+                      const colWidthStyle =
+                        viewMode === 'mobile'
+                          ? activeTable.numCols >= 5
+                            ? 'w-[calc((100vw-44px)/5)] min-w-[60px]'
+                            : `w-[calc((100vw-44px)/${activeTable.numCols})] min-w-[70px]`
+                          : 'min-w-[140px] sm:min-w-[160px]';
+
                       return (
                         <tr key={`row-${rIdx}`} className="group/row">
                           {/* 行ヘッダー (番号 & 時間帯微調整 & 行削除ボタン) */}
                           <td
-                            className={`sticky left-0 z-10 border-b border-r-2 border-slate-300 p-1.5 sm:p-2 text-center transition ${
+                            className={`sticky left-0 z-10 border-b border-r-2 border-slate-300 ${
+                              viewMode === 'mobile'
+                                ? 'w-11 min-w-[44px] max-w-[44px] p-1'
+                                : 'p-1.5 sm:p-2'
+                            } text-center transition ${
                               isCustomRowTime
                                 ? 'bg-amber-50/90 group-hover/row:bg-amber-100/80'
                                 : 'bg-slate-50 group-hover/row:bg-slate-100/80'
                             }`}
                           >
-                            <div className="flex items-center justify-between gap-1">
-                              <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                            <div className="flex items-center justify-between gap-0.5">
+                              <span className={`font-bold text-slate-900 ${
+                                viewMode === 'mobile' ? 'text-xs' : 'text-xs sm:text-sm'
+                              }`}>
                                 {rIdx + 1}
                               </span>
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-0.5">
                                 {isCustomRowTime && (
                                   <button
                                     type="button"
                                     onClick={() => handleResetCustomRowTime(periodIndex)}
                                     title="この行の時間微調整をリセット"
-                                    className="rounded bg-amber-100 px-1 py-0.2 text-[9px] font-bold text-amber-800 hover:bg-amber-200 transition"
+                                    className="rounded bg-amber-100 px-0.5 py-0.2 text-[8px] font-bold text-amber-800 hover:bg-amber-200 transition"
                                   >
-                                    戻す
+                                    {viewMode === 'mobile' ? '戻' : '戻す'}
                                   </button>
                                 )}
-                                {activeTable.numRows > 1 && (
+                                {viewMode === 'desktop' && activeTable.numRows > 1 && (
                                   <button
                                     type="button"
                                     onClick={() =>
@@ -2420,7 +2486,7 @@ export function ImportedTablesManager({
                               </div>
                             </div>
                             {activeTable.axisConfig.startTime && pt?.startTime && pt?.endTime && (
-                              <div className="mt-1 flex flex-col gap-0.5">
+                              <div className="mt-0.5 flex flex-col gap-0.5">
                                 <input
                                   type="time"
                                   value={pt.startTime}
@@ -2428,7 +2494,9 @@ export function ImportedTablesManager({
                                     handleCustomRowTimeChange(periodIndex, 'start', e.target.value)
                                   }
                                   title={`${rIdx + 1}行目の開始時刻を微調整`}
-                                  className={`w-full rounded border px-1 py-0.5 font-mono text-[10px] text-center focus:outline-hidden focus:ring-1 focus:ring-blue-500 ${
+                                  className={`w-full rounded border px-0.5 py-0.2 font-mono text-center focus:outline-hidden focus:ring-1 focus:ring-blue-500 ${
+                                    viewMode === 'mobile' ? 'text-[8px]' : 'text-[10px]'
+                                  } ${
                                     isCustomRowTime
                                       ? 'border-amber-300 bg-white font-bold text-amber-900'
                                       : 'border-slate-200/80 bg-white/80 text-slate-600 hover:border-slate-300'
@@ -2441,7 +2509,9 @@ export function ImportedTablesManager({
                                     handleCustomRowTimeChange(periodIndex, 'end', e.target.value)
                                   }
                                   title={`${rIdx + 1}行目の終了時刻を微調整`}
-                                  className={`w-full rounded border px-1 py-0.5 font-mono text-[10px] text-center focus:outline-hidden focus:ring-1 focus:ring-blue-500 ${
+                                  className={`w-full rounded border px-0.5 py-0.2 font-mono text-center focus:outline-hidden focus:ring-1 focus:ring-blue-500 ${
+                                    viewMode === 'mobile' ? 'text-[8px]' : 'text-[10px]'
+                                  } ${
                                     isCustomRowTime
                                       ? 'border-amber-300 bg-white font-bold text-amber-900'
                                       : 'border-slate-200/80 bg-white/80 text-slate-600 hover:border-slate-300'
@@ -2460,7 +2530,11 @@ export function ImportedTablesManager({
                               <td
                                 key={`cell-${rIdx}-${cIdx}`}
                                 onClick={() => !isExcluded && handleStartEditCell(rIdx, cIdx)}
-                                className={`relative border-b border-r border-slate-200 p-2 sm:p-2.5 align-top transition-all h-28 sm:h-32 min-h-[112px] sm:min-h-[128px] ${
+                                className={`relative border-b border-r border-slate-200 align-top transition-all ${colWidthStyle} ${
+                                  viewMode === 'mobile'
+                                    ? 'p-1 h-20 min-h-[80px]'
+                                    : 'p-2 sm:p-2.5 h-28 sm:h-32 min-h-[112px] sm:min-h-[128px]'
+                                } ${
                                   isExcluded
                                     ? 'bg-slate-100/40 opacity-40 cursor-not-allowed'
                                     : hasContent
@@ -2471,48 +2545,63 @@ export function ImportedTablesManager({
                                 {hasContent ? (
                                   <div className="flex h-full flex-col justify-between group/cell">
                                     <div>
-                                      <div className="flex items-center gap-1">
-                                        <span className="font-bold text-sky-950 text-xs sm:text-[13px] leading-snug break-words">
+                                      <div className="flex items-start justify-between gap-0.5">
+                                        <span className={`font-bold text-sky-950 leading-tight break-words ${
+                                          viewMode === 'mobile'
+                                            ? 'text-[11px] line-clamp-2'
+                                            : 'text-xs sm:text-[13px] leading-snug'
+                                        }`}>
                                           {cell.title}
                                         </span>
-                                        {cell.attachedTask?.enabled && (
-                                          <span
-                                            className="inline-flex items-center text-[11px] shrink-0"
-                                            title="付随タスク連動あり"
-                                          >
-                                            📌
-                                          </span>
-                                        )}
-                                        {cell.breakMinutes && cell.breakMinutes > 0 ? (
-                                          <span
-                                            className="inline-flex items-center text-[10px] shrink-0"
-                                            title={`タスク後休憩: ${cell.breakMinutes}分`}
-                                          >
-                                            ☕
-                                          </span>
-                                        ) : null}
+                                        <div className="flex items-center gap-0.5 shrink-0">
+                                          {cell.attachedTask?.enabled && (
+                                            <span
+                                              className="inline-flex items-center text-[10px] shrink-0"
+                                              title={`付随タスク連動 (${cell.attachedTask.durationMinutes}分)`}
+                                            >
+                                              📌
+                                            </span>
+                                          )}
+                                          {cell.breakMinutes !== undefined && cell.breakMinutes > 0 && (
+                                            <span
+                                              className="inline-flex items-center text-[10px] shrink-0"
+                                              title={`タスク後休憩 (${cell.breakMinutes}分)`}
+                                            >
+                                              ☕
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
                                       {cell.roomOrNote && (
-                                        <div className="text-[10px] sm:text-[11px] text-sky-700 font-medium whitespace-pre-wrap mt-0.5 line-clamp-2">
+                                        <p className={`mt-0.5 text-slate-500 line-clamp-1 ${
+                                          viewMode === 'mobile' ? 'text-[9px]' : 'text-[10px] sm:text-[11px]'
+                                        }`}>
                                           {cell.roomOrNote}
-                                        </div>
+                                        </p>
                                       )}
                                     </div>
-                                    <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                                      <span className="opacity-70">{pt?.startTime || ''}</span>
+                                    <div className="flex items-center justify-between text-slate-400 mt-0.5">
+                                      <span className={`font-mono ${
+                                        viewMode === 'mobile' ? 'text-[8px]' : 'text-[9px] sm:text-[10px]'
+                                      }`}>
+                                        {pt ? `${pt.startTime || ''}` : ''}
+                                      </span>
                                       <button
                                         type="button"
-                                        onClick={(e) => handleClearCell(rIdx, cIdx, e)}
-                                        title="セルをクリア"
-                                        className="opacity-0 group-hover/cell:opacity-100 text-slate-400 hover:text-rose-600 p-0.5 rounded transition"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleClearCell(rIdx, cIdx, e);
+                                        }}
+                                        title="コマ内容をクリア"
+                                        className="opacity-0 group-hover/cell:opacity-100 p-0.5 hover:text-red-500 hover:bg-red-50 rounded transition"
                                       >
-                                        <Trash2 className="h-3 w-3" />
+                                        <X className="h-3 w-3" />
                                       </button>
                                     </div>
                                   </div>
                                 ) : (
-                                  <div className="flex h-full items-center justify-center text-[10px] text-slate-300 opacity-0 hover:opacity-100 transition">
-                                    {!isExcluded && <span>+ 入力</span>}
+                                  <div className="flex h-full items-center justify-center text-slate-300 opacity-0 hover:opacity-100 transition">
+                                    <Plus className="h-4 w-4" />
                                   </div>
                                 )}
                               </td>
@@ -2520,39 +2609,43 @@ export function ImportedTablesManager({
                           })}
 
                           {/* 行末の空セル (列追加ヘッダー対応) */}
-                          <td className="border-b border-r border-slate-200 bg-slate-50/20" />
+                          {viewMode === 'desktop' && (
+                            <td className="border-b border-r border-slate-200 bg-slate-50/20" />
+                          )}
                         </tr>
                       );
                     })}
 
-                    {/* 行追加・削除フッター行 */}
-                    <tr>
-                      <td
-                        colSpan={activeTable.numCols + 2}
-                        className="p-2 bg-slate-50/40 text-center border-b border-slate-200"
-                      >
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => updateActiveTable(addRowToTable)}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/30 transition shadow-2xs active:scale-95"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                            <span>行を追加</span>
-                          </button>
-                          {activeTable.numRows > 1 && (
+                    {/* 行追加・削除フッター行 (デスクトップ版のみ。モバイル版はドロワーで操作) */}
+                    {viewMode === 'desktop' && (
+                      <tr>
+                        <td
+                          colSpan={activeTable.numCols + 2}
+                          className="p-2 bg-slate-50/40 text-center border-b border-slate-200"
+                        >
+                          <div className="flex items-center justify-center gap-2">
                             <button
                               type="button"
-                              onClick={() => updateActiveTable(removeRowFromTable)}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:border-red-400 hover:text-red-600 hover:bg-red-50/30 transition shadow-2xs active:scale-95"
+                              onClick={() => updateActiveTable(addRowToTable)}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/30 transition shadow-2xs active:scale-95"
                             >
-                              <Minus className="h-3.5 w-3.5" />
-                              <span>行を削除</span>
+                              <Plus className="h-3.5 w-3.5" />
+                              <span>行を追加</span>
                             </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                            {activeTable.numRows > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => updateActiveTable(removeRowFromTable)}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:border-red-400 hover:text-red-600 hover:bg-red-50/30 transition shadow-2xs active:scale-95"
+                              >
+                                <Minus className="h-3.5 w-3.5" />
+                                <span>行を削除</span>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -2717,8 +2810,60 @@ export function ImportedTablesManager({
 
             {/* ドロワーコンテンツ (スクロール可能) */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 divide-y divide-slate-100">
-              {/* セクション 1: ⏰ 基本時間・1コマ・休憩 */}
+              {/* セクション 1: 🎯 計画表への配置方式 ＆ 周期ルール (最優先・基本設定) */}
               <div className="space-y-3 pt-1">
+                <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>計画表への配置ルール</span>
+                </h4>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">配置方式</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => updateActiveTable((prev) => ({ ...prev, placementMode: 'fixed' }))}
+                      className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-bold transition shadow-2xs ${
+                        (activeTable.placementMode === 'fixed' || (activeTable.placementMode === undefined && activeTable.axisConfig.startTime))
+                          ? 'border-blue-600 bg-blue-50 text-blue-700 ring-2 ring-blue-500/20'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Shield className="h-4 w-4" />
+                      <span>📌 固定枠</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateActiveTable((prev) => ({ ...prev, placementMode: 'auto' }))}
+                      className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-bold transition shadow-2xs ${
+                        activeTable.placementMode === 'auto'
+                          ? 'border-amber-500 bg-amber-50 text-amber-700 ring-2 ring-amber-500/20'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Sun className="h-4 w-4" />
+                      <span>⚡ 自動配分</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">周期の頭 (Day 1の曜日)</label>
+                  <select
+                    value={activeTable.cycleStartDay ?? 0}
+                    onChange={(e) => handleCycleStartDayChange(Number(e.target.value))}
+                    className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-bold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-100 transition shadow-2xs cursor-pointer"
+                  >
+                    {weekDateOptions.map((opt) => (
+                      <option key={opt.dayIndex} value={opt.dayIndex}>
+                        {opt.label} から開始
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* セクション 2: ⏰ 基本時間・1コマ・休憩 */}
+              <div className="space-y-3 pt-3">
                 <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                   <Clock className="h-3.5 w-3.5 text-blue-600" />
                   <span>時間帯とインターバル</span>
@@ -2802,57 +2947,154 @@ export function ImportedTablesManager({
                 </div>
               </div>
 
-              {/* セクション 2: 🎯 配置ルール & 周期 */}
+              {/* セクション 3: 🍱 昼休み設定 */}
               <div className="space-y-3 pt-3">
                 <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>計画表への配置ルール</span>
+                  <Sun className="h-3.5 w-3.5 text-amber-500" />
+                  <span>昼休み設定</span>
                 </h4>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">配置方式</label>
-                  <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-slate-800">昼休みを挿入</span>
+                      <p className="text-[10px] text-slate-500">指定の時限後に昼休憩を確保</p>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => updateActiveTable((prev) => ({ ...prev, placementMode: 'fixed' }))}
-                      className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-bold transition shadow-2xs ${
-                        (activeTable.placementMode === 'fixed' || (activeTable.placementMode === undefined && activeTable.axisConfig.startTime))
-                          ? 'border-blue-600 bg-blue-50 text-blue-700 ring-2 ring-blue-500/20'
-                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      role="switch"
+                      aria-checked={activeTable.axisConfig.hasLunch}
+                      onClick={() => handleAxisConfigChange('hasLunch', !activeTable.axisConfig.hasLunch)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-hidden ${
+                        activeTable.axisConfig.hasLunch ? 'bg-blue-600' : 'bg-slate-300'
                       }`}
                     >
-                      <Shield className="h-4 w-4" />
-                      <span>📌 固定枠</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateActiveTable((prev) => ({ ...prev, placementMode: 'auto' }))}
-                      className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-bold transition shadow-2xs ${
-                        activeTable.placementMode === 'auto'
-                          ? 'border-amber-500 bg-amber-50 text-amber-700 ring-2 ring-amber-500/20'
-                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
-                      <Sun className="h-4 w-4" />
-                      <span>⚡ 自動配分</span>
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs transition duration-200 ${
+                          activeTable.axisConfig.hasLunch ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
                     </button>
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">周期の頭 (Day 1の曜日)</label>
-                  <select
-                    value={activeTable.cycleStartDay ?? 0}
-                    onChange={(e) => handleCycleStartDayChange(Number(e.target.value))}
-                    className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-bold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-100 transition shadow-2xs cursor-pointer"
-                  >
-                    {weekDateOptions.map((opt) => (
-                      <option key={opt.dayIndex} value={opt.dayIndex}>
-                        {opt.label} から開始
-                      </option>
-                    ))}
-                  </select>
+                  {activeTable.axisConfig.hasLunch && (
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-1">挿入する位置</label>
+                        <div className="relative flex items-center">
+                          <input
+                            type="number"
+                            min={1}
+                            max={Math.max(1, activeTable.numRows - 1)}
+                            value={activeTable.axisConfig.lunchAfterPeriod}
+                            onChange={(e) => {
+                              const num = parseInt(e.target.value, 10);
+                              if (!isNaN(num) && num >= 1) handleAxisConfigChange('lunchAfterPeriod', num);
+                            }}
+                            className="w-full h-10 rounded-lg border border-slate-200 bg-white pr-9 text-xs font-bold text-center text-slate-800 focus:border-blue-500 focus:outline-hidden shadow-2xs"
+                          />
+                          <span className="absolute right-2.5 text-[10px] font-bold text-slate-400 pointer-events-none">行後</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-1">昼休みの長さ</label>
+                        <div className="relative flex items-center">
+                          <input
+                            type="number"
+                            min={10}
+                            max={180}
+                            step={5}
+                            value={activeTable.axisConfig.lunchMinutes}
+                            onChange={(e) => {
+                              const num = parseInt(e.target.value, 10);
+                              if (!isNaN(num) && num >= 1) handleAxisConfigChange('lunchMinutes', num);
+                            }}
+                            className="w-full h-10 rounded-lg border border-slate-200 bg-white pr-7 text-xs font-bold text-center text-slate-800 focus:border-blue-500 focus:outline-hidden shadow-2xs"
+                          />
+                          <span className="absolute right-2.5 text-[10px] font-bold text-slate-400 pointer-events-none">分</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
+              </div>
 
+              {/* セクション 4: 📌 付随タスク設定 */}
+              <div className="space-y-3 pt-3">
+                <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Shield className="h-3.5 w-3.5 text-blue-600" />
+                  <span>付随タスク設定</span>
+                </h4>
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-slate-800">付随タスクの連動生成</span>
+                      <p className="text-[10px] text-slate-500">講義直後に復習等のタスクを配置</p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={activeTable.attachedTaskConfig?.enabled ?? false}
+                      onClick={() => {
+                        const nextEnabled = !(activeTable.attachedTaskConfig?.enabled ?? false);
+                        updateActiveTable((prev) => ({
+                          ...prev,
+                          attachedTaskConfig: {
+                            enabled: nextEnabled,
+                            titleTemplate: prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
+                            durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
+                          },
+                        }));
+                      }}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-hidden ${
+                        activeTable.attachedTaskConfig?.enabled ? 'bg-blue-600' : 'bg-slate-300'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs transition duration-200 ${
+                          activeTable.attachedTaskConfig?.enabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {activeTable.attachedTaskConfig?.enabled && (
+                    <div className="pt-1 border-t border-slate-200/60">
+                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">所要時間</label>
+                      <div className="relative flex items-center">
+                        <input
+                          type="number"
+                          min={1}
+                          max={180}
+                          step={5}
+                          value={activeTable.attachedTaskConfig.durationMinutes || 15}
+                          onChange={(e) => {
+                            const num = parseInt(e.target.value, 10);
+                            if (!isNaN(num) && num >= 1) {
+                              updateActiveTable((prev) => ({
+                                ...prev,
+                                attachedTaskConfig: {
+                                  enabled: true,
+                                  titleTemplate: prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
+                                  durationMinutes: num,
+                                },
+                              }));
+                            }
+                          }}
+                          className="w-full h-10 rounded-lg border border-slate-200 bg-white pr-7 text-xs font-bold text-center text-slate-800 focus:border-blue-500 focus:outline-hidden shadow-2xs"
+                        />
+                        <span className="absolute right-2.5 text-[10px] font-bold text-slate-400 pointer-events-none">分</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* セクション 5: 🔄 繰り返し回数 ＆ 有効期限 (自動配分時の詳細設定) */}
+              <div className="space-y-3 pt-3">
+                <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <RotateCcw className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>繰り返し回数 ＆ 有効期限</span>
+                </h4>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-500 mb-1">1日の回数</label>
@@ -2924,145 +3166,7 @@ export function ImportedTablesManager({
                 </div>
               </div>
 
-              {/* セクション 3: 🍱 昼休み ＆ 付随タスク */}
-              <div className="space-y-3 pt-3">
-                <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Sun className="h-3.5 w-3.5 text-amber-500" />
-                  <span>昼休み・付随タスク</span>
-                </h4>
-
-                {/* 昼休みトグル */}
-                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-slate-800">昼休みを挿入</span>
-                      <p className="text-[10px] text-slate-500">指定の時限後に昼休憩を確保</p>
-                    </div>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={activeTable.axisConfig.hasLunch}
-                      onClick={() => handleAxisConfigChange('hasLunch', !activeTable.axisConfig.hasLunch)}
-                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-hidden ${
-                        activeTable.axisConfig.hasLunch ? 'bg-blue-600' : 'bg-slate-300'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs transition duration-200 ${
-                          activeTable.axisConfig.hasLunch ? 'translate-x-5' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  {activeTable.axisConfig.hasLunch && (
-                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
-                      <div>
-                        <label className="block text-[10px] font-semibold text-slate-500 mb-1">挿入する位置</label>
-                        <div className="relative flex items-center">
-                          <input
-                            type="number"
-                            min={1}
-                            max={Math.max(1, activeTable.numRows - 1)}
-                            value={activeTable.axisConfig.lunchAfterPeriod}
-                            onChange={(e) => {
-                              const num = parseInt(e.target.value, 10);
-                              if (!isNaN(num) && num >= 1) handleAxisConfigChange('lunchAfterPeriod', num);
-                            }}
-                            className="w-full h-10 rounded-lg border border-slate-200 bg-white pr-9 text-xs font-bold text-center text-slate-800 focus:border-blue-500 focus:outline-hidden shadow-2xs"
-                          />
-                          <span className="absolute right-2.5 text-[10px] font-bold text-slate-400 pointer-events-none">行後</span>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-semibold text-slate-500 mb-1">昼休みの長さ</label>
-                        <div className="relative flex items-center">
-                          <input
-                            type="number"
-                            min={10}
-                            max={180}
-                            step={5}
-                            value={activeTable.axisConfig.lunchMinutes}
-                            onChange={(e) => {
-                              const num = parseInt(e.target.value, 10);
-                              if (!isNaN(num) && num >= 1) handleAxisConfigChange('lunchMinutes', num);
-                            }}
-                            className="w-full h-10 rounded-lg border border-slate-200 bg-white pr-7 text-xs font-bold text-center text-slate-800 focus:border-blue-500 focus:outline-hidden shadow-2xs"
-                          />
-                          <span className="absolute right-2.5 text-[10px] font-bold text-slate-400 pointer-events-none">分</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 付随タスク連動トグル */}
-                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-slate-800">付随タスクの連動生成</span>
-                      <p className="text-[10px] text-slate-500">講義直後に復習等のタスクを配置</p>
-                    </div>
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={activeTable.attachedTaskConfig?.enabled ?? false}
-                      onClick={() => {
-                        const nextEnabled = !(activeTable.attachedTaskConfig?.enabled ?? false);
-                        updateActiveTable((prev) => ({
-                          ...prev,
-                          attachedTaskConfig: {
-                            enabled: nextEnabled,
-                            titleTemplate: prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
-                            durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
-                          },
-                        }));
-                      }}
-                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-hidden ${
-                        activeTable.attachedTaskConfig?.enabled ? 'bg-blue-600' : 'bg-slate-300'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs transition duration-200 ${
-                          activeTable.attachedTaskConfig?.enabled ? 'translate-x-5' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  {activeTable.attachedTaskConfig?.enabled && (
-                    <div className="pt-1 border-t border-slate-200/60">
-                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">所要時間</label>
-                      <div className="relative flex items-center">
-                        <input
-                          type="number"
-                          min={1}
-                          max={180}
-                          step={5}
-                          value={activeTable.attachedTaskConfig.durationMinutes || 15}
-                          onChange={(e) => {
-                            const num = parseInt(e.target.value, 10);
-                            if (!isNaN(num) && num >= 1) {
-                              updateActiveTable((prev) => ({
-                                ...prev,
-                                attachedTaskConfig: {
-                                  enabled: true,
-                                  titleTemplate: prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
-                                  durationMinutes: num,
-                                },
-                              }));
-                            }
-                          }}
-                          className="w-full h-10 rounded-lg border border-slate-200 bg-white pr-7 text-xs font-bold text-center text-slate-800 focus:border-blue-500 focus:outline-hidden shadow-2xs"
-                        />
-                        <span className="absolute right-2.5 text-[10px] font-bold text-slate-400 pointer-events-none">分</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* セクション 4: 📐 表のマス目サイズ調整 */}
+              {/* セクション 6: 📐 表のマス目サイズ調整 */}
               <div className="space-y-3 pt-3">
                 <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                   <FileSpreadsheet className="h-3.5 w-3.5 text-blue-600" />
@@ -3115,7 +3219,7 @@ export function ImportedTablesManager({
                 </div>
               </div>
 
-              {/* セクション 5: 📥 データ操作・アクション */}
+              {/* セクション 7: 📥 データ操作・アクション */}
               <div className="space-y-2 pt-3">
                 <button
                   type="button"

@@ -539,7 +539,7 @@ export function Timeline24h({
   }, [importedTables, blocks, dayBlocks]);
 
   return (
-    <div className="flex flex-1 min-h-0 flex-col gap-1 w-full">
+    <div className="flex flex-1 min-h-0 flex-col gap-1 w-full overflow-hidden">
       {/* Unassigned Warning Alert if any (折りたたみ可能な洗練されたアコーディオン表示) */}
       {unassignedTasks.length > 0 && (
         <div className="flex shrink-0 flex-col border border-amber-200/90 bg-amber-50/90 text-xs text-amber-900 overflow-hidden transition-all duration-200">
@@ -597,47 +597,47 @@ export function Timeline24h({
             focusMode === 'today' ? 'w-full min-w-0' : 'min-w-[720px] sm:min-w-[800px] w-full'
           }`}
         >
-          {/* Sticky Weekday Header Row (縦スクロール時に上端固定) */}
+          {/* Sticky Weekday Header Row (縦スクロール時に完全吸着固定・完全不透明背景) */}
           <div
-            className={`sticky top-0 z-40 flex border-b transition-colors shadow-2xs ${
-              isPlanner ? 'border-slate-200 bg-[#f8f6f0]' : 'border-slate-200 bg-slate-50'
+            className={`sticky top-0 z-40 flex border-b-2 transition-colors shadow-xs ${
+              isPlanner ? 'border-slate-300 bg-[#f8f6f0]' : 'border-slate-300 bg-white'
             }`}
           >
             {/* Time axis header space (縦横両スクロール時に左上角に完全固定) */}
             <div
-              className={`sticky left-0 z-50 ${timeAxisWidthClass} border-r border-slate-200 py-1.5 px-0.5 text-center flex flex-col items-center justify-center shrink-0 ${
+              className={`sticky left-0 z-50 ${timeAxisWidthClass} border-r-2 border-slate-300 py-1.5 px-0.5 text-center flex flex-col items-center justify-center shrink-0 ${
                 isPlanner ? 'bg-[#f4f1e8]' : 'bg-slate-100'
               }`}
             >
-              <span className="font-mono text-[9px] sm:text-[10px] font-bold text-slate-500">
+              <span className="font-mono text-[9px] sm:text-[10px] font-bold text-slate-600">
                 時間
               </span>
             </div>
 
           {/* Column Headers: フォーカスモード(1日) ⇄ 週間全体(7列) */}
           {focusMode === 'today' ? (
-            /* フォーカスモード（1日拡大）ヘッダー */
+            /* フォーカスモード（1日拡大）ヘッダー: モバイルでも日付が絶対に見切れないレイアウト */
             <div
-              className={`flex flex-1 items-center justify-between px-1.5 sm:px-2 py-1 ${
-                isPlanner ? 'bg-[#faf8f2]' : 'bg-amber-50/40'
+              className={`flex flex-1 items-center justify-between px-1.5 sm:px-2 py-1 min-w-0 ${
+                isPlanner ? 'bg-[#f8f6f0]' : 'bg-white'
               }`}
             >
-              <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto">
+              <div className="flex items-center gap-0.5 sm:gap-1.5 overflow-x-auto no-scrollbar min-w-0 flex-1">
                 <button
                   onClick={() => handleSelectDayIndex((prev) => (prev + 6) % 7)}
-                  className="rounded p-1 text-slate-500 hover:bg-slate-200/80 hover:text-slate-800 transition"
+                  className="rounded p-1 text-slate-500 hover:bg-slate-200/80 hover:text-slate-800 transition shrink-0"
                   title="前の曜日へ"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
                 </button>
 
                 {/* 曜日セレクターピル (月〜日) */}
-                <div className="flex items-center gap-0.5 sm:gap-1">
+                <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
                   {weekDays.map((d) => (
                     <button
                       key={`day-pill-${d.dayIndex}`}
                       onClick={() => handleSelectDayIndex(d.dayIndex)}
-                      className={`rounded px-1.5 py-0.5 text-xs font-semibold transition ${
+                      className={`rounded px-1.5 py-0.5 text-xs font-semibold transition shrink-0 ${
                         d.dayIndex === selectedDayIndex
                           ? isPlanner
                             ? 'bg-amber-800 text-white shadow-2xs'
@@ -649,7 +649,7 @@ export function Timeline24h({
                     >
                       {d.dayOfWeek}
                       {d.isToday && (
-                        <span className="hidden sm:inline text-[9px] ml-0.5 opacity-90">
+                        <span className="hidden md:inline text-[9px] ml-0.5 opacity-90">
                           (今日)
                         </span>
                       )}
@@ -659,64 +659,65 @@ export function Timeline24h({
 
                 <button
                   onClick={() => handleSelectDayIndex((prev) => (prev + 1) % 7)}
-                  className="rounded p-1 text-slate-500 hover:bg-slate-200/80 hover:text-slate-800 transition"
+                  className="rounded p-1 text-slate-500 hover:bg-slate-200/80 hover:text-slate-800 transition shrink-0"
                   title="次の曜日へ"
                 >
                   <ChevronRight className="h-3.5 w-3.5" />
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-800 shrink-0">
+              {/* 日付ラベル (常に不透明・見切れなし) */}
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 shrink-0 pl-1">
                 {isDebugTime && (
                   <span
-                    className="rounded bg-amber-500/90 px-1.5 py-0.5 font-mono text-[10px] font-bold text-white shadow-2xs"
+                    className="hidden sm:inline rounded bg-amber-500/90 px-1.5 py-0.5 font-mono text-[10px] font-bold text-white shadow-2xs"
                     title="メニューのデバッグ日時設定が適用されています"
                   >
                     🧪 {WEEKDAY_NAMES[todayIndex]} {effectiveNowTimeString}
                   </span>
                 )}
-                <span className="font-mono text-slate-600 text-[11px]">
+                <span className="font-mono text-slate-700 bg-slate-100/90 border border-slate-200/80 rounded px-1.5 py-0.5 text-[10px] sm:text-[11px] font-bold shadow-2xs whitespace-nowrap">
                   {displayedDays[0]?.month}/{displayedDays[0]?.day} ({displayedDays[0]?.dayOfWeek})
                 </span>
               </div>
             </div>
           ) : (
-            /* 週間全体（7列）ヘッダー */
-            <div className="grid flex-1 grid-cols-7">
+            /* 週間全体（7列）ヘッダー: 各曜日に不透明な背景色を完全適用 */
+            <div className="grid flex-1 grid-cols-7 divide-x divide-slate-200">
               {weekDays.map((d) => (
                 <div
                   key={`weekday-header-${d.dayIndex}`}
-                  className={`flex flex-col items-center justify-center border-r border-slate-200 py-1.5 ${
-                    d.dayIndex === 6 ? 'border-r-0' : ''
-                  } ${
+                  className={`flex flex-col items-center justify-center py-1.5 select-none ${
                     d.isToday
                       ? isPlanner
-                        ? 'bg-amber-100/30 font-bold'
-                        : 'bg-amber-100/40 font-bold'
-                      : ''
+                        ? 'bg-amber-100/70 font-bold'
+                        : 'bg-amber-100/80 font-bold'
+                      : isPlanner
+                        ? 'bg-[#f8f6f0]'
+                        : 'bg-white'
                   }`}
                 >
                   <div className="flex items-center gap-1">
                     <span
                       className={`text-xs ${
                         d.isToday
-                          ? 'text-amber-900 font-bold'
+                          ? 'text-amber-950 font-bold'
                           : d.isSaturday
-                            ? 'text-blue-600 font-medium'
+                            ? 'text-blue-600 font-bold'
                             : d.isSunday
-                              ? 'text-rose-600 font-medium'
-                              : 'text-slate-700 font-medium'
+                              ? 'text-rose-600 font-bold'
+                              : 'text-slate-700 font-semibold'
                       }`}
                     >
                       {d.dayOfWeek}
                     </span>
                     {d.isToday && (
-                      <span className="rounded bg-amber-400/90 px-1 py-0.2 text-[9px] font-bold text-amber-950">
+                      <span className="rounded bg-amber-400 px-1 py-0.2 text-[8px] font-bold text-amber-950 shadow-2xs">
                         今日
                       </span>
                     )}
                   </div>
-                  <span className="font-mono text-[10px] text-slate-500">
+                  <span className="font-mono text-[10px] text-slate-500 font-medium">
                     {d.month}/{d.day}
                   </span>
                 </div>

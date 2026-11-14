@@ -1028,7 +1028,7 @@ export function TaskManager({
               <button
                 type="button"
                 onClick={() => handleBulkToggleTasks(filteredAndSortedDailyTasks, true)}
-                className="rounded-none border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 shadow-2xs transition hover:bg-emerald-100 active:scale-95"
+                className="rounded-lg sm:rounded-none border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 sm:py-1 text-xs font-bold text-emerald-700 shadow-2xs transition hover:bg-emerald-100 active:scale-95"
                 title="表示中のタスクをすべてONにする"
               >
                 すべてON
@@ -1036,7 +1036,7 @@ export function TaskManager({
               <button
                 type="button"
                 onClick={() => handleBulkToggleTasks(filteredAndSortedDailyTasks, false)}
-                className="rounded-none border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 shadow-2xs transition hover:bg-slate-200 active:scale-95"
+                className="rounded-lg sm:rounded-none border border-slate-200 bg-slate-100 px-2.5 py-1.5 sm:py-1 text-xs font-bold text-slate-600 shadow-2xs transition hover:bg-slate-200 active:scale-95"
                 title="表示中のタスクをすべてOFFにする"
               >
                 すべてOFF
@@ -1046,7 +1046,7 @@ export function TaskManager({
               <button
                 type="button"
                 onClick={() => setIsDailyFilterOpen(!isDailyFilterOpen)}
-                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1 text-xs font-semibold transition shadow-2xs active:scale-95 ${
+                className={`flex items-center gap-1.5 rounded-lg sm:rounded-none border px-2.5 py-1.5 sm:py-1 text-xs font-semibold transition shadow-2xs active:scale-95 ${
                   isDailyFilterOpen
                     ? 'border-amber-300 bg-amber-50 text-amber-800'
                     : isDailyFilterActive
@@ -1216,7 +1216,7 @@ export function TaskManager({
               <button
                 type="button"
                 onClick={() => handleBulkToggleTasks(filteredAndSortedWeeklyTasks, true)}
-                className="rounded-none border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 shadow-2xs transition hover:bg-emerald-100 active:scale-95"
+                className="rounded-lg sm:rounded-none border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 sm:py-1 text-xs font-bold text-emerald-700 shadow-2xs transition hover:bg-emerald-100 active:scale-95"
                 title="表示中のタスクをすべてONにする"
               >
                 すべてON
@@ -1224,7 +1224,7 @@ export function TaskManager({
               <button
                 type="button"
                 onClick={() => handleBulkToggleTasks(filteredAndSortedWeeklyTasks, false)}
-                className="rounded-none border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 shadow-2xs transition hover:bg-slate-200 active:scale-95"
+                className="rounded-lg sm:rounded-none border border-slate-200 bg-slate-100 px-2.5 py-1.5 sm:py-1 text-xs font-bold text-slate-600 shadow-2xs transition hover:bg-slate-200 active:scale-95"
                 title="表示中のタスクをすべてOFFにする"
               >
                 すべてOFF
@@ -1234,7 +1234,7 @@ export function TaskManager({
               <button
                 type="button"
                 onClick={() => setIsWeeklyFilterOpen(!isWeeklyFilterOpen)}
-                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1 text-xs font-semibold transition shadow-2xs active:scale-95 ${
+                className={`flex items-center gap-1.5 rounded-lg sm:rounded-none border px-2.5 py-1.5 sm:py-1 text-xs font-semibold transition shadow-2xs active:scale-95 ${
                   isWeeklyFilterOpen
                     ? 'border-purple-300 bg-purple-50 text-purple-800'
                     : isWeeklyFilterActive
@@ -1521,7 +1521,7 @@ export function TaskManager({
                         key={task.id}
                         onClick={(e) => handleToggleTaskEnabled(e, task.id)}
                         title={`クリックして ${isEnabled ? 'OFF' : 'ON'} に切り替え`}
-                        className={`group relative flex items-center justify-between overflow-hidden rounded-none border px-3 py-2.5 transition cursor-pointer shrink-0 min-h-[58px] ${
+                        className={`group relative flex items-center justify-between overflow-hidden rounded-xl sm:rounded-none border px-3 py-2.5 transition cursor-pointer shrink-0 min-h-[58px] ${
                           !isEnabled
                             ? 'border-slate-200 bg-slate-100/70 opacity-60'
                             : 'border-amber-200/90 bg-amber-50/30 hover:border-amber-300 hover:bg-white hover:shadow-xs'
@@ -1719,7 +1719,7 @@ export function TaskManager({
                         key={task.id}
                         onClick={(e) => handleToggleTaskEnabled(e, task.id)}
                         title={`クリックして ${isEnabled ? 'OFF' : 'ON'} に切り替え`}
-                        className={`group relative flex items-center justify-between overflow-hidden rounded-none border px-3 py-2.5 transition cursor-pointer shrink-0 min-h-[58px] ${
+                        className={`group relative flex items-center justify-between overflow-hidden rounded-xl sm:rounded-none border px-3 py-2.5 transition cursor-pointer shrink-0 min-h-[58px] ${
                           !isEnabled
                             ? 'border-slate-200 bg-slate-100/70 opacity-60'
                             : isAssign
@@ -1951,7 +1951,7 @@ export function TaskManager({
                         key={slot.id}
                         onClick={(e) => handleToggleSlotEnabled(e, slot.id)}
                         title={`クリックして ${isEnabled ? 'OFF' : 'ON'} に切り替え`}
-                        className={`group relative flex items-center justify-between overflow-hidden rounded-none border px-3 py-2.5 transition cursor-pointer shrink-0 min-h-[58px] ${
+                        className={`group relative flex items-center justify-between overflow-hidden rounded-xl sm:rounded-none border px-3 py-2.5 transition cursor-pointer shrink-0 min-h-[58px] ${
                           !isEnabled
                             ? 'border-slate-200 bg-slate-100/70 opacity-60'
                             : 'border-slate-200 bg-white hover:border-sky-300 hover:shadow-xs'
