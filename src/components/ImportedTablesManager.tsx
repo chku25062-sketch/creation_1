@@ -25,6 +25,10 @@ import {
   Upload,
   X,
   Hourglass,
+  Monitor,
+  Smartphone,
+  Settings,
+  Copy,
 } from 'lucide-react';
 import { TABLE_PALETTE_OPTIONS, getTableColorSchemeByIndex } from '@/components/Timeline24h';
 import {
@@ -35,6 +39,7 @@ import {
   TablePlacementMode,
 } from '@/types';
 import { calculatePeriodTimes, timeStringToMinutes } from '@/lib/timeUtils';
+import { matrixToCsv } from '@/lib/importers/gridDetection';
 import {
   getTableClassification,
   setTableColumnMode,
@@ -136,6 +141,33 @@ export function ImportedTablesManager({
     }
     return true;
   });
+
+  // 表示モード（デスクトップ版 vs モバイル版）
+  const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop');
+  // モバイル版専用: 設定ドロワーの開閉
+  const [isMobileSettingsOpen, setIsMobileSettingsOpen] = useState(false);
+  // モバイル版専用: テーブル切り替えボトムシートの開閉
+  const [isMobileSwitcherOpen, setIsMobileSwitcherOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('app_table_view_mode');
+      if (saved === 'desktop' || saved === 'mobile') {
+        setViewMode(saved);
+      } else if (window.innerWidth < 768) {
+        setViewMode('mobile');
+      }
+    }
+  }, []);
+
+  const handleToggleViewMode = (mode: 'desktop' | 'mobile') => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('app_table_view_mode', mode);
+    } catch {
+      // ignore
+    }
+  };
 
   const toggleSidebar = () => {
     setIsSidebarOpen((prev) => {
@@ -716,6 +748,20 @@ export function ImportedTablesManager({
   };
 
   // 新規テーブル作成（空テーブル・一律周期管理）
+  // CSV形式としてクリップボードへコピー
+  const handleCopyCsv = () => {
+    if (!activeTable) return;
+    const matrix: (string | null)[][] = activeTable.cells.map((row) =>
+      row.map((cell) => (cell.text ? cell.text : null)),
+    );
+    const csvContent = matrixToCsv(matrix, activeTable.colHeaders, activeTable.rowHeaders);
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(csvContent);
+      setApplySuccessMsg('CSV形式でクリップボードへコピーしました');
+      setTimeout(() => setApplySuccessMsg(null), 2500);
+    }
+  };
+
   const handleAddNewTable = () => {
     const newId = `table-${Date.now()}`;
     const newTable: ImportedTableData = {
@@ -817,17 +863,18 @@ export function ImportedTablesManager({
       />
 
       {/* ========================================================
-          Left Sidebar: データファイル一覧
-          - スマホ: absolute 配置のドロワー（フッターまで覆わず、メイン画面の幅にも影響を与えない）
-          - PC: インライン relative 配置
+          Left Sidebar: データファイル一覧（デスクトップ版でのみ表示）
+          - スマホ/モバイル版ではヘッダーの「表切替」ピルからボトムシートで操作
+          - PC/デスクトップ版ではインライン relative 配置
           ======================================================== */}
-      <aside
-        className={`shrink-0 flex flex-col h-full border-r border-slate-200 bg-slate-50 select-none transition-all duration-200 ease-in-out ${
-          isSidebarOpen
-            ? 'absolute inset-y-0 left-0 z-40 w-72 max-w-[85vw] shadow-2xl translate-x-0 opacity-100 md:relative md:inset-auto md:z-auto md:w-64 lg:w-72 md:shadow-none'
-            : 'absolute inset-y-0 left-0 z-40 w-72 max-w-[85vw] -translate-x-full opacity-0 pointer-events-none md:pointer-events-auto md:opacity-100 md:relative md:inset-auto md:z-auto md:w-[76px] md:shadow-none md:translate-x-0'
-        }`}
-      >
+      {viewMode === 'desktop' && (
+        <aside
+          className={`shrink-0 flex flex-col h-full border-r border-slate-200 bg-slate-50 select-none transition-all duration-200 ease-in-out ${
+            isSidebarOpen
+              ? 'absolute inset-y-0 left-0 z-40 w-72 max-w-[85vw] shadow-2xl translate-x-0 opacity-100 md:relative md:inset-auto md:z-auto md:w-64 lg:w-72 md:shadow-none'
+              : 'absolute inset-y-0 left-0 z-40 w-72 max-w-[85vw] -translate-x-full opacity-0 pointer-events-none md:pointer-events-auto md:opacity-100 md:relative md:inset-auto md:z-auto md:w-[76px] md:shadow-none md:translate-x-0'
+          }`}
+        >
         <div className="flex flex-col h-full min-h-0 w-full">
           {/* Top Bar: ヘッダーを廃止し、折り畳みボタンと「ファイル名で検索」を並べて配置 */}
           {isSidebarOpen ? (
@@ -1357,87 +1404,185 @@ export function ImportedTablesManager({
           />
         </div>
       </aside>
+      )}
 
       {/* ========================================================
           Right Main Area: プレビュー & 軸・インターバル定義詳細
           ======================================================== */}
       <main className="flex flex-1 min-w-0 w-full flex-col bg-white p-1.5 sm:p-2 gap-1.5 overflow-hidden min-h-0">
-        {/* Explorer Path / Breadcrumb & Top Actions Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
-          {/* Breadcrumb Path & Mobile Sidebar Toggle */}
-          <div className="flex items-center gap-2 text-xs text-slate-500 min-w-0">
-            {/* スマホ用: データ一覧バーを開くボタン */}
-            <button
-              type="button"
-              onClick={toggleSidebar}
-              title="データ一覧バーを開く"
-              aria-label="データ一覧バーを開く"
-              className="flex md:hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 shadow-2xs hover:bg-slate-100 hover:text-blue-600 transition active:scale-95"
-            >
-              <PanelLeftOpen className="h-4 w-4" />
-            </button>
-
-            {isSystemFile ? (
-              <div className="flex items-center gap-1.5 min-w-0">
-                <FolderOpen className="h-4 w-4 text-amber-500 shrink-0" />
-                <span className="font-medium text-slate-600 shrink-0">タスク管理</span>
-                <span className="text-slate-300">/</span>
-                <span className="font-bold text-slate-900 truncate">
-                  {selectedItemId === 'sys-slots'
-                    ? '固定枠 (生活リズム)'
-                    : selectedItemId === 'sys-daily'
-                      ? '📅 今日用いられているタスク'
-                      : '🗓️ 今週用いられているタスク'}
-                </span>
-              </div>
-            ) : activeTable ? (
-              <div className="flex items-center gap-1.5 min-w-0">
-                <FolderOpen className="h-4 w-4 text-amber-500 shrink-0" />
-                <span className="font-medium text-slate-600 shrink-0">取り込み表データ</span>
-                <span className="text-slate-300">/</span>
-                <span className="font-bold text-slate-900 truncate">{activeTable.name}</span>
-                {!isEditingName && (
-                  <button
-                    onClick={() => {
-                      setTempTableName(activeTable.name);
-                      setIsEditingName(true);
-                    }}
-                    title="テーブル名を編集"
-                    className="ml-1 text-slate-400 hover:text-blue-600"
-                  >
-                    <Edit2 className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 min-w-0 text-slate-400">
-                <span>表が選択されていません</span>
-              </div>
-            )}
-          </div>
-
-          {/* 計画表への反映 ON/OFF トグル */}
-          {(isSystemFile || activeTable) && (
-            <div className="flex items-center">
+        {/* Top Header & Actions Bar (Desktop vs Mobile 分岐) */}
+        {viewMode === 'mobile' && activeTable && !isSystemFile ? (
+          /* モバイル専用アプリ風ヘッダー */
+          <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2 px-0.5">
+            {/* 左側: 表切り替えピル */}
+            <div className="flex items-center gap-1.5 min-w-0">
               <button
                 type="button"
-                role="switch"
-                aria-checked={isCurrentItemApplied}
-                onClick={handleToggleCurrentApplied}
-                title={`計画表への反映を${isCurrentItemApplied ? 'オフ' : 'オン'}にする`}
-                className={`relative inline-flex h-5 w-9 sm:h-6 sm:w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 ${
-                  isCurrentItemApplied ? 'bg-emerald-500' : 'bg-slate-300'
-                }`}
+                onClick={() => setIsMobileSwitcherOpen(true)}
+                className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/90 px-3 py-1.5 text-xs font-bold text-blue-900 shadow-2xs hover:bg-blue-100 active:scale-95 transition max-w-[150px] sm:max-w-[220px]"
+                title="タップして時間割を切り替え"
               >
-                <span
-                  className={`pointer-events-none inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                    isCurrentItemApplied ? 'translate-x-4 sm:translate-x-5' : 'translate-x-0'
-                  }`}
-                />
+                <span className="truncate">{activeTable.name}</span>
+                <ChevronDown className="h-3.5 w-3.5 text-blue-600 shrink-0" />
               </button>
             </div>
-          )}
-        </div>
+
+            {/* 右側アクション群: 反映スイッチ, モード切替, ⚙️設定ボタン */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* 反映トグル */}
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-bold text-slate-500 hidden sm:inline">反映</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isCurrentItemApplied}
+                  onClick={handleToggleCurrentApplied}
+                  title={`計画表への反映を${isCurrentItemApplied ? 'オフ' : 'オン'}にする`}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 ${
+                    isCurrentItemApplied ? 'bg-emerald-500' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                      isCurrentItemApplied ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* モード切替（PC版へ） */}
+              <button
+                type="button"
+                onClick={() => handleToggleViewMode('desktop')}
+                title="デスクトップ版デザインに切り替え"
+                className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-100 hover:text-blue-600 shadow-2xs transition"
+              >
+                <Monitor className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">PC版</span>
+              </button>
+
+              {/* ⚙️ 設定ドロワー開閉ボタン */}
+              <button
+                type="button"
+                onClick={() => setIsMobileSettingsOpen(true)}
+                title="時間割の詳細設定を開く"
+                className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 active:scale-95 transition"
+              >
+                <Settings className="h-4 w-4" />
+                <span>設定</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* デスクトップ版ヘッダー (現行のファイルパス表示 ＋ モード切替) */
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+            {/* Breadcrumb Path & Mobile Sidebar Toggle */}
+            <div className="flex items-center gap-2 text-xs text-slate-500 min-w-0">
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                title="データ一覧バーを開く"
+                aria-label="データ一覧バーを開く"
+                className="flex md:hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 shadow-2xs hover:bg-slate-100 hover:text-blue-600 transition active:scale-95"
+              >
+                <PanelLeftOpen className="h-4 w-4" />
+              </button>
+
+              {isSystemFile ? (
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <FolderOpen className="h-4 w-4 text-amber-500 shrink-0" />
+                  <span className="font-medium text-slate-600 shrink-0">タスク管理</span>
+                  <span className="text-slate-300">/</span>
+                  <span className="font-bold text-slate-900 truncate">
+                    {selectedItemId === 'sys-slots'
+                      ? '固定枠 (生活リズム)'
+                      : selectedItemId === 'sys-daily'
+                        ? '📅 今日用いられているタスク'
+                        : '🗓️ 今週用いられているタスク'}
+                  </span>
+                </div>
+              ) : activeTable ? (
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <FolderOpen className="h-4 w-4 text-amber-500 shrink-0" />
+                  <span className="font-medium text-slate-600 shrink-0">取り込み表データ</span>
+                  <span className="text-slate-300">/</span>
+                  <span className="font-bold text-slate-900 truncate">{activeTable.name}</span>
+                  {!isEditingName && (
+                    <button
+                      onClick={() => {
+                        setTempTableName(activeTable.name);
+                        setIsEditingName(true);
+                      }}
+                      title="テーブル名を編集"
+                      className="ml-1 text-slate-400 hover:text-blue-600"
+                    >
+                      <Edit2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 min-w-0 text-slate-400">
+                  <span>表が選択されていません</span>
+                </div>
+              )}
+            </div>
+
+            {/* 右側: モード切替 & 反映トグル */}
+            <div className="flex items-center gap-2">
+              {/* デスクトップ ⇔ モバイル 表示モード切替ボタングループ */}
+              <div className="flex items-center rounded-lg border border-slate-200 bg-slate-100 p-0.5 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => handleToggleViewMode('desktop')}
+                  title="デスクトップ版レイアウトに切り替え"
+                  className={`flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold transition ${
+                    viewMode === 'desktop'
+                      ? 'bg-white text-blue-600 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Monitor className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">デスクトップ</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToggleViewMode('mobile')}
+                  title="モバイル版（時間割アプリ風）レイアウトに切り替え"
+                  className={`flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold transition ${
+                    viewMode === 'mobile'
+                      ? 'bg-white text-blue-600 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Smartphone className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">モバイル</span>
+                </button>
+              </div>
+
+              {/* 計画表への反映 ON/OFF トグル */}
+              {(isSystemFile || activeTable) && (
+                <div className="flex items-center">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isCurrentItemApplied}
+                    onClick={handleToggleCurrentApplied}
+                    title={`計画表への反映を${isCurrentItemApplied ? 'オフ' : 'オン'}にする`}
+                    className={`relative inline-flex h-5 w-9 sm:h-6 sm:w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 ${
+                      isCurrentItemApplied ? 'bg-emerald-500' : 'bg-slate-300'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                        isCurrentItemApplied ? 'translate-x-4 sm:translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Content Area: システム基本ファイル or 取り込み表詳細 */}
         {isSystemFile ? (
@@ -1489,11 +1634,11 @@ export function ImportedTablesManager({
         ) : (
           <div className="flex-1 min-h-0 flex flex-col gap-2 overflow-hidden">
             {/* ========================================================
-                Excel風 コンパクトツールバー (Plan13: 優先度階層化)
-                - 高優先度（常時表示）: 配置モード、周期の頭（日付・曜日）、開始、1コマ、休憩、行列ステッパー、詳細設定開閉ボタン
-                - 低優先度（折りたたみバー内）: 分類表示、終了、1日回数、週回数、有効期限、昼休、時間微調整、付随タスク
+                Excel風 コンパクトツールバー (デスクトップ版でのみ表示)
+                - モバイル版では右スライドイン設定ドロワーにすべて集約
                 ======================================================== */}
-            <div className="shrink-0 flex flex-col gap-1.5">
+            {viewMode === 'desktop' && (
+              <div className="shrink-0 flex flex-col gap-1.5">
               {/* 高優先度メインバー（常時表示） */}
               <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-none border border-slate-200/90 bg-slate-50/95 px-2.5 py-1.5 text-xs text-slate-700 shadow-2xs">
                 <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -2082,6 +2227,7 @@ export function ImportedTablesManager({
                 </div>
               )}
             </div>
+            )}
 
             {/* ========================================================
                 Big Spreadsheet Screen: Excel風 大画面テーブル
@@ -2331,10 +2477,20 @@ export function ImportedTablesManager({
                                         </span>
                                         {cell.attachedTask?.enabled && (
                                           <span
-                                            className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0"
-                                            title="付随タスクあり"
-                                          />
+                                            className="inline-flex items-center text-[11px] shrink-0"
+                                            title="付随タスク連動あり"
+                                          >
+                                            📌
+                                          </span>
                                         )}
+                                        {cell.breakMinutes && cell.breakMinutes > 0 ? (
+                                          <span
+                                            className="inline-flex items-center text-[10px] shrink-0"
+                                            title={`タスク後休憩: ${cell.breakMinutes}分`}
+                                          >
+                                            ☕
+                                          </span>
+                                        ) : null}
                                       </div>
                                       {cell.roomOrNote && (
                                         <div className="text-[10px] sm:text-[11px] text-sky-700 font-medium whitespace-pre-wrap mt-0.5 line-clamp-2">
@@ -2519,6 +2675,634 @@ export function ImportedTablesManager({
                 className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 shadow-2xs transition"
               >
                 保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          Mobile Settings Drawer: 右から飛び出す専用設定ドロワー
+          ======================================================== */}
+      {isMobileSettingsOpen && activeTable && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          {/* 背景オーバーレイ */}
+          <div
+            onClick={() => setIsMobileSettingsOpen(false)}
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-200 animate-in fade-in"
+          />
+
+          {/* ドロワーパネル */}
+          <div className="relative z-10 flex h-full w-full max-w-[380px] flex-col bg-white shadow-2xl animate-in slide-in-from-right duration-250">
+            {/* ドロワーヘッダー */}
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 bg-slate-50/80">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                  <Settings className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">時間割の詳細設定</h3>
+                  <p className="text-[10px] text-slate-500 truncate max-w-[200px]">{activeTable.name}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileSettingsOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition"
+                title="設定を閉じる"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* ドロワーコンテンツ (スクロール可能) */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 divide-y divide-slate-100">
+              {/* セクション 1: ⏰ 基本時間・1コマ・休憩 */}
+              <div className="space-y-3 pt-1">
+                <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 text-blue-600" />
+                  <span>時間帯とインターバル</span>
+                </h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">開始時刻</label>
+                    <input
+                      type="time"
+                      value={activeTable.axisConfig.startTime ?? ''}
+                      onChange={(e) => {
+                        const val = e.target.value.trim();
+                        handleAxisConfigChange('startTime', val ? val : null);
+                      }}
+                      className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 px-2 font-mono text-sm font-bold text-center text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-100 transition shadow-2xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">終了時刻 (上限)</label>
+                    <input
+                      type="time"
+                      value={activeTable.axisConfig.endTime ?? ''}
+                      onChange={(e) => {
+                        const val = e.target.value.trim();
+                        handleAxisConfigChange('endTime', val ? val : null);
+                      }}
+                      className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 px-2 font-mono text-sm font-bold text-center text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-100 transition shadow-2xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">1コマの長さ</label>
+                    <div className="relative flex items-center">
+                      <input
+                        type="number"
+                        min={1}
+                        max={300}
+                        step={5}
+                        value={activeTable.axisConfig.periodMinutes ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          if (!val || val === '0') {
+                            handleAxisConfigChange('periodMinutes', null);
+                          } else {
+                            const num = parseInt(val, 10);
+                            handleAxisConfigChange('periodMinutes', isNaN(num) || num <= 0 ? null : num);
+                          }
+                        }}
+                        placeholder="自動"
+                        className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 pr-8 font-mono text-sm font-bold text-center text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-100 transition shadow-2xs"
+                      />
+                      <span className="absolute right-3 text-xs font-bold text-slate-400 pointer-events-none">分</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">コマ間休憩</label>
+                    <div className="relative flex items-center">
+                      <input
+                        type="number"
+                        min={0}
+                        max={120}
+                        step={5}
+                        value={activeTable.axisConfig.intervalMinutes ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          if (val === '') {
+                            handleAxisConfigChange('intervalMinutes', null);
+                          } else {
+                            const num = parseInt(val, 10);
+                            handleAxisConfigChange('intervalMinutes', isNaN(num) || num < 0 ? null : num);
+                          }
+                        }}
+                        placeholder="自動"
+                        className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 pr-8 font-mono text-sm font-bold text-center text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-100 transition shadow-2xs"
+                      />
+                      <span className="absolute right-3 text-xs font-bold text-slate-400 pointer-events-none">分</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* セクション 2: 🎯 配置ルール & 周期 */}
+              <div className="space-y-3 pt-3">
+                <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>計画表への配置ルール</span>
+                </h4>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">配置方式</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => updateActiveTable((prev) => ({ ...prev, placementMode: 'fixed' }))}
+                      className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-bold transition shadow-2xs ${
+                        (activeTable.placementMode === 'fixed' || (activeTable.placementMode === undefined && activeTable.axisConfig.startTime))
+                          ? 'border-blue-600 bg-blue-50 text-blue-700 ring-2 ring-blue-500/20'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Shield className="h-4 w-4" />
+                      <span>📌 固定枠</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateActiveTable((prev) => ({ ...prev, placementMode: 'auto' }))}
+                      className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-bold transition shadow-2xs ${
+                        activeTable.placementMode === 'auto'
+                          ? 'border-amber-500 bg-amber-50 text-amber-700 ring-2 ring-amber-500/20'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Sun className="h-4 w-4" />
+                      <span>⚡ 自動配分</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">周期の頭 (Day 1の曜日)</label>
+                  <select
+                    value={activeTable.cycleStartDay ?? 0}
+                    onChange={(e) => handleCycleStartDayChange(Number(e.target.value))}
+                    className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-bold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-100 transition shadow-2xs cursor-pointer"
+                  >
+                    {weekDateOptions.map((opt) => (
+                      <option key={opt.dayIndex} value={opt.dayIndex}>
+                        {opt.label} から開始
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">1日の回数</label>
+                    <div className="relative flex items-center">
+                      <input
+                        type="number"
+                        min={1}
+                        max={24}
+                        value={activeTable.dailyRepeatCount === 'auto' || activeTable.dailyRepeatCount === undefined ? '' : activeTable.dailyRepeatCount}
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          if (!val || val === '0') {
+                            updateActiveTable((prev) => ({ ...prev, dailyRepeatCount: 'auto' }));
+                          } else {
+                            const num = parseInt(val, 10);
+                            updateActiveTable((prev) => ({ ...prev, dailyRepeatCount: isNaN(num) || num <= 0 ? 'auto' : num }));
+                          }
+                        }}
+                        placeholder="自動"
+                        className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 pr-8 font-mono text-sm font-bold text-center text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-100 transition shadow-2xs"
+                      />
+                      <span className="absolute right-3 text-xs font-bold text-slate-400 pointer-events-none">回</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">週の回数</label>
+                    <div className="relative flex items-center">
+                      <input
+                        type="number"
+                        min={1}
+                        max={7}
+                        value={activeTable.weeklyRepeatCount === 'auto' || activeTable.weeklyRepeatCount === undefined ? '' : activeTable.weeklyRepeatCount}
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          if (!val || val === '0') {
+                            updateActiveTable((prev) => ({ ...prev, weeklyRepeatCount: 'auto' }));
+                          } else {
+                            const num = parseInt(val, 10);
+                            updateActiveTable((prev) => ({ ...prev, weeklyRepeatCount: isNaN(num) || num <= 0 ? 'auto' : Math.min(7, num) }));
+                          }
+                        }}
+                        placeholder="自動"
+                        className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 pr-8 font-mono text-sm font-bold text-center text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-100 transition shadow-2xs"
+                      />
+                      <span className="absolute right-3 text-xs font-bold text-slate-400 pointer-events-none">日</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">週タスク有効期限</label>
+                  <select
+                    value={activeTable.weeklyTaskExpiryWeeks === 'none' ? 'none' : activeTable.weeklyTaskExpiryWeeks === 2 ? '2' : '1'}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const expiry = val === 'none' ? 'none' : val === '2' ? 2 : 1;
+                      updateActiveTable((prev) => ({
+                        ...prev,
+                        weeklyTaskExpiryWeeks: expiry,
+                        axisConfig: { ...prev.axisConfig, weeklyTaskExpiryWeeks: expiry },
+                      }));
+                    }}
+                    className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-bold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-100 transition shadow-2xs cursor-pointer"
+                  >
+                    <option value="1">1週間 (当週内・基本)</option>
+                    <option value="2">2週間</option>
+                    <option value="none">期限なし</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* セクション 3: 🍱 昼休み ＆ 付随タスク */}
+              <div className="space-y-3 pt-3">
+                <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Sun className="h-3.5 w-3.5 text-amber-500" />
+                  <span>昼休み・付随タスク</span>
+                </h4>
+
+                {/* 昼休みトグル */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-slate-800">昼休みを挿入</span>
+                      <p className="text-[10px] text-slate-500">指定の時限後に昼休憩を確保</p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={activeTable.axisConfig.hasLunch}
+                      onClick={() => handleAxisConfigChange('hasLunch', !activeTable.axisConfig.hasLunch)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-hidden ${
+                        activeTable.axisConfig.hasLunch ? 'bg-blue-600' : 'bg-slate-300'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs transition duration-200 ${
+                          activeTable.axisConfig.hasLunch ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {activeTable.axisConfig.hasLunch && (
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-1">挿入する位置</label>
+                        <div className="relative flex items-center">
+                          <input
+                            type="number"
+                            min={1}
+                            max={Math.max(1, activeTable.numRows - 1)}
+                            value={activeTable.axisConfig.lunchAfterPeriod}
+                            onChange={(e) => {
+                              const num = parseInt(e.target.value, 10);
+                              if (!isNaN(num) && num >= 1) handleAxisConfigChange('lunchAfterPeriod', num);
+                            }}
+                            className="w-full h-10 rounded-lg border border-slate-200 bg-white pr-9 text-xs font-bold text-center text-slate-800 focus:border-blue-500 focus:outline-hidden shadow-2xs"
+                          />
+                          <span className="absolute right-2.5 text-[10px] font-bold text-slate-400 pointer-events-none">行後</span>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-1">昼休みの長さ</label>
+                        <div className="relative flex items-center">
+                          <input
+                            type="number"
+                            min={10}
+                            max={180}
+                            step={5}
+                            value={activeTable.axisConfig.lunchMinutes}
+                            onChange={(e) => {
+                              const num = parseInt(e.target.value, 10);
+                              if (!isNaN(num) && num >= 1) handleAxisConfigChange('lunchMinutes', num);
+                            }}
+                            className="w-full h-10 rounded-lg border border-slate-200 bg-white pr-7 text-xs font-bold text-center text-slate-800 focus:border-blue-500 focus:outline-hidden shadow-2xs"
+                          />
+                          <span className="absolute right-2.5 text-[10px] font-bold text-slate-400 pointer-events-none">分</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 付随タスク連動トグル */}
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-slate-800">付随タスクの連動生成</span>
+                      <p className="text-[10px] text-slate-500">講義直後に復習等のタスクを配置</p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={activeTable.attachedTaskConfig?.enabled ?? false}
+                      onClick={() => {
+                        const nextEnabled = !(activeTable.attachedTaskConfig?.enabled ?? false);
+                        updateActiveTable((prev) => ({
+                          ...prev,
+                          attachedTaskConfig: {
+                            enabled: nextEnabled,
+                            titleTemplate: prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
+                            durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
+                          },
+                        }));
+                      }}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-hidden ${
+                        activeTable.attachedTaskConfig?.enabled ? 'bg-blue-600' : 'bg-slate-300'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs transition duration-200 ${
+                          activeTable.attachedTaskConfig?.enabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {activeTable.attachedTaskConfig?.enabled && (
+                    <div className="pt-1 border-t border-slate-200/60">
+                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">所要時間</label>
+                      <div className="relative flex items-center">
+                        <input
+                          type="number"
+                          min={1}
+                          max={180}
+                          step={5}
+                          value={activeTable.attachedTaskConfig.durationMinutes || 15}
+                          onChange={(e) => {
+                            const num = parseInt(e.target.value, 10);
+                            if (!isNaN(num) && num >= 1) {
+                              updateActiveTable((prev) => ({
+                                ...prev,
+                                attachedTaskConfig: {
+                                  enabled: true,
+                                  titleTemplate: prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
+                                  durationMinutes: num,
+                                },
+                              }));
+                            }
+                          }}
+                          className="w-full h-10 rounded-lg border border-slate-200 bg-white pr-7 text-xs font-bold text-center text-slate-800 focus:border-blue-500 focus:outline-hidden shadow-2xs"
+                        />
+                        <span className="absolute right-2.5 text-[10px] font-bold text-slate-400 pointer-events-none">分</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* セクション 4: 📐 表のマス目サイズ調整 */}
+              <div className="space-y-3 pt-3">
+                <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-blue-600" />
+                  <span>マス目の数 (行・列)</span>
+                </h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-2 text-center">
+                    <span className="block text-[10px] font-semibold text-slate-500 mb-1.5">行数 (時限)</span>
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => updateActiveTable(removeRowFromTable)}
+                        disabled={activeTable.numRows <= 1}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white font-bold text-slate-700 shadow-2xs hover:bg-slate-100 disabled:opacity-30 active:scale-95 transition"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <span className="font-mono text-sm font-bold text-slate-800 w-8">{activeTable.numRows}行</span>
+                      <button
+                        type="button"
+                        onClick={() => updateActiveTable(addRowToTable)}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white font-bold text-slate-700 shadow-2xs hover:bg-slate-100 active:scale-95 transition"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-2 text-center">
+                    <span className="block text-[10px] font-semibold text-slate-500 mb-1.5">列数 (曜日)</span>
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => updateActiveTable(removeColFromTable)}
+                        disabled={activeTable.numCols <= 1}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white font-bold text-slate-700 shadow-2xs hover:bg-slate-100 disabled:opacity-30 active:scale-95 transition"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <span className="font-mono text-sm font-bold text-slate-800 w-8">{activeTable.numCols}列</span>
+                      <button
+                        type="button"
+                        onClick={() => updateActiveTable(addColToTable)}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white font-bold text-slate-700 shadow-2xs hover:bg-slate-100 active:scale-95 transition"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* セクション 5: 📥 データ操作・アクション */}
+              <div className="space-y-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileSettingsOpen(false);
+                    handleTriggerFileSelect(activeTable.id);
+                  }}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-50 border border-blue-200 text-xs font-bold text-blue-700 shadow-2xs hover:bg-blue-100 active:scale-98 transition"
+                >
+                  <Upload className="h-4 w-4 text-blue-600" />
+                  <span>画像やCSVから読み取り</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCopyCsv}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 active:scale-98 transition"
+                >
+                  <Copy className="h-4 w-4 text-slate-500" />
+                  <span>CSV形式でクリップボードへコピー</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    setIsMobileSettingsOpen(false);
+                    handleDeleteTable(activeTable.id, e);
+                  }}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 text-xs font-bold text-red-600 shadow-2xs hover:bg-red-100 active:scale-98 transition mt-2"
+                >
+                  <Trash2 className="h-4 w-4 text-red-500" />
+                  <span>この時間割データを削除</span>
+                </button>
+              </div>
+            </div>
+
+            {/* ドロワーフッター */}
+            <div className="border-t border-slate-200 p-3 bg-slate-50/80">
+              <button
+                type="button"
+                onClick={() => setIsMobileSettingsOpen(false)}
+                className="w-full h-11 rounded-xl bg-blue-600 text-sm font-bold text-white shadow-sm hover:bg-blue-700 active:scale-98 transition flex items-center justify-center gap-1.5"
+              >
+                <Check className="h-4 w-4" />
+                <span>完了して時間割に戻る</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          Mobile Table Switcher Sheet: 下から出る時間割切り替えシート
+          ======================================================== */}
+      {isMobileSwitcherOpen && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          {/* 背景オーバーレイ */}
+          <div
+            onClick={() => setIsMobileSwitcherOpen(false)}
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity duration-200 animate-in fade-in"
+          />
+
+          {/* ボトムシートコンテナ */}
+          <div className="relative z-10 flex w-full max-h-[80vh] flex-col rounded-t-3xl bg-white shadow-2xl animate-in slide-in-from-bottom duration-250 overflow-hidden">
+            {/* 上部ハンドル ＆ ヘッダー */}
+            <div className="flex flex-col items-center pt-2.5 pb-2 px-4 border-b border-slate-100">
+              <div className="h-1 w-10 rounded-full bg-slate-300 mb-2" />
+              <div className="flex w-full items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-800">時間割・データの切り替え</h3>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileSwitcherOpen(false)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* テーブル一覧リスト */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">
+                時間割データ一覧 ({tables.length}件)
+              </div>
+
+              {tables.map((t, index) => {
+                const isSelected = t.id === selectedItemId;
+                const tColor = getTableColorSchemeByIndex(
+                  t.colorIndex !== undefined ? t.colorIndex : index,
+                );
+
+                return (
+                  <div
+                    key={t.id}
+                    onClick={() => {
+                      handleSelectItem(t.id);
+                      setIsMobileSwitcherOpen(false);
+                    }}
+                    className={`flex items-center justify-between rounded-2xl p-3 cursor-pointer border transition ${
+                      isSelected
+                        ? 'border-blue-500 bg-blue-50/80 shadow-2xs'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className="h-9 w-9 shrink-0 rounded-xl flex items-center justify-center font-bold text-white shadow-2xs"
+                        style={{ backgroundColor: tColor.strip }}
+                      >
+                        <FileSpreadsheet className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-bold text-sm text-slate-800 truncate">{t.name}</div>
+                        <div className="text-[11px] text-slate-400">
+                          {t.numRows}行 × {t.numCols}列
+                          {t.isApplied && <span className="ml-2 font-bold text-emerald-600">● 反映中</span>}
+                        </div>
+                      </div>
+                    </div>
+                    {isSelected && (
+                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-white shrink-0">
+                        <Check className="h-3.5 w-3.5 stroke-[3]" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* 新しい表を追加ボタン */}
+              <button
+                type="button"
+                onClick={() => {
+                  handleAddNewTable();
+                  setIsMobileSwitcherOpen(false);
+                }}
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-blue-300 bg-blue-50/40 text-xs font-bold text-blue-700 hover:bg-blue-100 shadow-2xs active:scale-98 transition mt-3"
+              >
+                <Plus className="h-4 w-4" />
+                <span>新しい表を追加</span>
+              </button>
+
+              {/* システム管理ファイルへのリンク */}
+              <div className="pt-3 border-t border-slate-100 mt-3 space-y-1">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 mb-1">
+                  固定枠・タスク管理
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleSelectItem('sys-slots');
+                    setIsMobileSwitcherOpen(false);
+                  }}
+                  className={`w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+                    selectedItemId === 'sys-slots'
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                      : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+                  }`}
+                >
+                  <Shield className="h-4 w-4 text-blue-600" />
+                  <span>固定枠 (生活リズム・授業)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleSelectItem('sys-weekly');
+                    setIsMobileSwitcherOpen(false);
+                  }}
+                  className={`w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+                    selectedItemId === 'sys-weekly'
+                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                      : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+                  }`}
+                >
+                  <CalendarRange className="h-4 w-4 text-amber-600" />
+                  <span>タスク管理 (週タスク・日課)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* ボトムシートフッター */}
+            <div className="border-t border-slate-200 p-3 bg-slate-50/80">
+              <button
+                type="button"
+                onClick={() => setIsMobileSwitcherOpen(false)}
+                className="w-full h-11 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 active:scale-98 transition"
+              >
+                閉じる
               </button>
             </div>
           </div>
