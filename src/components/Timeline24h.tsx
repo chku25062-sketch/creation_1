@@ -999,12 +999,15 @@ export function Timeline24h({
                         // ★ 文字消え防止: 高さが44px未満、または時間が35分未満の場合は短縮モード（タイトル行の表示を最優先）
                         const isShort = duration < 35 || height < 44;
                         const isAssignment = block.taskType === 'assignment';
-                        // ★ Plan11 & Plan12: 週タスクバッジ表示判定、および全非休憩ブロックの完了トグル可能判定
+                        // ★ Plan16: 計画表の日タスク・固定タスクの未完了状態・ボタンを撤廃
+                        // 完了トグルボタンは、進捗管理・未完了リスケジュールが必要な週タスク（課題・再配置タスクを含む）のみに限定
                         const isWeeklyTask =
                           !block.isFixed &&
                           !block.isBreak &&
-                          (block.isWeeklyTask === true || block.isRescheduled === true);
-                        const isCompletableBlock = !block.isBreak;
+                          (block.isWeeklyTask === true ||
+                            block.isRescheduled === true ||
+                            block.taskType === 'assignment');
+                        const isCompletableBlock = isWeeklyTask;
 
                         // ★ 代行タスク（isSubstitute）の場合は、代行元の早期完了ブロックを確実に特定して「戻す」ボタンを提供
                         const substituteSourceBlock =
