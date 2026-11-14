@@ -259,6 +259,7 @@ export function ImportedTablesManager({
   const [cellAttachedTitle, setCellAttachedTitle] = useState<string>('');
   const [cellAttachedDuration, setCellAttachedDuration] = useState<number>(15);
   const [cellAttachedAllowSplit, setCellAttachedAllowSplit] = useState<boolean>(false);
+  const [cellAttachedSplitCount, setCellAttachedSplitCount] = useState<number>(2);
   const [cellAttachedMinSplit, setCellAttachedMinSplit] = useState<number>(15);
 
   const [applySuccessMsg, setApplySuccessMsg] = useState<string | null>(null);
@@ -682,6 +683,9 @@ export function ImportedTablesManager({
     setCellAttachedAllowSplit(
       cell.attachedTask?.allowSplit ?? activeTable.attachedTaskConfig?.allowSplit ?? false,
     );
+    setCellAttachedSplitCount(
+      cell.attachedTask?.splitCount ?? activeTable.attachedTaskConfig?.splitCount ?? 2,
+    );
     setCellAttachedMinSplit(
       cell.attachedTask?.minSplitMinutes ?? activeTable.attachedTaskConfig?.minSplitMinutes ?? 15,
     );
@@ -713,6 +717,7 @@ export function ImportedTablesManager({
                     title: cellAttachedTitle,
                     durationMinutes: cellAttachedDuration,
                     allowSplit: cellAttachedAllowSplit,
+                    splitCount: cellAttachedSplitCount,
                     minSplitMinutes: cellAttachedMinSplit,
                   }
                 : undefined,
@@ -2284,29 +2289,35 @@ export function ImportedTablesManager({
                             />
                           </button>
                           {activeTable.attachedTaskConfig?.allowSplit && (
-                            <select
-                              value={activeTable.attachedTaskConfig.minSplitMinutes || 15}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value, 10);
-                                updateActiveTable((prev) => ({
-                                  ...prev,
-                                  attachedTaskConfig: {
-                                    ...prev.attachedTaskConfig,
-                                    enabled: true,
-                                    titleTemplate:
-                                      prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
-                                    durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
-                                    minSplitMinutes: val,
-                                  },
-                                }));
-                              }}
-                              title="分割時の最小単位"
-                              className="rounded border border-slate-200/80 bg-white/80 px-1 py-0.5 text-[10px] text-slate-700 focus:outline-hidden"
-                            >
-                              <option value={15}>15分単位</option>
-                              <option value={20}>20分単位</option>
-                              <option value={30}>30分単位</option>
-                            </select>
+                            <div className="flex items-center gap-1">
+                              <select
+                                value={activeTable.attachedTaskConfig.splitCount || 2}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value, 10);
+                                  updateActiveTable((prev) => ({
+                                    ...prev,
+                                    attachedTaskConfig: {
+                                      ...prev.attachedTaskConfig,
+                                      enabled: true,
+                                      titleTemplate:
+                                        prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
+                                      durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
+                                      allowSplit: true,
+                                      splitCount: val,
+                                    },
+                                  }));
+                                }}
+                                title="指定の分割回数"
+                                className="rounded border border-slate-200/80 bg-white/80 px-1 py-0.5 text-[10px] text-slate-700 font-semibold focus:outline-hidden"
+                              >
+                                <option value={2}>2回に分割</option>
+                                <option value={3}>3回に分割</option>
+                                <option value={4}>4回に分割</option>
+                              </select>
+                              <span className="text-[9px] text-indigo-700 bg-indigo-50 px-1 rounded font-mono">
+                                ({Math.floor((activeTable.attachedTaskConfig.durationMinutes || 15) / (activeTable.attachedTaskConfig.splitCount || 2))}分×{activeTable.attachedTaskConfig.splitCount || 2})
+                              </span>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -2913,16 +2924,21 @@ export function ImportedTablesManager({
                         </div>
                         {cellAttachedAllowSplit && (
                           <div className="flex items-center justify-between pt-1">
-                            <span className="text-[11px] text-slate-500">最小分割単位:</span>
-                            <select
-                              value={cellAttachedMinSplit}
-                              onChange={(e) => setCellAttachedMinSplit(parseInt(e.target.value, 10))}
-                              className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 focus:outline-hidden"
-                            >
-                              <option value={15}>15分単位</option>
-                              <option value={20}>20分単位</option>
-                              <option value={30}>30分単位</option>
-                            </select>
+                            <span className="text-[11px] text-slate-500">分割回数:</span>
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                value={cellAttachedSplitCount}
+                                onChange={(e) => setCellAttachedSplitCount(parseInt(e.target.value, 10))}
+                                className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 focus:outline-hidden"
+                              >
+                                <option value={2}>2回に分割 (推奨)</option>
+                                <option value={3}>3回に分割</option>
+                                <option value={4}>4回に分割</option>
+                              </select>
+                              <span className="text-[10px] text-indigo-700 font-mono font-bold bg-indigo-50 px-1.5 py-0.5 rounded">
+                                {Math.floor(cellAttachedDuration / cellAttachedSplitCount)}分×{cellAttachedSplitCount}
+                              </span>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -3072,15 +3088,20 @@ export function ImportedTablesManager({
                           />
                         </button>
                         {cellAttachedAllowSplit && (
-                          <select
-                            value={cellAttachedMinSplit}
-                            onChange={(e) => setCellAttachedMinSplit(parseInt(e.target.value, 10))}
-                            className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] text-slate-700 focus:outline-hidden"
-                          >
-                            <option value={15}>15分単位</option>
-                            <option value={20}>20分単位</option>
-                            <option value={30}>30分単位</option>
-                          </select>
+                          <div className="flex items-center gap-1.5">
+                            <select
+                              value={cellAttachedSplitCount}
+                              onChange={(e) => setCellAttachedSplitCount(parseInt(e.target.value, 10))}
+                              className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] text-slate-700 font-semibold focus:outline-hidden"
+                            >
+                              <option value={2}>2回に分割</option>
+                              <option value={3}>3回に分割</option>
+                              <option value={4}>4回に分割</option>
+                            </select>
+                            <span className="text-[9px] text-indigo-700 font-mono font-bold bg-indigo-50 px-1 py-0.2 rounded">
+                              {Math.floor(cellAttachedDuration / cellAttachedSplitCount)}分×{cellAttachedSplitCount}
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -3606,28 +3627,34 @@ export function ImportedTablesManager({
                         </div>
                         {activeTable.attachedTaskConfig?.allowSplit && (
                           <div className="flex items-center justify-between pt-1">
-                            <span className="text-[11px] text-slate-600">最小分割単位:</span>
-                            <select
-                              value={activeTable.attachedTaskConfig.minSplitMinutes || 15}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value, 10);
-                                updateActiveTable((prev) => ({
-                                  ...prev,
-                                  attachedTaskConfig: {
-                                    ...prev.attachedTaskConfig,
-                                    enabled: true,
-                                    titleTemplate: prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
-                                    durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
-                                    minSplitMinutes: val,
-                                  },
-                                }));
-                              }}
-                              className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 focus:outline-hidden"
-                            >
-                              <option value={15}>15分単位</option>
-                              <option value={20}>20分単位</option>
-                              <option value={30}>30分単位</option>
-                            </select>
+                            <span className="text-[11px] text-slate-600">分割回数:</span>
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                value={activeTable.attachedTaskConfig.splitCount || 2}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value, 10);
+                                  updateActiveTable((prev) => ({
+                                    ...prev,
+                                    attachedTaskConfig: {
+                                      ...prev.attachedTaskConfig,
+                                      enabled: true,
+                                      titleTemplate: prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
+                                      durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
+                                      allowSplit: true,
+                                      splitCount: val,
+                                    },
+                                  }));
+                                }}
+                                className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 focus:outline-hidden"
+                              >
+                                <option value={2}>2回に分割 (推奨)</option>
+                                <option value={3}>3回に分割</option>
+                                <option value={4}>4回に分割</option>
+                              </select>
+                              <span className="text-[10px] text-indigo-700 font-mono font-bold bg-indigo-50 px-1.5 py-0.5 rounded">
+                                {Math.floor((activeTable.attachedTaskConfig.durationMinutes || 15) / (activeTable.attachedTaskConfig.splitCount || 2))}分×{activeTable.attachedTaskConfig.splitCount || 2}
+                              </span>
+                            </div>
                           </div>
                         )}
                       </div>

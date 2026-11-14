@@ -665,13 +665,14 @@ describe('tableUtils', () => {
       expect(attached!.durationSize).toBeUndefined();
     });
 
-    it('Plan16: 表データやセルで設定された付随タスクの分割設定（allowSplit, minSplitMinutes）が正しくタスクに反映されること', () => {
+    it('Plan16: 表データやセルで設定された付随タスクの分割設定（allowSplit, splitCount）が正しくタスクに反映されること', () => {
       const table = createBaseTable('09:00');
       table.attachedTaskConfig = {
         enabled: true,
         titleTemplate: '{title} のタスク',
         durationMinutes: 60,
         allowSplit: true,
+        splitCount: 3,
         minSplitMinutes: 20,
         maxSplits: 3,
       };
@@ -680,8 +681,7 @@ describe('tableUtils', () => {
       const attached = res.tasks.find((t) => t.isAttachedTask);
       expect(attached).toBeDefined();
       expect(attached!.allowSplit).toBe(true);
-      expect(attached!.minSplitMinutes).toBe(20);
-      expect(attached!.maxSplits).toBe(3);
+      expect(attached!.splitCount).toBe(3);
     });
   });
 

@@ -710,6 +710,8 @@ export function generateScheduleItemsForTable(
           cellAttached?.durationMinutes || attachedConfig?.durationMinutes || 15;
         const attachedAllowSplit =
           cellAttached?.allowSplit ?? attachedConfig?.allowSplit ?? false;
+        const attachedSplitCount =
+          cellAttached?.splitCount ?? attachedConfig?.splitCount ?? 2;
         const attachedMinSplit =
           cellAttached?.minSplitMinutes ?? attachedConfig?.minSplitMinutes ?? 15;
         const attachedMaxSplits = attachedConfig?.maxSplits ?? 2;
@@ -734,6 +736,7 @@ export function generateScheduleItemsForTable(
               durationSize: undefined, // 明示的な分数（durationMinutes）を尊重
               durationMinutes: attachedDuration,
               allowSplit: attachedAllowSplit,
+              splitCount: attachedSplitCount,
               minSplitMinutes: attachedMinSplit,
               maxSplits: attachedMaxSplits,
               frequency: 'custom',
@@ -772,6 +775,7 @@ export function generateScheduleItemsForTable(
               durationSize: undefined, // 明示的な分数（durationMinutes）を尊重
               durationMinutes: attachedDuration,
               allowSplit: attachedAllowSplit,
+              splitCount: attachedSplitCount,
               minSplitMinutes: attachedMinSplit,
               maxSplits: attachedMaxSplits,
               frequency: 'custom',
@@ -804,6 +808,7 @@ export function generateScheduleItemsForTable(
           existingAttached.durationMinutes = attachedDuration;
           existingAttached.durationSize = undefined;
           if (attachedAllowSplit) existingAttached.allowSplit = true;
+          if (attachedSplitCount) existingAttached.splitCount = attachedSplitCount;
           if (attachedMinSplit) existingAttached.minSplitMinutes = attachedMinSplit;
           if (attachedMaxSplits) existingAttached.maxSplits = attachedMaxSplits;
           if (classification === 'fixed_slot') {

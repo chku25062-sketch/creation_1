@@ -79,6 +79,7 @@ export interface TaskItem {
   weeklyClassification?: WeeklyTaskClassification; // 週タスク分類
   // Plan16: 付随タスクの分割配置オプション
   allowSplit?: boolean; // 隙間時間に合わせて分割配置を許可するかどうか
+  splitCount?: number; // 分割回数（例: 2回, 3回, 4回。デフォルト: 2）
   minSplitMinutes?: number; // 最小分割単位（分。デフォルト15）
   maxSplits?: number; // 最大分割数（デフォルト2。0なら無制限）
   splitIndex?: number; // 分割タスクの場合のインデックス (0, 1...)
@@ -186,6 +187,7 @@ export interface AttachedTaskConfig {
   titleTemplate: string; // 例: "{title} の記録・プロテイン", "{title} の課題レポート"
   durationMinutes: number; // 例: 15
   allowSplit?: boolean; // ★ Plan16: 隙間時間に合わせて分割配置を許可するか
+  splitCount?: number; // ★ Plan16: 指定の分割回数（例: 2回, 3回, 4回。デフォルト: 2）
   minSplitMinutes?: number; // ★ Plan16: 最小分割単位（分。デフォルト: 15）
   maxSplits?: number; // ★ Plan16: 最大分割数（デフォルト: 2）
 }
@@ -207,6 +209,7 @@ export interface GridCell {
     title: string;
     durationMinutes: number;
     allowSplit?: boolean; // ★ Plan16: 分割配置を許可するか
+    splitCount?: number; // ★ Plan16: 指定の分割回数
     minSplitMinutes?: number; // ★ Plan16: 最小分割単位（分）
   };
 }

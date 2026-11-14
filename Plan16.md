@@ -67,86 +67,93 @@ flowchart TD
 
 ---
 
-## 3. 付随タスクの「分割して配置する機能」設計
+## 3. 付随タスクの「時間を指定の回数で割って配置する」分割配置仕様設計
 
-### 3.1. 機能概要
-講義や予定に連動して発生する付随タスク（復習・準備等）について、設定した所要時間を複数のスライスに分割し、同日または近傍の複数の空き枠へ分散して配置できるようにします。
+### 3.1. 機能概要（時間を指定回数で均等分割して配置）
+講義や予定に連動して発生する付随タスク（復習・準備等）について、設定した総所要時間を **ユーザーが指定した回数（例: 2回、3回など）で均等に割り**、それぞれの分割スライス（例: 30分×2回）を親タスク直後の空きコマへ順番に配置します。
 
-- **例**: 「プログラミング演習」の付随タスク 60分
-  - **分割なし（従来）**: 60分以上の連続した空き枠が必要。見つからない場合は別日へ。
-  - **分割あり（本機能）**: 30分の空き枠 × 2箇所、あるいは45分空き枠＋15分空き枠に自動分割して配置！
-  - 計画表上の表示:
-    - 枠1: `プログラミング演習 (復習 1/2)` [30分]
-    - 枠2: `プログラミング演習 (復習 2/2)` [30分]
+```
+【例1】講義の復習 60分 を「2回に分割」に設定
+  ➔ 60分 ÷ 2回 ＝ 1回あたり 30分
+  ➔ 計画表の空き枠に以下の2ブロックを順番に配置：
+     ・枠1: プログラミング演習 (復習 1/2) [30分]
+     ・枠2: プログラミング演習 (復習 2/2) [30分]
+
+【例2】講義の復習 90分 を「3回に分割」に設定
+  ➔ 90分 ÷ 3回 ＝ 1回あたり 30分
+  ➔ 計画表の空き枠に 30分 × 3回（1/3, 2/3, 3/3）を配置！
+
+【例3】講義の復習 45分 を「3回に分割」に設定
+  ➔ 45分 ÷ 3回 ＝ 1回あたり 15分 × 3回を隙間時間に配置！
+```
 
 ### 3.2. データモデルの拡張 (`src/types/index.ts`)
 
 ```typescript
 export interface AttachedTaskConfig {
   enabled: boolean;
-  nameTemplate: string;     // デフォルト: '{title}' または '{title} のタスク'
+  titleTemplate: string;     // デフォルト: '{title} のタスク'
   durationMinutes: number;   // 総所要時間（例: 60分）
   
-  // ★ Plan16: 分割配置設定
-  allowSplit?: boolean;      // 分割配置を許可するか（デフォルト: false）
-  minSplitMinutes?: number;  // 最小分割単位（例: 15分または30分。デフォルト: 15分）
-  maxSplits?: number;        // 最大分割数（例: 2回または3回。デフォルト: 2）
+  // ★ Plan16: 時間を指定回数で割って配置する設定
+  allowSplit?: boolean;      // 分割配置を有効にするか（デフォルト: false）
+  splitCount?: number;       // 分割回数（例: 2回, 3回, 4回。デフォルト: 2）
 }
 
 export interface AttachedTaskCellConfig {
   enabled: boolean;
-  nameTemplate?: string;
+  title?: string;
   durationMinutes?: number;
   
   // ★ セル個別オーバーライド
   allowSplit?: boolean;
-  minSplitMinutes?: number;
+  splitCount?: number;       // このセル個別の分割回数
 }
 ```
 
-### 3.3. UI設定項目の追加
-1. **データ管理タブ・ツールバー ＆ モバイルドロワー（セクション 6: 付随タスク設定）**:
+### 3.3. UI設定項目の設計
+1. **データ管理タブ・ツールバー ＆ モバイル設定ドロワー（セクション 6: 付随タスク設定）**:
    - `付随タスクの連動生成`: [トグルスイッチ]
-   - `所要時間`: [数値ステッパー（分）]
-   - **`隙間時間に合わせて分割配置`**: [トグルスイッチ]（オンにすると以下が表示）
-     - `最小単位`: [15分 / 20分 / 30分] セレクト
-     - `最大分割数`: [2分割まで / 3分割まで / 制限なし] セレクト
-2. **マス目（セル）の詳細モーダル**:
-   - セル個別に「この講義の復習は分割を許可する/しない」を微調整可能。
+   - `総所要時間`: [数値ステッパー（分）]（例: 60分）
+   - **`時間を分割して配置`**: [トグルスイッチ]（オンにすると以下が表示）
+     - `分割回数`: `[ 2回に分割 (推奨) ▼ ]`, `3回に分割`, `4回に分割`
+     - **計算サマリー表示**: `1回あたり 30分 × 2回`（総時間と分割回数から自動計算して親切に案内）
+2. **マス目（セル）の詳細モーダル / ボトムシート（`MobileCellEditSheet`）**:
+   - セル個別に「この講義の復習は2分割にする / 3分割にする」を微調整可能。
 
-### 3.4. スケジューラ配置アルゴリズム（スプリット・アロケーション）
+### 3.4. スケジューラ配置アルゴリズム（等分割アロケーション）
 
 ```mermaid
 flowchart TD
-    Start["付随タスク配置開始 (親タスク終了時刻以降)"] --> CheckSplit{"allowSplit が有効?"}
+    Start["付随タスク配置開始 (総所要時間: totalDuration)"] --> CheckSplit{"allowSplit が有効?"}
     
-    CheckSplit -- No --> SingleFit{"連続した空き枠がある?"}
-    SingleFit -- Yes --> PlaceSingle["単一ブロックとして配置"]
-    SingleFit -- No --> FallbackNextDay["翌日以降の空き枠へフォールバック"]
+    CheckSplit -- No --> SingleFit["総時間（例: 60分）を単一ブロックとして空き枠に配置"]
 
-    CheckSplit -- Yes --> ScanSlots["当日の空き枠リストを走査"]
-    ScanSlots --> Eval{"空き枠の大きさ >= minSplitMinutes?"}
-    Eval -- Yes --> AllocateSlice["空き枠サイズに合わせてスライスを配置<br>(例: 30分枠に30分を充填)"]
-    AllocateSlice --> Remainder{"残り時間 > 0?"}
-    Remainder -- Yes --> HasMoreSlots{"次の空き枠はある?"}
-    HasMoreSlots -- Yes --> AllocateSlice
-    HasMoreSlots -- No --> FallbackRemainder["残りを翌日以降の空き枠へ配置"]
-    Remainder -- No --> Finish["分割配置完了！<br>(title (1/2), title (2/2))"]
+    CheckSplit -- Yes --> CalcUnit["1回あたりの時間を算出\nunitDuration = totalDuration / splitCount\n(例: 60分 / 2回 = 30分)"]
+    CalcUnit --> LoopSplits["各分割スライス (1..splitCount) の配置ループ"]
+    LoopSplits --> FindSlot{"当日の空き枠 >= unitDuration を探索\n(親講義終了時刻以降)"}
+    FindSlot -- 見つかった --> PlaceSlice["空き枠に unitDuration を配置！\n(タイトル: {title} (1/2), {title} (2/2)...)"]
+    PlaceSlice --> HasNext{"次のスライスはある?"}
+    HasNext -- Yes --> FindSlot
+    HasNext -- No --> Complete["同日での分割配置完了！"]
+
+    FindSlot -- 同日に入り切らない --> FallbackDay["翌日以降の空き枠へフォールバック配置"]
 ```
 
-#### 分割配置の手順:
-1. **親タスク（講義等）の直後から当日末尾までの空き枠を走査**。
-2. 総所要時間を `remaining = durationMinutes` として管理。
-3. `minSplitMinutes`（例: 15分または30分）以上の空き枠を見つけた場合：
-   - 当該空き枠に収まる最大長 `alloc = Math.min(remaining, slotDuration)` を算出。
-   - `alloc` が `minSplitMinutes` 以上であれば、分割タスクブロックを生成。
-   - ブロックタイトル:
-     - 1回で収まった場合: `{title} のタスク`
-     - 分割された場合: `{title} のタスク (1/2)`, `{title} のタスク (2/2)`
-   - `remaining -= alloc` を行い、残り時間があれば次の空き枠へ。
-4. 当日中に収まり切らなかった残余（`remaining > 0`）は、翌日以降のフォールバック配置フェーズ（`AttachedFallbackPhase`）で同様に空き枠へ配置。
+#### スライス時間の計算ルール（端数処理）:
+- 総所要時間 `T`、分割回数 `N` の場合：
+  - 基本スライス時間: `base = Math.floor(T / N)`
+  - 余り: `remainder = T % N`
+  - 各スライスの時間:
+    - 最初の `remainder` 個のスライス: `base + 1` 分
+    - 残りのスライス: `base` 分
+    - （例: 50分を3分割 ➔ 17分, 17分, 16分。合計ちょうど50分）
+  - これにより、どのような総時間・分割回数であっても合計時間が1分も狂わず完全に一致します。
 
----
+#### 配置の手順:
+1. 親タスク（講義等）の直後から当日末尾までの空き枠を走査。
+2. スライス（例: 30分）が収まる空き枠を見つけたら配置し、スロットを消費。
+3. 同日内に収まり切らなかった残りのスライスは、翌日以降のフォールバック候補日（`candidateDays`）の空き枠へ配置。
 
 ## 4. 実装フェーズとステップ（全実装完了）
 
@@ -157,14 +164,14 @@ flowchart TD
 - [x] 既存のテスト（`scheduler.test.ts`、`Timeline24h` 等）の整合性を検証・パス確認。
 
 ### フェーズ 2: 付随タスクの分割配置（完了）
-- [x] `src/types/index.ts`: `AttachedTaskConfig`, `GridCell.attachedTask`, `TaskItem`, `TheoreticalBlock` に `allowSplit`, `minSplitMinutes`, `maxSplits`, `isSplitBlock`, `splitIndex`, `totalSplits` を追加。
+- [x] `src/types/index.ts`: `AttachedTaskConfig`, `GridCell.attachedTask`, `TaskItem`, `TheoreticalBlock` に `allowSplit`, `splitCount`, `minSplitMinutes`, `maxSplits`, `isSplitBlock`, `splitIndex`, `totalSplits` を追加。
 - [x] `src/components/ImportedTablesManager.tsx`:
-  - デスクトップ版ツールバー、モバイル設定ドロワー、コマ編集ボトムシート（`MobileCellEditSheet`）、およびセル編集ダイアログに「隙間時間に合わせて分割配置」トグルと「最小分割単位」選択項目を追加。
+  - ツールバー、モバイル設定ドロワー、コマ編集ボトムシート（`MobileCellEditSheet`）、セル編集ダイアログに「時間を分割して配置」トグルおよび「分割回数（2回/3回/4回）」選択項目を追加。リアルタイムの「1回あたり N分 × M回」サマリー計算表示を実装完了。
 - [x] `src/lib/tableUtils.ts`:
-  - 表全体の付随タスク設定およびセル個別の付随タスク設定から、`allowSplit`, `minSplitMinutes`, `maxSplits` を生成される `TaskItem` に正しく伝播。
+  - 表全体の付随タスク設定およびセル個別の付随タスク設定から、`allowSplit`, `splitCount` を生成される `TaskItem` に正しく伝播。
 - [x] `src/lib/scheduler/phases/splitPlacementHelper.ts` ＆ `weeklyPlacementPhase.ts` ＆ `attachedFallbackPhase.ts`:
-  - 連続した空き枠がない場合でも、親タスク直後の当日の空き枠やフォールバック先の空き枠へ、最小分割単位に合わせて自動分割（`(1/2)`, `(2/2)`...）して充填するスプリット・アロケーションエンジンを実装。
-- [x] 単体テスト・結合テストの作成と動作確認（`scheduler.test.ts` ＆ `tableUtils.test.ts` で176件すべてパス）。
+  - 設定された総所要時間を「指定の回数（splitCount）」で均等に割り（例: 60分を2分割なら30分×2回、90分を3分割なら30分×3回）、親タスク直後の空きコマへスライスタスクとして順番に配置する均等分割アロケーションエンジンを実装。
+- [x] 単体テスト・結合テストの作成と動作確認（`scheduler.test.ts` ＆ `tableUtils.test.ts` で177件すべてパス）。
 
 ---
 

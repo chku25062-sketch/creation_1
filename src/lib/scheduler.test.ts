@@ -4320,7 +4320,7 @@ describe('Theoretical Scheduler Engine', () => {
               },
             ];
 
-            // 所要時間60分の付随タスク（allowSplit: true, minSplitMinutes: 30, maxSplits: 2）
+            // 所要時間60分の付随タスク（allowSplit: true, splitCount: 2 ➔ 60分を2回で割って30分×2回）
             const attachedTask: TaskItem = {
               id: 'task-attached-prog',
               title: 'プログラミング演習の復習',
@@ -4335,8 +4335,7 @@ describe('Theoretical Scheduler Engine', () => {
               targetDays: [0],
               startDay: 0,
               allowSplit: true,
-              minSplitMinutes: 30,
-              maxSplits: 2,
+              splitCount: 2,
             };
 
             const result = generateTheoreticalSchedule(fixedSlots, [attachedTask], {
@@ -4366,6 +4365,87 @@ describe('Theoretical Scheduler Engine', () => {
             expect(part2?.title).toBe('プログラミング演習の復習 (2/2)');
             expect(part2?.isSplitBlock).toBe(true);
             expect(part2?.totalSplits).toBe(2);
+          });
+
+          it('90分の付随タスクを指定の3分割に設定した場合、30分×3回として均等配置されること', () => {
+            // 月曜に30分の空き枠が3つある環境（800〜830, 860〜890, 920〜950）
+            const fixedSlots: FixedSlot[] = [
+              {
+                id: 'slot-mon-lecture',
+                title: '物理実験',
+                category: 'lecture',
+                startMinutes: 700,
+                endMinutes: 800,
+                daysOfWeek: [0],
+                color: '#3b82f6',
+              },
+              {
+                id: 'slot-block-1',
+                title: '用事1',
+                category: 'routine',
+                startMinutes: 830,
+                endMinutes: 860,
+                daysOfWeek: [0],
+                color: '#10b981',
+              },
+              {
+                id: 'slot-block-2',
+                title: '用事2',
+                category: 'routine',
+                startMinutes: 890,
+                endMinutes: 920,
+                daysOfWeek: [0],
+                color: '#10b981',
+              },
+              {
+                id: 'slot-block-3',
+                title: '夜の固定予定',
+                category: 'routine',
+                startMinutes: 950,
+                endMinutes: 1440,
+                daysOfWeek: [0],
+                color: '#6366f1',
+              },
+            ];
+
+            // 90分の付随タスク（splitCount: 3 ➔ 90 / 3 = 30分×3回）
+            const attachedTask: TaskItem = {
+              id: 'task-attached-physics',
+              title: '物理レポート',
+              category: 'study',
+              durationMinutes: 90,
+              period: 'week',
+              taskType: 'task',
+              priority: 'high',
+              isAttachedTask: true,
+              parentTitle: '物理実験',
+              parentEndMinutesByDay: { 0: 800 },
+              targetDays: [0],
+              startDay: 0,
+              allowSplit: true,
+              splitCount: 3,
+            };
+
+            const result = generateTheoreticalSchedule(fixedSlots, [attachedTask], {
+              todayIndex: 0,
+              currentMinutes: 540,
+            });
+
+            const monBlocks = result.dayBlocks[0];
+            const splitBlocks = monBlocks.filter((b) => b.taskId === 'task-attached-physics');
+            expect(splitBlocks.length).toBe(3);
+
+            expect(splitBlocks[0].title).toBe('物理レポート (1/3)');
+            expect(splitBlocks[0].startMinutes).toBe(800);
+            expect(splitBlocks[0].endMinutes).toBe(830); // 30分
+
+            expect(splitBlocks[1].title).toBe('物理レポート (2/3)');
+            expect(splitBlocks[1].startMinutes).toBe(860);
+            expect(splitBlocks[1].endMinutes).toBe(890); // 30分
+
+            expect(splitBlocks[2].title).toBe('物理レポート (3/3)');
+            expect(splitBlocks[2].startMinutes).toBe(920);
+            expect(splitBlocks[2].endMinutes).toBe(950); // 30分
           });
 
           it('十分な連続空き枠がある場合は、allowSplitが有効でも分割されず単一ブロックとして配置されること', () => {
