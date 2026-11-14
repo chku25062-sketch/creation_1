@@ -1481,7 +1481,7 @@ export function ImportedTablesManager({
                   title="周期のはじまり（Day 1）となる日付（曜日）を指定"
                 >
                   <Calendar className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                  <span className="text-[10px] text-emerald-700 shrink-0 hidden xs:inline">開始:</span>
+                  <span className="text-[10px] text-emerald-700 shrink-0">周期:</span>
                   <select
                     value={activeTable.cycleStartDay ?? 0}
                     onChange={(e) => handleCycleStartDayChange(Number(e.target.value))}
@@ -1489,7 +1489,7 @@ export function ImportedTablesManager({
                   >
                     {weekDateOptions.map((opt) => (
                       <option key={opt.dayIndex} value={opt.dayIndex}>
-                        {opt.label}
+                        {opt.label}〜
                       </option>
                     ))}
                   </select>
@@ -1762,7 +1762,7 @@ export function ImportedTablesManager({
                     >
                       {weekDateOptions.map((opt) => (
                         <option key={opt.dayIndex} value={opt.dayIndex}>
-                          {opt.label}
+                          {opt.label}〜
                         </option>
                       ))}
                     </select>
@@ -2379,7 +2379,7 @@ export function ImportedTablesManager({
                             >
                               {weekDateOptions.map((opt) => (
                                 <option key={opt.dayIndex} value={opt.dayIndex}>
-                                  {opt.label}
+                                  {opt.label}〜
                                 </option>
                               ))}
                             </select>
@@ -3386,7 +3386,7 @@ export function ImportedTablesManager({
                   >
                     {weekDateOptions.map((opt) => (
                       <option key={opt.dayIndex} value={opt.dayIndex}>
-                        {opt.label} から開始
+                        {opt.label}〜 から開始
                       </option>
                     ))}
                   </select>
