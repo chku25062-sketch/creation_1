@@ -722,8 +722,8 @@ export function ImportedTablesManager({
   };
 
   // セルのクリア
-  const handleClearCell = (r: number, c: number, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleClearCell = (r: number, c: number, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     updateActiveTable((prev) => {
       const nextCells = prev.cells.map((row, rIdx) =>
         row.map((cell, cIdx) => {
@@ -1613,6 +1613,7 @@ export function ImportedTablesManager({
                     : 'weekly'
               }
               embedded
+              isMobile={(viewMode as string) === 'mobile'}
             />
           </div>
         ) : !activeTable ? (
@@ -2547,8 +2548,10 @@ export function ImportedTablesManager({
                                     <div>
                                       <div className="flex items-start justify-between gap-0.5">
                                         <span className={`font-bold text-sky-950 leading-tight break-words ${
-                                          viewMode === 'mobile'
-                                            ? 'text-[11px] line-clamp-2'
+                                          (viewMode as string) === 'mobile'
+                                            ? (cell.title?.length || 0) > 7
+                                              ? 'text-[10px] line-clamp-2'
+                                              : 'text-[11px] line-clamp-2'
                                             : 'text-xs sm:text-[13px] leading-snug'
                                         }`}>
                                           {cell.title}
@@ -2574,7 +2577,7 @@ export function ImportedTablesManager({
                                       </div>
                                       {cell.roomOrNote && (
                                         <p className={`mt-0.5 text-slate-500 line-clamp-1 ${
-                                          viewMode === 'mobile' ? 'text-[9px]' : 'text-[10px] sm:text-[11px]'
+                                          (viewMode as string) === 'mobile' ? 'text-[9px]' : 'text-[10px] sm:text-[11px]'
                                         }`}>
                                           {cell.roomOrNote}
                                         </p>
@@ -2582,7 +2585,7 @@ export function ImportedTablesManager({
                                     </div>
                                     <div className="flex items-center justify-between text-slate-400 mt-0.5">
                                       <span className={`font-mono ${
-                                        viewMode === 'mobile' ? 'text-[8px]' : 'text-[9px] sm:text-[10px]'
+                                        (viewMode as string) === 'mobile' ? 'text-[8px]' : 'text-[9px] sm:text-[10px]'
                                       }`}>
                                         {pt ? `${pt.startTime || ''}` : ''}
                                       </span>
@@ -2600,8 +2603,8 @@ export function ImportedTablesManager({
                                     </div>
                                   </div>
                                 ) : (
-                                  <div className="flex h-full items-center justify-center text-slate-300 opacity-0 hover:opacity-100 transition">
-                                    <Plus className="h-4 w-4" />
+                                  <div className="flex h-full items-center justify-center text-slate-400">
+                                    <Plus className={`h-3.5 w-3.5 ${(viewMode as string) === 'mobile' ? 'opacity-30' : 'opacity-0 group-hover:opacity-100'} transition`} />
                                   </div>
                                 )}
                               </td>
@@ -2654,124 +2657,306 @@ export function ImportedTablesManager({
         )}
       </main>
 
-      {/* Cell Edit Modal */}
+      {/* Cell Edit Modal / Sheet */}
       {editingCell && activeTable && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-2xs p-4">
-          <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-4 shadow-xl animate-in zoom-in-95 duration-150">
-            <div className="mb-2.5 flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-800">
-                コマ内容を編集 ({editingCell.r + 1}行目・{activeTable.colHeaders[editingCell.c]})
-              </span>
-              <button
-                type="button"
-                onClick={() => setEditingCell(null)}
-                className="text-slate-400 hover:text-slate-600 transition"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* コマ内容入力 */}
-            <textarea
-              rows={3}
-              value={cellEditText}
-              onChange={(e) => setCellEditText(e.target.value)}
-              placeholder="1行目: コマ名称（講義名・メニュー・日課名など）&#13;&#10;2行目以降: 場所・メモ・詳細"
-              className="w-full rounded-lg border border-slate-300 p-2 text-xs focus:border-blue-500 focus:outline-hidden"
-              autoFocus
+        (viewMode as string) === 'mobile' ? (
+          /* ========================================================
+             Mobile Cell Edit Sheet: 下からせり上がる専用ボトムシート
+             ======================================================== */
+          <div className="fixed inset-0 z-50 flex items-end">
+            {/* 背景オーバーレイ */}
+            <div
+              onClick={() => setEditingCell(null)}
+              className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity duration-200 animate-in fade-in"
             />
-
-            {/* タスク後の休憩時間 */}
-            <div className="mt-3 flex items-center justify-between rounded-lg border border-slate-200 bg-emerald-50/50 p-2.5">
-              <div className="flex items-center gap-1.5">
-                <span className="text-base">☕</span>
-                <div>
-                  <div className="text-xs font-bold text-slate-800">タスク後の休憩時間</div>
-                  <div className="text-[10px] text-slate-500">直後に確保する休憩</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  min={0}
-                  max={120}
-                  step={5}
-                  value={cellBreakMinutes}
-                  onChange={(e) =>
-                    setCellBreakMinutes(Math.max(0, parseInt(e.target.value, 10) || 0))
-                  }
-                  className="w-16 rounded border border-slate-300 bg-white px-2 py-1 font-mono text-xs text-center text-slate-800 focus:border-emerald-500 focus:outline-hidden"
-                />
-                <span className="text-xs text-slate-500 font-medium">分</span>
-              </div>
-            </div>
-
-            {/* 付随タスク（連動タスク）設定 */}
-            <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={cellAttachedEnabled}
-                  onChange={(e) => setCellAttachedEnabled(e.target.checked)}
-                  className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-xs font-semibold text-slate-800">
-                  このコマに付随タスクを連動生成する
-                </span>
-              </label>
-              {cellAttachedEnabled && (
-                <div className="mt-2 flex flex-col gap-2 pl-5.5">
-                  <div>
-                    <label className="block text-[10px] text-slate-500 mb-0.5">
-                      付随タスク名 ({'{title}'} でコマ名に置換)
-                    </label>
-                    <input
-                      type="text"
-                      value={cellAttachedTitle}
-                      onChange={(e) => setCellAttachedTitle(e.target.value)}
-                      placeholder="{title} のタスク"
-                      className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs focus:border-blue-500 focus:outline-hidden"
-                    />
-                  </div>
+            {/* ボトムシートコンテナ */}
+            <div className="relative z-10 flex w-full max-h-[88vh] flex-col rounded-t-3xl bg-white shadow-2xl animate-in slide-in-from-bottom duration-250 overflow-hidden">
+              {/* 上部ハンドル ＆ ヘッダー */}
+              <div className="flex flex-col items-center pt-2.5 pb-2.5 px-4 border-b border-slate-100 shrink-0">
+                <div className="h-1 w-10 rounded-full bg-slate-300 mb-2" />
+                <div className="flex w-full items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <label className="text-[10px] text-slate-500 shrink-0">所要時間:</label>
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="number"
-                        min={1}
-                        max={180}
-                        step={5}
-                        value={cellAttachedDuration}
-                        onChange={(e) =>
-                          setCellAttachedDuration(Math.max(1, parseInt(e.target.value, 10) || 15))
-                        }
-                        className="w-16 rounded border border-slate-300 bg-white px-2 py-1 font-mono text-xs text-center text-slate-800 focus:border-blue-500 focus:outline-hidden"
-                      />
-                      <span className="text-xs text-slate-500 font-medium">分</span>
+                    <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-blue-100 text-blue-700 font-bold text-xs shadow-2xs">
+                      {editingCell.r + 1}
+                    </span>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">コマ内容の編集</h3>
+                      <p className="text-[11px] text-slate-500">
+                        {activeTable.colHeaders[editingCell.c]} / {editingCell.r + 1}限目
+                      </p>
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditingCell(null)}
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 active:scale-95 transition"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
-              )}
-            </div>
+              </div>
 
-            <div className="mt-3.5 flex justify-end gap-2 border-t border-slate-100 pt-2.5">
-              <button
-                type="button"
-                onClick={() => setEditingCell(null)}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition"
-              >
-                キャンセル
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveEditCell}
-                className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 shadow-2xs transition"
-              >
-                保存
-              </button>
+              {/* フォーム入力エリア（スクロール可能） */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
+                {/* コマ内容入力 */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    講義名・日課名（1行目）
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={cellEditText}
+                    onChange={(e) => setCellEditText(e.target.value)}
+                    placeholder="講義名・科目名・日課名（改行で場所・メモ）"
+                    className="w-full rounded-xl border border-slate-300 p-3 text-sm font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-100 focus:outline-hidden"
+                    autoFocus
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    改行すると2行目以降が場所・メモとして小さく表示されます
+                  </span>
+                </div>
+
+                {/* タスク後の休憩時間 */}
+                <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-emerald-50/60 p-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">☕</span>
+                    <div>
+                      <div className="text-xs font-bold text-slate-800">タスク後の休憩時間</div>
+                      <div className="text-[10px] text-slate-500">コマ直後に確保する休憩</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setCellBreakMinutes(Math.max(0, cellBreakMinutes - 5))}
+                      className="h-8 w-8 rounded-lg bg-white border border-slate-300 flex items-center justify-center font-bold text-slate-700 active:scale-95 shadow-2xs"
+                    >
+                      -
+                    </button>
+                    <span className="w-12 text-center font-mono font-bold text-sm text-slate-800">
+                      {cellBreakMinutes}分
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setCellBreakMinutes(Math.min(120, cellBreakMinutes + 5))}
+                      className="h-8 w-8 rounded-lg bg-white border border-slate-300 flex items-center justify-center font-bold text-slate-700 active:scale-95 shadow-2xs"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                {/* 付随タスク（連動タスク）設定 */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 space-y-3">
+                  <label className="flex items-center justify-between cursor-pointer select-none">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">📌</span>
+                      <div>
+                        <div className="text-xs font-bold text-slate-800">付随タスク（復習等）</div>
+                        <div className="text-[10px] text-slate-500">このコマに連動してタスクを生成</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={cellAttachedEnabled}
+                      onClick={() => setCellAttachedEnabled(!cellAttachedEnabled)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                        cellAttachedEnabled ? 'bg-blue-600' : 'bg-slate-300'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                          cellAttachedEnabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </label>
+
+                  {cellAttachedEnabled && (
+                    <div className="pt-2 border-t border-slate-200/80 space-y-2.5">
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                          付随タスク名
+                        </label>
+                        <input
+                          type="text"
+                          value={cellAttachedTitle}
+                          onChange={(e) => setCellAttachedTitle(e.target.value)}
+                          placeholder="{title} のタスク"
+                          className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 text-xs focus:border-blue-500 focus:outline-hidden"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-medium text-slate-600">所要時間:</label>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setCellAttachedDuration(Math.max(5, cellAttachedDuration - 5))}
+                            className="h-8 w-8 rounded-lg bg-white border border-slate-300 flex items-center justify-center font-bold text-slate-700 active:scale-95 shadow-2xs"
+                          >
+                            -
+                          </button>
+                          <span className="w-12 text-center font-mono font-bold text-sm text-slate-800">
+                            {cellAttachedDuration}分
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setCellAttachedDuration(Math.min(180, cellAttachedDuration + 5))}
+                            className="h-8 w-8 rounded-lg bg-white border border-slate-300 flex items-center justify-center font-bold text-slate-700 active:scale-95 shadow-2xs"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ボトムアクションバー（親指で届く大ボタン） */}
+              <div className="shrink-0 border-t border-slate-200 p-3 bg-slate-50/90 flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleClearCell(editingCell.r, editingCell.c);
+                    setEditingCell(null);
+                  }}
+                  className="flex-1 h-12 rounded-xl border border-red-200 bg-red-50 text-red-600 text-xs font-bold hover:bg-red-100 active:scale-98 transition flex items-center justify-center gap-1.5 shadow-2xs"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>空にする</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEditCell}
+                  className="flex-1 h-12 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 active:scale-98 transition flex items-center justify-center gap-1.5 shadow-md"
+                >
+                  <Check className="h-4 w-4 stroke-[3]" />
+                  <span>保存する</span>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          /* デスクトップ版ダイアログ (既存のPC向け中央配置モーダル) */
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-2xs p-4">
+            <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-4 shadow-xl animate-in zoom-in-95 duration-150">
+              <div className="mb-2.5 flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800">
+                  コマ内容を編集 ({editingCell.r + 1}行目・{activeTable.colHeaders[editingCell.c]})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setEditingCell(null)}
+                  className="text-slate-400 hover:text-slate-600 transition"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* コマ内容入力 */}
+              <textarea
+                rows={3}
+                value={cellEditText}
+                onChange={(e) => setCellEditText(e.target.value)}
+                placeholder="1行目: コマ名称（講義名・メニュー・日課名など）&#13;&#10;2行目以降: 場所・メモ・詳細"
+                className="w-full rounded-lg border border-slate-300 p-2 text-xs focus:border-blue-500 focus:outline-hidden"
+                autoFocus
+              />
+
+              {/* タスク後の休憩時間 */}
+              <div className="mt-3 flex items-center justify-between rounded-lg border border-slate-200 bg-emerald-50/50 p-2.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-base">☕</span>
+                  <div>
+                    <div className="text-xs font-bold text-slate-800">タスク後の休憩時間</div>
+                    <div className="text-[10px] text-slate-500">直後に確保する休憩</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min={0}
+                    max={120}
+                    step={5}
+                    value={cellBreakMinutes}
+                    onChange={(e) =>
+                      setCellBreakMinutes(Math.max(0, parseInt(e.target.value, 10) || 0))
+                    }
+                    className="w-16 rounded border border-slate-300 bg-white px-2 py-1 font-mono text-xs text-center text-slate-800 focus:border-emerald-500 focus:outline-hidden"
+                  />
+                  <span className="text-xs text-slate-500 font-medium">分</span>
+                </div>
+              </div>
+
+              {/* 付随タスク（連動タスク）設定 */}
+              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={cellAttachedEnabled}
+                    onChange={(e) => setCellAttachedEnabled(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-xs font-semibold text-slate-800">
+                    このコマに付随タスクを連動生成する
+                  </span>
+                </label>
+                {cellAttachedEnabled && (
+                  <div className="mt-2 flex flex-col gap-2 pl-5.5">
+                    <div>
+                      <label className="block text-[10px] text-slate-500 mb-0.5">
+                        付随タスク名 ({'{title}'} でコマ名に置換)
+                      </label>
+                      <input
+                        type="text"
+                        value={cellAttachedTitle}
+                        onChange={(e) => setCellAttachedTitle(e.target.value)}
+                        placeholder="{title} のタスク"
+                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs focus:border-blue-500 focus:outline-hidden"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-[10px] text-slate-500 shrink-0">所要時間:</label>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min={1}
+                          max={180}
+                          step={5}
+                          value={cellAttachedDuration}
+                          onChange={(e) =>
+                            setCellAttachedDuration(Math.max(1, parseInt(e.target.value, 10) || 15))
+                          }
+                          className="w-16 rounded border border-slate-300 bg-white px-2 py-1 font-mono text-xs text-center text-slate-800 focus:border-blue-500 focus:outline-hidden"
+                        />
+                        <span className="text-xs text-slate-500 font-medium">分</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-3.5 flex justify-end gap-2 border-t border-slate-100 pt-2.5">
+                <button
+                  type="button"
+                  onClick={() => setEditingCell(null)}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition"
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEditCell}
+                  className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 shadow-2xs transition"
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+          </div>
+        )
       )}
 
       {/* ========================================================

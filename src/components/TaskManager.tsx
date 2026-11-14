@@ -44,6 +44,7 @@ export interface TaskManagerProps {
   onNavigateToTimeline?: () => void;
   viewMode?: 'all' | 'daily' | 'weekly' | 'slots';
   embedded?: boolean;
+  isMobile?: boolean;
 }
 
 const DAY_LABELS = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'];
@@ -85,6 +86,7 @@ export function TaskManager({
   onNavigateToTimeline,
   viewMode = 'all',
   embedded = false,
+  isMobile = false,
 }: TaskManagerProps) {
   // モーダル管理
   type ModalType = 'task' | 'slot' | null;
@@ -787,11 +789,13 @@ export function TaskManager({
         <div className="flex flex-col gap-2 shrink-0 rounded-none border border-slate-200 bg-white p-2.5 shadow-2xs">
           <div className="flex flex-wrap items-center justify-between gap-2">
             {/* 一括ON/OFF & 絞り込みトグルボタン */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 type="button"
                 onClick={() => handleBulkToggleSlots(filteredAndSortedSlots, true)}
-                className="rounded-none border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 shadow-2xs transition hover:bg-emerald-100 active:scale-95"
+                className={`border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700 shadow-2xs transition hover:bg-emerald-100 active:scale-95 ${
+                  isMobile ? 'rounded-xl py-2 min-h-[38px] flex items-center' : 'rounded-none py-1'
+                }`}
                 title="表示中の固定枠をすべてONにする"
               >
                 すべてON
@@ -799,7 +803,9 @@ export function TaskManager({
               <button
                 type="button"
                 onClick={() => handleBulkToggleSlots(filteredAndSortedSlots, false)}
-                className="rounded-none border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600 shadow-2xs transition hover:bg-slate-200 active:scale-95"
+                className={`border border-slate-200 bg-slate-100 px-3 text-xs font-bold text-slate-600 shadow-2xs transition hover:bg-slate-200 active:scale-95 ${
+                  isMobile ? 'rounded-xl py-2 min-h-[38px] flex items-center' : 'rounded-none py-1'
+                }`}
                 title="表示中の固定枠をすべてOFFにする"
               >
                 すべてOFF
@@ -809,9 +815,11 @@ export function TaskManager({
               <button
                 type="button"
                 onClick={() => setIsSlotFilterOpen(!isSlotFilterOpen)}
-                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1 text-xs font-semibold transition shadow-2xs active:scale-95 ${
+                className={`flex items-center gap-1.5 border px-3 text-xs font-semibold transition shadow-2xs active:scale-95 ${
+                  isMobile ? 'rounded-xl py-2 min-h-[38px]' : 'rounded-none py-1'
+                } ${
                   isSlotFilterOpen
-                    ? 'border-sky-300 bg-sky-50 text-sky-700'
+                    ? 'border-sky-300 bg-sky-50 text-sky-700 font-bold'
                     : isSlotFilterActive
                       ? 'border-sky-300 bg-sky-50/70 text-sky-700 font-bold'
                       : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900'
@@ -820,7 +828,7 @@ export function TaskManager({
                 aria-expanded={isSlotFilterOpen}
               >
                 <Filter className="h-3.5 w-3.5" />
-                <span className="hidden xs:inline">絞り込み</span>
+                <span>絞り込み</span>
                 {isSlotFilterActive && <span className="h-1.5 w-1.5 rounded-full bg-sky-500" />}
                 {isSlotFilterOpen ? (
                   <ChevronUp className="h-3 w-3 text-slate-400" />
@@ -1024,11 +1032,13 @@ export function TaskManager({
 
           <div className="flex flex-wrap items-center justify-between gap-2">
             {/* 一括ON/OFF & 絞り込み */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 type="button"
                 onClick={() => handleBulkToggleTasks(filteredAndSortedDailyTasks, true)}
-                className="rounded-lg sm:rounded-none border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 sm:py-1 text-xs font-bold text-emerald-700 shadow-2xs transition hover:bg-emerald-100 active:scale-95"
+                className={`border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700 shadow-2xs transition hover:bg-emerald-100 active:scale-95 ${
+                  isMobile ? 'rounded-xl py-2 min-h-[38px] flex items-center' : 'rounded-none py-1'
+                }`}
                 title="表示中のタスクをすべてONにする"
               >
                 すべてON
@@ -1036,7 +1046,9 @@ export function TaskManager({
               <button
                 type="button"
                 onClick={() => handleBulkToggleTasks(filteredAndSortedDailyTasks, false)}
-                className="rounded-lg sm:rounded-none border border-slate-200 bg-slate-100 px-2.5 py-1.5 sm:py-1 text-xs font-bold text-slate-600 shadow-2xs transition hover:bg-slate-200 active:scale-95"
+                className={`border border-slate-200 bg-slate-100 px-3 text-xs font-bold text-slate-600 shadow-2xs transition hover:bg-slate-200 active:scale-95 ${
+                  isMobile ? 'rounded-xl py-2 min-h-[38px] flex items-center' : 'rounded-none py-1'
+                }`}
                 title="表示中のタスクをすべてOFFにする"
               >
                 すべてOFF
@@ -1046,9 +1058,11 @@ export function TaskManager({
               <button
                 type="button"
                 onClick={() => setIsDailyFilterOpen(!isDailyFilterOpen)}
-                className={`flex items-center gap-1.5 rounded-lg sm:rounded-none border px-2.5 py-1.5 sm:py-1 text-xs font-semibold transition shadow-2xs active:scale-95 ${
+                className={`flex items-center gap-1.5 border px-3 text-xs font-semibold transition shadow-2xs active:scale-95 ${
+                  isMobile ? 'rounded-xl py-2 min-h-[38px]' : 'rounded-none py-1'
+                } ${
                   isDailyFilterOpen
-                    ? 'border-amber-300 bg-amber-50 text-amber-800'
+                    ? 'border-amber-300 bg-amber-50 text-amber-800 font-bold'
                     : isDailyFilterActive
                       ? 'border-amber-200 bg-amber-50/70 text-amber-800 font-bold'
                       : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900'
@@ -1212,11 +1226,13 @@ export function TaskManager({
         <div className="flex flex-col gap-2 shrink-0 rounded-none border border-slate-200 bg-white p-2.5 shadow-2xs">
           <div className="flex flex-wrap items-center justify-between gap-2">
             {/* 一括ON/OFF & 絞り込み */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 type="button"
                 onClick={() => handleBulkToggleTasks(filteredAndSortedWeeklyTasks, true)}
-                className="rounded-lg sm:rounded-none border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 sm:py-1 text-xs font-bold text-emerald-700 shadow-2xs transition hover:bg-emerald-100 active:scale-95"
+                className={`border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700 shadow-2xs transition hover:bg-emerald-100 active:scale-95 ${
+                  isMobile ? 'rounded-xl py-2 min-h-[38px] flex items-center' : 'rounded-none py-1'
+                }`}
                 title="表示中のタスクをすべてONにする"
               >
                 すべてON
@@ -1224,7 +1240,9 @@ export function TaskManager({
               <button
                 type="button"
                 onClick={() => handleBulkToggleTasks(filteredAndSortedWeeklyTasks, false)}
-                className="rounded-lg sm:rounded-none border border-slate-200 bg-slate-100 px-2.5 py-1.5 sm:py-1 text-xs font-bold text-slate-600 shadow-2xs transition hover:bg-slate-200 active:scale-95"
+                className={`border border-slate-200 bg-slate-100 px-3 text-xs font-bold text-slate-600 shadow-2xs transition hover:bg-slate-200 active:scale-95 ${
+                  isMobile ? 'rounded-xl py-2 min-h-[38px] flex items-center' : 'rounded-none py-1'
+                }`}
                 title="表示中のタスクをすべてOFFにする"
               >
                 すべてOFF
@@ -1234,9 +1252,11 @@ export function TaskManager({
               <button
                 type="button"
                 onClick={() => setIsWeeklyFilterOpen(!isWeeklyFilterOpen)}
-                className={`flex items-center gap-1.5 rounded-lg sm:rounded-none border px-2.5 py-1.5 sm:py-1 text-xs font-semibold transition shadow-2xs active:scale-95 ${
+                className={`flex items-center gap-1.5 border px-3 text-xs font-semibold transition shadow-2xs active:scale-95 ${
+                  isMobile ? 'rounded-xl py-2 min-h-[38px]' : 'rounded-none py-1'
+                } ${
                   isWeeklyFilterOpen
-                    ? 'border-purple-300 bg-purple-50 text-purple-800'
+                    ? 'border-purple-300 bg-purple-50 text-purple-800 font-bold'
                     : isWeeklyFilterActive
                       ? 'border-purple-200 bg-purple-50/70 text-purple-800 font-bold'
                       : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900'
