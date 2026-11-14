@@ -2808,65 +2808,79 @@ export function ImportedTablesManager({
               </button>
             </div>
 
-            {/* ドロワーコンテンツ (スクロール可能) */}
+            {/* ドロワーコンテンツ (スクロール可能: 上から順に設定していく最適化フロー) */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 divide-y divide-slate-100">
-              {/* セクション 1: 🎯 計画表への配置方式 ＆ 周期ルール (最優先・基本設定) */}
+              {/* セクション 1: 📐 表のマス目サイズ ＆ 取り込み (骨組み・インポート) */}
               <div className="space-y-3 pt-1">
                 <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5 text-emerald-600" />
-                  <span>計画表への配置ルール</span>
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-blue-600" />
+                  <span>表のマス目 ＆ 取り込み</span>
                 </h4>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">配置方式</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => updateActiveTable((prev) => ({ ...prev, placementMode: 'fixed' }))}
-                      className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-bold transition shadow-2xs ${
-                        (activeTable.placementMode === 'fixed' || (activeTable.placementMode === undefined && activeTable.axisConfig.startTime))
-                          ? 'border-blue-600 bg-blue-50 text-blue-700 ring-2 ring-blue-500/20'
-                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
-                      <Shield className="h-4 w-4" />
-                      <span>📌 固定枠</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateActiveTable((prev) => ({ ...prev, placementMode: 'auto' }))}
-                      className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-bold transition shadow-2xs ${
-                        activeTable.placementMode === 'auto'
-                          ? 'border-amber-500 bg-amber-50 text-amber-700 ring-2 ring-amber-500/20'
-                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
-                      <Sun className="h-4 w-4" />
-                      <span>⚡ 自動配分</span>
-                    </button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-center">
+                    <span className="block text-[11px] font-semibold text-slate-500 mb-1.5">行数 (時限)</span>
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => updateActiveTable(removeRowFromTable)}
+                        disabled={activeTable.numRows <= 1}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white font-bold text-slate-700 shadow-2xs hover:bg-slate-100 disabled:opacity-30 active:scale-95 transition"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <span className="font-mono text-sm font-bold text-slate-800 w-8">{activeTable.numRows}行</span>
+                      <button
+                        type="button"
+                        onClick={() => updateActiveTable(addRowToTable)}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white font-bold text-slate-700 shadow-2xs hover:bg-slate-100 active:scale-95 transition"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-center">
+                    <span className="block text-[11px] font-semibold text-slate-500 mb-1.5">列数 (曜日)</span>
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => updateActiveTable(removeColFromTable)}
+                        disabled={activeTable.numCols <= 1}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white font-bold text-slate-700 shadow-2xs hover:bg-slate-100 disabled:opacity-30 active:scale-95 transition"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <span className="font-mono text-sm font-bold text-slate-800 w-8">{activeTable.numCols}列</span>
+                      <button
+                        type="button"
+                        onClick={() => updateActiveTable(addColToTable)}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white font-bold text-slate-700 shadow-2xs hover:bg-slate-100 active:scale-95 transition"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">周期の頭 (Day 1の曜日)</label>
-                  <select
-                    value={activeTable.cycleStartDay ?? 0}
-                    onChange={(e) => handleCycleStartDayChange(Number(e.target.value))}
-                    className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-bold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-100 transition shadow-2xs cursor-pointer"
-                  >
-                    {weekDateOptions.map((opt) => (
-                      <option key={opt.dayIndex} value={opt.dayIndex}>
-                        {opt.label} から開始
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileSettingsOpen(false);
+                    handleTriggerFileSelect(activeTable.id);
+                  }}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-50 border border-blue-200 text-xs font-bold text-blue-700 shadow-2xs hover:bg-blue-100 active:scale-98 transition"
+                >
+                  <Upload className="h-4 w-4 text-blue-600" />
+                  <span>画像やCSVから表を読み取る</span>
+                </button>
               </div>
 
-              {/* セクション 2: ⏰ 基本時間・1コマ・休憩 */}
+              {/* セクション 2: ⏰ 基本時間・1コマ・休憩 (時間の定義) */}
               <div className="space-y-3 pt-3">
                 <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                   <Clock className="h-3.5 w-3.5 text-blue-600" />
-                  <span>時間帯とインターバル</span>
+                  <span>時間帯とコマ割り</span>
                 </h4>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -2947,7 +2961,7 @@ export function ImportedTablesManager({
                 </div>
               </div>
 
-              {/* セクション 3: 🍱 昼休み設定 */}
+              {/* セクション 3: 🍱 昼休み設定 (1日の休憩ポイント) */}
               <div className="space-y-3 pt-3">
                 <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                   <Sun className="h-3.5 w-3.5 text-amber-500" />
@@ -3018,74 +3032,56 @@ export function ImportedTablesManager({
                 </div>
               </div>
 
-              {/* セクション 4: 📌 付随タスク設定 */}
+              {/* セクション 4: 🎯 計画表への配置方式 ＆ 周期 (計画表との接続) */}
               <div className="space-y-3 pt-3">
                 <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Shield className="h-3.5 w-3.5 text-blue-600" />
-                  <span>付随タスク設定</span>
+                  <Calendar className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>計画表への配置ルール</span>
                 </h4>
-                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-slate-800">付随タスクの連動生成</span>
-                      <p className="text-[10px] text-slate-500">講義直後に復習等のタスクを配置</p>
-                    </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">周期の頭 (Day 1の曜日)</label>
+                  <select
+                    value={activeTable.cycleStartDay ?? 0}
+                    onChange={(e) => handleCycleStartDayChange(Number(e.target.value))}
+                    className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-bold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-100 transition shadow-2xs cursor-pointer"
+                  >
+                    {weekDateOptions.map((opt) => (
+                      <option key={opt.dayIndex} value={opt.dayIndex}>
+                        {opt.label} から開始
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">配置方式</label>
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      role="switch"
-                      aria-checked={activeTable.attachedTaskConfig?.enabled ?? false}
-                      onClick={() => {
-                        const nextEnabled = !(activeTable.attachedTaskConfig?.enabled ?? false);
-                        updateActiveTable((prev) => ({
-                          ...prev,
-                          attachedTaskConfig: {
-                            enabled: nextEnabled,
-                            titleTemplate: prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
-                            durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
-                          },
-                        }));
-                      }}
-                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-hidden ${
-                        activeTable.attachedTaskConfig?.enabled ? 'bg-blue-600' : 'bg-slate-300'
+                      onClick={() => updateActiveTable((prev) => ({ ...prev, placementMode: 'fixed' }))}
+                      className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-bold transition shadow-2xs ${
+                        (activeTable.placementMode === 'fixed' || (activeTable.placementMode === undefined && activeTable.axisConfig.startTime))
+                          ? 'border-blue-600 bg-blue-50 text-blue-700 ring-2 ring-blue-500/20'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
                       }`}
                     >
-                      <span
-                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs transition duration-200 ${
-                          activeTable.attachedTaskConfig?.enabled ? 'translate-x-5' : 'translate-x-0'
-                        }`}
-                      />
+                      <Shield className="h-4 w-4" />
+                      <span>📌 固定枠</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateActiveTable((prev) => ({ ...prev, placementMode: 'auto' }))}
+                      className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-bold transition shadow-2xs ${
+                        activeTable.placementMode === 'auto'
+                          ? 'border-amber-500 bg-amber-50 text-amber-700 ring-2 ring-amber-500/20'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Sun className="h-4 w-4" />
+                      <span>⚡ 自動配分</span>
                     </button>
                   </div>
-
-                  {activeTable.attachedTaskConfig?.enabled && (
-                    <div className="pt-1 border-t border-slate-200/60">
-                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">所要時間</label>
-                      <div className="relative flex items-center">
-                        <input
-                          type="number"
-                          min={1}
-                          max={180}
-                          step={5}
-                          value={activeTable.attachedTaskConfig.durationMinutes || 15}
-                          onChange={(e) => {
-                            const num = parseInt(e.target.value, 10);
-                            if (!isNaN(num) && num >= 1) {
-                              updateActiveTable((prev) => ({
-                                ...prev,
-                                attachedTaskConfig: {
-                                  enabled: true,
-                                  titleTemplate: prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
-                                  durationMinutes: num,
-                                },
-                              }));
-                            }
-                          }}
-                          className="w-full h-10 rounded-lg border border-slate-200 bg-white pr-7 text-xs font-bold text-center text-slate-800 focus:border-blue-500 focus:outline-hidden shadow-2xs"
-                        />
-                        <span className="absolute right-2.5 text-[10px] font-bold text-slate-400 pointer-events-none">分</span>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -3166,73 +3162,79 @@ export function ImportedTablesManager({
                 </div>
               </div>
 
-              {/* セクション 6: 📐 表のマス目サイズ調整 */}
+              {/* セクション 6: 📌 付随タスク設定 (連動タスクオプション) */}
               <div className="space-y-3 pt-3">
                 <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <FileSpreadsheet className="h-3.5 w-3.5 text-blue-600" />
-                  <span>マス目の数 (行・列)</span>
+                  <Shield className="h-3.5 w-3.5 text-blue-600" />
+                  <span>付随タスク設定</span>
                 </h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-2 text-center">
-                    <span className="block text-[10px] font-semibold text-slate-500 mb-1.5">行数 (時限)</span>
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => updateActiveTable(removeRowFromTable)}
-                        disabled={activeTable.numRows <= 1}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white font-bold text-slate-700 shadow-2xs hover:bg-slate-100 disabled:opacity-30 active:scale-95 transition"
-                      >
-                        <Minus className="h-4 w-4" />
-                      </button>
-                      <span className="font-mono text-sm font-bold text-slate-800 w-8">{activeTable.numRows}行</span>
-                      <button
-                        type="button"
-                        onClick={() => updateActiveTable(addRowToTable)}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white font-bold text-slate-700 shadow-2xs hover:bg-slate-100 active:scale-95 transition"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
+                <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-slate-800">付随タスクの連動生成</span>
+                      <p className="text-[10px] text-slate-500">講義直後に復習等のタスクを配置</p>
                     </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={activeTable.attachedTaskConfig?.enabled ?? false}
+                      onClick={() => {
+                        const nextEnabled = !(activeTable.attachedTaskConfig?.enabled ?? false);
+                        updateActiveTable((prev) => ({
+                          ...prev,
+                          attachedTaskConfig: {
+                            enabled: nextEnabled,
+                            titleTemplate: prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
+                            durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
+                          },
+                        }));
+                      }}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-hidden ${
+                        activeTable.attachedTaskConfig?.enabled ? 'bg-blue-600' : 'bg-slate-300'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs transition duration-200 ${
+                          activeTable.attachedTaskConfig?.enabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-2 text-center">
-                    <span className="block text-[10px] font-semibold text-slate-500 mb-1.5">列数 (曜日)</span>
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => updateActiveTable(removeColFromTable)}
-                        disabled={activeTable.numCols <= 1}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white font-bold text-slate-700 shadow-2xs hover:bg-slate-100 disabled:opacity-30 active:scale-95 transition"
-                      >
-                        <Minus className="h-4 w-4" />
-                      </button>
-                      <span className="font-mono text-sm font-bold text-slate-800 w-8">{activeTable.numCols}列</span>
-                      <button
-                        type="button"
-                        onClick={() => updateActiveTable(addColToTable)}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white font-bold text-slate-700 shadow-2xs hover:bg-slate-100 active:scale-95 transition"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
+                  {activeTable.attachedTaskConfig?.enabled && (
+                    <div className="pt-1 border-t border-slate-200/60">
+                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">所要時間</label>
+                      <div className="relative flex items-center">
+                        <input
+                          type="number"
+                          min={1}
+                          max={180}
+                          step={5}
+                          value={activeTable.attachedTaskConfig.durationMinutes || 15}
+                          onChange={(e) => {
+                            const num = parseInt(e.target.value, 10);
+                            if (!isNaN(num) && num >= 1) {
+                              updateActiveTable((prev) => ({
+                                ...prev,
+                                attachedTaskConfig: {
+                                  enabled: true,
+                                  titleTemplate: prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
+                                  durationMinutes: num,
+                                },
+                              }));
+                            }
+                          }}
+                          className="w-full h-10 rounded-lg border border-slate-200 bg-white pr-7 text-xs font-bold text-center text-slate-800 focus:border-blue-500 focus:outline-hidden shadow-2xs"
+                        />
+                        <span className="absolute right-2.5 text-[10px] font-bold text-slate-400 pointer-events-none">分</span>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
-              {/* セクション 7: 📥 データ操作・アクション */}
+              {/* セクション 7: 📥 データ操作・管理 (後処理・メンテナンス) */}
               <div className="space-y-2 pt-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMobileSettingsOpen(false);
-                    handleTriggerFileSelect(activeTable.id);
-                  }}
-                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-50 border border-blue-200 text-xs font-bold text-blue-700 shadow-2xs hover:bg-blue-100 active:scale-98 transition"
-                >
-                  <Upload className="h-4 w-4 text-blue-600" />
-                  <span>画像やCSVから読み取り</span>
-                </button>
-
                 <button
                   type="button"
                   onClick={handleCopyCsv}
