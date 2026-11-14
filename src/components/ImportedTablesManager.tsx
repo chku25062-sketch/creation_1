@@ -69,6 +69,9 @@ interface ImportedTablesManagerProps {
   onNavigateToTimeline?: () => void;
   onOpenImport?: (targetTableId?: string) => void;
   onFileSelect?: (file: File, targetTableId?: string) => void;
+  isMobileSwitcherOpen?: boolean;
+  onMobileSwitcherOpenChange?: (open: boolean) => void;
+  onActiveDataNameChange?: (name: string) => void;
 }
 
 const CYCLE_HEADER_OPTIONS = [
@@ -95,6 +98,9 @@ export function ImportedTablesManager({
   onNavigateToTimeline,
   onOpenImport,
   onFileSelect,
+  isMobileSwitcherOpen: externalIsMobileSwitcherOpen,
+  onMobileSwitcherOpenChange,
+  onActiveDataNameChange,
 }: ImportedTablesManagerProps) {
   // ファイル直接選択用インライン参照
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -147,8 +153,16 @@ export function ImportedTablesManager({
   const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>('desktop');
   // モバイル版専用: 設定ドロワーの開閉
   const [isMobileSettingsOpen, setIsMobileSettingsOpen] = useState(false);
-  // モバイル版専用: テーブル切り替えボトムシートの開閉
-  const [isMobileSwitcherOpen, setIsMobileSwitcherOpen] = useState(false);
+  // モバイル版専用: テーブル切り替えボトムシートの開閉（外部Propsと同期）
+  const [internalIsMobileSwitcherOpen, setInternalIsMobileSwitcherOpen] = useState(false);
+  const isMobileSwitcherOpen =
+    externalIsMobileSwitcherOpen !== undefined
+      ? externalIsMobileSwitcherOpen
+      : internalIsMobileSwitcherOpen;
+  const setIsMobileSwitcherOpen = (open: boolean) => {
+    setInternalIsMobileSwitcherOpen(open);
+    onMobileSwitcherOpenChange?.(open);
+  };
   // モバイル版専用: テーブル名インライン編集用ステート
   const [editingMobileTableId, setEditingMobileTableId] = useState<string | null>(null);
   const [mobileTempTableName, setMobileTempTableName] = useState<string>('');
@@ -239,6 +253,20 @@ export function ImportedTablesManager({
   const activeTable = useMemo(() => {
     return tables.find((t) => t.id === selectedItemId) || tables[0];
   }, [tables, selectedItemId]);
+
+  // 現在開いているデータ名（フッターやヘッダー用）
+  const currentActiveDataName = useMemo(() => {
+    if (isSystemFile) {
+      if (selectedItemId === 'sys-slots') return '固定枠';
+      if (selectedItemId === 'sys-daily') return '今日のタスク';
+      return '今週のタスク';
+    }
+    return activeTable?.name || '表データ';
+  }, [isSystemFile, selectedItemId, activeTable]);
+
+  useEffect(() => {
+    onActiveDataNameChange?.(currentActiveDataName);
+  }, [currentActiveDataName, onActiveDataNameChange]);
 
   // テーブル名編集モーダル/ステート
   const [isEditingName, setIsEditingName] = useState(false);

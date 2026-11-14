@@ -41,6 +41,8 @@ export default function Home() {
     DEFAULT_INCLUSION_SETTINGS,
   );
   const [activeTab, setActiveTab] = useState<SheetTab>('timeline');
+  const [activeDataName, setActiveDataName] = useState<string>('表データ');
+  const [isMobileSwitcherOpen, setIsMobileSwitcherOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -809,6 +811,9 @@ export default function Home() {
               setIsImportOpen(true);
             }}
             onFileSelect={handleFileSelectFromSidebar}
+            isMobileSwitcherOpen={isMobileSwitcherOpen}
+            onMobileSwitcherOpenChange={setIsMobileSwitcherOpen}
+            onActiveDataNameChange={setActiveDataName}
           />
         </div>
       </main>
@@ -817,6 +822,8 @@ export default function Home() {
       <SheetFooter
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        activeDataName={activeDataName}
+        onOpenMobileSwitcher={() => setIsMobileSwitcherOpen(true)}
         unassignedCount={schedulingResult.unassignedTasks.length}
         tablesCount={importedTables.length}
         lastSavedAt={lastSavedAt}

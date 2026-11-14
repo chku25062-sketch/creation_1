@@ -26,6 +26,8 @@ import {
   CalendarClock,
   Sun,
   History,
+  Layers,
+  ChevronDown,
 } from 'lucide-react';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { AppThemeMode, TheoreticalBlock, TaskItem, TaskPlacementStrategy } from '@/types';
@@ -72,6 +74,8 @@ interface SheetFooterProps {
   onChangeDebugTime?: (next: Partial<DebugTimeConfig>) => void;
   onResetDebugTime?: () => void;
   onResetCompletionStates?: () => void;
+  activeDataName?: string;
+  onOpenMobileSwitcher?: () => void;
 }
 
 export function SheetFooter({
@@ -100,6 +104,8 @@ export function SheetFooter({
   onChangeDebugTime,
   onResetDebugTime,
   onResetCompletionStates,
+  activeDataName,
+  onOpenMobileSwitcher,
 }: SheetFooterProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDebugDrawerOpen, setIsDebugDrawerOpen] = useState(false);
@@ -471,6 +477,27 @@ export function SheetFooter({
               </span>
             )}
           </button>
+
+          {/* Sheet 3 / Mobile: データ切り替えタブ (現在開いているデータ名を表示し、タップで切り替え画面を開く) */}
+          {onOpenMobileSwitcher && (
+            <button
+              type="button"
+              onClick={() => {
+                if (activeTab !== 'data') {
+                  onTabChange('data');
+                }
+                onOpenMobileSwitcher();
+              }}
+              title="タップして時間割やタスクを切り替え"
+              className="group flex items-center gap-1 rounded-none px-2.5 py-1.5 text-xs transition border-b-0 bg-[#ebe6d9] hover:bg-white text-slate-700 hover:text-blue-900 border-t border-x border-transparent hover:border-slate-300 shadow-2xs active:scale-95 cursor-pointer max-w-[120px] sm:max-w-[170px]"
+            >
+              <Layers className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+              <span className="font-bold truncate text-[11px] sm:text-xs text-blue-950">
+                {activeDataName || 'データ選択'}
+              </span>
+              <ChevronDown className="h-3 w-3 text-slate-400 group-hover:text-blue-600 shrink-0" />
+            </button>
+          )}
         </div>
 
         {/* Center / Row 2: App Title in available space (スマホでは2行目・PCでは中央) */}
