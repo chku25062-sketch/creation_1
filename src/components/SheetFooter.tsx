@@ -398,27 +398,23 @@ export function SheetFooter({
           </div>
         </div>
 
-        {/* 完了トグルボタン */}
-        {onToggleBlockComplete && (
-          <button
-            type="button"
-            onClick={() => onToggleBlockComplete(block)}
-            className={`shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] font-bold border transition cursor-pointer ${
-              block.isCompleted
-                ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                : 'border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100'
-            }`}
-            title={block.isCompleted ? 'クリックで未完了に戻す' : 'クリックで完了にする'}
-          >
-            {block.isCompleted ? (
-              <>
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                <span>済</span>
-              </>
-            ) : (
-              <span>未完了</span>
-            )}
-          </button>
+        {/* 完了トグルボタン: 未完了時は「完了にする」ボタンを表示、完了時は戻すボタンを出さず済バッジのみ */}
+        {block.isCompleted ? (
+          <div className="shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] font-bold border border-emerald-200 bg-emerald-50/70 text-emerald-700 select-none">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+            <span>済</span>
+          </div>
+        ) : (
+          onToggleBlockComplete && (
+            <button
+              type="button"
+              onClick={() => onToggleBlockComplete(block)}
+              className="shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] font-bold border border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100 transition cursor-pointer"
+              title="クリックで完了にする"
+            >
+              <span>完了にする</span>
+            </button>
+          )
         )}
       </div>
     );

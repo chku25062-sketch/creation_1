@@ -1007,7 +1007,14 @@ export function Timeline24h({
                           (block.isWeeklyTask === true ||
                             block.isRescheduled === true ||
                             block.taskType === 'assignment');
-                        const isCompletableBlock = isWeeklyTask;
+
+                        // ★ 固定タスクや日タスクの「完了状態にするボタン」は復活させ、「完了状態を戻すボタン」は消えたままにする
+                        // 1. 休憩ブロックにはボタンを置かない
+                        // 2. 完了状態 (block.isCompleted): 週タスクのみ「完了を戻すボタン（[✓]）」を表示、固定枠や日タスクは非表示
+                        // 3. 未完了状態 (!block.isCompleted): 週タスク・固定枠・日タスクのすべてに「完了にするボタン（[ ]）」を表示
+                        const isCompletableBlock =
+                          !block.isBreak &&
+                          (block.isCompleted ? isWeeklyTask : true);
 
                         // ★ 代行タスク（isSubstitute）の場合は、代行元の早期完了ブロックを確実に特定して「戻す」ボタンを提供
                         const substituteSourceBlock =
