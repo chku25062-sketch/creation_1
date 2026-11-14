@@ -278,7 +278,6 @@ export function ImportedTablesManager({
   const [cellEditText, setCellEditText] = useState('');
   const [cellBreakMinutes, setCellBreakMinutes] = useState<number>(0);
   const [cellAttachedEnabled, setCellAttachedEnabled] = useState<boolean>(false);
-  const [cellAttachedTitle, setCellAttachedTitle] = useState<string>('');
   const [cellAttachedDuration, setCellAttachedDuration] = useState<number>(15);
   const [cellAttachedAllowSplit, setCellAttachedAllowSplit] = useState<boolean>(false);
   const [cellAttachedSplitCount, setCellAttachedSplitCount] = useState<number>(2);
@@ -694,11 +693,6 @@ export function ImportedTablesManager({
     setCellAttachedEnabled(
       cell.attachedTask?.enabled ?? activeTable.attachedTaskConfig?.enabled ?? false,
     );
-    setCellAttachedTitle(
-      cell.attachedTask?.title ||
-        activeTable.attachedTaskConfig?.titleTemplate ||
-        '{title} のタスク',
-    );
     setCellAttachedDuration(
       cell.attachedTask?.durationMinutes || activeTable.attachedTaskConfig?.durationMinutes || 15,
     );
@@ -736,7 +730,10 @@ export function ImportedTablesManager({
               attachedTask: cellAttachedEnabled
                 ? {
                     enabled: true,
-                    title: cellAttachedTitle,
+                    title:
+                      cell.attachedTask?.title ||
+                      activeTable.attachedTaskConfig?.titleTemplate ||
+                      '{title} のタスク',
                     durationMinutes: cellAttachedDuration,
                     allowSplit: cellAttachedAllowSplit,
                     splitCount: cellAttachedSplitCount,
@@ -2868,18 +2865,6 @@ export function ImportedTablesManager({
 
                   {cellAttachedEnabled && (
                     <div className="pt-2 border-t border-slate-200/80 space-y-2.5">
-                      <div>
-                        <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                          付随タスク名
-                        </label>
-                        <input
-                          type="text"
-                          value={cellAttachedTitle}
-                          onChange={(e) => setCellAttachedTitle(e.target.value)}
-                          placeholder="{title} のタスク"
-                          className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 text-xs focus:border-blue-500 focus:outline-hidden"
-                        />
-                      </div>
                       <div className="flex items-center justify-between">
                         <label className="text-xs font-medium text-slate-600">所要時間:</label>
                         <div className="flex items-center gap-1.5">
@@ -3038,18 +3023,6 @@ export function ImportedTablesManager({
                 </label>
                 {cellAttachedEnabled && (
                   <div className="mt-2 flex flex-col gap-2 pl-5.5">
-                    <div>
-                      <label className="block text-[10px] text-slate-500 mb-0.5">
-                        付随タスク名 ({'{title}'} でコマ名に置換)
-                      </label>
-                      <input
-                        type="text"
-                        value={cellAttachedTitle}
-                        onChange={(e) => setCellAttachedTitle(e.target.value)}
-                        placeholder="{title} のタスク"
-                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs focus:border-blue-500 focus:outline-hidden"
-                      />
-                    </div>
                     <div className="flex items-center gap-2">
                       <label className="text-[10px] text-slate-500 shrink-0">所要時間:</label>
                       <div className="flex items-center gap-1">
