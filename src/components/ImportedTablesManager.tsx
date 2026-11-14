@@ -2346,11 +2346,11 @@ export function ImportedTablesManager({
                 - モバイル版では5列以上ある場合も1画面にピッタリ収まる均等フィット
                 ======================================================== */}
             <div className="flex-1 min-h-0 flex flex-col rounded-none border border-slate-300 bg-white overflow-hidden shadow-2xs">
-              {/* スクロール領域: 端への余分なスクロール・オーバースクロールを抑止 */}
-              <div className={`flex-1 min-h-0 overscroll-contain ${
+              {/* スクロール領域: 端への余分なスクロール・オーバースクロール・バウンスを完全廃止 */}
+              <div className={`flex-1 min-h-0 overscroll-none [overscroll-behavior:none] ${
                 viewMode === 'mobile' && activeTable.numCols <= 5
-                  ? 'overflow-x-hidden overflow-y-auto'
-                  : 'overflow-auto'
+                  ? 'overflow-x-hidden overflow-y-auto touch-pan-y'
+                  : 'overflow-auto touch-pan-x touch-pan-y'
               }`}>
                 <table className={`w-full border-separate border-spacing-0 text-left text-xs ${
                   viewMode === 'mobile' ? 'table-fixed' : ''
