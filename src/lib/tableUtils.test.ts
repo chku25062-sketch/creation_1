@@ -664,6 +664,25 @@ describe('tableUtils', () => {
       expect(attached!.durationMinutes).toBe(45);
       expect(attached!.durationSize).toBeUndefined();
     });
+
+    it('Plan16: 表データやセルで設定された付随タスクの分割設定（allowSplit, minSplitMinutes）が正しくタスクに反映されること', () => {
+      const table = createBaseTable('09:00');
+      table.attachedTaskConfig = {
+        enabled: true,
+        titleTemplate: '{title} のタスク',
+        durationMinutes: 60,
+        allowSplit: true,
+        minSplitMinutes: 20,
+        maxSplits: 3,
+      };
+
+      const res = generateScheduleItemsForTable(table);
+      const attached = res.tasks.find((t) => t.isAttachedTask);
+      expect(attached).toBeDefined();
+      expect(attached!.allowSplit).toBe(true);
+      expect(attached!.minSplitMinutes).toBe(20);
+      expect(attached!.maxSplits).toBe(3);
+    });
   });
 
   describe('配置方式（placementMode: fixed / auto）による分類と指定区間タスク生成', () => {

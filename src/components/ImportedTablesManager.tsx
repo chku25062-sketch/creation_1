@@ -258,6 +258,8 @@ export function ImportedTablesManager({
   const [cellAttachedEnabled, setCellAttachedEnabled] = useState<boolean>(false);
   const [cellAttachedTitle, setCellAttachedTitle] = useState<string>('');
   const [cellAttachedDuration, setCellAttachedDuration] = useState<number>(15);
+  const [cellAttachedAllowSplit, setCellAttachedAllowSplit] = useState<boolean>(false);
+  const [cellAttachedMinSplit, setCellAttachedMinSplit] = useState<number>(15);
 
   const [applySuccessMsg, setApplySuccessMsg] = useState<string | null>(null);
 
@@ -677,6 +679,12 @@ export function ImportedTablesManager({
     setCellAttachedDuration(
       cell.attachedTask?.durationMinutes || activeTable.attachedTaskConfig?.durationMinutes || 15,
     );
+    setCellAttachedAllowSplit(
+      cell.attachedTask?.allowSplit ?? activeTable.attachedTaskConfig?.allowSplit ?? false,
+    );
+    setCellAttachedMinSplit(
+      cell.attachedTask?.minSplitMinutes ?? activeTable.attachedTaskConfig?.minSplitMinutes ?? 15,
+    );
   };
 
   const handleSaveEditCell = () => {
@@ -704,6 +712,8 @@ export function ImportedTablesManager({
                     enabled: true,
                     title: cellAttachedTitle,
                     durationMinutes: cellAttachedDuration,
+                    allowSplit: cellAttachedAllowSplit,
+                    minSplitMinutes: cellAttachedMinSplit,
                   }
                 : undefined,
             };
@@ -2204,33 +2214,101 @@ export function ImportedTablesManager({
                       />
                     </button>
                     {activeTable.attachedTaskConfig?.enabled ? (
-                      <div className="flex items-center gap-0.5">
-                        <input
-                          type="number"
-                          min={1}
-                          max={180}
-                          step={5}
-                          value={activeTable.attachedTaskConfig.durationMinutes || 15}
-                          onChange={(e) => {
-                            const num = parseInt(e.target.value, 10);
-                            if (!isNaN(num) && num >= 1) {
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-0.5">
+                          <input
+                            type="number"
+                            min={1}
+                            max={180}
+                            step={5}
+                            value={activeTable.attachedTaskConfig.durationMinutes || 15}
+                            onChange={(e) => {
+                              const num = parseInt(e.target.value, 10);
+                              if (!isNaN(num) && num >= 1) {
+                                updateActiveTable((prev) => ({
+                                  ...prev,
+                                  attachedTaskConfig: {
+                                    ...prev.attachedTaskConfig,
+                                    enabled: true,
+                                    titleTemplate:
+                                      prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
+                                    durationMinutes: num,
+                                  },
+                                }));
+                              }
+                            }}
+                            title="付随タスクの所要時間（分）"
+                            className="w-12 rounded border border-slate-200/80 bg-white/80 px-1 py-0.5 font-mono text-xs text-center text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-blue-500 hover:border-slate-300 transition"
+                          />
+                          <span className="text-[10px] text-slate-500 font-medium select-none">
+                            分
+                          </span>
+                        </div>
+
+                        {/* Plan16: 分割配置トグル */}
+                        <div className="flex items-center gap-1 pl-1.5 border-l border-slate-200/80">
+                          <span className="text-[10px] text-slate-500 font-medium select-none">
+                            分割配置:
+                          </span>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={activeTable.attachedTaskConfig?.allowSplit ?? false}
+                            onClick={() => {
+                              const nextSplit = !(activeTable.attachedTaskConfig?.allowSplit ?? false);
                               updateActiveTable((prev) => ({
                                 ...prev,
                                 attachedTaskConfig: {
+                                  ...prev.attachedTaskConfig,
                                   enabled: true,
                                   titleTemplate:
                                     prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
-                                  durationMinutes: num,
+                                  durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
+                                  allowSplit: nextSplit,
+                                  minSplitMinutes: prev.attachedTaskConfig?.minSplitMinutes || 15,
+                                  maxSplits: prev.attachedTaskConfig?.maxSplits ?? 2,
                                 },
                               }));
-                            }
-                          }}
-                          title="付随タスクの所要時間（分）"
-                          className="w-12 rounded border border-slate-200/80 bg-white/80 px-1 py-0.5 font-mono text-xs text-center text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-blue-500 hover:border-slate-300 transition"
-                        />
-                        <span className="text-[10px] text-slate-500 font-medium select-none">
-                          分
-                        </span>
+                            }}
+                            title={`隙間時間に合わせて分割配置を${activeTable.attachedTaskConfig?.allowSplit ? 'オフ' : 'オン'}にする`}
+                            className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                              activeTable.attachedTaskConfig?.allowSplit ? 'bg-indigo-600' : 'bg-slate-300'
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                activeTable.attachedTaskConfig?.allowSplit
+                                  ? 'translate-x-3'
+                                  : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                          {activeTable.attachedTaskConfig?.allowSplit && (
+                            <select
+                              value={activeTable.attachedTaskConfig.minSplitMinutes || 15}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10);
+                                updateActiveTable((prev) => ({
+                                  ...prev,
+                                  attachedTaskConfig: {
+                                    ...prev.attachedTaskConfig,
+                                    enabled: true,
+                                    titleTemplate:
+                                      prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
+                                    durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
+                                    minSplitMinutes: val,
+                                  },
+                                }));
+                              }}
+                              title="分割時の最小単位"
+                              className="rounded border border-slate-200/80 bg-white/80 px-1 py-0.5 text-[10px] text-slate-700 focus:outline-hidden"
+                            >
+                              <option value={15}>15分単位</option>
+                              <option value={20}>20分単位</option>
+                              <option value={30}>30分単位</option>
+                            </select>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <span className="text-[10px] text-slate-400 font-mono">OFF</span>
@@ -2809,6 +2887,45 @@ export function ImportedTablesManager({
                           </button>
                         </div>
                       </div>
+
+                      {/* Plan16: 隙間時間に合わせて分割配置 */}
+                      <div className="pt-2 border-t border-slate-200/60 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-xs font-medium text-slate-700">隙間時間に合わせて分割配置</span>
+                            <p className="text-[10px] text-slate-400">空きコマに合わせて復習を分散</p>
+                          </div>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={cellAttachedAllowSplit}
+                            onClick={() => setCellAttachedAllowSplit(!cellAttachedAllowSplit)}
+                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-hidden ${
+                              cellAttachedAllowSplit ? 'bg-indigo-600' : 'bg-slate-300'
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
+                                cellAttachedAllowSplit ? 'translate-x-4' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                        {cellAttachedAllowSplit && (
+                          <div className="flex items-center justify-between pt-1">
+                            <span className="text-[11px] text-slate-500">最小分割単位:</span>
+                            <select
+                              value={cellAttachedMinSplit}
+                              onChange={(e) => setCellAttachedMinSplit(parseInt(e.target.value, 10))}
+                              className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 focus:outline-hidden"
+                            >
+                              <option value={15}>15分単位</option>
+                              <option value={20}>20分単位</option>
+                              <option value={30}>30分単位</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2932,6 +3049,39 @@ export function ImportedTablesManager({
                           className="w-16 rounded border border-slate-300 bg-white px-2 py-1 font-mono text-xs text-center text-slate-800 focus:border-blue-500 focus:outline-hidden"
                         />
                         <span className="text-xs text-slate-500 font-medium">分</span>
+                      </div>
+                    </div>
+
+                    {/* Plan16: 隙間時間に合わせて分割配置 */}
+                    <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                      <label className="text-[10px] text-slate-600 font-medium">分割配置:</label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={cellAttachedAllowSplit}
+                          onClick={() => setCellAttachedAllowSplit(!cellAttachedAllowSplit)}
+                          className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-hidden ${
+                            cellAttachedAllowSplit ? 'bg-indigo-600' : 'bg-slate-300'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow-xs transition duration-200 ${
+                              cellAttachedAllowSplit ? 'translate-x-3' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                        {cellAttachedAllowSplit && (
+                          <select
+                            value={cellAttachedMinSplit}
+                            onChange={(e) => setCellAttachedMinSplit(parseInt(e.target.value, 10))}
+                            className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] text-slate-700 focus:outline-hidden"
+                          >
+                            <option value={15}>15分単位</option>
+                            <option value={20}>20分単位</option>
+                            <option value={30}>30分単位</option>
+                          </select>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -3387,31 +3537,99 @@ export function ImportedTablesManager({
                   </div>
 
                   {activeTable.attachedTaskConfig?.enabled && (
-                    <div className="pt-1 border-t border-slate-200/60">
-                      <label className="block text-[10px] font-semibold text-slate-500 mb-1">所要時間</label>
-                      <div className="relative flex items-center">
-                        <input
-                          type="number"
-                          min={1}
-                          max={180}
-                          step={5}
-                          value={activeTable.attachedTaskConfig.durationMinutes || 15}
-                          onChange={(e) => {
-                            const num = parseInt(e.target.value, 10);
-                            if (!isNaN(num) && num >= 1) {
+                    <div className="pt-2 border-t border-slate-200/60 space-y-2.5">
+                      <div>
+                        <label className="block text-[10px] font-semibold text-slate-500 mb-1">所要時間</label>
+                        <div className="relative flex items-center">
+                          <input
+                            type="number"
+                            min={1}
+                            max={180}
+                            step={5}
+                            value={activeTable.attachedTaskConfig.durationMinutes || 15}
+                            onChange={(e) => {
+                              const num = parseInt(e.target.value, 10);
+                              if (!isNaN(num) && num >= 1) {
+                                updateActiveTable((prev) => ({
+                                  ...prev,
+                                  attachedTaskConfig: {
+                                    ...prev.attachedTaskConfig,
+                                    enabled: true,
+                                    titleTemplate: prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
+                                    durationMinutes: num,
+                                  },
+                                }));
+                              }
+                            }}
+                            className="w-full h-10 rounded-lg border border-slate-200 bg-white pr-7 text-xs font-bold text-center text-slate-800 focus:border-blue-500 focus:outline-hidden shadow-2xs"
+                          />
+                          <span className="absolute right-2.5 text-[10px] font-bold text-slate-400 pointer-events-none">分</span>
+                        </div>
+                      </div>
+
+                      {/* Plan16: 隙間時間に合わせて分割配置 */}
+                      <div className="pt-2 border-t border-slate-200/50 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="text-xs font-bold text-slate-800">隙間時間に合わせて分割配置</span>
+                            <p className="text-[10px] text-slate-500">空きコマに合わせて復習を分散</p>
+                          </div>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={activeTable.attachedTaskConfig?.allowSplit ?? false}
+                            onClick={() => {
+                              const nextSplit = !(activeTable.attachedTaskConfig?.allowSplit ?? false);
                               updateActiveTable((prev) => ({
                                 ...prev,
                                 attachedTaskConfig: {
+                                  ...prev.attachedTaskConfig,
                                   enabled: true,
                                   titleTemplate: prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
-                                  durationMinutes: num,
+                                  durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
+                                  allowSplit: nextSplit,
+                                  minSplitMinutes: prev.attachedTaskConfig?.minSplitMinutes || 15,
+                                  maxSplits: prev.attachedTaskConfig?.maxSplits ?? 2,
                                 },
                               }));
-                            }
-                          }}
-                          className="w-full h-10 rounded-lg border border-slate-200 bg-white pr-7 text-xs font-bold text-center text-slate-800 focus:border-blue-500 focus:outline-hidden shadow-2xs"
-                        />
-                        <span className="absolute right-2.5 text-[10px] font-bold text-slate-400 pointer-events-none">分</span>
+                            }}
+                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-hidden ${
+                              activeTable.attachedTaskConfig?.allowSplit ? 'bg-indigo-600' : 'bg-slate-300'
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
+                                activeTable.attachedTaskConfig?.allowSplit ? 'translate-x-4' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                        {activeTable.attachedTaskConfig?.allowSplit && (
+                          <div className="flex items-center justify-between pt-1">
+                            <span className="text-[11px] text-slate-600">最小分割単位:</span>
+                            <select
+                              value={activeTable.attachedTaskConfig.minSplitMinutes || 15}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10);
+                                updateActiveTable((prev) => ({
+                                  ...prev,
+                                  attachedTaskConfig: {
+                                    ...prev.attachedTaskConfig,
+                                    enabled: true,
+                                    titleTemplate: prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
+                                    durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
+                                    minSplitMinutes: val,
+                                  },
+                                }));
+                              }}
+                              className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 focus:outline-hidden"
+                            >
+                              <option value={15}>15分単位</option>
+                              <option value={20}>20分単位</option>
+                              <option value={30}>30分単位</option>
+                            </select>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

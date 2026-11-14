@@ -1,4 +1,5 @@
 import { PlacementPhase, SchedulingExecutionContext, DayTaskContext } from '../types';
+import { tryPlaceSplitAttachedTask } from './splitPlacementHelper';
 
 /**
  * Phase 2 (週タスク完了フェーズ): 付随タスクの別日フォールバック
@@ -30,6 +31,12 @@ export class AttachedFallbackPhase implements PlacementPhase {
         const placed = tryPlaceContextInDay(d, dummyCtx, true);
         if (placed) {
           slotManager.refreshDaySlots(d);
+        } else if (plan.task.allowSplit) {
+          // ★ Plan16: 別日フォールバック時も分割配置を試みる
+          const splitPlaced = tryPlaceSplitAttachedTask(d, dummyCtx, ctx);
+          if (splitPlaced) {
+            slotManager.refreshDaySlots(d);
+          }
         }
       }
     }

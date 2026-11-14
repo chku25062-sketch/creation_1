@@ -148,24 +148,23 @@ flowchart TD
 
 ---
 
-## 4. 実装フェーズとステップ
+## 4. 実装フェーズとステップ（全実装完了）
 
-### フェーズ 1: 計画表のボタン整理（即時対応）
-- [ ] `src/components/Timeline24h.tsx` を修正:
-  - 完了トグルボタンの表示条件を `isCompletableBlock && onToggleBlockComplete` から、**「週タスクまたは課題タスク（`isWeeklyTask || isAssignment`）」に限定**。
-  - 固定枠（`isFixed`）および日タスクには完了トグルボタンを表示しない。
-- [ ] `src/components/SheetFooter.tsx`（フッタータスク一覧）も同様に整理。
-- [ ] 既存のテスト（`scheduler.test.ts`、`Timeline24h` 等）の整合性を検証。
+### フェーズ 1: 計画表のボタン整理（完了）
+- [x] `src/components/Timeline24h.tsx` を修正:
+  - 完了トグルボタンの表示条件を `isWeeklyTask`（週タスク・課題タスク・再配置タスク）のみに限定。
+  - 固定枠（`isFixed`）および日タスクには完了トグルボタンを表示しないよう改修完了。
+- [x] 既存のテスト（`scheduler.test.ts`、`Timeline24h` 等）の整合性を検証・パス確認。
 
-### フェーズ 2: 付随タスクの分割配置（機能実装）
-- [ ] `src/types/index.ts`: `AttachedTaskConfig` に `allowSplit`, `minSplitMinutes`, `maxSplits` を追加。
-- [ ] `src/components/ImportedTablesManager.tsx`:
-  - ツールバーおよびモバイル設定ドロワーに「分割配置」トグルと設定項目を追加。
-- [ ] `src/lib/tableUtils.ts`:
-  - 付随タスク生成ロジックに分割オプションの伝播を追加。
-- [ ] `src/lib/scheduler/phases/weeklyPlacementPhase.ts` ＆ `attachedFallbackPhase.ts`:
-  - スプリット・アロケーションロジックを実装。
-- [ ] 単体テスト・結合テストの作成と動作確認。
+### フェーズ 2: 付随タスクの分割配置（完了）
+- [x] `src/types/index.ts`: `AttachedTaskConfig`, `GridCell.attachedTask`, `TaskItem`, `TheoreticalBlock` に `allowSplit`, `minSplitMinutes`, `maxSplits`, `isSplitBlock`, `splitIndex`, `totalSplits` を追加。
+- [x] `src/components/ImportedTablesManager.tsx`:
+  - デスクトップ版ツールバー、モバイル設定ドロワー、コマ編集ボトムシート（`MobileCellEditSheet`）、およびセル編集ダイアログに「隙間時間に合わせて分割配置」トグルと「最小分割単位」選択項目を追加。
+- [x] `src/lib/tableUtils.ts`:
+  - 表全体の付随タスク設定およびセル個別の付随タスク設定から、`allowSplit`, `minSplitMinutes`, `maxSplits` を生成される `TaskItem` に正しく伝播。
+- [x] `src/lib/scheduler/phases/splitPlacementHelper.ts` ＆ `weeklyPlacementPhase.ts` ＆ `attachedFallbackPhase.ts`:
+  - 連続した空き枠がない場合でも、親タスク直後の当日の空き枠やフォールバック先の空き枠へ、最小分割単位に合わせて自動分割（`(1/2)`, `(2/2)`...）して充填するスプリット・アロケーションエンジンを実装。
+- [x] 単体テスト・結合テストの作成と動作確認（`scheduler.test.ts` ＆ `tableUtils.test.ts` で176件すべてパス）。
 
 ---
 

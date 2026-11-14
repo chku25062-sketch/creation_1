@@ -77,6 +77,13 @@ export interface TaskItem {
   taskOriginWeek?: 'last' | 'current'; // タスクが出題された週（先週か今週か）
   isFromLastWeek?: boolean; // 先週から引き継がれた課題かどうか
   weeklyClassification?: WeeklyTaskClassification; // 週タスク分類
+  // Plan16: 付随タスクの分割配置オプション
+  allowSplit?: boolean; // 隙間時間に合わせて分割配置を許可するかどうか
+  minSplitMinutes?: number; // 最小分割単位（分。デフォルト15）
+  maxSplits?: number; // 最大分割数（デフォルト2。0なら無制限）
+  splitIndex?: number; // 分割タスクの場合のインデックス (0, 1...)
+  totalSplits?: number; // 分割タスクの場合の分割総数 (2, 3...)
+  originalTaskId?: string; // 分割元の大元タスクID
 }
 
 export interface TheoreticalBlock {
@@ -117,6 +124,10 @@ export interface TheoreticalBlock {
   taskOriginWeek?: 'last' | 'current';
   isFromLastWeek?: boolean;
   isYesterdayTask?: boolean; // 前日分のタスク（日付またぎ・前日からの未完了持ち越し）かどうか
+  // Plan16: 分割配置されたブロック用プロパティ
+  isSplitBlock?: boolean; // 分割配置されたブロックかどうか
+  splitIndex?: number; // 分割番号 (1, 2...)
+  totalSplits?: number; // 分割総数
 }
 
 export interface FreeSlot {
@@ -174,6 +185,9 @@ export interface AttachedTaskConfig {
   enabled: boolean;
   titleTemplate: string; // 例: "{title} の記録・プロテイン", "{title} の課題レポート"
   durationMinutes: number; // 例: 15
+  allowSplit?: boolean; // ★ Plan16: 隙間時間に合わせて分割配置を許可するか
+  minSplitMinutes?: number; // ★ Plan16: 最小分割単位（分。デフォルト: 15）
+  maxSplits?: number; // ★ Plan16: 最大分割数（デフォルト: 2）
 }
 
 export interface GridCell {
@@ -192,6 +206,8 @@ export interface GridCell {
     enabled: boolean;
     title: string;
     durationMinutes: number;
+    allowSplit?: boolean; // ★ Plan16: 分割配置を許可するか
+    minSplitMinutes?: number; // ★ Plan16: 最小分割単位（分）
   };
 }
 

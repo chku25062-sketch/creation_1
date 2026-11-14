@@ -708,6 +708,11 @@ export function generateScheduleItemsForTable(
 
         const attachedDuration =
           cellAttached?.durationMinutes || attachedConfig?.durationMinutes || 15;
+        const attachedAllowSplit =
+          cellAttached?.allowSplit ?? attachedConfig?.allowSplit ?? false;
+        const attachedMinSplit =
+          cellAttached?.minSplitMinutes ?? attachedConfig?.minSplitMinutes ?? 15;
+        const attachedMaxSplits = attachedConfig?.maxSplits ?? 2;
         const attachedTaskTitle = attachedTitleTemplate.replace('{title}', fullTitle);
         const attachedKey = `${classification}_${attachedTaskTitle}`;
 
@@ -728,6 +733,9 @@ export function generateScheduleItemsForTable(
               category: tableCategory, // 表の名前でカテゴリを代用
               durationSize: undefined, // 明示的な分数（durationMinutes）を尊重
               durationMinutes: attachedDuration,
+              allowSplit: attachedAllowSplit,
+              minSplitMinutes: attachedMinSplit,
+              maxSplits: attachedMaxSplits,
               frequency: 'custom',
               frequencyCount: 1, // 週1回
               taskType: 'task',
@@ -763,6 +771,9 @@ export function generateScheduleItemsForTable(
               category: tableCategory, // 表の名前でカテゴリを代用
               durationSize: undefined, // 明示的な分数（durationMinutes）を尊重
               durationMinutes: attachedDuration,
+              allowSplit: attachedAllowSplit,
+              minSplitMinutes: attachedMinSplit,
+              maxSplits: attachedMaxSplits,
               frequency: 'custom',
               frequencyCount: 1, // 週1回
               period: 'week', // 週のタスク
@@ -792,6 +803,9 @@ export function generateScheduleItemsForTable(
           const existingAttached = attachedTaskMap.get(attachedKey)!;
           existingAttached.durationMinutes = attachedDuration;
           existingAttached.durationSize = undefined;
+          if (attachedAllowSplit) existingAttached.allowSplit = true;
+          if (attachedMinSplit) existingAttached.minSplitMinutes = attachedMinSplit;
+          if (attachedMaxSplits) existingAttached.maxSplits = attachedMaxSplits;
           if (classification === 'fixed_slot') {
             if (isWeekday && effectiveWeekday !== undefined) {
               const curDays = existingAttached.targetDays || [];

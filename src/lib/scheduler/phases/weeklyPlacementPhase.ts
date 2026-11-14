@@ -1,4 +1,5 @@
 import { PlacementPhase, SchedulingExecutionContext, DayTaskContext } from '../types';
+import { tryPlaceSplitAttachedTask } from './splitPlacementHelper';
 
 /**
  * Phase 1: 週タスクの優先配置
@@ -42,6 +43,12 @@ export class WeeklyPlacementPhase implements PlacementPhase {
         const placed = tryPlaceContextInDay(d, taskCtx, true);
         if (placed) {
           slotManager.refreshDaySlots(d);
+        } else if (plan.task.allowSplit) {
+          // ★ Plan16: 連続枠に入らない場合、設定された最小単位に合わせて分割配置
+          const splitPlaced = tryPlaceSplitAttachedTask(d, taskCtx, ctx);
+          if (splitPlaced) {
+            slotManager.refreshDaySlots(d);
+          }
         }
       }
     }
@@ -114,6 +121,12 @@ export class WeeklyPlacementPhase implements PlacementPhase {
         const placed = tryPlaceContextInDay(d, taskCtx, true);
         if (placed) {
           slotManager.refreshDaySlots(d);
+        } else if (plan.task.allowSplit) {
+          // ★ Plan16: 連続枠に入らない場合、設定された最小単位に合わせて分割配置
+          const splitPlaced = tryPlaceSplitAttachedTask(d, taskCtx, ctx);
+          if (splitPlaced) {
+            slotManager.refreshDaySlots(d);
+          }
         }
       }
     }
@@ -177,6 +190,12 @@ export class WeeklyPlacementPhase implements PlacementPhase {
         const placed = tryPlaceContextInDay(d, taskCtx, true);
         if (placed) {
           slotManager.refreshDaySlots(d);
+        } else if (plan.task.allowSplit) {
+          // ★ Plan16: 連続枠に入らない場合、設定された最小単位に合わせて分割配置
+          const splitPlaced = tryPlaceSplitAttachedTask(d, taskCtx, ctx);
+          if (splitPlaced) {
+            slotManager.refreshDaySlots(d);
+          }
         }
       }
     }
@@ -289,6 +308,12 @@ export class WeeklyPlacementPhase implements PlacementPhase {
         const placed = tryPlaceContextInDay(d, taskCtx, true);
         if (placed) {
           slotManager.refreshDaySlots(d);
+        } else if (plan.task.allowSplit) {
+          // ★ Plan16: 連続枠に入らない場合、設定された最小単位に合わせて分割配置
+          const splitPlaced = tryPlaceSplitAttachedTask(d, taskCtx, ctx);
+          if (splitPlaced) {
+            slotManager.refreshDaySlots(d);
+          }
         }
       }
 
