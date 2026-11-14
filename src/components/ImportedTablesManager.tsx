@@ -1450,7 +1450,7 @@ export function ImportedTablesManager({
         {/* Top Header & Actions Bar (Desktop vs Mobile 分岐) */}
         {viewMode === 'mobile' ? (
           /* モバイル専用アプリ風ヘッダー (表データ・タスク管理共通) */
-          <div className="flex items-center justify-between gap-1.5 sm:gap-2 border-b border-slate-200 pb-2 px-0.5 overflow-x-auto">
+          <div className="flex items-center justify-between gap-1.5 sm:gap-2 border-b border-slate-200 pb-2 px-0.5 overflow-hidden">
             {/* 左側: 表またはタスク切り替えピル */}
             <div className="flex items-center gap-1.5 min-w-0 shrink">
               <button
@@ -2346,8 +2346,12 @@ export function ImportedTablesManager({
                 - モバイル版では5列以上ある場合も1画面にピッタリ収まる均等フィット
                 ======================================================== */}
             <div className="flex-1 min-h-0 flex flex-col rounded-none border border-slate-300 bg-white overflow-hidden shadow-2xs">
-              {/* スクロール領域 */}
-              <div className="flex-1 min-h-0 overflow-auto">
+              {/* スクロール領域: 端への余分なスクロール・オーバースクロールを抑止 */}
+              <div className={`flex-1 min-h-0 overscroll-contain ${
+                viewMode === 'mobile' && activeTable.numCols <= 5
+                  ? 'overflow-x-hidden overflow-y-auto'
+                  : 'overflow-auto'
+              }`}>
                 <table className={`w-full border-separate border-spacing-0 text-left text-xs ${
                   viewMode === 'mobile' ? 'table-fixed' : ''
                 }`}>
@@ -2406,12 +2410,12 @@ export function ImportedTablesManager({
                           (r) => !r[cIdx]?.title?.trim(),
                         );
 
-                        // 5列以上ある場合は 1画面幅(100vw - 行ヘッダー44px) の中に5列がピッタリ収まるように均等計算
+                        // 5列以下の場合は 1画面幅(100% - 行ヘッダー44px) の中にピッタリ均等フィットさせて横余白・不要スクロールをゼロ化
                         const colWidthStyle =
                           viewMode === 'mobile'
-                            ? activeTable.numCols >= 5
-                              ? 'w-[calc((100vw-44px)/5)] min-w-[60px]'
-                              : `w-[calc((100vw-44px)/${activeTable.numCols})] min-w-[70px]`
+                            ? activeTable.numCols <= 5
+                              ? `w-[calc((100%-44px)/${activeTable.numCols})]`
+                              : 'w-[calc((100vw-44px)/5)] min-w-[64px]'
                             : 'min-w-[140px] sm:min-w-[160px]';
 
                         return (
@@ -2528,9 +2532,9 @@ export function ImportedTablesManager({
 
                       const colWidthStyle =
                         viewMode === 'mobile'
-                          ? activeTable.numCols >= 5
-                            ? 'w-[calc((100vw-44px)/5)] min-w-[60px]'
-                            : `w-[calc((100vw-44px)/${activeTable.numCols})] min-w-[70px]`
+                          ? activeTable.numCols <= 5
+                            ? `w-[calc((100%-44px)/${activeTable.numCols})]`
+                            : 'w-[calc((100vw-44px)/5)] min-w-[64px]'
                           : 'min-w-[140px] sm:min-w-[160px]';
 
                       return (
