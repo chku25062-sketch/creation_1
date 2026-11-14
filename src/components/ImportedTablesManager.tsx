@@ -1450,13 +1450,13 @@ export function ImportedTablesManager({
         {/* Top Header & Actions Bar (Desktop vs Mobile 分岐) */}
         {viewMode === 'mobile' ? (
           /* モバイル専用アプリ風ヘッダー (表データ・タスク管理共通) */
-          <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2 px-0.5">
+          <div className="flex items-center justify-between gap-1.5 sm:gap-2 border-b border-slate-200 pb-2 px-0.5 overflow-x-auto">
             {/* 左側: 表またはタスク切り替えピル */}
-            <div className="flex items-center gap-1.5 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0 shrink">
               <button
                 type="button"
                 onClick={() => setIsMobileSwitcherOpen(true)}
-                className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/90 px-3 py-1.5 text-xs font-bold text-blue-900 shadow-2xs hover:bg-blue-100 active:scale-95 transition max-w-[170px] sm:max-w-[240px]"
+                className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/90 px-2.5 py-1.5 text-xs font-bold text-blue-900 shadow-2xs hover:bg-blue-100 active:scale-95 transition max-w-[130px] sm:max-w-[220px]"
                 title="タップして時間割やタスクを切り替え"
               >
                 <span className="truncate">
@@ -1472,8 +1472,30 @@ export function ImportedTablesManager({
               </button>
             </div>
 
-            {/* 右側アクション群: 反映スイッチ, モード切替, ⚙️設定ボタン */}
-            <div className="flex items-center gap-1.5 shrink-0">
+            {/* 右側アクション群: 周期のはじまり, 反映スイッチ, モード切替, ⚙️設定ボタン */}
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+              {/* 周期のはじまり (表データ選択時のみ表示・編集可能) */}
+              {activeTable && !isSystemFile && (
+                <div
+                  className="flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50/90 px-2 py-1 text-xs font-bold text-emerald-800 shadow-2xs"
+                  title="周期のはじまり（Day 1）となる日付（曜日）を指定"
+                >
+                  <Calendar className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                  <span className="text-[10px] text-emerald-700 shrink-0 hidden xs:inline">開始:</span>
+                  <select
+                    value={activeTable.cycleStartDay ?? 0}
+                    onChange={(e) => handleCycleStartDayChange(Number(e.target.value))}
+                    className="bg-transparent text-[11px] font-bold text-emerald-900 focus:outline-hidden cursor-pointer"
+                  >
+                    {weekDateOptions.map((opt) => (
+                      <option key={opt.dayIndex} value={opt.dayIndex}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* 反映トグル (表データまたは固定枠の場合) */}
               <div className="flex items-center gap-1">
                 <span className="text-[10px] font-bold text-slate-500 hidden sm:inline">反映</span>
@@ -2332,7 +2354,7 @@ export function ImportedTablesManager({
                 }`}>
                   <thead>
                     <tr>
-                      {/* 左上 交差見出し: 一律周期管理 ＆ 周期の頭（日付・曜日）設定 */}
+                      {/* 左上 交差見出し: モバイル版は時限のみ、デスクトップ版は一律周期管理＆周期の頭設定 */}
                       <th
                         className={`sticky top-0 left-0 z-30 ${
                           viewMode === 'mobile'
@@ -2340,29 +2362,29 @@ export function ImportedTablesManager({
                             : 'w-24 sm:w-28 min-w-[96px] sm:min-w-[110px] p-1.5'
                         } border-b-2 border-r-2 border-slate-300 bg-slate-100 text-center select-none shadow-2xs`}
                       >
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className={`font-bold text-emerald-700 uppercase tracking-wider ${
-                            viewMode === 'mobile' ? 'text-[8px]' : 'text-[9px]'
-                          }`}>
-                            {viewMode === 'mobile' ? '周期' : '🔄 周期の頭'}
-                          </span>
-                          <select
-                            value={activeTable.cycleStartDay ?? 0}
-                            onChange={(e) => handleCycleStartDayChange(Number(e.target.value))}
-                            className={`w-full rounded border border-emerald-300 bg-emerald-50 font-bold text-emerald-800 shadow-2xs hover:border-emerald-400 focus:outline-hidden cursor-pointer transition ${
-                              viewMode === 'mobile'
-                                ? 'px-0.5 py-0.5 text-[9px] text-center'
-                                : 'px-1.5 py-1 text-[11px]'
-                            }`}
-                            title="周期の始まり（Day 1）となる日付（曜日）を月〜日から指定します"
-                          >
-                            {weekDateOptions.map((opt) => (
-                              <option key={opt.dayIndex} value={opt.dayIndex}>
-                                {viewMode === 'mobile' ? opt.label.slice(0, 1) : opt.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                        {viewMode === 'mobile' ? (
+                          <div className="flex items-center justify-center font-bold text-slate-500 text-[10px]">
+                            時限
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="font-bold text-emerald-700 uppercase tracking-wider text-[9px]">
+                              🔄 周期の頭
+                            </span>
+                            <select
+                              value={activeTable.cycleStartDay ?? 0}
+                              onChange={(e) => handleCycleStartDayChange(Number(e.target.value))}
+                              className="w-full rounded border border-emerald-300 bg-emerald-50 font-bold text-emerald-800 shadow-2xs hover:border-emerald-400 focus:outline-hidden cursor-pointer transition px-1.5 py-1 text-[11px]"
+                              title="周期の始まり（Day 1）となる日付（曜日）を月〜日から指定します"
+                            >
+                              {weekDateOptions.map((opt) => (
+                                <option key={opt.dayIndex} value={opt.dayIndex}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                       </th>
 
                       {/* 列ヘッダー (一律周期管理 + 開始日オフセットに応じた日付（曜日）バッジ表示) */}
@@ -2408,18 +2430,12 @@ export function ImportedTablesManager({
                                   <span className="font-mono text-[9px] sm:text-[10px] font-bold text-slate-400">
                                     {colLetter}
                                   </span>
-                                  {!isExcluded && mappedWeekOpt && (
+                                  {viewMode === 'desktop' && !isExcluded && mappedWeekOpt && (
                                     <span
-                                      className={`inline-flex items-center rounded bg-white/90 border border-emerald-200 font-bold text-emerald-700 ${
-                                        viewMode === 'mobile'
-                                          ? 'px-0.5 py-0 text-[8px]'
-                                          : 'px-1 py-0.2 text-[9px]'
-                                      }`}
+                                      className="inline-flex items-center rounded bg-white/90 border border-emerald-200 font-bold text-emerald-700 px-1 py-0.2 text-[9px]"
                                       title={`周期の頭からの対応日: ${mappedWeekOpt.label}`}
                                     >
-                                      {viewMode === 'mobile'
-                                        ? mappedWeekOpt.label.slice(0, 1)
-                                        : mappedWeekOpt.label}
+                                      {mappedWeekOpt.label}
                                     </span>
                                   )}
                                 </div>
