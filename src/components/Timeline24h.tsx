@@ -742,8 +742,8 @@ export function Timeline24h({
           <div
             className={`relative flex ${
               focusMode === 'today' ? 'w-full min-w-0' : 'min-w-[720px] sm:min-w-[800px] w-full'
-            }`}
-            style={{ height: `${totalHeight}px` }}
+            } pb-8`}
+            style={{ height: `${totalHeight + 32}px` }}
           >
             {/* 全幅共通の水平グリッド罫線レイヤー（10分・30分・正時の目盛り線） */}
             <div className="pointer-events-none absolute inset-0 z-0">
@@ -1117,10 +1117,20 @@ export function Timeline24h({
                             {/* Block Content: 統一背景色の上で色付き文字と付随情報を表現 */}
                             <div
                               className={`flex h-full flex-col justify-between ${
-                                isPlanner ? 'p-1 px-1.5 sm:px-2' : 'p-1 pl-2.5'
+                                isPlanner
+                                  ? height < 32
+                                    ? 'p-0.5 px-1 sm:px-1.5'
+                                    : 'p-1 px-1.5 sm:px-2'
+                                  : height < 32
+                                    ? 'p-0.5 pl-2'
+                                    : 'p-1 pl-2.5'
                               } overflow-hidden`}
                             >
-                              <div className="flex items-start justify-between gap-1 min-w-0 overflow-hidden">
+                              <div
+                                className={`flex items-${
+                                  height < 32 ? 'center' : 'start'
+                                } justify-between gap-1 min-w-0 overflow-hidden`}
+                              >
                                 {/* タイトル領域: 手帳風では色付きのペン文字でサラッと書いた表現 */}
                                 <div
                                   className="min-w-0 flex-1 leading-snug break-words [overflow-wrap:anywhere] text-xs sm:text-[13px] font-bold"

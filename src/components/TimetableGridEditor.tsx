@@ -511,15 +511,15 @@ export function TimetableGridEditor({
                               {cell.text}
                             </div>
 
-                            {/* Hover Action Buttons */}
-                            <div className="absolute top-1 right-1 hidden gap-1 group-hover:flex">
+                            {/* Action Buttons: 常にタップ可能（ホバー時は強調） */}
+                            <div className="absolute top-1 right-1 flex gap-1 opacity-60 hover:opacity-100 group-hover:opacity-100 transition">
                               <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleStartEdit(r, c);
                                 }}
-                                className="rounded bg-white border border-slate-200 p-1 text-slate-500 hover:text-slate-800 shadow-2xs"
+                                className="rounded bg-white border border-slate-200 p-1 text-slate-500 hover:text-slate-800 shadow-2xs cursor-pointer"
                                 title="編集"
                               >
                                 <Edit2 className="h-2.5 w-2.5" />
@@ -527,7 +527,7 @@ export function TimetableGridEditor({
                               <button
                                 type="button"
                                 onClick={(e) => handleClearCell(r, c, e)}
-                                className="rounded bg-white border border-slate-200 p-1 text-slate-500 hover:text-rose-600 shadow-2xs"
+                                className="rounded bg-white border border-slate-200 p-1 text-slate-500 hover:text-rose-600 shadow-2xs cursor-pointer"
                                 title="コマを空(null)にする"
                               >
                                 <Trash2 className="h-2.5 w-2.5" />

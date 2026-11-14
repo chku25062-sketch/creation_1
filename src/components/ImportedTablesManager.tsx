@@ -2535,7 +2535,7 @@ export function ImportedTablesManager({
                                       updateActiveTable((t) => removeRowAtIndex(t, rIdx))
                                     }
                                     title={`行 ${rIdx + 1} を削除`}
-                                    className="h-4 w-4 rounded opacity-0 group-hover/row:opacity-100 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition"
+                                    className="h-4 w-4 rounded opacity-60 hover:opacity-100 group-hover/row:opacity-100 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition cursor-pointer"
                                   >
                                     <X className="h-3 w-3" />
                                   </button>
@@ -2645,17 +2645,30 @@ export function ImportedTablesManager({
                                       }`}>
                                         {pt ? `${pt.startTime || ''}` : ''}
                                       </span>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleClearCell(rIdx, cIdx, e);
-                                        }}
-                                        title="コマ内容をクリア"
-                                        className="opacity-0 group-hover/cell:opacity-100 p-0.5 hover:text-red-500 hover:bg-red-50 rounded transition"
-                                      >
-                                        <X className="h-3 w-3" />
-                                      </button>
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleStartEditCell(rIdx, cIdx);
+                                          }}
+                                          title="コマ内容を編集"
+                                          className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer"
+                                        >
+                                          <Edit2 className="h-3 w-3" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleClearCell(rIdx, cIdx, e);
+                                          }}
+                                          title="コマ内容をクリア"
+                                          className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition cursor-pointer"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
+                                      </div>
                                     </div>
                                   </div>
                                 ) : (
@@ -2719,11 +2732,11 @@ export function ImportedTablesManager({
           /* ========================================================
              Mobile Cell Edit Sheet: 下からせり上がる専用ボトムシート
              ======================================================== */
-          <div className="fixed inset-0 z-50 flex items-end">
+          <div className="fixed inset-0 z-[70] flex items-end">
             {/* 背景オーバーレイ */}
             <div
               onClick={() => setEditingCell(null)}
-              className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity duration-200 animate-in fade-in"
+              className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity duration-200 animate-in fade-in cursor-pointer"
             />
             {/* ボトムシートコンテナ */}
             <div className="relative z-10 flex w-full max-h-[88vh] flex-col rounded-t-3xl bg-white shadow-2xl animate-in slide-in-from-bottom duration-250 overflow-hidden">
@@ -2904,15 +2917,15 @@ export function ImportedTablesManager({
                 </div>
               </div>
 
-              {/* ボトムアクションバー（親指で届く大ボタン） */}
-              <div className="shrink-0 border-t border-slate-200 p-3 bg-slate-50/90 flex items-center gap-2.5">
+              {/* ボトムアクションバー（親指で届く大ボタン・フッター被り防止＆セーフエリア確保） */}
+              <div className="shrink-0 border-t border-slate-200 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-slate-50/95 flex items-center gap-2.5 shadow-lg">
                 <button
                   type="button"
                   onClick={() => {
                     handleClearCell(editingCell.r, editingCell.c);
                     setEditingCell(null);
                   }}
-                  className="flex-1 h-12 rounded-xl border border-red-200 bg-red-50 text-red-600 text-xs font-bold hover:bg-red-100 active:scale-98 transition flex items-center justify-center gap-1.5 shadow-2xs"
+                  className="flex-1 h-12 rounded-xl border border-red-200 bg-red-50 text-red-600 text-xs font-bold hover:bg-red-100 active:scale-98 transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
                 >
                   <Trash2 className="h-4 w-4" />
                   <span>空にする</span>
@@ -2920,7 +2933,7 @@ export function ImportedTablesManager({
                 <button
                   type="button"
                   onClick={handleSaveEditCell}
-                  className="flex-1 h-12 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 active:scale-98 transition flex items-center justify-center gap-1.5 shadow-md"
+                  className="flex-1 h-12 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 active:scale-98 transition flex items-center justify-center gap-1.5 shadow-md cursor-pointer"
                 >
                   <Check className="h-4 w-4 stroke-[3]" />
                   <span>保存する</span>
@@ -2930,8 +2943,14 @@ export function ImportedTablesManager({
           </div>
         ) : (
           /* デスクトップ版ダイアログ (既存のPC向け中央配置モーダル) */
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-2xs p-4">
-            <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-4 shadow-xl animate-in zoom-in-95 duration-150">
+          <div
+            onClick={() => setEditingCell(null)}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-2xs p-4 cursor-pointer"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-4 shadow-xl animate-in zoom-in-95 duration-150 cursor-default"
+            >
               <div className="mb-2.5 flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-800">
                   コマ内容を編集 ({editingCell.r + 1}行目・{activeTable.colHeaders[editingCell.c]})
@@ -2939,7 +2958,7 @@ export function ImportedTablesManager({
                 <button
                   type="button"
                   onClick={() => setEditingCell(null)}
-                  className="text-slate-400 hover:text-slate-600 transition"
+                  className="text-slate-400 hover:text-slate-600 transition p-1 cursor-pointer"
                 >
                   ✕
                 </button>
@@ -3084,7 +3103,7 @@ export function ImportedTablesManager({
           Mobile Settings Drawer: 右から飛び出す専用設定ドロワー
           ======================================================== */}
       {isMobileSettingsOpen && activeTable && (
-        <div className="fixed inset-0 z-50 flex justify-end">
+        <div className="fixed inset-0 z-[70] flex justify-end">
           {/* 背景オーバーレイ */}
           <div
             onClick={() => setIsMobileSettingsOpen(false)}
@@ -3625,7 +3644,7 @@ export function ImportedTablesManager({
           Mobile Table Switcher Sheet: 下から出る時間割切り替えシート
           ======================================================== */}
       {isMobileSwitcherOpen && (
-        <div className="fixed inset-0 z-50 flex items-end">
+        <div className="fixed inset-0 z-[70] flex items-end">
           {/* 背景オーバーレイ */}
           <div
             onClick={() => setIsMobileSwitcherOpen(false)}
