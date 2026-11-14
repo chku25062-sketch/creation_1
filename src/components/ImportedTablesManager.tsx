@@ -2250,17 +2250,15 @@ export function ImportedTablesManager({
                           </span>
                         </div>
 
-                        {/* Plan16: 分割配置トグル */}
+                        {/* Plan16: 分割回数セレクト */}
                         <div className="flex items-center gap-1 pl-1.5 border-l border-slate-200/80">
                           <span className="text-[10px] text-slate-500 font-medium select-none">
-                            分割配置:
+                            分割回数:
                           </span>
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={activeTable.attachedTaskConfig?.allowSplit ?? false}
-                            onClick={() => {
-                              const nextSplit = !(activeTable.attachedTaskConfig?.allowSplit ?? false);
+                          <select
+                            value={activeTable.attachedTaskConfig?.allowSplit ? (activeTable.attachedTaskConfig.splitCount || 2) : 1}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10);
                               updateActiveTable((prev) => ({
                                 ...prev,
                                 attachedTaskConfig: {
@@ -2269,55 +2267,24 @@ export function ImportedTablesManager({
                                   titleTemplate:
                                     prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
                                   durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
-                                  allowSplit: nextSplit,
-                                  minSplitMinutes: prev.attachedTaskConfig?.minSplitMinutes || 15,
-                                  maxSplits: prev.attachedTaskConfig?.maxSplits ?? 2,
+                                  allowSplit: val > 1,
+                                  splitCount: val > 1 ? val : undefined,
                                 },
                               }));
                             }}
-                            title={`隙間時間に合わせて分割配置を${activeTable.attachedTaskConfig?.allowSplit ? 'オフ' : 'オン'}にする`}
-                            className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
-                              activeTable.attachedTaskConfig?.allowSplit ? 'bg-indigo-600' : 'bg-slate-300'
-                            }`}
+                            title="付随タスクの分割回数（隙間時間に合わせて分割）"
+                            className="rounded border border-slate-200/80 bg-white/80 px-1 py-0.5 text-[10px] text-slate-700 font-semibold focus:outline-hidden hover:border-slate-300 transition"
                           >
-                            <span
-                              className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                                activeTable.attachedTaskConfig?.allowSplit
-                                  ? 'translate-x-3'
-                                  : 'translate-x-0'
-                              }`}
-                            />
-                          </button>
+                            <option value={1}>1回 (分割なし)</option>
+                            <option value={2}>2回に分割 (推奨)</option>
+                            <option value={3}>3回に分割</option>
+                            <option value={4}>4回に分割</option>
+                            <option value={5}>5回に分割</option>
+                          </select>
                           {activeTable.attachedTaskConfig?.allowSplit && (
-                            <div className="flex items-center gap-1">
-                              <select
-                                value={activeTable.attachedTaskConfig.splitCount || 2}
-                                onChange={(e) => {
-                                  const val = parseInt(e.target.value, 10);
-                                  updateActiveTable((prev) => ({
-                                    ...prev,
-                                    attachedTaskConfig: {
-                                      ...prev.attachedTaskConfig,
-                                      enabled: true,
-                                      titleTemplate:
-                                        prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
-                                      durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
-                                      allowSplit: true,
-                                      splitCount: val,
-                                    },
-                                  }));
-                                }}
-                                title="指定の分割回数"
-                                className="rounded border border-slate-200/80 bg-white/80 px-1 py-0.5 text-[10px] text-slate-700 font-semibold focus:outline-hidden"
-                              >
-                                <option value={2}>2回に分割</option>
-                                <option value={3}>3回に分割</option>
-                                <option value={4}>4回に分割</option>
-                              </select>
-                              <span className="text-[9px] text-indigo-700 bg-indigo-50 px-1 rounded font-mono">
-                                ({Math.floor((activeTable.attachedTaskConfig.durationMinutes || 15) / (activeTable.attachedTaskConfig.splitCount || 2))}分×{activeTable.attachedTaskConfig.splitCount || 2})
-                              </span>
-                            </div>
+                            <span className="text-[9px] text-indigo-700 bg-indigo-50 px-1 rounded font-mono font-medium">
+                              ({Math.floor((activeTable.attachedTaskConfig.durationMinutes || 15) / (activeTable.attachedTaskConfig.splitCount || 2))}分×{activeTable.attachedTaskConfig.splitCount || 2})
+                            </span>
                           )}
                         </div>
                       </div>
@@ -2899,48 +2866,38 @@ export function ImportedTablesManager({
                         </div>
                       </div>
 
-                      {/* Plan16: 隙間時間に合わせて分割配置 */}
-                      <div className="pt-2 border-t border-slate-200/60 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="text-xs font-medium text-slate-700">隙間時間に合わせて分割配置</span>
-                            <p className="text-[10px] text-slate-400">空きコマに合わせて復習を分散</p>
-                          </div>
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={cellAttachedAllowSplit}
-                            onClick={() => setCellAttachedAllowSplit(!cellAttachedAllowSplit)}
-                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-hidden ${
-                              cellAttachedAllowSplit ? 'bg-indigo-600' : 'bg-slate-300'
-                            }`}
-                          >
-                            <span
-                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
-                                cellAttachedAllowSplit ? 'translate-x-4' : 'translate-x-0'
-                              }`}
-                            />
-                          </button>
+                      {/* Plan16: 分割回数選択 */}
+                      <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-medium text-slate-700">分割回数</span>
+                          <p className="text-[10px] text-slate-400">空きコマに合わせて復習を分散</p>
                         </div>
-                        {cellAttachedAllowSplit && (
-                          <div className="flex items-center justify-between pt-1">
-                            <span className="text-[11px] text-slate-500">分割回数:</span>
-                            <div className="flex items-center gap-1.5">
-                              <select
-                                value={cellAttachedSplitCount}
-                                onChange={(e) => setCellAttachedSplitCount(parseInt(e.target.value, 10))}
-                                className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 focus:outline-hidden"
-                              >
-                                <option value={2}>2回に分割 (推奨)</option>
-                                <option value={3}>3回に分割</option>
-                                <option value={4}>4回に分割</option>
-                              </select>
-                              <span className="text-[10px] text-indigo-700 font-mono font-bold bg-indigo-50 px-1.5 py-0.5 rounded">
-                                {Math.floor(cellAttachedDuration / cellAttachedSplitCount)}分×{cellAttachedSplitCount}
-                              </span>
-                            </div>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={cellAttachedAllowSplit ? cellAttachedSplitCount : 1}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10);
+                              if (val === 1) {
+                                setCellAttachedAllowSplit(false);
+                              } else {
+                                setCellAttachedAllowSplit(true);
+                                setCellAttachedSplitCount(val);
+                              }
+                            }}
+                            className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 focus:outline-hidden"
+                          >
+                            <option value={1}>1回 (分割なし)</option>
+                            <option value={2}>2回に分割 (推奨)</option>
+                            <option value={3}>3回に分割</option>
+                            <option value={4}>4回に分割</option>
+                            <option value={5}>5回に分割</option>
+                          </select>
+                          {cellAttachedAllowSplit && (
+                            <span className="text-[10px] text-indigo-700 font-mono font-bold bg-indigo-50 px-1.5 py-0.5 rounded">
+                              {Math.floor(cellAttachedDuration / cellAttachedSplitCount)}分×{cellAttachedSplitCount}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -3068,40 +3025,33 @@ export function ImportedTablesManager({
                       </div>
                     </div>
 
-                    {/* Plan16: 隙間時間に合わせて分割配置 */}
+                    {/* Plan16: 分割回数選択 */}
                     <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between">
-                      <label className="text-[10px] text-slate-600 font-medium">分割配置:</label>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={cellAttachedAllowSplit}
-                          onClick={() => setCellAttachedAllowSplit(!cellAttachedAllowSplit)}
-                          className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-hidden ${
-                            cellAttachedAllowSplit ? 'bg-indigo-600' : 'bg-slate-300'
-                          }`}
+                      <label className="text-[10px] text-slate-600 font-medium">分割回数:</label>
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          value={cellAttachedAllowSplit ? cellAttachedSplitCount : 1}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value, 10);
+                            if (val === 1) {
+                              setCellAttachedAllowSplit(false);
+                            } else {
+                              setCellAttachedAllowSplit(true);
+                              setCellAttachedSplitCount(val);
+                            }
+                          }}
+                          className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] text-slate-700 font-semibold focus:outline-hidden"
                         >
-                          <span
-                            className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow-xs transition duration-200 ${
-                              cellAttachedAllowSplit ? 'translate-x-3' : 'translate-x-0'
-                            }`}
-                          />
-                        </button>
+                          <option value={1}>1回 (分割なし)</option>
+                          <option value={2}>2回に分割</option>
+                          <option value={3}>3回に分割</option>
+                          <option value={4}>4回に分割</option>
+                          <option value={5}>5回に分割</option>
+                        </select>
                         {cellAttachedAllowSplit && (
-                          <div className="flex items-center gap-1.5">
-                            <select
-                              value={cellAttachedSplitCount}
-                              onChange={(e) => setCellAttachedSplitCount(parseInt(e.target.value, 10))}
-                              className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] text-slate-700 font-semibold focus:outline-hidden"
-                            >
-                              <option value={2}>2回に分割</option>
-                              <option value={3}>3回に分割</option>
-                              <option value={4}>4回に分割</option>
-                            </select>
-                            <span className="text-[9px] text-indigo-700 font-mono font-bold bg-indigo-50 px-1 py-0.2 rounded">
-                              {Math.floor(cellAttachedDuration / cellAttachedSplitCount)}分×{cellAttachedSplitCount}
-                            </span>
-                          </div>
+                          <span className="text-[9px] text-indigo-700 font-mono font-bold bg-indigo-50 px-1 py-0.5 rounded">
+                            {Math.floor(cellAttachedDuration / cellAttachedSplitCount)}分×{cellAttachedSplitCount}
+                          </span>
                         )}
                       </div>
                     </div>
@@ -3588,19 +3538,17 @@ export function ImportedTablesManager({
                         </div>
                       </div>
 
-                      {/* Plan16: 隙間時間に合わせて分割配置 */}
-                      <div className="pt-2 border-t border-slate-200/50 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="text-xs font-bold text-slate-800">隙間時間に合わせて分割配置</span>
-                            <p className="text-[10px] text-slate-500">空きコマに合わせて復習を分散</p>
-                          </div>
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={activeTable.attachedTaskConfig?.allowSplit ?? false}
-                            onClick={() => {
-                              const nextSplit = !(activeTable.attachedTaskConfig?.allowSplit ?? false);
+                      {/* Plan16: 分割回数選択 */}
+                      <div className="pt-2 border-t border-slate-200/50 flex items-center justify-between">
+                        <div>
+                          <span className="text-xs font-bold text-slate-800">分割回数</span>
+                          <p className="text-[10px] text-slate-500">空きコマに合わせて復習を分散</p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={activeTable.attachedTaskConfig?.allowSplit ? (activeTable.attachedTaskConfig.splitCount || 2) : 1}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10);
                               updateActiveTable((prev) => ({
                                 ...prev,
                                 attachedTaskConfig: {
@@ -3608,55 +3556,25 @@ export function ImportedTablesManager({
                                   enabled: true,
                                   titleTemplate: prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
                                   durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
-                                  allowSplit: nextSplit,
-                                  minSplitMinutes: prev.attachedTaskConfig?.minSplitMinutes || 15,
-                                  maxSplits: prev.attachedTaskConfig?.maxSplits ?? 2,
+                                  allowSplit: val > 1,
+                                  splitCount: val > 1 ? val : undefined,
                                 },
                               }));
                             }}
-                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-hidden ${
-                              activeTable.attachedTaskConfig?.allowSplit ? 'bg-indigo-600' : 'bg-slate-300'
-                            }`}
+                            className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 focus:outline-hidden"
                           >
-                            <span
-                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
-                                activeTable.attachedTaskConfig?.allowSplit ? 'translate-x-4' : 'translate-x-0'
-                              }`}
-                            />
-                          </button>
+                            <option value={1}>1回 (分割なし)</option>
+                            <option value={2}>2回に分割 (推奨)</option>
+                            <option value={3}>3回に分割</option>
+                            <option value={4}>4回に分割</option>
+                            <option value={5}>5回に分割</option>
+                          </select>
+                          {activeTable.attachedTaskConfig?.allowSplit && (
+                            <span className="text-[10px] text-indigo-700 font-mono font-bold bg-indigo-50 px-1.5 py-0.5 rounded">
+                              {Math.floor((activeTable.attachedTaskConfig.durationMinutes || 15) / (activeTable.attachedTaskConfig.splitCount || 2))}分×{activeTable.attachedTaskConfig.splitCount || 2}
+                            </span>
+                          )}
                         </div>
-                        {activeTable.attachedTaskConfig?.allowSplit && (
-                          <div className="flex items-center justify-between pt-1">
-                            <span className="text-[11px] text-slate-600">分割回数:</span>
-                            <div className="flex items-center gap-1.5">
-                              <select
-                                value={activeTable.attachedTaskConfig.splitCount || 2}
-                                onChange={(e) => {
-                                  const val = parseInt(e.target.value, 10);
-                                  updateActiveTable((prev) => ({
-                                    ...prev,
-                                    attachedTaskConfig: {
-                                      ...prev.attachedTaskConfig,
-                                      enabled: true,
-                                      titleTemplate: prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
-                                      durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
-                                      allowSplit: true,
-                                      splitCount: val,
-                                    },
-                                  }));
-                                }}
-                                className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 focus:outline-hidden"
-                              >
-                                <option value={2}>2回に分割 (推奨)</option>
-                                <option value={3}>3回に分割</option>
-                                <option value={4}>4回に分割</option>
-                              </select>
-                              <span className="text-[10px] text-indigo-700 font-mono font-bold bg-indigo-50 px-1.5 py-0.5 rounded">
-                                {Math.floor((activeTable.attachedTaskConfig.durationMinutes || 15) / (activeTable.attachedTaskConfig.splitCount || 2))}分×{activeTable.attachedTaskConfig.splitCount || 2}
-                              </span>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </div>
                   )}
