@@ -4492,6 +4492,219 @@ describe('Theoretical Scheduler Engine', () => {
             expect(blocks[0].title).toBe('数学講義の復習');
             expect(blocks[0].isSplitBlock).toBeFalsy();
           });
+
+          it('Plan18: 割り切れない分数（余り）がある場合でも、前半スライスに1分ずつ配分され総時間が厳密に一致すること', () => {
+            // 月曜（dayIndex: 0）の固定講義: 12:00〜13:00 (720〜780)
+            // 20分の空き枠が3つある環境（780〜800, 820〜840, 860〜880）
+            const fixedSlots: FixedSlot[] = [
+              {
+                id: 'slot-mon-lecture',
+                title: '化学講義',
+                category: 'lecture',
+                startMinutes: 720,
+                endMinutes: 780,
+                daysOfWeek: [0],
+                color: '#3b82f6',
+              },
+              {
+                id: 'slot-gap-1',
+                title: '予定1',
+                category: 'routine',
+                startMinutes: 800,
+                endMinutes: 820,
+                daysOfWeek: [0],
+                color: '#10b981',
+              },
+              {
+                id: 'slot-gap-2',
+                title: '予定2',
+                category: 'routine',
+                startMinutes: 840,
+                endMinutes: 860,
+                daysOfWeek: [0],
+                color: '#10b981',
+              },
+              {
+                id: 'slot-night',
+                title: '夜の固定予定',
+                category: 'routine',
+                startMinutes: 880,
+                endMinutes: 1440,
+                daysOfWeek: [0],
+                color: '#6366f1',
+              },
+            ];
+
+            // 50分の付随タスクを3分割（50 / 3 = 16 余り 2 ➔ 17分, 17分, 16分）
+            const attachedTask: TaskItem = {
+              id: 'task-attached-chem',
+              title: '化学の復習',
+              category: 'study',
+              durationMinutes: 50,
+              period: 'week',
+              taskType: 'task',
+              priority: 'high',
+              isAttachedTask: true,
+              parentTitle: '化学講義',
+              parentEndMinutesByDay: { 0: 780 },
+              targetDays: [0],
+              startDay: 0,
+              allowSplit: true,
+              splitCount: 3,
+            };
+
+            const result = generateTheoreticalSchedule(fixedSlots, [attachedTask], {
+              todayIndex: 0,
+              currentMinutes: 540,
+            });
+
+            const monBlocks = result.dayBlocks[0];
+            const splitBlocks = monBlocks.filter((b) => b.taskId === 'task-attached-chem');
+            expect(splitBlocks.length).toBe(3);
+
+            // スライス1: 17分 (780〜797)
+            expect(splitBlocks[0].title).toBe('化学の復習 (1/3)');
+            expect(splitBlocks[0].startMinutes).toBe(780);
+            expect(splitBlocks[0].endMinutes).toBe(797);
+            expect(splitBlocks[0].endMinutes - splitBlocks[0].startMinutes).toBe(17);
+
+            // スライス2: 17分 (820〜837)
+            expect(splitBlocks[1].title).toBe('化学の復習 (2/3)');
+            expect(splitBlocks[1].startMinutes).toBe(820);
+            expect(splitBlocks[1].endMinutes).toBe(837);
+            expect(splitBlocks[1].endMinutes - splitBlocks[1].startMinutes).toBe(17);
+
+            // スライス3: 16分 (860〜876)
+            expect(splitBlocks[2].title).toBe('化学の復習 (3/3)');
+            expect(splitBlocks[2].startMinutes).toBe(860);
+            expect(splitBlocks[2].endMinutes).toBe(876);
+            expect(splitBlocks[2].endMinutes - splitBlocks[2].startMinutes).toBe(16);
+
+            // 合計時間が50分と厳密に一致すること
+            const totalScheduledMinutes = splitBlocks.reduce(
+              (sum, b) => sum + (b.endMinutes - b.startMinutes),
+              0,
+            );
+            expect(totalScheduledMinutes).toBe(50);
+          });
+
+          it('Plan18: 5回を超える多分割（6分割）でも、上限なく均等配置されること', () => {
+            // 月曜に20分の空き枠が6箇所ある環境
+            const fixedSlots: FixedSlot[] = [
+              {
+                id: 'slot-mon-lecture',
+                title: '情報数学',
+                category: 'lecture',
+                startMinutes: 600,
+                endMinutes: 700,
+                daysOfWeek: [0],
+                color: '#3b82f6',
+              },
+              // 700〜720 空き (20分)
+              { id: 'b1', title: '固定1', category: 'routine', startMinutes: 720, endMinutes: 740, daysOfWeek: [0], color: '#aaa' },
+              // 740〜760 空き (20分)
+              { id: 'b2', title: '固定2', category: 'routine', startMinutes: 760, endMinutes: 780, daysOfWeek: [0], color: '#aaa' },
+              // 780〜800 空き (20分)
+              { id: 'b3', title: '固定3', category: 'routine', startMinutes: 800, endMinutes: 820, daysOfWeek: [0], color: '#aaa' },
+              // 820〜840 空き (20分)
+              { id: 'b4', title: '固定4', category: 'routine', startMinutes: 840, endMinutes: 860, daysOfWeek: [0], color: '#aaa' },
+              // 860〜880 空き (20分)
+              { id: 'b5', title: '固定5', category: 'routine', startMinutes: 880, endMinutes: 900, daysOfWeek: [0], color: '#aaa' },
+              // 900〜920 空き (20分)
+              { id: 'b6', title: '夜固定', category: 'routine', startMinutes: 920, endMinutes: 1440, daysOfWeek: [0], color: '#aaa' },
+            ];
+
+            // 120分の付随タスクを6分割（120 / 6 = 20分×6回）
+            const attachedTask: TaskItem = {
+              id: 'task-attached-infomath',
+              title: '情報数学の演習',
+              category: 'study',
+              durationMinutes: 120,
+              period: 'week',
+              taskType: 'task',
+              priority: 'high',
+              isAttachedTask: true,
+              parentTitle: '情報数学',
+              parentEndMinutesByDay: { 0: 700 },
+              targetDays: [0],
+              startDay: 0,
+              allowSplit: true,
+              splitCount: 6,
+            };
+
+            const result = generateTheoreticalSchedule(fixedSlots, [attachedTask], {
+              todayIndex: 0,
+              currentMinutes: 540,
+            });
+
+            const monBlocks = result.dayBlocks[0];
+            const splitBlocks = monBlocks.filter((b) => b.taskId === 'task-attached-infomath');
+            expect(splitBlocks.length).toBe(6);
+
+            for (let i = 0; i < 6; i++) {
+              expect(splitBlocks[i].title).toBe(`情報数学の演習 (${i + 1}/6)`);
+              expect(splitBlocks[i].endMinutes - splitBlocks[i].startMinutes).toBe(20);
+              expect(splitBlocks[i].isSplitBlock).toBe(true);
+              expect(splitBlocks[i].totalSplits).toBe(6);
+            }
+          });
+
+          it('Plan18: 親講義の開始前（午前中）に空き枠があっても、親講義終了前には配置されないこと', () => {
+            // 午前中（480〜600 / 08:00〜10:00）にたっぷり空き枠があるが、親講義は13:00〜14:30 (780〜870)
+            const fixedSlots: FixedSlot[] = [
+              {
+                id: 'slot-lecture-afternoon',
+                title: '午後ゼミ',
+                category: 'lecture',
+                startMinutes: 780,
+                endMinutes: 870,
+                daysOfWeek: [0],
+                color: '#3b82f6',
+              },
+              {
+                id: 'slot-night-routine',
+                title: '夜固定',
+                category: 'routine',
+                startMinutes: 930,
+                endMinutes: 1440,
+                daysOfWeek: [0],
+                color: '#aaa',
+              },
+            ];
+
+            // 60分の付随タスク（2分割 ➔ 30分×2回）
+            // 午後870〜930（60分）に空きがある
+            const attachedTask: TaskItem = {
+              id: 'task-attached-seminar',
+              title: 'ゼミ復習',
+              category: 'study',
+              durationMinutes: 60,
+              period: 'week',
+              taskType: 'task',
+              priority: 'high',
+              isAttachedTask: true,
+              parentTitle: '午後ゼミ',
+              parentEndMinutesByDay: { 0: 870 },
+              targetDays: [0],
+              startDay: 0,
+              allowSplit: true,
+              splitCount: 2,
+            };
+
+            const result = generateTheoreticalSchedule(fixedSlots, [attachedTask], {
+              todayIndex: 0,
+              currentMinutes: 480,
+            });
+
+            const monBlocks = result.dayBlocks[0];
+            const splitBlocks = monBlocks.filter((b) => b.taskId === 'task-attached-seminar');
+
+            // すべて親講義終了時刻（870分 / 14:30）以降に配置されていること
+            expect(splitBlocks.length).toBeGreaterThan(0);
+            for (const b of splitBlocks) {
+              expect(b.startMinutes).toBeGreaterThanOrEqual(870);
+            }
+          });
         });
       });
     });
