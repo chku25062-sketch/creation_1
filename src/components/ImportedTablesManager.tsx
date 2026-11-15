@@ -1150,27 +1150,29 @@ export function ImportedTablesManager({
                             />
                           </button>
 
-                          {/* Actions on Hover (展開時のみ) */}
+                          {/* Actions (項目ごとの編集・削除アイコン) */}
                           {isSidebarOpen && (
-                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition shrink-0">
+                            <div className="flex items-center gap-0.5 opacity-70 group-hover:opacity-100 transition shrink-0 ml-1">
                               {isSelected && !isEditingName && (
                                 <button
+                                  type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setTempTableName(t.name);
                                     setIsEditingName(true);
                                   }}
                                   title="名前を変更"
-                                  className="rounded p-1 text-slate-400 hover:bg-slate-200/80 hover:text-blue-600"
+                                  className="rounded p-1 text-slate-400 hover:bg-slate-200/80 hover:text-blue-600 transition cursor-pointer"
                                 >
                                   <Edit2 className="h-3 w-3" />
                                 </button>
                               )}
                               {tables.length > 1 && (
                                 <button
+                                  type="button"
                                   onClick={(e) => handleDeleteTable(t.id, e)}
-                                  title="表を削除"
-                                  className="rounded p-1 text-slate-400 hover:bg-rose-100 hover:text-rose-600"
+                                  title={`「${t.name}」を削除`}
+                                  className="rounded p-1 text-slate-400 hover:bg-rose-100 hover:text-rose-600 transition cursor-pointer"
                                 >
                                   <Trash2 className="h-3 w-3" />
                                 </button>
@@ -1704,6 +1706,16 @@ export function ImportedTablesManager({
                       >
                         <Edit2 className="h-3 w-3" />
                       </button>
+                      {tables.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteTable(activeTable.id, e)}
+                          title={`「${activeTable.name}」を削除`}
+                          className="ml-0.5 text-slate-400 hover:text-rose-600 p-0.5 rounded hover:bg-rose-50 transition cursor-pointer"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
