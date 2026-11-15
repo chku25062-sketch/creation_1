@@ -4789,6 +4789,95 @@ describe('Theoretical Scheduler Engine', () => {
             expect(tueBlocks[0].endMinutes - tueBlocks[0].startMinutes).toBe(30);
           });
         });
+
+        describe('Plan19: 週の切り替わり・週跨ぎライフサイクル検証', () => {
+          it('木曜出題〜翌週火曜締切の週跨ぎ課題が、月曜日（todayIndex = 0）に「先週タスク (last_week)」として火曜までに配置されること', () => {
+            const crossWeekTask: TaskItem = {
+              id: 'task-assignment-cross',
+              title: '物理レポート課題',
+              category: 'study',
+              durationMinutes: 60,
+              period: 'week',
+              taskType: 'assignment',
+              startDay: 3, // 木曜出題
+              deadlineDay: 1, // 翌週火曜締切
+              priority: 'high',
+            };
+
+            // 月曜（todayIndex: 0）時点のスケジュール生成
+            const result = generateTheoreticalSchedule([], [crossWeekTask], {
+              todayIndex: 0,
+              currentMinutes: 540,
+            });
+
+            // 今週の月曜または火曜に配置されていること（水曜以降にはみ出さない）
+            const allBlocks = result.allBlocks.filter((b) => b.taskId === 'task-assignment-cross');
+            expect(allBlocks.length).toBeGreaterThan(0);
+            for (const b of allBlocks) {
+              expect(b.dayIndex).toBeLessThanOrEqual(1); // 月曜(0)または火曜(1)
+              expect(b.weeklyClassification).toBe('last_week');
+            }
+          });
+
+          it('expiryWeeks: 2 のタスクは、先週木曜（fromDay: 3）の未完了であっても月曜日（todayIndex = 0）に弾かれず新週へ再配置されること', () => {
+            const task: TaskItem = {
+              id: 'task-weekly-report-2w',
+              title: '2週間有効レポート',
+              category: 'study',
+              durationMinutes: 60,
+              period: 'week',
+              taskType: 'task',
+              priority: 'high',
+              startDay: 3,
+              deadlineDay: 1,
+              isFromLastWeek: true,
+              taskOriginWeek: 'last',
+              expiryWeeks: 2,
+            };
+
+            const uncompletedIds = new Set<string>(['block-task-3-task-weekly-report-2w']);
+
+            const result = generateTheoreticalSchedule([], [task], {
+              todayIndex: 0,
+              currentMinutes: 540,
+              uncompletedBlockIds: uncompletedIds,
+            });
+
+            const rescheduled = result.allBlocks.filter((b) => b.taskId === 'task-weekly-report-2w');
+            expect(rescheduled.length).toBeGreaterThan(0);
+          });
+
+          it('expiryWeeks: 1 のタスクは、先週からの未完了タスクが週跨ぎで期限切れとなり新週へ再配置されないこと', () => {
+            const task: TaskItem = {
+              id: 'task-weekly-report-1w',
+              title: '1週間限定レポート',
+              category: 'study',
+              durationMinutes: 60,
+              period: 'week',
+              taskType: 'task',
+              priority: 'high',
+              startDay: 3,
+              deadlineDay: 1,
+              isFromLastWeek: true,
+              taskOriginWeek: 'last',
+              expiryWeeks: 1, // 1週間限定
+            };
+
+            const uncompletedIds = new Set<string>(['block-task-3-task-weekly-report-1w']);
+
+            const result = generateTheoreticalSchedule([], [task], {
+              todayIndex: 0,
+              currentMinutes: 540,
+              uncompletedBlockIds: uncompletedIds,
+            });
+
+            const rescheduled = result.allBlocks.filter(
+              (b) => b.taskId === 'task-weekly-report-1w' && b.isRescheduled,
+            );
+            // 期限切れのため再配置されないこと！
+            expect(rescheduled.length).toBe(0);
+          });
+        });
       });
     });
   });

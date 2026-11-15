@@ -134,18 +134,24 @@ export function toggleBlockCompletion(params: CompletionToggleParams): Completio
 
 /**
  * 完了・未完了状態をローカルストレージへ安全に保存するヘルパー
+ * Plan19: weekKey（YYYY-MM-DD）を指定することで週ごとの世代分離を担保
  */
 export function persistCompletionStates(
   completedBlockIds: Set<string>,
   uncompletedBlockIds: Set<string>,
+  weekKey?: string,
 ): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem('app_completed_block_ids', JSON.stringify(Array.from(completedBlockIds)));
-    localStorage.setItem(
-      'app_uncompleted_block_ids',
-      JSON.stringify(Array.from(uncompletedBlockIds)),
-    );
+    const listCompleted = JSON.stringify(Array.from(completedBlockIds));
+    const listUncompleted = JSON.stringify(Array.from(uncompletedBlockIds));
+
+    if (weekKey) {
+      localStorage.setItem(`app_completed_block_ids_${weekKey}`, listCompleted);
+      localStorage.setItem(`app_uncompleted_block_ids_${weekKey}`, listUncompleted);
+    }
+    localStorage.setItem('app_completed_block_ids', listCompleted);
+    localStorage.setItem('app_uncompleted_block_ids', listUncompleted);
   } catch {
     // ignore
   }

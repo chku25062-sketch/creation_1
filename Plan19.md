@@ -195,12 +195,42 @@ const currentWeekKey = getMondayDateString(new Date());
 
 ## 6. まとめ
 
-| 項目 | 現行の仕様 | 週跨ぎ時の動作 | 今後の改善推奨 |
+| 項目 | 現行の仕様 | 週跨ぎ時の動作 | 改善実装状況 |
 | :--- | :--- | :--- | :--- |
-| **カレンダー・日付** | 月曜〜日曜の7日間算出 | 翌週の月曜〜日曜の日付へ自動更新 | 正常稼働中 |
-| **固定枠 (時間割)** | 曜日ベースで毎週反復 | 新週の月曜0:00に全枠が未完了リセット | 正常稼働中 |
-| **日タスク (Daily)** | 当日完結・繰り返し | 繰り越さず、新週月曜から再敷き詰め | 正常稼働中 |
-| **週タスク (Weekly)** | 週1回目標 | 新週の目標として自動再生成 | 正常稼働中 |
-| **週跨ぎ課題** | `startDay > deadlineDay` | 月曜0:00に「先週タスク」へ自動昇格 | 正常稼働中 |
-| **完了状態の永続化** | 曜日番号キーで保存 | 先週の完了が新週に誤マッチする懸念あり | 週キー（YYYY-MM-DD）による世代分離を推奨 |
-| **未完了再配置** | `fromDay <= todayIdx` | 月曜0:00に先週後半タスクが弾かれる懸念あり | `isFromLastWeek` ガードの導入を推奨 |
+| **カレンダー・日付** | 月曜〜日曜の7日間算出 | 翌週の月曜〜日曜の日付へ自動更新 | ✅ 正常稼働 |
+| **固定枠 (時間割)** | 曜日ベースで毎週反復 | 新週の月曜0:00に全枠が未完了リセット | ✅ 正常稼働 |
+| **日タスク (Daily)** | 当日完結・繰り返し | 繰り越さず、新週月曜から再敷き詰め | ✅ 正常稼働 |
+| **週タスク (Weekly)** | 週1回目標 | 新週の目標として自動再生成 | ✅ 正常稼働 |
+| **週跨ぎ課題** | `startDay > deadlineDay` | 月曜0:00に「先週タスク」へ自動昇格 | ✅ 正常稼働 |
+| **完了状態の永続化** | 曜日番号キーで保存 | 週キー（YYYY-MM-DD）による世代分離 | ✅ **実装完了** (`page.tsx`) |
+| **未完了再配置** | `fromDay <= todayIdx` | `isFromLastWeek` ガードによる誤判定防止 | ✅ **実装完了** (`planGenerator.ts`) |
+| **有効期限連動** | `expiryWeeks` | 1週間(当週消去)/2週間/期限なしフィルター | ✅ **実装完了** (`planGenerator.ts`) |
+
+---
+
+## 7. 実装完了アーキテクチャ詳細
+
+### 7.1. 週キー（`currentWeekKey`）による完了状態の世代分離
+- **実装ファイル**: [`src/lib/timeUtils.ts`](file:///c:/Users/kousu/OneDrive/Desktop/creation_1/src/lib/timeUtils.ts), [`src/app/page.tsx`](file:///c:/Users/kousu/OneDrive/Desktop/creation_1/src/app/page.tsx), [`src/lib/scheduler/completionManager.ts`](file:///c:/Users/kousu/OneDrive/Desktop/creation_1/src/lib/scheduler/completionManager.ts)
+- `getMondayKey(date)` により、その週の月曜日の日付（例: `"2026-11-16"`）を週キーとして算出。
+- `localStorage` の保存キーを `app_completed_block_ids_${weekKey}` にスコープ化。
+- 週が切り替わると自動的に新しい週の空の完了セットへ移行し、前週の月曜タスクの完了状態が新週の月曜タスクに誤って反映される不整合を根絶。
+
+### 7.2. 先週持ち越しタスクの曜日判定ガード
+- **実装ファイル**: [`src/lib/scheduler/planGenerator.ts`](file:///c:/Users/kousu/OneDrive/Desktop/creation_1/src/lib/scheduler/planGenerator.ts)
+- 先週から持ち越された未完了タスク（`isFromLast === true`）について、月曜日（`todayIdx = 0`）に `fromDay (例: 4) > todayIdx (0)` と判定されて弾かれるバグを `if (!isFromLast && fromDay > todayIdx) continue;` で解消。
+
+### 7.3. 週タスク有効期限（`expiryWeeks`）フィルターの接続
+- **実装ファイル**: [`src/lib/scheduler/planGenerator.ts`](file:///c:/Users/kousu/OneDrive/Desktop/creation_1/src/lib/scheduler/planGenerator.ts)
+- `expiryWeeks === 1`（当週内・推奨）の場合、週を跨いだ未完了タスクは期限切れとして持ち越さずリセット。
+- `expiryWeeks === 2` または `'none'` の場合、新週の月曜日以降のタイムラインへ「先週タスク」としてリスケジュール配置を継続。
+
+---
+
+## 8. 自動テスト検証結果（Vitest）
+
+- **テストファイル**: [`src/lib/scheduler.test.ts`](file:///c:/Users/kousu/OneDrive/Desktop/creation_1/src/lib/scheduler.test.ts)
+- **テスト実行結果**: **全8テストスイート、全184テスト ALL PASS**（エラー0件）
+  1. `木曜出題〜翌週火曜締切の週跨ぎ課題が、月曜日に「先週タスク (last_week)」として火曜までに配置されること`: **PASS**
+  2. `expiryWeeks: 2 のタスクは、先週木曜の未完了であっても月曜日に弾かれず新週へ再配置されること`: **PASS**
+  3. `expiryWeeks: 1 のタスクは、先週からの未完了タスクが週跨ぎで期限切れとなり新週へ再配置されないこと`: **PASS**

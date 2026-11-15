@@ -301,8 +301,24 @@ export function generatePlacementPlans(
           continue;
         }
 
+        const isFromLast =
+          matchedTask.taskOriginWeek === 'last' ||
+          matchedTask.isFromLastWeek === true ||
+          (matchedTask.startDay !== undefined &&
+            matchedTask.deadlineDay !== undefined &&
+            matchedTask.startDay > matchedTask.deadlineDay &&
+            todayIdx <= matchedTask.deadlineDay);
+
+        // ★ Plan19: 週タスク有効期限の判定
+        // expiryWeeks が 1（当週内・推奨）の場合、週を跨いだ先週のタスクは期限切れとして持ち越さない
+        const expiryWeeks = matchedTask.expiryWeeks ?? 1;
+        if (isFromLast && expiryWeeks === 1) {
+          continue;
+        }
+
         // 未来の枠は未完了でも再配置しない（これから実施するため）
-        if (fromDay > todayIdx) continue;
+        // ★ Plan19: 先週からの持ち越しタスク（isFromLast）は、月曜日に fromDay (例: 4) > todayIdx (0) となっても弾かない！
+        if (!isFromLast && fromDay > todayIdx) continue;
 
         if (fromDay === todayIdx) {
           const taskEndTime =
@@ -315,19 +331,11 @@ export function generatePlacementPlans(
             matchedTask.startDay !== undefined
               ? matchedTask.startDay < todayIdx
               : (matchedTask.targetDays || []).some((d) => d < todayIdx);
-          if (!hasPastCandidate && todayIdx > 0) continue;
+          if (!hasPastCandidate && todayIdx > 0 && !isFromLast) continue;
         }
 
         if (processedTaskIds.has(matchedTask.id)) continue;
         processedTaskIds.add(matchedTask.id);
-
-        const isFromLast =
-          matchedTask.taskOriginWeek === 'last' ||
-          matchedTask.isFromLastWeek === true ||
-          (matchedTask.startDay !== undefined &&
-            matchedTask.deadlineDay !== undefined &&
-            matchedTask.startDay > matchedTask.deadlineDay &&
-            todayIdx <= matchedTask.deadlineDay);
 
         const rescheduledTask: TaskItem = {
           ...matchedTask,

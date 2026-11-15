@@ -31,6 +31,7 @@ import {
   DEFAULT_INCLUSION_SETTINGS,
 } from '@/lib/storage';
 import { generateScheduleItemsForTable } from '@/lib/tableUtils';
+import { getMondayKey } from '@/lib/timeUtils';
 import { supabase } from '@/lib/supabase';
 
 export default function Home() {
@@ -177,10 +178,15 @@ export default function Home() {
     }
   };
 
+  // Plan19: 今週の週識別キー（月曜日の日付 YYYY-MM-DD）。週が変わるとキーが自動で切り替わる
+  const currentWeekKey = useMemo(() => getMondayKey(new Date()), [effectiveTodayIndex]);
+
   const handleResetCompletionStates = () => {
     setCompletedBlockIds(new Set());
     setUncompletedBlockIds(new Set());
     try {
+      localStorage.removeItem(`app_completed_block_ids_${currentWeekKey}`);
+      localStorage.removeItem(`app_uncompleted_block_ids_${currentWeekKey}`);
       localStorage.removeItem('app_completed_block_ids');
       localStorage.removeItem('app_uncompleted_block_ids');
     } catch {
@@ -188,21 +194,29 @@ export default function Home() {
     }
   };
 
-  // 完了トグル状態の復元
+  // 完了トグル状態の復元（週キーによる世代分離）
   useEffect(() => {
     try {
-      const savedCompleted = localStorage.getItem('app_completed_block_ids');
+      const savedCompleted =
+        localStorage.getItem(`app_completed_block_ids_${currentWeekKey}`) ??
+        localStorage.getItem('app_completed_block_ids');
       if (savedCompleted) {
         setCompletedBlockIds(new Set(JSON.parse(savedCompleted)));
+      } else {
+        setCompletedBlockIds(new Set());
       }
-      const savedUncompleted = localStorage.getItem('app_uncompleted_block_ids');
+      const savedUncompleted =
+        localStorage.getItem(`app_uncompleted_block_ids_${currentWeekKey}`) ??
+        localStorage.getItem('app_uncompleted_block_ids');
       if (savedUncompleted) {
         setUncompletedBlockIds(new Set(JSON.parse(savedUncompleted)));
+      } else {
+        setUncompletedBlockIds(new Set());
       }
     } catch {
       // ignore
     }
-  }, []);
+  }, [currentWeekKey]);
 
   // フォーカスモードの復元
   useEffect(() => {
@@ -721,7 +735,7 @@ export default function Home() {
 
     setCompletedBlockIds(nextCompletedIds);
     setUncompletedBlockIds(nextUncompletedIds);
-    persistCompletionStates(nextCompletedIds, nextUncompletedIds);
+    persistCompletionStates(nextCompletedIds, nextUncompletedIds, currentWeekKey);
   };
 
   // 今週配置された全週タスク一覧（日フォーカス時も週全体を俯瞰できるよう抽出）

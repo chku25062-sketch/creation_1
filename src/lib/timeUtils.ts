@@ -21,6 +21,20 @@ export function formatDuration(minutes: number): string {
   return `${h}時間${m}分`;
 }
 
+/**
+ * 指定された日付（省略時は現在）が属する週の月曜日の日付文字列 (YYYY-MM-DD) を取得
+ * 週の切り替わりにおける完了状態の世代分離キーとして使用
+ */
+export function getMondayKey(date: Date = new Date()): string {
+  const d = new Date(date);
+  const dayOfWeek = (d.getDay() + 6) % 7; // 0:月 ... 6:日
+  d.setDate(d.getDate() - dayOfWeek);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export interface PeriodTimeSlot {
   periodIndex: number;
   startMinutes: number;
