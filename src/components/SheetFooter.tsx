@@ -5,10 +5,6 @@ import {
   Calendar,
   FileSpreadsheet,
   CheckCircle2,
-  Cloud,
-  CloudOff,
-  LogIn,
-  LogOut,
   Target,
   Menu,
   X,
@@ -23,19 +19,15 @@ import {
   SlidersHorizontal,
   RotateCcw,
   FlaskConical,
-  CalendarClock,
-  Sun,
   History,
   Layers,
   ChevronDown,
 } from 'lucide-react';
-import { isSupabaseConfigured } from '@/lib/supabase';
 import { AppThemeMode, TheoreticalBlock, TaskItem, TaskPlacementStrategy } from '@/types';
 import { minutesToTimeString, timeStringToMinutes, formatDuration } from '@/lib/timeUtils';
 import {
   classifyWeeklyTask,
   classifyWeeklyBlock,
-  classifyDailyBlock,
   isWeeklyTaskItem,
   getParentEndTimeForDay,
 } from '@/lib/scheduler';
@@ -84,16 +76,12 @@ export function SheetFooter({
   unassignedCount = 0,
   tablesCount = 0,
   lastSavedAt,
-  userEmail,
-  onOpenAuth,
-  onSignOut,
   focusMode = 'today',
   onToggleFocus,
   themeMode = 'planner',
   onToggleThemeMode,
   weeklyBlocks = [],
   unassignedWeeklyTasks = [],
-  allBlocks = [],
   allTasks = [],
   onToggleBlockComplete,
   selectedDayIndex,
@@ -140,9 +128,6 @@ export function SheetFooter({
 
   const WEEKDAY_NAMES = ['月', '火', '水', '木', '金', '土', '日'];
 
-  // Plan14: メニュー内タスク表示用タブ ('week' | 'day')
-  const [taskMenuTab, setTaskMenuTab] = useState<'week' | 'day'>('week');
-
   // 基準日時の曜日
   const currentTodayIdx = debugTime?.enabled
     ? debugTime.dayIndex
@@ -188,36 +173,10 @@ export function SheetFooter({
     );
   }, [allTasks, currentTodayIdx, currentMinutes]);
 
-  // 日タスクブロックの分類（今日の分のタスク・前日分のタスク）
-  const allDailyBlocks = useMemo(() => {
-    return allBlocks.filter((b: TheoreticalBlock) => !b.isWeeklyTask && !b.isFixed && !b.isBreak);
-  }, [allBlocks]);
-
-  // 前日分のタスク（日付またぎ・前日からの未完了持ち越し）
-  const yesterdayDailyBlocks = useMemo(() => {
-    return allDailyBlocks.filter(
-      (b: TheoreticalBlock) => classifyDailyBlock(b, currentTodayIdx) === 'yesterday',
-    );
-  }, [allDailyBlocks, currentTodayIdx]);
-
-  // 今日の分のタスク
-  const todayDailyBlocks = useMemo(() => {
-    return allDailyBlocks.filter(
-      (b: TheoreticalBlock) =>
-        classifyDailyBlock(b, currentTodayIdx) === 'today' && b.dayIndex === currentTodayIdx,
-    );
-  }, [allDailyBlocks, currentTodayIdx]);
-
   // 週タスクのサマリー計算
   const totalWeeklyTasksCount =
     weeklyBlocks.length + unassignedWeeklyTasks.length + upcomingWeeklyTasks.length;
   const completedWeeklyTasksCount = weeklyBlocks.filter((b: TheoreticalBlock) => b.isCompleted).length;
-
-  // 日タスクのサマリー計算
-  const totalDailyTasksCount = todayDailyBlocks.length + yesterdayDailyBlocks.length;
-  const completedDailyTasksCount =
-    todayDailyBlocks.filter((b: TheoreticalBlock) => b.isCompleted).length +
-    yesterdayDailyBlocks.filter((b: TheoreticalBlock) => b.isCompleted).length;
 
   // 曜日ジャンプ（日フォーカスでその曜日へ切り替えてバーを閉じる）
   const handleJumpToDay = (dayIndex?: number) => {
@@ -332,95 +291,6 @@ export function SheetFooter({
               <span>未完了</span>
             )}
           </button>
-        )}
-      </div>
-    );
-  };
-
-  // 日タスクブロックアイテムの描画
-  const renderDailyBlockItem = (block: TheoreticalBlock, isYesterday: boolean) => {
-    const dayName = WEEKDAY_NAMES[block.dayIndex ?? 0] ?? '月';
-    const isTargetDayCurrent = block.dayIndex === selectedDayIndex;
-    const durationMins = block.endMinutes - block.startMinutes;
-
-    return (
-      <div
-        key={`menubar-daily-${block.id}`}
-        className={`flex items-center justify-between gap-2 p-2 border transition ${
-          block.isCompleted
-            ? 'border-slate-200 bg-slate-50/70'
-            : isYesterday
-              ? 'border-orange-300 bg-orange-50/30'
-              : isTargetDayCurrent
-                ? 'border-amber-300 bg-amber-50/40'
-                : 'border-slate-200/90 bg-white hover:bg-slate-50/80'
-        }`}
-      >
-        {/* 曜日バッジ */}
-        <button
-          type="button"
-          onClick={() => handleJumpToDay(block.dayIndex)}
-          className={`shrink-0 flex items-center justify-center h-6 w-6 font-bold text-xs border transition cursor-pointer ${
-            isTargetDayCurrent
-              ? 'border-amber-800 bg-amber-800 text-white'
-              : 'border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200'
-          }`}
-          title={`クリックで${dayName}曜日の日フォーカスへ移動`}
-        >
-          {dayName}
-        </button>
-
-        {/* タスク情報 */}
-        <div className="flex-1 min-w-0 flex flex-col justify-center">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {isYesterday && (
-              <span className="shrink-0 rounded bg-orange-100 border border-orange-300 px-1 py-0.2 text-[9px] font-bold text-orange-900">
-                前日分
-              </span>
-            )}
-            {block.isRescheduled && (
-              <span
-                className="shrink-0 rounded bg-amber-100 border border-amber-300 px-1 py-0.2 text-[9px] font-bold text-amber-800"
-                title="未完了のため再配置されたタスク"
-              >
-                持越
-              </span>
-            )}
-            <span
-              className={`text-xs font-bold truncate ${
-                block.isCompleted ? 'line-through text-slate-400' : 'text-slate-800'
-              }`}
-              title={block.title}
-            >
-              {block.title}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono mt-0.5">
-            <Clock className="h-3 w-3 text-slate-400 shrink-0" />
-            <span>
-              {minutesToTimeString(block.startMinutes)} - {minutesToTimeString(block.endMinutes)}
-            </span>
-            <span className="text-slate-400">({formatDuration(durationMins)})</span>
-          </div>
-        </div>
-
-        {/* 完了トグルボタン: 未完了時は「完了にする」ボタンを表示、完了時は戻すボタンを出さず済バッジのみ */}
-        {block.isCompleted ? (
-          <div className="shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] font-bold border border-emerald-200 bg-emerald-50/70 text-emerald-700 select-none">
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-            <span>済</span>
-          </div>
-        ) : (
-          onToggleBlockComplete && (
-            <button
-              type="button"
-              onClick={() => onToggleBlockComplete(block)}
-              className="shrink-0 flex items-center gap-1 px-2 py-1 text-[11px] font-bold border border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100 transition cursor-pointer"
-              title="クリックで完了にする"
-            >
-              <span>完了にする</span>
-            </button>
-          )
         )}
       </div>
     );
@@ -613,12 +483,6 @@ export function SheetFooter({
             aria-label={isMenuOpen ? 'メニューを閉じる' : 'メニューを開く'}
           >
             {isMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-            {userEmail && !isMenuOpen && (
-              <span
-                className="absolute top-1 right-1 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white"
-                title="クラウド同期中"
-              />
-            )}
           </button>
         </div>
       </div>
@@ -870,66 +734,6 @@ export function SheetFooter({
       >
         {/* バーコンテンツ（ヘッダーなし、上部に適度な余白、確実にスクロールできるコンテナ） */}
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-none p-4 space-y-4">
-          {/* セクション 1: クラウド連携 */}
-          <div className="space-y-2">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              クラウド連携
-            </div>
-
-            {userEmail ? (
-              /* ログイン中カード */
-              <div className="border border-emerald-300 bg-emerald-50/70 p-3 shadow-2xs space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-900">
-                    <Cloud className="h-4 w-4 text-emerald-600" />
-                    <span>クラウド同期中</span>
-                  </div>
-                  <span className="inline-flex items-center bg-emerald-200 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800">
-                    接続済
-                  </span>
-                </div>
-                <div className="text-xs text-slate-700 bg-white/80 p-2 border border-emerald-200/60 break-all font-mono">
-                  {userEmail}
-                </div>
-                {onSignOut && (
-                  <button
-                    onClick={() => {
-                      onSignOut();
-                      setIsMenuOpen(false);
-                    }}
-                    className="w-full flex items-center justify-center gap-1.5 border border-rose-300 bg-white py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 transition shadow-2xs cursor-pointer"
-                  >
-                    <LogOut className="h-3.5 w-3.5 text-rose-600" />
-                    <span>ログアウト</span>
-                  </button>
-                )}
-              </div>
-            ) : (
-              /* 未ログインカード */
-              <div className="border border-blue-200 bg-blue-50/60 p-3 shadow-2xs space-y-2.5">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900">
-                  <CloudOff className="h-4 w-4 text-blue-600" />
-                  <span>クラウド同期（未ログイン）</span>
-                </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed">
-                  アカウントでログインすると、スマホやPCなど複数の端末間で計画表や時間割データを自動同期できます。
-                </p>
-                {onOpenAuth && (
-                  <button
-                    onClick={() => {
-                      setIsMenuOpen(false);
-                      onOpenAuth();
-                    }}
-                    className="w-full flex items-center justify-center gap-1.5 bg-blue-600 py-2 text-xs font-bold text-white hover:bg-blue-700 transition shadow-2xs active:scale-[0.99] cursor-pointer"
-                  >
-                    <LogIn className="h-3.5 w-3.5" />
-                    <span>{isSupabaseConfigured ? 'ログイン / 新規登録' : 'クラウド連携設定'}</span>
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
           {/* セクション 2: デザイン */}
           {onToggleThemeMode && (
             <div className="space-y-1.5">
@@ -1020,240 +824,151 @@ export function SheetFooter({
             </div>
           )}
 
-          {/* セクション 3: タスク管理（週タスク・日タスクの分類表示） */}
+          {/* セクション 3: タスク管理（週のタスク） */}
           <div className="space-y-2">
             <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
               <span className="flex items-center gap-1.5">
                 <CheckSquare className="h-3.5 w-3.5 text-violet-600" />
-                タスク管理
+                タスク管理（週のタスク）
               </span>
               <span className="text-[10px] font-bold text-violet-900 bg-violet-100 border border-violet-200 px-1.5 py-0.2 font-mono">
-                {taskMenuTab === 'week'
-                  ? `週タスク: ${completedWeeklyTasksCount} / ${totalWeeklyTasksCount} 完了`
-                  : `日タスク: ${completedDailyTasksCount} / ${totalDailyTasksCount} 完了`}
+                {completedWeeklyTasksCount} / {totalWeeklyTasksCount} 完了
               </span>
             </div>
 
-            {/* 週タスク / 日タスクの切り替えタブ */}
-            <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-200/80 border border-slate-300">
-              <button
-                type="button"
-                onClick={() => setTaskMenuTab('week')}
-                className={`flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-bold transition cursor-pointer border ${
-                  taskMenuTab === 'week'
-                    ? 'bg-white text-violet-900 border-violet-400 shadow-2xs'
-                    : 'bg-transparent text-slate-600 border-transparent hover:bg-white/50'
-                }`}
-              >
-                <CalendarClock className="h-3.5 w-3.5 text-violet-600" />
-                <span>週のタスク</span>
-                <span className="text-[10px] font-mono px-1 py-0.2 bg-violet-100 text-violet-800 rounded">
-                  {totalWeeklyTasksCount}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setTaskMenuTab('day')}
-                className={`flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-bold transition cursor-pointer border ${
-                  taskMenuTab === 'day'
-                    ? 'bg-white text-amber-900 border-amber-400 shadow-2xs'
-                    : 'bg-transparent text-slate-600 border-transparent hover:bg-white/50'
-                }`}
-              >
-                <Sun className="h-3.5 w-3.5 text-amber-600" />
-                <span>日のタスク</span>
-                <span className="text-[10px] font-mono px-1 py-0.2 bg-amber-100 text-amber-800 rounded">
-                  {totalDailyTasksCount}
-                </span>
-              </button>
-            </div>
-
-            {/* タブコンテンツ */}
+            {/* 週のタスク一覧コンテンツ */}
             <div className="border border-slate-300 bg-white p-2.5 space-y-3 shadow-2xs">
-              {taskMenuTab === 'week' ? (
-                /* ==================== 週のタスク ==================== */
-                <div className="space-y-3">
-                  {/* ① 出題中タスク */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 px-0.5">
-                      <span className="flex items-center gap-1 text-emerald-800">
-                        <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                        出題中タスク
-                      </span>
-                      <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1 py-0.2 border border-emerald-200">
-                        {activeWeeklyBlocks.length}件
-                      </span>
-                    </div>
-
-                    {activeWeeklyBlocks.length > 0 ? (
-                      <div className="space-y-1.5">
-                        {activeWeeklyBlocks.map((block: TheoreticalBlock) =>
-                          renderWeeklyBlockItem(block),
-                        )}
-                      </div>
-                    ) : (
-                      <div className="py-2 text-center text-slate-400 text-[11px] border border-dashed border-slate-200 bg-slate-50/50">
-                        現在出題中の週タスクはありません
-                      </div>
-                    )}
+              <div className="space-y-3">
+                {/* ① 出題中タスク */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 px-0.5">
+                    <span className="flex items-center gap-1 text-emerald-800">
+                      <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                      出題中タスク
+                    </span>
+                    <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1 py-0.2 border border-emerald-200">
+                      {activeWeeklyBlocks.length}件
+                    </span>
                   </div>
 
-                  {/* ② 先週タスク */}
-                  <div className="space-y-1.5 pt-1 border-t border-slate-200">
-                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 px-0.5">
-                      <span className="flex items-center gap-1 text-amber-800">
-                        <History className="h-3 w-3 text-amber-600" />
-                        先週分のタスク（未完了持越・有効期限内）
-                      </span>
-                      <span className="text-[10px] font-mono text-amber-700 bg-amber-50 px-1 py-0.2 border border-amber-200">
-                        {lastWeekWeeklyBlocks.length}件
-                      </span>
-                    </div>
-
-                    {lastWeekWeeklyBlocks.length > 0 ? (
-                      <div className="space-y-1.5">
-                        {lastWeekWeeklyBlocks.map((block: TheoreticalBlock) =>
-                          renderWeeklyBlockItem(
-                            block,
-                            block.isRescheduled ? '先週持越' : '先週分',
-                          ),
-                        )}
-                      </div>
-                    ) : (
-                      <div className="py-2 text-center text-slate-400 text-[11px] border border-dashed border-slate-200 bg-slate-50/50">
-                        先週からの未完了タスク・有効な課題はありません
-                      </div>
-                    )}
-                  </div>
-
-                  {/* ③ 未出題タスク */}
-                  <div className="space-y-1.5 pt-1 border-t border-slate-200">
-                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 px-0.5">
-                      <span className="flex items-center gap-1 text-blue-800">
-                        <Clock className="h-3 w-3 text-blue-600" />
-                        未出題タスク（今週出題予定）
-                      </span>
-                      <span className="text-[10px] font-mono text-blue-700 bg-blue-50 px-1 py-0.2 border border-blue-200">
-                        {upcomingWeeklyTasks.length}件
-                      </span>
-                    </div>
-
-                    {upcomingWeeklyTasks.length > 0 ? (
-                      <div className="space-y-1.5">
-                        {upcomingWeeklyTasks.map((task: TaskItem) => {
-                          const parentEndTime = getParentEndTimeForDay(task, currentTodayIdx);
-                          const isToday =
-                            task.startDay === currentTodayIdx ||
-                            (task.startDay === undefined && parentEndTime !== undefined);
-                          const startDayName =
-                            task.startDay !== undefined ? WEEKDAY_NAMES[task.startDay] : '今日';
-
-                          const scheduleLabel =
-                            isToday && parentEndTime !== undefined
-                              ? `本日 ${minutesToTimeString(parentEndTime)}〜`
-                              : `${startDayName}曜出題`;
-
-                          return (
-                            <div
-                              key={`upcoming-${task.id}`}
-                              className="flex items-center justify-between gap-2 p-2 border border-blue-200 bg-blue-50/40"
-                            >
-                              <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                <span className="shrink-0 flex items-center justify-center h-5 px-1.5 font-bold text-[10px] border border-blue-300 bg-blue-100 text-blue-800">
-                                  {scheduleLabel}
-                                </span>
-                                <span className="text-xs font-bold text-slate-800 truncate" title={task.title}>
-                                  {task.title}
-                                </span>
-                              </div>
-                              <div className="shrink-0 flex items-center gap-1.5 text-[10px] text-slate-500 font-mono">
-                                <span>{formatDuration(task.durationMinutes || 60)}</span>
-                                <span className="rounded bg-slate-100 border border-slate-300 px-1 py-0.2 text-[9px] font-semibold text-slate-600">
-                                  未出題
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="py-2 text-center text-slate-400 text-[11px] border border-dashed border-slate-200 bg-slate-50/50">
-                        未出題の週タスクはありません
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 未配置の週タスクの警告（枠不足等） */}
-                  {unassignedWeeklyTasks.length > 0 && (
-                    <div className="mt-2 border border-amber-300 bg-amber-50/80 p-2 text-amber-900 space-y-1">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
-                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                        <span>枠不足による未配置タスク（{unassignedWeeklyTasks.length}件）</span>
-                      </div>
-                      <ul className="space-y-0.5 text-[11px] text-amber-800">
-                        {unassignedWeeklyTasks.map((t: TaskItem) => (
-                          <li key={`unassigned-${t.id}`} className="flex items-center justify-between">
-                            <span className="truncate">{t.title}</span>
-                            <span className="font-mono text-amber-700 shrink-0 ml-1">
-                              {formatDuration(t.durationMinutes)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                /* ==================== 日のタスク ==================== */
-                <div className="space-y-3">
-                  {/* ① 前日分のタスク（日付またぎ・持ち越し未完了） */}
-                  {yesterdayDailyBlocks.length > 0 && (
+                  {activeWeeklyBlocks.length > 0 ? (
                     <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 px-0.5">
-                        <span className="flex items-center gap-1 text-orange-800">
-                          <History className="h-3 w-3 text-orange-600" />
-                          前日分のタスク（日付またぎ・持越）
-                        </span>
-                        <span className="text-[10px] font-mono text-orange-700 bg-orange-50 px-1 py-0.2 border border-orange-200">
-                          {yesterdayDailyBlocks.length}件
-                        </span>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        {yesterdayDailyBlocks.map((block: TheoreticalBlock) =>
-                          renderDailyBlockItem(block, true),
-                        )}
-                      </div>
+                      {activeWeeklyBlocks.map((block: TheoreticalBlock) =>
+                        renderWeeklyBlockItem(block),
+                      )}
+                    </div>
+                  ) : (
+                    <div className="py-2 text-center text-slate-400 text-[11px] border border-dashed border-slate-200 bg-slate-50/50">
+                      現在出題中の週タスクはありません
                     </div>
                   )}
-
-                  {/* ② 今日の分のタスク */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 px-0.5">
-                      <span className="flex items-center gap-1 text-slate-800">
-                        <Sun className="h-3 w-3 text-amber-600" />
-                        今日の分のタスク（{WEEKDAY_NAMES[currentTodayIdx]}曜日）
-                      </span>
-                      <span className="text-[10px] font-mono text-slate-700 bg-slate-100 px-1 py-0.2 border border-slate-200">
-                        {todayDailyBlocks.length}件
-                      </span>
-                    </div>
-
-                    {todayDailyBlocks.length > 0 ? (
-                      <div className="space-y-1.5">
-                        {todayDailyBlocks.map((block: TheoreticalBlock) =>
-                          renderDailyBlockItem(block, false),
-                        )}
-                      </div>
-                    ) : (
-                      <div className="py-2 text-center text-slate-400 text-[11px] border border-dashed border-slate-200 bg-slate-50/50">
-                        今日の予定日課タスクはありません
-                      </div>
-                    )}
-                  </div>
                 </div>
-              )}
+
+                {/* ② 先週タスク */}
+                <div className="space-y-1.5 pt-1 border-t border-slate-200">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 px-0.5">
+                    <span className="flex items-center gap-1 text-amber-800">
+                      <History className="h-3 w-3 text-amber-600" />
+                      先週分のタスク（未完了持越・有効期限内）
+                    </span>
+                    <span className="text-[10px] font-mono text-amber-700 bg-amber-50 px-1 py-0.2 border border-amber-200">
+                      {lastWeekWeeklyBlocks.length}件
+                    </span>
+                  </div>
+
+                  {lastWeekWeeklyBlocks.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {lastWeekWeeklyBlocks.map((block: TheoreticalBlock) =>
+                        renderWeeklyBlockItem(
+                          block,
+                          block.isRescheduled ? '先週持越' : '先週分',
+                        ),
+                      )}
+                    </div>
+                  ) : (
+                    <div className="py-2 text-center text-slate-400 text-[11px] border border-dashed border-slate-200 bg-slate-50/50">
+                      先週からの未完了タスク・有効な課題はありません
+                    </div>
+                  )}
+                </div>
+
+                {/* ③ 未出題タスク */}
+                <div className="space-y-1.5 pt-1 border-t border-slate-200">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 px-0.5">
+                    <span className="flex items-center gap-1 text-blue-800">
+                      <Clock className="h-3 w-3 text-blue-600" />
+                      未出題タスク（今週出題予定）
+                    </span>
+                    <span className="text-[10px] font-mono text-blue-700 bg-blue-50 px-1 py-0.2 border border-blue-200">
+                      {upcomingWeeklyTasks.length}件
+                    </span>
+                  </div>
+
+                  {upcomingWeeklyTasks.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {upcomingWeeklyTasks.map((task: TaskItem) => {
+                        const parentEndTime = getParentEndTimeForDay(task, currentTodayIdx);
+                        const isToday =
+                          task.startDay === currentTodayIdx ||
+                          (task.startDay === undefined && parentEndTime !== undefined);
+                        const startDayName =
+                          task.startDay !== undefined ? WEEKDAY_NAMES[task.startDay] : '今日';
+
+                        const scheduleLabel =
+                          isToday && parentEndTime !== undefined
+                            ? `本日 ${minutesToTimeString(parentEndTime)}〜`
+                            : `${startDayName}曜出題`;
+
+                        return (
+                          <div
+                            key={`upcoming-${task.id}`}
+                            className="flex items-center justify-between gap-2 p-2 border border-blue-200 bg-blue-50/40"
+                          >
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                              <span className="shrink-0 flex items-center justify-center h-5 px-1.5 font-bold text-[10px] border border-blue-300 bg-blue-100 text-blue-800">
+                                {scheduleLabel}
+                              </span>
+                              <span className="text-xs font-bold text-slate-800 truncate" title={task.title}>
+                                {task.title}
+                              </span>
+                            </div>
+                            <div className="shrink-0 flex items-center gap-1.5 text-[10px] text-slate-500 font-mono">
+                              <span>{formatDuration(task.durationMinutes || 60)}</span>
+                              <span className="rounded bg-slate-100 border border-slate-300 px-1 py-0.2 text-[9px] font-semibold text-slate-600">
+                                未出題
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="py-2 text-center text-slate-400 text-[11px] border border-dashed border-slate-200 bg-slate-50/50">
+                      未出題の週タスクはありません
+                    </div>
+                  )}
+                </div>
+
+                {/* 未配置の週タスクの警告（枠不足等） */}
+                {unassignedWeeklyTasks.length > 0 && (
+                  <div className="mt-2 border border-amber-300 bg-amber-50/80 p-2 text-amber-900 space-y-1">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                      <span>枠不足による未配置タスク（{unassignedWeeklyTasks.length}件）</span>
+                    </div>
+                    <ul className="space-y-0.5 text-[11px] text-amber-800">
+                      {unassignedWeeklyTasks.map((t: TaskItem) => (
+                        <li key={`unassigned-${t.id}`} className="flex items-center justify-between">
+                          <span className="truncate">{t.title}</span>
+                          <span className="font-mono text-amber-700 shrink-0 ml-1">
+                            {formatDuration(t.durationMinutes)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
