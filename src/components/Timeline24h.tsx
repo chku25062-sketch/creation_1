@@ -1075,6 +1075,7 @@ export function Timeline24h({
                         const positioningStyle: React.CSSProperties = {
                           top: `${top}px`,
                           height: `${height}px`,
+                          overscrollBehavior: 'auto',
                           backgroundColor: isPlanner
                             ? block.isCompleted
                               ? PLANNER_COMPLETED_BG
@@ -1101,7 +1102,7 @@ export function Timeline24h({
                                     : block.title
                             }
                             style={positioningStyle}
-                            className={`group !absolute overflow-hidden border ${
+                            className={`group !absolute overflow-hidden border [overscroll-behavior:auto] ${
                               isPlanner
                                 ? 'hover:brightness-[0.98] transition-all duration-100 rounded-none'
                                 : 'sticky-note rounded-md border transition-all duration-150'

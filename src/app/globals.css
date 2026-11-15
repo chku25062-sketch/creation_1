@@ -23,10 +23,6 @@
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
 
-  /* 全スクロール可能コンテナでオーバースクロール・バウンスを完全廃止 */
-  * {
-    overscroll-behavior: none;
-  }
 }
 
 /* Custom scrollbars */
