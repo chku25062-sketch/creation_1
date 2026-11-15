@@ -28,13 +28,15 @@ export class AttachedFallbackPhase implements PlacementPhase {
           isSameDayAsParent: false,
         };
 
-        const placed = tryPlaceContextInDay(d, dummyCtx, true);
-        if (placed) {
-          slotManager.refreshDaySlots(d);
-        } else if (plan.task.allowSplit) {
-          // ★ Plan16: 別日フォールバック時も分割配置を試みる
+        // ★ 分割指定があるタスクは、別日フォールバック時もまとまった時間があっても必ず指定回数に分割して配置する
+        if (plan.task.allowSplit && (plan.task.splitCount || 2) > 1) {
           const splitPlaced = tryPlaceSplitAttachedTask(d, dummyCtx, ctx);
           if (splitPlaced) {
+            slotManager.refreshDaySlots(d);
+          }
+        } else {
+          const placed = tryPlaceContextInDay(d, dummyCtx, true);
+          if (placed) {
             slotManager.refreshDaySlots(d);
           }
         }

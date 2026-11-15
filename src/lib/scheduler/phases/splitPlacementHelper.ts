@@ -26,43 +26,40 @@ export function tryPlaceSplitAttachedTask(
     (_, i) => baseMinutes + (i < remainder ? 1 : 0),
   );
 
-  // 親タスクの終了時刻（同日の場合）
+  // 親タスクの終了時刻（親講義がある曜日の場合、フォールバックフェーズでも常に親講義終了以降にガード）
   let taskEarliestStartTime = task.earliestStartTime ?? 0;
-  if (taskCtx.isSameDayAsParent) {
-    let parentEnd = 0;
-    if (task.parentEndMinutesByDay && task.parentEndMinutesByDay[d] !== undefined) {
-      parentEnd = task.parentEndMinutesByDay[d];
-    } else if (task.parentTitle) {
-      const parentBlock = ctx.dayBlocks[d]
-        .filter(
-          (b) =>
-            b.title === task.parentTitle ||
-            (task.parentTitle && b.title.startsWith(task.parentTitle)),
-        )
-        .sort((a, b) => b.endMinutes - a.endMinutes)[0];
-      if (parentBlock) {
-        parentEnd = parentBlock.endMinutes + (parentBlock.breakMinutes || 0);
-      }
+  let parentEnd = 0;
+  if (task.parentEndMinutesByDay && task.parentEndMinutesByDay[d] !== undefined) {
+    parentEnd = task.parentEndMinutesByDay[d];
+  } else if (taskCtx.isSameDayAsParent && task.parentTitle) {
+    const parentBlock = ctx.dayBlocks[d]
+      .filter(
+        (b) =>
+          b.title === task.parentTitle ||
+          (task.parentTitle && b.title.startsWith(task.parentTitle)),
+      )
+      .sort((a, b) => b.endMinutes - a.endMinutes)[0];
+    if (parentBlock) {
+      parentEnd = parentBlock.endMinutes + (parentBlock.breakMinutes || 0);
     }
-    if (parentEnd > 0) {
-      taskEarliestStartTime = Math.max(taskEarliestStartTime, parentEnd);
-    }
+  }
+  if (parentEnd > 0) {
+    taskEarliestStartTime = Math.max(taskEarliestStartTime, parentEnd);
   }
 
   const slots = ctx.slotManager.getAvailableSlots(d);
   if (!slots || slots.length === 0) return false;
 
-  // すでに配置済みのスライス数を確認
-  const alreadyPlacedSplits = taskCtx.placedCountInDay;
+  // すでに配置済みのスライス数を確認（plan全体での配置済み総数）
+  const alreadyPlacedSplits = plan.placedSplits || 0;
   if (alreadyPlacedSplits >= splitCount) return false;
 
-  // 未配置のスライスインデックスを特定
   let placedThisTurn = 0;
 
   for (let sliceIdx = alreadyPlacedSplits; sliceIdx < splitCount; sliceIdx++) {
     const sliceDuration = sliceDurations[sliceIdx];
 
-    // 利用可能なスロットを走査
+    // 利用可能なスロットを走査（taskEarliestStartTime 以降）
     let targetSlotIndex = -1;
     let targetSlotStart = -1;
 
@@ -78,7 +75,7 @@ export function tryPlaceSplitAttachedTask(
       }
     }
 
-    // このスライスが入る空き枠がなければ終了（残りは別日フォールバックへ）
+    // このスライスが入る空き枠が同日にこれ以上なければ終了（残りは別日フォールバックへ）
     if (targetSlotIndex === -1) break;
 
     const slot = slots[targetSlotIndex];
@@ -115,10 +112,12 @@ export function tryPlaceSplitAttachedTask(
 
     // スロットの消費 & 再構築
     if (taskStart > slot.startMinutes) {
+      const remainingBefore = taskStart - slot.startMinutes;
       const remainingAfter = slot.endMinutes - taskEnd;
       slot.endMinutes = taskStart;
-      slot.durationMinutes = slot.endMinutes - slot.startMinutes;
-      if (remainingAfter >= 15) {
+      slot.durationMinutes = remainingBefore;
+
+      if (remainingAfter > 0) {
         slots.push({
           startMinutes: taskEnd,
           endMinutes: taskEnd + remainingAfter,
@@ -130,7 +129,13 @@ export function tryPlaceSplitAttachedTask(
       slot.durationMinutes = slot.endMinutes - taskEnd;
     }
 
-    slots.sort((a, b) => a.startMinutes - b.startMinutes);
+    // 有効な空スロットのみを残して開始時刻順にソート
+    const validSlots = slots.filter((s) => s.endMinutes > s.startMinutes && s.durationMinutes > 0);
+    slots.length = 0;
+    slots.push(...validSlots.sort((a, b) => a.startMinutes - b.startMinutes));
+
+    // ★ 次のスライスは、このスライスの終了時刻以降から探索する（同一空き枠の連続分割配置を保証！）
+    taskEarliestStartTime = taskEnd;
 
     ctx.scheduledTaskMinutes += sliceDuration;
     taskCtx.placedCountInDay++;
@@ -139,9 +144,15 @@ export function tryPlaceSplitAttachedTask(
   }
 
   if (placedThisTurn > 0) {
-    plan.placedCount++;
-    if (taskCtx.placedCountInDay >= splitCount) {
+    const totalPlaced = (plan.placedSplits || 0) + placedThisTurn;
+    plan.placedSplits = totalPlaced;
+
+    // 全スライスが配置完了した場合のみ、週タスクとして完了にする
+    if (totalPlaced >= splitCount) {
+      plan.placedCount = plan.targetCountWeekly;
       plan.isComplete = true;
+    } else {
+      plan.isComplete = false;
     }
     return true;
   }

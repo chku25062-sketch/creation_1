@@ -4448,8 +4448,8 @@ describe('Theoretical Scheduler Engine', () => {
             expect(splitBlocks[2].endMinutes).toBe(950); // 30分
           });
 
-          it('十分な連続空き枠がある場合は、allowSplitが有効でも分割されず単一ブロックとして配置されること', () => {
-            // 月曜（dayIndex: 0）に60分以上の空き枠がある環境
+          it('Plan18改定: 十分な連続空き枠（まとまった時間）がある場合でも、allowSplitが有効なら必ず指定回数に分割されて連続配置されること', () => {
+            // 月曜（dayIndex: 0）に60分以上の空き枠がある環境（690〜1440）
             const fixedSlots: FixedSlot[] = [
               {
                 id: 'slot-mon-lecture',
@@ -4476,8 +4476,7 @@ describe('Theoretical Scheduler Engine', () => {
               targetDays: [0],
               startDay: 0,
               allowSplit: true,
-              minSplitMinutes: 30,
-              maxSplits: 2,
+              splitCount: 2,
             };
 
             const result = generateTheoreticalSchedule(fixedSlots, [attachedTask], {
@@ -4487,10 +4486,18 @@ describe('Theoretical Scheduler Engine', () => {
 
             const monBlocks = result.dayBlocks[0];
             const blocks = monBlocks.filter((b) => b.taskId === 'task-attached-math');
-            expect(blocks.length).toBe(1);
-            expect(blocks[0].endMinutes - blocks[0].startMinutes).toBe(60);
-            expect(blocks[0].title).toBe('数学講義の復習');
-            expect(blocks[0].isSplitBlock).toBeFalsy();
+            // まとまった時間があっても、ユーザー指定通り2分割されていること！
+            expect(blocks.length).toBe(2);
+
+            expect(blocks[0].title).toBe('数学講義の復習 (1/2)');
+            expect(blocks[0].startMinutes).toBe(690);
+            expect(blocks[0].endMinutes).toBe(720);
+            expect(blocks[0].isSplitBlock).toBe(true);
+
+            expect(blocks[1].title).toBe('数学講義の復習 (2/2)');
+            expect(blocks[1].startMinutes).toBe(720);
+            expect(blocks[1].endMinutes).toBe(750);
+            expect(blocks[1].isSplitBlock).toBe(true);
           });
 
           it('Plan18: 割り切れない分数（余り）がある場合でも、前半スライスに1分ずつ配分され総時間が厳密に一致すること', () => {
@@ -4704,6 +4711,82 @@ describe('Theoretical Scheduler Engine', () => {
             for (const b of splitBlocks) {
               expect(b.startMinutes).toBeGreaterThanOrEqual(870);
             }
+          });
+
+          it('Plan18改定: 当日に1スライスしか入る枠がなかった場合でもタスクが消失せず、残りのスライスが翌日へフォールバックして全スライスが確実に配置されること', () => {
+            // 月曜（dayIndex: 0）は30分の空き枠が1箇所しかなく、その後は夜まで埋まっている
+            // 火曜（dayIndex: 1）には十分な空き枠がある
+            const fixedSlots: FixedSlot[] = [
+              {
+                id: 'slot-mon-lecture',
+                title: '月曜講義',
+                category: 'lecture',
+                startMinutes: 600,
+                endMinutes: 700,
+                daysOfWeek: [0],
+                color: '#3b82f6',
+              },
+              // 700〜730 空き (30分)
+              {
+                id: 'slot-mon-busy',
+                title: '月曜予定',
+                category: 'routine',
+                startMinutes: 730,
+                endMinutes: 1440,
+                daysOfWeek: [0],
+                color: '#aaa',
+              },
+              // 火曜（dayIndex: 1）は午後が空いている
+              {
+                id: 'slot-tue-morning',
+                title: '火曜午前',
+                category: 'routine',
+                startMinutes: 540,
+                endMinutes: 720,
+                daysOfWeek: [1],
+                color: '#aaa',
+              },
+            ];
+
+            // 60分の付随タスク（2分割 ➔ 30分×2回）
+            const attachedTask: TaskItem = {
+              id: 'task-attached-fallback-test',
+              title: '復習スプリット',
+              category: 'study',
+              durationMinutes: 60,
+              period: 'week',
+              taskType: 'task',
+              priority: 'high',
+              isAttachedTask: true,
+              parentTitle: '月曜講義',
+              parentEndMinutesByDay: { 0: 700 },
+              targetDays: [0],
+              startDay: 0,
+              allowSplit: true,
+              splitCount: 2,
+            };
+
+            const result = generateTheoreticalSchedule(fixedSlots, [attachedTask], {
+              todayIndex: 0,
+              currentMinutes: 480,
+            });
+
+            // 月曜（0）にスライス1が配置されていること
+            const monBlocks = result.dayBlocks[0].filter(
+              (b) => b.taskId === 'task-attached-fallback-test',
+            );
+            expect(monBlocks.length).toBe(1);
+            expect(monBlocks[0].title).toBe('復習スプリット (1/2)');
+            expect(monBlocks[0].startMinutes).toBe(700);
+            expect(monBlocks[0].endMinutes).toBe(730);
+
+            // 火曜（1）にスライス2がフォールバック配置されていること！
+            const tueBlocks = result.dayBlocks[1].filter(
+              (b) => b.taskId === 'task-attached-fallback-test',
+            );
+            expect(tueBlocks.length).toBe(1);
+            expect(tueBlocks[0].title).toBe('復習スプリット (2/2)');
+            expect(tueBlocks[0].endMinutes - tueBlocks[0].startMinutes).toBe(30);
           });
         });
       });

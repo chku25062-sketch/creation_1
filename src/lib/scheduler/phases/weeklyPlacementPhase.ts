@@ -40,13 +40,15 @@ export class WeeklyPlacementPhase implements PlacementPhase {
           placedCountInDay: plan.placedCountPerDay[d] || 0,
           isSameDayAsParent: true,
         };
-        const placed = tryPlaceContextInDay(d, taskCtx, true);
-        if (placed) {
-          slotManager.refreshDaySlots(d);
-        } else if (plan.task.allowSplit) {
-          // ★ Plan16: 連続枠に入らない場合、設定された最小単位に合わせて分割配置
+        // ★ 分割指定があるタスクは、まとまった空き時間があっても必ず指定回数に分割して配置する
+        if (plan.task.allowSplit && (plan.task.splitCount || 2) > 1) {
           const splitPlaced = tryPlaceSplitAttachedTask(d, taskCtx, ctx);
           if (splitPlaced) {
+            slotManager.refreshDaySlots(d);
+          }
+        } else {
+          const placed = tryPlaceContextInDay(d, taskCtx, true);
+          if (placed) {
             slotManager.refreshDaySlots(d);
           }
         }
@@ -118,13 +120,15 @@ export class WeeklyPlacementPhase implements PlacementPhase {
           isSameDayAsParent: false,
         };
 
-        const placed = tryPlaceContextInDay(d, taskCtx, true);
-        if (placed) {
-          slotManager.refreshDaySlots(d);
-        } else if (plan.task.allowSplit) {
-          // ★ Plan16: 連続枠に入らない場合、設定された最小単位に合わせて分割配置
+        // ★ 分割指定があるタスクは、まとまった空き時間があっても必ず指定回数に分割して配置する
+        if (plan.task.allowSplit && (plan.task.splitCount || 2) > 1) {
           const splitPlaced = tryPlaceSplitAttachedTask(d, taskCtx, ctx);
           if (splitPlaced) {
+            slotManager.refreshDaySlots(d);
+          }
+        } else {
+          const placed = tryPlaceContextInDay(d, taskCtx, true);
+          if (placed) {
             slotManager.refreshDaySlots(d);
           }
         }
@@ -187,13 +191,15 @@ export class WeeklyPlacementPhase implements PlacementPhase {
           isSameDayAsParent: false,
         };
 
-        const placed = tryPlaceContextInDay(d, taskCtx, true);
-        if (placed) {
-          slotManager.refreshDaySlots(d);
-        } else if (plan.task.allowSplit) {
-          // ★ Plan16: 連続枠に入らない場合、設定された最小単位に合わせて分割配置
+        // ★ 分割指定があるタスクは、まとまった空き時間があっても必ず指定回数に分割して配置する
+        if (plan.task.allowSplit && (plan.task.splitCount || 2) > 1) {
           const splitPlaced = tryPlaceSplitAttachedTask(d, taskCtx, ctx);
           if (splitPlaced) {
+            slotManager.refreshDaySlots(d);
+          }
+        } else {
+          const placed = tryPlaceContextInDay(d, taskCtx, true);
+          if (placed) {
             slotManager.refreshDaySlots(d);
           }
         }
@@ -305,13 +311,15 @@ export class WeeklyPlacementPhase implements PlacementPhase {
           isSameDayAsParent: false,
         };
 
-        const placed = tryPlaceContextInDay(d, taskCtx, true);
-        if (placed) {
-          slotManager.refreshDaySlots(d);
-        } else if (plan.task.allowSplit) {
-          // ★ Plan16: 連続枠に入らない場合、設定された最小単位に合わせて分割配置
+        // ★ 分割指定があるタスクは、まとまった空き時間があっても必ず指定回数に分割して配置する
+        if (plan.task.allowSplit && (plan.task.splitCount || 2) > 1) {
           const splitPlaced = tryPlaceSplitAttachedTask(d, taskCtx, ctx);
           if (splitPlaced) {
+            slotManager.refreshDaySlots(d);
+          }
+        } else {
+          const placed = tryPlaceContextInDay(d, taskCtx, true);
+          if (placed) {
             slotManager.refreshDaySlots(d);
           }
         }
@@ -339,9 +347,16 @@ export class WeeklyPlacementPhase implements PlacementPhase {
             isSameDayAsParent: false,
           };
 
-          const placed = tryPlaceContextInDay(d, taskCtx, true);
-          if (placed) {
-            slotManager.refreshDaySlots(d);
+          if (plan.task.allowSplit && (plan.task.splitCount || 2) > 1) {
+            const splitPlaced = tryPlaceSplitAttachedTask(d, taskCtx, ctx);
+            if (splitPlaced) {
+              slotManager.refreshDaySlots(d);
+            }
+          } else {
+            const placed = tryPlaceContextInDay(d, taskCtx, true);
+            if (placed) {
+              slotManager.refreshDaySlots(d);
+            }
           }
         }
       }

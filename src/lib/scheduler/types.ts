@@ -18,6 +18,7 @@ export interface TaskPlacementPlan {
   candidateDays: number[];
   placedCount: number;
   placedCountPerDay: Record<number, number>;
+  placedSplits?: number; // ★ 分割タスクの配置済みスライス総数
   isComplete: boolean;
   isRescheduledPlan?: boolean; // 未完了週タスクの再配置プランかどうか
   rescheduledFromDay?: number; // 再スケジュール元の曜日
