@@ -2680,24 +2680,6 @@ export function ImportedTablesManager({
                                         }`}>
                                           {cell.title}
                                         </span>
-                                        <div className="flex items-center gap-0.5 shrink-0">
-                                          {cell.attachedTask?.enabled && (
-                                            <span
-                                              className="inline-flex items-center text-[10px] shrink-0"
-                                              title={`付随タスク連動 (${cell.attachedTask.durationMinutes}分)`}
-                                            >
-                                              📌
-                                            </span>
-                                          )}
-                                          {cell.breakMinutes !== undefined && cell.breakMinutes > 0 && (
-                                            <span
-                                              className="inline-flex items-center text-[10px] shrink-0"
-                                              title={`タスク後休憩 (${cell.breakMinutes}分)`}
-                                            >
-                                              ☕
-                                            </span>
-                                          )}
-                                        </div>
                                       </div>
                                       {cell.roomOrNote && (
                                         <p className={`mt-0.5 text-slate-500 line-clamp-1 ${
@@ -2713,30 +2695,6 @@ export function ImportedTablesManager({
                                       }`}>
                                         {pt ? `${pt.startTime || ''}` : ''}
                                       </span>
-                                      <div className="flex items-center gap-1">
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleStartEditCell(rIdx, cIdx);
-                                          }}
-                                          title="コマ内容を編集"
-                                          className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer"
-                                        >
-                                          <Edit2 className="h-3 w-3" />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleClearCell(rIdx, cIdx, e);
-                                          }}
-                                          title="コマ内容をクリア"
-                                          className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition cursor-pointer"
-                                        >
-                                          <X className="h-3 w-3" />
-                                        </button>
-                                      </div>
                                     </div>
                                   </div>
                                 ) : (
@@ -2846,7 +2804,6 @@ export function ImportedTablesManager({
                     onChange={(e) => setCellEditText(e.target.value)}
                     placeholder="講義名・科目名・日課名（改行で場所・メモ）"
                     className="w-full rounded-xl border border-slate-300 p-3 text-sm font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-100 focus:outline-hidden"
-                    autoFocus
                   />
                   <span className="text-[10px] text-slate-400 mt-0.5 block">
                     改行すると2行目以降が場所・メモとして小さく表示されます
@@ -3027,7 +2984,6 @@ export function ImportedTablesManager({
                 onChange={(e) => setCellEditText(e.target.value)}
                 placeholder="1行目: コマ名称（講義名・メニュー・日課名など）&#13;&#10;2行目以降: 場所・メモ・詳細"
                 className="w-full rounded-lg border border-slate-300 p-2 text-xs focus:border-blue-500 focus:outline-hidden"
-                autoFocus
               />
 
               {/* タスク後の休憩時間 */}
