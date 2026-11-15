@@ -3714,6 +3714,19 @@ export function ImportedTablesManager({
 
             {/* テーブル一覧リスト */}
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {/* 一番上に配置: 新しい表を追加ボタン */}
+              <button
+                type="button"
+                onClick={() => {
+                  handleAddNewTable();
+                  setIsMobileSwitcherOpen(false);
+                }}
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-blue-400 bg-blue-50/70 text-xs font-bold text-blue-700 hover:bg-blue-100 shadow-2xs active:scale-98 transition mb-3 cursor-pointer"
+              >
+                <Plus className="h-4 w-4" />
+                <span>新しい表を追加</span>
+              </button>
+
               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">
                 時間割データ一覧 ({tables.length}件)
               </div>
@@ -3858,19 +3871,6 @@ export function ImportedTablesManager({
                   </div>
                 );
               })}
-
-              {/* 新しい表を追加ボタン */}
-              <button
-                type="button"
-                onClick={() => {
-                  handleAddNewTable();
-                  setIsMobileSwitcherOpen(false);
-                }}
-                className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-blue-300 bg-blue-50/40 text-xs font-bold text-blue-700 hover:bg-blue-100 shadow-2xs active:scale-98 transition mt-3 cursor-pointer"
-              >
-                <Plus className="h-4 w-4" />
-                <span>新しい表を追加</span>
-              </button>
 
               {/* システム管理ファイルへのリンク */}
               <div className="pt-3 border-t border-slate-100 mt-3 space-y-1.5">
