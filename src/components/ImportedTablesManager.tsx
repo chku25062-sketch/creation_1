@@ -3875,18 +3875,58 @@ export function ImportedTablesManager({
 
                 <div
                   onClick={() => {
+                    handleSelectItem('sys-daily');
+                    setIsMobileSwitcherOpen(false);
+                  }}
+                  className={`w-full p-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between cursor-pointer ${
+                    selectedItemId === 'sys-daily'
+                      ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                      : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Sun className="h-4 w-4 text-amber-500" />
+                    <span>日のタスク (日課・ルーティン)</span>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isDailyApplied}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onInclusionSettingsChange?.({
+                        enableSlots: isSlotsApplied,
+                        enableDailyTasks: !isDailyApplied,
+                        enableWeeklyTasks: isWeeklyApplied,
+                      });
+                    }}
+                    title="日のタスクの計画表への反映ON/OFF"
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+                      isDailyApplied ? 'bg-emerald-500' : 'bg-slate-300'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ${
+                        isDailyApplied ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div
+                  onClick={() => {
                     handleSelectItem('sys-weekly');
                     setIsMobileSwitcherOpen(false);
                   }}
                   className={`w-full p-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between cursor-pointer ${
                     selectedItemId === 'sys-weekly'
-                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                      ? 'bg-purple-50 text-purple-800 border border-purple-200'
                       : 'text-slate-600 hover:bg-slate-50 border border-transparent'
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <CalendarRange className="h-4 w-4 text-amber-600" />
-                    <span>タスク管理 (週タスク・日課)</span>
+                    <CalendarDays className="h-4 w-4 text-purple-600" />
+                    <span>週のタスク (目標・課題・週次)</span>
                   </div>
                   <button
                     type="button"
