@@ -2757,7 +2757,13 @@ export function ImportedTablesManager({
                             return (
                               <td
                                 key={`cell-${rIdx}-${cIdx}`}
-                                onClick={() => !isExcluded && handleStartEditCell(rIdx, cIdx)}
+                                onClick={() => {
+                                  if (isExcluded) return;
+                                  // 空セルの場合のみクリックで入力・編集へ遷移（項目がある場合はアイコンから操作）
+                                  if (!hasContent) {
+                                    handleStartEditCell(rIdx, cIdx);
+                                  }
+                                }}
                                 className={`relative border-b border-r border-slate-200 align-top transition-all ${colWidthStyle} ${
                                   viewMode === 'mobile'
                                     ? 'p-1 h-20 min-h-[80px]'
@@ -2766,7 +2772,7 @@ export function ImportedTablesManager({
                                   isExcluded
                                     ? 'bg-slate-100/40 opacity-40 cursor-not-allowed'
                                     : hasContent
-                                      ? 'bg-sky-50/50 hover:bg-sky-100/70 hover:shadow-inner cursor-pointer'
+                                      ? 'bg-sky-50/50 hover:bg-sky-100/70'
                                       : 'hover:bg-slate-50/80 cursor-pointer'
                                 }`}
                               >
@@ -2798,6 +2804,31 @@ export function ImportedTablesManager({
                                       }`}>
                                         {pt ? `${pt.startTime || ''}` : ''}
                                       </span>
+                                      {/* 表データの項目ごとの編集・ごみ箱アイコン */}
+                                      <div className="flex items-center gap-1 opacity-70 group-hover/cell:opacity-100 transition">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleStartEditCell(rIdx, cIdx);
+                                          }}
+                                          title="項目を編集"
+                                          className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer"
+                                        >
+                                          <Edit2 className="h-3 w-3" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleClearCell(rIdx, cIdx, e);
+                                          }}
+                                          title="項目を削除"
+                                          className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition cursor-pointer"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </button>
+                                      </div>
                                     </div>
                                   </div>
                                 ) : (
