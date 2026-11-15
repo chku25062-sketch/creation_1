@@ -166,6 +166,7 @@ export function ImportedTablesManager({
   // モバイル版専用: テーブル名インライン編集用ステート
   const [editingMobileTableId, setEditingMobileTableId] = useState<string | null>(null);
   const [mobileTempTableName, setMobileTempTableName] = useState<string>('');
+  const [isEditingMobileHeaderName, setIsEditingMobileHeaderName] = useState(false);
 
   const handleSaveMobileTableName = (tableId: string) => {
     const trimmed = mobileTempTableName.trim();
@@ -177,6 +178,7 @@ export function ImportedTablesManager({
       }
     }
     setEditingMobileTableId(null);
+    setIsEditingMobileHeaderName(false);
   };
 
   useEffect(() => {
@@ -271,6 +273,20 @@ export function ImportedTablesManager({
   // テーブル名編集モーダル/ステート
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempTableName, setTempTableName] = useState('');
+
+  const handleSaveTableName = () => {
+    const trimmed = tempTableName.trim();
+    if (trimmed && activeTable) {
+      updateActiveTable((prev) => ({
+        ...prev,
+        name: trimmed,
+        updatedAt: new Date().toISOString(),
+      }));
+      const updated = tables.map((t) => (t.id === activeTable.id ? { ...t, name: trimmed } : t));
+      onTablesChange(updated);
+    }
+    setIsEditingName(false);
+  };
 
   // 低優先度設定バー（詳細設定）の開閉
   const [showLowPrioritySettings, setShowLowPrioritySettings] = useState(false);
@@ -1073,27 +1089,10 @@ export function ImportedTablesManager({
                                 type="text"
                                 value={tempTableName}
                                 onChange={(e) => setTempTableName(e.target.value)}
-                                onBlur={() => {
-                                  if (tempTableName.trim()) {
-                                    updateActiveTable((prev) => ({
-                                      ...prev,
-                                      name: tempTableName.trim(),
-                                      updatedAt: new Date().toISOString(),
-                                    }));
-                                  }
-                                  setIsEditingName(false);
-                                }}
+                                onBlur={handleSaveTableName}
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    if (tempTableName.trim()) {
-                                      updateActiveTable((prev) => ({
-                                        ...prev,
-                                        name: tempTableName.trim(),
-                                        updatedAt: new Date().toISOString(),
-                                      }));
-                                    }
-                                    setIsEditingName(false);
-                                  }
+                                  if (e.key === 'Enter') handleSaveTableName();
+                                  if (e.key === 'Escape') setIsEditingName(false);
                                 }}
                                 onClick={(e) => e.stopPropagation()}
                                 autoFocus
@@ -1479,25 +1478,75 @@ export function ImportedTablesManager({
         {viewMode === 'mobile' ? (
           /* モバイル専用アプリ風ヘッダー (表データ・タスク管理共通) */
           <div className="flex items-center justify-between gap-1.5 sm:gap-2 border-b border-slate-200 pb-2 px-0.5 overflow-hidden">
-            {/* 左側: 表またはタスク切り替えピル */}
-            <div className="flex items-center gap-1.5 min-w-0 shrink">
-              <button
-                type="button"
-                onClick={() => setIsMobileSwitcherOpen(true)}
-                className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/90 px-2.5 py-1.5 text-xs font-bold text-blue-900 shadow-2xs hover:bg-blue-100 active:scale-95 transition max-w-[130px] sm:max-w-[220px]"
-                title="タップして時間割やタスクを切り替え"
-              >
-                <span className="truncate">
-                  {isSystemFile
-                    ? selectedItemId === 'sys-slots'
-                      ? '📌 固定枠 (生活リズム)'
+            {/* 左側: 表データ名表示 ＆ インライン編集（切り替えボタン廃止） */}
+            <div className="flex items-center gap-1 min-w-0 flex-1 mr-1">
+              {isSystemFile ? (
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="font-bold text-xs text-slate-800 truncate">
+                    {selectedItemId === 'sys-slots'
+                      ? '📌 固定枠'
                       : selectedItemId === 'sys-daily'
-                        ? '📅 今日のタスク'
-                        : '🗓️ 今週のタスク'
-                    : activeTable?.name || '表データ'}
-                </span>
-                <ChevronDown className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-              </button>
+                        ? '📅 日のタスク'
+                        : '🗓️ 週のタスク'}
+                  </span>
+                </div>
+              ) : activeTable ? (
+                isEditingMobileHeaderName ? (
+                  <div className="flex items-center gap-1 min-w-0 flex-1" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="text"
+                      value={mobileTempTableName}
+                      onChange={(e) => setMobileTempTableName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveMobileTableName(activeTable.id);
+                        if (e.key === 'Escape') setIsEditingMobileHeaderName(false);
+                      }}
+                      autoFocus
+                      className="h-7 flex-1 min-w-0 rounded-lg border border-blue-500 bg-white px-2 text-xs font-bold text-slate-900 focus:outline-hidden ring-1 ring-blue-300"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSaveMobileTableName(activeTable.id)}
+                      className="h-7 px-2 rounded-lg bg-blue-600 text-white text-xs font-bold flex items-center justify-center shadow-2xs active:scale-95 transition cursor-pointer shrink-0"
+                      title="保存"
+                    >
+                      <Check className="h-3.5 w-3.5 stroke-[3]" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingMobileHeaderName(false)}
+                      className="h-7 px-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold flex items-center justify-center active:scale-95 transition cursor-pointer shrink-0"
+                      title="キャンセル"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 min-w-0">
+                    <span
+                      onClick={() => {
+                        setMobileTempTableName(activeTable.name);
+                        setIsEditingMobileHeaderName(true);
+                      }}
+                      className="font-bold text-xs sm:text-sm text-slate-900 truncate max-w-[140px] xs:max-w-[180px] cursor-pointer hover:text-blue-700"
+                      title="タップして表データ名を編集"
+                    >
+                      {activeTable.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMobileTempTableName(activeTable.name);
+                        setIsEditingMobileHeaderName(true);
+                      }}
+                      title="表データ名を編集"
+                      className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer shrink-0"
+                    >
+                      <Edit2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                )
+              ) : null}
             </div>
 
             {/* 右側アクション群: 周期のはじまり, 反映スイッチ, モード切替, ⚙️設定ボタン */}
@@ -1602,18 +1651,60 @@ export function ImportedTablesManager({
                   <FolderOpen className="h-4 w-4 text-amber-500 shrink-0" />
                   <span className="font-medium text-slate-600 shrink-0">取り込み表データ</span>
                   <span className="text-slate-300">/</span>
-                  <span className="font-bold text-slate-900 truncate">{activeTable.name}</span>
-                  {!isEditingName && (
-                    <button
-                      onClick={() => {
-                        setTempTableName(activeTable.name);
-                        setIsEditingName(true);
-                      }}
-                      title="テーブル名を編集"
-                      className="ml-1 text-slate-400 hover:text-blue-600"
-                    >
-                      <Edit2 className="h-3 w-3" />
-                    </button>
+                  {isEditingName ? (
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="text"
+                        value={tempTableName}
+                        onChange={(e) => setTempTableName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveTableName();
+                          if (e.key === 'Escape') setIsEditingName(false);
+                        }}
+                        autoFocus
+                        className="h-6 rounded border border-blue-500 bg-white px-1.5 text-xs font-bold text-slate-900 focus:outline-hidden ring-1 ring-blue-300 min-w-[140px]"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveTableName}
+                        className="h-6 px-1.5 rounded bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center hover:bg-blue-700 transition cursor-pointer"
+                        title="保存"
+                      >
+                        <Check className="h-3 w-3 stroke-[3]" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingName(false)}
+                        className="h-6 px-1.5 rounded bg-slate-100 text-slate-600 text-[10px] font-bold flex items-center justify-center hover:bg-slate-200 transition cursor-pointer"
+                        title="キャンセル"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span
+                        onClick={() => {
+                          setTempTableName(activeTable.name);
+                          setIsEditingName(true);
+                        }}
+                        className="font-bold text-slate-900 truncate max-w-[200px] sm:max-w-[320px] cursor-pointer hover:text-blue-700"
+                        title="クリックしてテーブル名を編集"
+                      >
+                        {activeTable.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTempTableName(activeTable.name);
+                          setIsEditingName(true);
+                        }}
+                        title="テーブル名を編集"
+                        className="ml-0.5 text-slate-400 hover:text-blue-600 p-0.5 rounded hover:bg-blue-50 transition cursor-pointer"
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </button>
+                    </div>
                   )}
                 </div>
               ) : (
