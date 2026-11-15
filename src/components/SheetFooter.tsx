@@ -431,13 +431,13 @@ export function SheetFooter({
       ref={footerRef}
       className="relative z-50 shrink-0 border-t border-slate-300 bg-[#ede8dc] px-2 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] select-none shadow-xs"
     >
-      <div className="mx-auto flex flex-wrap sm:flex-nowrap w-full max-w-full items-center justify-between gap-x-2 gap-y-1 sm:h-9">
+      <div className="mx-auto flex flex-nowrap w-full max-w-full items-center justify-between gap-x-1.5 sm:gap-x-2 h-9">
         {/* Left: Excel-style Sheet Tabs */}
-        <div className="flex items-center gap-1 overflow-x-auto order-1">
+        <div className="flex items-center gap-1 min-w-0 flex-1 sm:flex-none">
           {/* Sheet 1: 計画表 */}
           <button
             onClick={() => onTabChange('timeline')}
-            className={`group flex items-center gap-1.5 rounded-none px-3 py-1.5 text-xs transition border-b-0 ${
+            className={`group shrink-0 flex items-center gap-1.5 rounded-none px-2.5 sm:px-3 py-1.5 text-xs transition border-b-0 ${
               activeTab === 'timeline'
                 ? 'bg-white font-bold text-blue-900 shadow-2xs border-t-2 border-t-blue-600 border-x border-slate-300'
                 : 'bg-[#e2ddd0] hover:bg-[#ebe6d9] text-slate-600 border-t border-x border-transparent hover:border-slate-300'
@@ -459,7 +459,7 @@ export function SheetFooter({
           {/* Sheet 2: データ管理 (日・週・固定枠・取り込み表) */}
           <button
             onClick={() => onTabChange('data')}
-            className={`group flex items-center gap-1.5 rounded-none px-3 py-1.5 text-xs transition border-b-0 ${
+            className={`group shrink-0 flex items-center gap-1.5 rounded-none px-2.5 sm:px-3 py-1.5 text-xs transition border-b-0 ${
               activeTab === 'data'
                 ? 'bg-white font-bold text-emerald-900 shadow-2xs border-t-2 border-t-emerald-600 border-x border-slate-300'
                 : 'bg-[#e2ddd0] hover:bg-[#ebe6d9] text-slate-600 border-t border-x border-transparent hover:border-slate-300'
@@ -489,7 +489,7 @@ export function SheetFooter({
                 onOpenMobileSwitcher();
               }}
               title="タップして時間割やタスクを切り替え"
-              className="group flex items-center gap-1 rounded-none px-2.5 py-1.5 text-xs transition border-b-0 bg-[#ebe6d9] hover:bg-white text-slate-700 hover:text-blue-900 border-t border-x border-transparent hover:border-slate-300 shadow-2xs active:scale-95 cursor-pointer max-w-[120px] sm:max-w-[170px]"
+              className="group flex items-center gap-1 rounded-none px-2 sm:px-2.5 py-1.5 text-xs transition border-b-0 bg-[#ebe6d9] hover:bg-white text-slate-700 hover:text-blue-900 border-t border-x border-transparent hover:border-slate-300 shadow-2xs active:scale-95 cursor-pointer min-w-0 max-w-[100px] xs:max-w-[120px] sm:max-w-[170px]"
             >
               <Layers className="h-3.5 w-3.5 text-blue-600 shrink-0" />
               <span className="font-bold truncate text-[11px] sm:text-xs text-blue-950">
@@ -500,11 +500,11 @@ export function SheetFooter({
           )}
         </div>
 
-        {/* Center / Row 2: App Title in available space (スマホでは2行目・PCでは中央) */}
-        <div className="order-3 sm:order-2 flex w-full sm:w-auto sm:flex-1 items-center justify-center min-w-0 px-2 pt-0.5 sm:pt-0 pointer-events-none sm:pointer-events-auto">
+        {/* Center: App Title in available space (PCでのみ中央表示し、スマホの行数増加を根本防止) */}
+        <div className="hidden sm:flex sm:flex-1 items-center justify-center min-w-0 px-2 pointer-events-auto">
           <div className="flex items-center gap-1.5 truncate">
-            <div className="flex h-4.5 w-4.5 sm:h-5 sm:w-5 shrink-0 items-center justify-center rounded bg-blue-600 text-white shadow-2xs">
-              <Target className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+            <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-blue-600 text-white shadow-2xs">
+              <Target className="h-3 w-3" />
             </div>
             <h1 className="text-xs sm:text-sm font-bold text-slate-800 tracking-tight truncate select-text">
               理論値計画表
@@ -513,7 +513,7 @@ export function SheetFooter({
         </div>
 
         {/* Right: Status and Menu Action */}
-        <div className="flex items-center gap-1.5 sm:gap-2 text-xs order-2 sm:order-3">
+        <div className="flex items-center gap-1.5 sm:gap-2 text-xs shrink-0">
           {/* Autosave Status */}
           {lastSavedAt && (
             <span
@@ -525,41 +525,35 @@ export function SheetFooter({
             </span>
           )}
 
-          {/* フォーカス切り替えコントロール（文字ベース: 日 / 週 セグメント） */}
+          {/* フォーカス切り替えコントロール（どちらを押しても切り替わるボタン） */}
           {onToggleFocus && (
-            <div
-              className="flex h-7.5 items-center border border-slate-300 bg-white shadow-2xs select-none"
-              role="group"
-              aria-label="表示フォーカス切り替え"
+            <button
+              type="button"
+              onClick={onToggleFocus}
+              className="flex h-7.5 items-center border border-slate-300 bg-white shadow-2xs select-none cursor-pointer active:scale-95 shrink-0 overflow-hidden"
+              title={`タップで日表示と週表示を切り替え（現在: ${focusMode === 'today' ? '日フォーカス' : '週間表示'}）`}
+              aria-label={`表示フォーカス切り替え（現在: ${focusMode === 'today' ? '日' : '週'}）`}
             >
-              <button
-                type="button"
-                onClick={() => focusMode !== 'today' && onToggleFocus()}
-                className={`h-full px-2 text-xs font-bold transition active:scale-95 cursor-pointer ${
+              <span
+                className={`px-2 h-full flex items-center text-xs font-bold transition ${
                   focusMode === 'today'
                     ? 'bg-blue-600 text-white'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
-                title="日フォーカス（1日表示）に切り替え"
-                aria-pressed={focusMode === 'today'}
               >
                 日
-              </button>
+              </span>
               <div className="h-3.5 w-px bg-slate-300" />
-              <button
-                type="button"
-                onClick={() => focusMode !== 'week' && onToggleFocus()}
-                className={`h-full px-2 text-xs font-bold transition active:scale-95 cursor-pointer ${
+              <span
+                className={`px-2 h-full flex items-center text-xs font-bold transition ${
                   focusMode === 'week'
                     ? 'bg-blue-600 text-white'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
-                title="週間表示（月〜日 7日間表示）に切り替え"
-                aria-pressed={focusMode === 'week'}
               >
                 週
-              </button>
-            </div>
+              </span>
+            </button>
           )}
 
           {/* Debug Button (デバッグ用設定ボタン: フッターに独立アイコンで配置) */}
