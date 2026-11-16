@@ -834,11 +834,11 @@ export function SheetFooter({
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
                   <Calendar className="h-3.5 w-3.5 text-blue-600" />
-                  時間割データ
+                  表データ
                 </span>
                 {addedNotification && (
                   <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-1.5 py-0.2 animate-fade-in">
-                    追加しました
+                    デフォルトデータを追加しました
                   </span>
                 )}
               </div>
@@ -850,9 +850,10 @@ export function SheetFooter({
                   setTimeout(() => setAddedNotification(false), 2000);
                 }}
                 className="w-full flex items-center justify-center gap-2 p-2.5 text-xs font-bold transition cursor-pointer border border-slate-300 bg-white text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 shadow-2xs active:bg-blue-100"
+                title="初期デフォルトデータ（時間割・生活リズム等）を追加"
               >
                 <Plus className="h-4 w-4 text-blue-600 shrink-0" />
-                <span>デフォルトの時間割を追加</span>
+                <span>デフォルトのデータを追加</span>
               </button>
             </div>
           )}

@@ -29,7 +29,7 @@ import {
   loadInclusionSettings,
   saveInclusionSettings,
   DEFAULT_INCLUSION_SETTINGS,
-  TABLE_CLASSES,
+  INITIAL_IMPORTED_TABLES,
 } from '@/lib/storage';
 import { generateScheduleItemsForTable } from '@/lib/tableUtils';
 import { getMondayKey } from '@/lib/timeUtils';
@@ -636,23 +636,23 @@ export default function Home() {
   };
 
   const handleAddDefaultTable = () => {
-    const template = TABLE_CLASSES;
-    const newId = `table-${Date.now()}`;
-    const baseName = template.name;
-    const count = importedTables.filter((t) => t.name.startsWith(baseName)).length;
-    const newName = count === 0 ? baseName : `${baseName} (${count + 1})`;
+    const timestamp = Date.now();
+    const newTables: ImportedTableData[] = INITIAL_IMPORTED_TABLES.map((template, idx) => {
+      const baseName = template.name;
+      const count = importedTables.filter((t) => t.name.startsWith(baseName)).length;
+      const newName = count === 0 ? baseName : `${baseName} (${count + 1})`;
 
-    const newTable: ImportedTableData = {
-      ...JSON.parse(JSON.stringify(template)),
-      id: newId,
-      name: newName,
-      colorIndex: importedTables.length % 12,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      isApplied: true,
-    };
+      return {
+        ...JSON.parse(JSON.stringify(template)),
+        id: `table-default-${timestamp}-${idx}`,
+        name: newName,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isApplied: true,
+      };
+    });
 
-    const updated = [...importedTables, newTable];
+    const updated = [...importedTables, ...newTables];
     setImportedTables(updated);
     saveImportedTables(updated);
   };
