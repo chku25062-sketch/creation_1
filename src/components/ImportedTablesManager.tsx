@@ -737,12 +737,19 @@ export function ImportedTablesManager({
     setCellAttachedEnabled(
       cell.attachedTask?.enabled ?? activeTable.attachedTaskConfig?.enabled ?? false,
     );
-    const cellDefaultPeriod =
-      (periodTimes[r]
-        ? periodTimes[r].endMinutes - periodTimes[r].startMinutes
-        : activeTable.axisConfig.periodMinutes) || 90;
+    const cellDefaultPeriod = Math.min(
+      180,
+      Math.max(
+        1,
+        (periodTimes[r]
+          ? periodTimes[r].endMinutes - periodTimes[r].startMinutes
+          : activeTable.axisConfig.periodMinutes) || 90,
+      ),
+    );
     setCellAttachedDuration(
-      cell.attachedTask?.durationMinutes || activeTable.attachedTaskConfig?.durationMinutes || cellDefaultPeriod,
+      cell.attachedTask?.durationMinutes ||
+        activeTable.attachedTaskConfig?.durationMinutes ||
+        cellDefaultPeriod,
     );
     setCellAttachedAllowSplit(
       cell.attachedTask?.allowSplit ?? activeTable.attachedTaskConfig?.allowSplit ?? false,
@@ -1940,7 +1947,7 @@ export function ImportedTablesManager({
                       <input
                         type="number"
                         min={1}
-                        max={300}
+                        max={1440}
                         step={5}
                         value={
                           activeTable.axisConfig.periodMinutes !== null &&
@@ -2372,14 +2379,18 @@ export function ImportedTablesManager({
                       aria-checked={activeTable.attachedTaskConfig?.enabled ?? false}
                       onClick={() => {
                         const nextEnabled = !(activeTable.attachedTaskConfig?.enabled ?? false);
-                        const defaultPeriod = activeTable.axisConfig.periodMinutes || 90;
+                        const defaultPeriod = Math.min(
+                          180,
+                          Math.max(1, activeTable.axisConfig.periodMinutes || 90),
+                        );
                         updateActiveTable((prev) => ({
                           ...prev,
                           attachedTaskConfig: {
                             enabled: nextEnabled,
                             titleTemplate:
                               prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
-                            durationMinutes: prev.attachedTaskConfig?.durationMinutes || defaultPeriod,
+                            durationMinutes:
+                              prev.attachedTaskConfig?.durationMinutes || defaultPeriod,
                           },
                         }));
                       }}
@@ -2404,7 +2415,10 @@ export function ImportedTablesManager({
                             min={1}
                             max={180}
                             step={5}
-                            value={activeTable.attachedTaskConfig.durationMinutes || activeTable.axisConfig.periodMinutes || 90}
+                            value={
+                              activeTable.attachedTaskConfig.durationMinutes ||
+                              Math.min(180, activeTable.axisConfig.periodMinutes || 90)
+                            }
                             onChange={(e) => {
                               const num = parseInt(e.target.value, 10);
                               if (!isNaN(num) && num >= 1) {
@@ -3376,7 +3390,7 @@ export function ImportedTablesManager({
                       <input
                         type="number"
                         min={1}
-                        max={300}
+                        max={1440}
                         step={5}
                         value={activeTable.axisConfig.periodMinutes ?? ''}
                         onChange={(e) => {
@@ -3640,7 +3654,10 @@ export function ImportedTablesManager({
                       aria-checked={activeTable.attachedTaskConfig?.enabled ?? false}
                       onClick={() => {
                         const nextEnabled = !(activeTable.attachedTaskConfig?.enabled ?? false);
-                        const defaultPeriod = activeTable.axisConfig.periodMinutes || 90;
+                        const defaultPeriod = Math.min(
+                          180,
+                          Math.max(1, activeTable.axisConfig.periodMinutes || 90),
+                        );
                         updateActiveTable((prev) => ({
                           ...prev,
                           attachedTaskConfig: {
@@ -3672,7 +3689,10 @@ export function ImportedTablesManager({
                             min={1}
                             max={180}
                             step={5}
-                            value={activeTable.attachedTaskConfig.durationMinutes || activeTable.axisConfig.periodMinutes || 90}
+                            value={
+                              activeTable.attachedTaskConfig.durationMinutes ||
+                              Math.min(180, activeTable.axisConfig.periodMinutes || 90)
+                            }
                             onChange={(e) => {
                               const num = parseInt(e.target.value, 10);
                               if (!isNaN(num) && num >= 1) {

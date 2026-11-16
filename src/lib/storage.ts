@@ -132,6 +132,11 @@ export const TABLE_CLASSES: ImportedTableData = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   placementMode: 'fixed',
+  columnMode: 'weekday',
+  cycleStartDay: 0,
+  dailyRepeatCount: 'auto',
+  weeklyRepeatCount: 'auto',
+  weeklyTaskExpiryWeeks: 1,
   isApplied: true,
   numRows: 6,
   numCols: 5,
@@ -149,6 +154,7 @@ export const TABLE_CLASSES: ImportedTableData = {
     hasLunch: true,
     lunchAfterPeriod: 2,
     lunchMinutes: 50,
+    weeklyTaskExpiryWeeks: 1,
   },
   cells: [
     // 1限: 09:00〜10:30 (540〜630)
@@ -509,6 +515,11 @@ export const TABLE_SLEEP: ImportedTableData = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   placementMode: 'fixed',
+  columnMode: 'weekday',
+  cycleStartDay: 0,
+  dailyRepeatCount: 'auto',
+  weeklyRepeatCount: 'auto',
+  weeklyTaskExpiryWeeks: 1,
   isApplied: true,
   numRows: 1,
   numCols: 7,
@@ -520,7 +531,8 @@ export const TABLE_SLEEP: ImportedTableData = {
     intervalMinutes: 0,
     hasLunch: false,
     lunchAfterPeriod: 1,
-    lunchMinutes: 0,
+    lunchMinutes: 50,
+    weeklyTaskExpiryWeeks: 1,
   },
   cells: [
     [
@@ -612,6 +624,11 @@ export const TABLE_MEAL: ImportedTableData = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   placementMode: 'fixed',
+  columnMode: 'weekday',
+  cycleStartDay: 0,
+  dailyRepeatCount: 'auto',
+  weeklyRepeatCount: 'auto',
+  weeklyTaskExpiryWeeks: 1,
   isApplied: true,
   numRows: 3,
   numCols: 7,
@@ -623,7 +640,8 @@ export const TABLE_MEAL: ImportedTableData = {
     intervalMinutes: 0,
     hasLunch: false,
     lunchAfterPeriod: 1,
-    lunchMinutes: 0,
+    lunchMinutes: 50,
+    weeklyTaskExpiryWeeks: 1,
     customRowTimes: {
       1: { startMinutes: 450, endMinutes: 480 }, // 07:30〜08:00 (30分)
       2: { startMinutes: 730, endMinutes: 780 }, // 12:10〜13:00 (50分)
@@ -881,6 +899,11 @@ export const TABLE_WORKOUT: ImportedTableData = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   placementMode: 'auto',
+  columnMode: 'weekday',
+  cycleStartDay: 0,
+  dailyRepeatCount: 'auto',
+  weeklyRepeatCount: 'auto',
+  weeklyTaskExpiryWeeks: 1,
   isApplied: true,
   numRows: 1,
   numCols: 7,
@@ -893,7 +916,8 @@ export const TABLE_WORKOUT: ImportedTableData = {
     intervalMinutes: 0,
     hasLunch: false,
     lunchAfterPeriod: 1,
-    lunchMinutes: 0,
+    lunchMinutes: 50,
+    weeklyTaskExpiryWeeks: 1,
   },
   cells: [
     [
@@ -985,6 +1009,11 @@ export const TABLE_ENGLISH: ImportedTableData = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   placementMode: 'fixed',
+  columnMode: 'weekday',
+  cycleStartDay: 0,
+  dailyRepeatCount: 'auto',
+  weeklyRepeatCount: 'auto',
+  weeklyTaskExpiryWeeks: 1,
   isApplied: true,
   numRows: 1,
   numCols: 7,
@@ -996,7 +1025,8 @@ export const TABLE_ENGLISH: ImportedTableData = {
     intervalMinutes: 10,
     hasLunch: false,
     lunchAfterPeriod: 1,
-    lunchMinutes: 0,
+    lunchMinutes: 50,
+    weeklyTaskExpiryWeeks: 1,
   },
   cells: [
     [
@@ -1088,6 +1118,11 @@ export const TABLE_HOBBY: ImportedTableData = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   placementMode: 'fixed',
+  columnMode: 'weekday',
+  cycleStartDay: 0,
+  dailyRepeatCount: 'auto',
+  weeklyRepeatCount: 'auto',
+  weeklyTaskExpiryWeeks: 1,
   isApplied: true,
   numRows: 1,
   numCols: 7,
@@ -1099,7 +1134,8 @@ export const TABLE_HOBBY: ImportedTableData = {
     intervalMinutes: 10,
     hasLunch: false,
     lunchAfterPeriod: 1,
-    lunchMinutes: 0,
+    lunchMinutes: 50,
+    weeklyTaskExpiryWeeks: 1,
   },
   cells: [
     [
@@ -1256,8 +1292,32 @@ export function loadImportedTables(): ImportedTableData[] {
         }),
       );
 
+      // axisConfig の設定値の正規化 (UIで通常設定可能な範囲に適合)
+      const axisConfig = {
+        ...table.axisConfig,
+        lunchMinutes:
+          table.axisConfig?.lunchMinutes !== undefined && table.axisConfig.lunchMinutes > 0
+            ? table.axisConfig.lunchMinutes
+            : 50,
+        lunchAfterPeriod:
+          table.axisConfig?.lunchAfterPeriod !== undefined && table.axisConfig.lunchAfterPeriod >= 1
+            ? table.axisConfig.lunchAfterPeriod
+            : 1,
+        weeklyTaskExpiryWeeks:
+          table.axisConfig?.weeklyTaskExpiryWeeks !== undefined
+            ? table.axisConfig.weeklyTaskExpiryWeeks
+            : 1,
+      };
+
       return {
         ...table,
+        columnMode: table.columnMode || (table.colHeaders.some((h) => h.startsWith('Day ')) ? 'cycle' : 'weekday'),
+        cycleStartDay: table.cycleStartDay !== undefined ? table.cycleStartDay : 0,
+        dailyRepeatCount: table.dailyRepeatCount !== undefined ? table.dailyRepeatCount : 'auto',
+        weeklyRepeatCount: table.weeklyRepeatCount !== undefined ? table.weeklyRepeatCount : 'auto',
+        weeklyTaskExpiryWeeks:
+          table.weeklyTaskExpiryWeeks !== undefined ? table.weeklyTaskExpiryWeeks : 1,
+        axisConfig,
         attachedTaskConfig: attachedConfig,
         cells,
       };
