@@ -171,6 +171,7 @@ export function getTableClassification(table: ImportedTableData): TableClassific
       table.axisConfig.startTime !== null &&
       table.axisConfig.startTime !== undefined &&
       table.axisConfig.startTime !== 'unset' &&
+      table.axisConfig.startTime !== '未設定' &&
       table.axisConfig.startTime !== '自動' &&
       table.axisConfig.startTime !== 'auto');
 
@@ -407,6 +408,9 @@ export function generateScheduleItemsForTable(
       ? ((table.cycleStartDay % 7) + 7) % 7
       : 0;
 
+  // 日課タスクの各列（各日）ごとの出現回数を正確に集計するためのマップ
+  const dailyTaskColOccurrences = new Map<string, Map<number, number>>();
+
   const tableStartTimeMinutes =
     table.axisConfig.startTime &&
     table.axisConfig.startTime !== 'unset' &&
@@ -521,7 +525,7 @@ export function generateScheduleItemsForTable(
         }
       } else if (classification === 'daily_task') {
         // 日（日のタスク）: 表の列の要素がその日の中で繰り返されるもの
-        // 表データに「1日の中の繰り返し回数」が指定されていればその値、自動なら表内の重複出現回数を集計
+        // 表データに「1日の中の繰り返し回数」が指定されていればその値、自動なら同一列（同日）内の重複出現回数の最大値を集計
         const tableDailyCount =
           table.dailyRepeatCount && table.dailyRepeatCount !== 'auto'
             ? Number(table.dailyRepeatCount)
@@ -530,10 +534,19 @@ export function generateScheduleItemsForTable(
         const taskKey = fullTitle;
         const existing = taskMap.get(taskKey);
 
+        let colMap = dailyTaskColOccurrences.get(taskKey);
+        if (!colMap) {
+          colMap = new Map<number, number>();
+          dailyTaskColOccurrences.set(taskKey, colMap);
+        }
+        colMap.set(c, (colMap.get(c) || 0) + 1);
+        const maxColCount = Math.max(...Array.from(colMap.values()));
+
         if (existing) {
           if (!tableDailyCount) {
             existing.dailyRepeatMode = 'auto';
-            existing.dailyCount = (existing.dailyCount || 1) + 1;
+            // 曜日・周期列（各列が異なる日）の場合は同日内（列内）の最大出現回数、フリー列（1日の中の時間帯等）の場合は表内総出現回数
+            existing.dailyCount = isWeekday || isCycle ? maxColCount : (existing.dailyCount || 1) + 1;
           } else {
             existing.dailyCount = tableDailyCount;
             existing.dailyRepeatMode = 'custom';
@@ -574,7 +587,7 @@ export function generateScheduleItemsForTable(
             breakMinutes: effectiveBreakMinutes,
             frequency: 'high',
             period: 'day',
-            dailyCount: tableDailyCount ?? 1,
+            dailyCount: tableDailyCount ?? maxColCount,
             dailyRepeatMode: tableDailyCount ? 'custom' : 'auto',
             targetDays:
               isWeekday && effectiveWeekday !== undefined ? [effectiveWeekday] : undefined,

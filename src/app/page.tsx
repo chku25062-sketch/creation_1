@@ -655,6 +655,21 @@ export default function Home() {
     const updated = [...importedTables, ...newTables];
     setImportedTables(updated);
     saveImportedTables(updated);
+
+    // 新しく追加されたテーブルから即座にスロット＆タスクを生成して計画表に反映
+    let allNewSlots: FixedSlot[] = [];
+    let allNewTasks: TaskItem[] = [];
+    newTables.forEach((t) => {
+      const { slots, tasks: tTasks } = generateScheduleItemsForTable(t);
+      allNewSlots = [...allNewSlots, ...slots];
+      allNewTasks = [...allNewTasks, ...tTasks];
+    });
+
+    const nextFixed = [...fixedSlots, ...allNewSlots];
+    const nextTasks = [...tasks, ...allNewTasks];
+    setFixedSlots(nextFixed);
+    setTasks(nextTasks);
+    saveLocalData(nextFixed, nextTasks);
   };
 
   const handleSignOut = async () => {

@@ -642,8 +642,19 @@ export function ImportedTablesManager({
         }));
       });
 
+      // startTime の変更に応じて placementMode を適切に連動
+      let nextPlacementMode = prev.placementMode;
+      if (key === 'startTime') {
+        if (!value) {
+          nextPlacementMode = 'auto';
+        } else if (prev.placementMode === 'auto' && !prev.axisConfig.endTime) {
+          nextPlacementMode = 'fixed';
+        }
+      }
+
       return {
         ...prev,
+        placementMode: nextPlacementMode,
         axisConfig: nextConfig,
         cells: nextCells,
         updatedAt: new Date().toISOString(),
@@ -1855,14 +1866,21 @@ export function ImportedTablesManager({
                 <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                   {/* 1. 配置方法の選択（固定配置 / 自動配置） */}
                   {(() => {
+                    const hasValidStartTime =
+                      activeTable.axisConfig.startTime !== null &&
+                      activeTable.axisConfig.startTime !== undefined &&
+                      activeTable.axisConfig.startTime !== 'unset' &&
+                      activeTable.axisConfig.startTime !== '未設定' &&
+                      activeTable.axisConfig.startTime !== '自動' &&
+                      activeTable.axisConfig.startTime !== 'auto';
+
                     const isFixed =
-                      activeTable.placementMode === 'fixed' ||
-                      (activeTable.placementMode === undefined &&
-                        activeTable.axisConfig.startTime !== null &&
-                        activeTable.axisConfig.startTime !== undefined &&
-                        activeTable.axisConfig.startTime !== 'unset' &&
-                        activeTable.axisConfig.startTime !== '自動' &&
-                        activeTable.axisConfig.startTime !== 'auto');
+                      activeTable.placementMode === 'auto'
+                        ? false
+                        : activeTable.placementMode === 'fixed'
+                          ? hasValidStartTime
+                          : hasValidStartTime;
+
                     const currentMode: TablePlacementMode = isFixed ? 'fixed' : 'auto';
 
                     return (
@@ -1874,10 +1892,18 @@ export function ImportedTablesManager({
                           value={currentMode}
                           onChange={(e) => {
                             const nextMode = e.target.value as TablePlacementMode;
-                            updateActiveTable((prev) => ({
-                              ...prev,
-                              placementMode: nextMode,
-                            }));
+                            updateActiveTable((prev) => {
+                              const nextConfig = { ...prev.axisConfig };
+                              if (nextMode === 'auto' && nextConfig.startTime) {
+                                // 自動配分に切り替えた際、時間帯の縛り（最早開始時刻）をなくして一日中空き枠へ敷き詰められるように開始時刻をクリア
+                                nextConfig.startTime = null;
+                              }
+                              return {
+                                ...prev,
+                                placementMode: nextMode,
+                                axisConfig: nextConfig,
+                              };
+                            });
                           }}
                           className="text-[11px] font-bold text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
                           title="配置方法を選択（固定配置: 時間割のように固定枠として配置 / 自動配置: 空き枠・指定区間に自動配分）"
@@ -3530,32 +3556,68 @@ export function ImportedTablesManager({
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 mb-1">配置方式</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => updateActiveTable((prev) => ({ ...prev, placementMode: 'fixed' }))}
-                      className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-bold transition shadow-2xs ${
-                        (activeTable.placementMode === 'fixed' || (activeTable.placementMode === undefined && activeTable.axisConfig.startTime))
-                          ? 'border-blue-600 bg-blue-50 text-blue-700 ring-2 ring-blue-500/20'
-                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
-                      <Shield className="h-4 w-4" />
-                      <span>📌 固定枠</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateActiveTable((prev) => ({ ...prev, placementMode: 'auto' }))}
-                      className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-bold transition shadow-2xs ${
+                    {(() => {
+                      const hasValidStartTime =
+                        activeTable.axisConfig.startTime !== null &&
+                        activeTable.axisConfig.startTime !== undefined &&
+                        activeTable.axisConfig.startTime !== 'unset' &&
+                        activeTable.axisConfig.startTime !== '未設定' &&
+                        activeTable.axisConfig.startTime !== '自動' &&
+                        activeTable.axisConfig.startTime !== 'auto';
+
+                      const isFixed =
                         activeTable.placementMode === 'auto'
-                          ? 'border-amber-500 bg-amber-50 text-amber-700 ring-2 ring-amber-500/20'
-                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
-                      <Sun className="h-4 w-4" />
-                      <span>⚡ 自動配分</span>
-                    </button>
-                  </div>
+                          ? false
+                          : activeTable.placementMode === 'fixed'
+                            ? hasValidStartTime
+                            : hasValidStartTime;
+
+                      return (
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateActiveTable((prev) => ({
+                                ...prev,
+                                placementMode: 'fixed',
+                              }))
+                            }
+                            className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-bold transition shadow-2xs ${
+                              isFixed
+                                ? 'border-blue-600 bg-blue-50 text-blue-700 ring-2 ring-blue-500/20'
+                                : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            <Shield className="h-4 w-4" />
+                            <span>📌 固定枠</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateActiveTable((prev) => {
+                                const nextConfig = { ...prev.axisConfig };
+                                if (nextConfig.startTime) {
+                                  nextConfig.startTime = null;
+                                }
+                                return {
+                                  ...prev,
+                                  placementMode: 'auto',
+                                  axisConfig: nextConfig,
+                                };
+                              })
+                            }
+                            className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-bold transition shadow-2xs ${
+                              !isFixed
+                                ? 'border-amber-500 bg-amber-50 text-amber-700 ring-2 ring-amber-500/20'
+                                : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            <Sun className="h-4 w-4" />
+                            <span>⚡ 自動配分</span>
+                          </button>
+                        </div>
+                      );
+                    })()}
                 </div>
               </div>
 
