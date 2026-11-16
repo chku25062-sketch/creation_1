@@ -825,5 +825,18 @@ describe('tableUtils', () => {
         expect(b.endMinutes - b.startMinutes).toBe(5);
       }
     });
+
+    it('授業表の付随タスク生成がオンになっており、各講義の終了後に付随タスクが生成されること', () => {
+      const classesTable = INITIAL_IMPORTED_TABLES.find((t) => t.name === '授業')!;
+      expect(classesTable.attachedTaskConfig?.enabled).toBe(true);
+      const { tasks } = generateScheduleItemsForTable(classesTable);
+      const attachedTasks = tasks.filter((t) => t.isAttachedTask);
+      expect(attachedTasks.length).toBeGreaterThan(0);
+      for (const t of attachedTasks) {
+        expect(t.title).toMatch(/.* のタスク$/);
+        expect(t.durationMinutes).toBe(15);
+        expect(t.scheduleAfterEnabled).toBe(true);
+      }
+    });
   });
 });

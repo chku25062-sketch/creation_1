@@ -137,6 +137,11 @@ export const TABLE_CLASSES: ImportedTableData = {
   numCols: 5,
   colHeaders: ['月曜', '火曜', '水曜', '木曜', '金曜'],
   rowHeaders: ['1限', '2限', '3限', '4限', '5限', '6限'],
+  attachedTaskConfig: {
+    enabled: true,
+    titleTemplate: '{title} のタスク',
+    durationMinutes: 15,
+  },
   axisConfig: {
     startTime: '09:00',
     periodMinutes: 90,
