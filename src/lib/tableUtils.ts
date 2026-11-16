@@ -579,7 +579,7 @@ export function generateScheduleItemsForTable(
             targetDays:
               isWeekday && effectiveWeekday !== undefined ? [effectiveWeekday] : undefined,
             startDay: isWeekday ? effectiveWeekday : undefined,
-            deadlineDay: isWeekday ? effectiveWeekday : undefined,
+            deadlineDay: undefined,
             cycleDays: isCycle ? [cycleIdx] : undefined,
             cycleIndex: isCycle ? cycleIdx : undefined,
             cycleCount: isCycle ? cycleCount : undefined,

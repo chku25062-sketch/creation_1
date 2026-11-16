@@ -28,9 +28,11 @@ export function generatePlacementPlans(
 
   // 2. 各タスクの配置計画を策定
   const plans: TaskPlacementPlan[] = schedulableTasks.map((task) => {
-    // 課題タスク（提出物・締切制約）判定（付随タスクは課題扱いしない）
+    // 課題タスク（提出物・締切制約）判定（付随タスクや日課タスクは課題扱いしない）
     const isAssignment =
-      !task.isAttachedTask && (task.taskType === 'assignment' || task.deadlineDay !== undefined);
+      !task.isAttachedTask &&
+      task.period !== 'day' &&
+      (task.taskType === 'assignment' || task.deadlineDay !== undefined);
 
     // 回数指定 (custom または dailyCount >= 1) か判定
     const isCustomDaily =

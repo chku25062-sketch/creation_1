@@ -16,6 +16,7 @@ import {
 } from './tableUtils';
 import { ImportedTableData } from '@/types';
 import { INITIAL_IMPORTED_TABLES, INITIAL_TASKS, INITIAL_FIXED_SLOTS } from './storage';
+import { generateTheoreticalSchedule } from './scheduler';
 
 const createBaseTable = (startTime: string | null = '09:00'): ImportedTableData => ({
   id: 'test-table',
@@ -795,6 +796,34 @@ describe('tableUtils', () => {
       const sleepSlot = slots[0];
       expect(sleepSlot.startMinutes).toBe(0); // 00:00
       expect(sleepSlot.endMinutes).toBe(8 * 60); // 480 (08:00)
+    });
+
+    it('筋トレ表から生成される日課タスクが5分タスクとして指定曜日（火・木・土）の21時までの空き枠に敷き詰められること', () => {
+      const workoutTable = INITIAL_IMPORTED_TABLES.find((t) => t.name === '筋トレ')!;
+      const { tasks } = generateScheduleItemsForTable(workoutTable);
+      expect(tasks.length).toBe(1);
+      const workoutTask = tasks[0];
+      expect(workoutTask.durationMinutes).toBe(5);
+      expect(workoutTask.latestEndTime).toBe(21 * 60); // 1260 (21:00)
+      expect(workoutTask.targetDays).toEqual([1, 3, 5]); // 火、木、土
+      expect(workoutTask.deadlineDay).toBeUndefined(); // 課題扱いではない
+
+      // スケジューラーで配置
+      const result = generateTheoreticalSchedule([], tasks, {
+        placementStrategy: 'balanced',
+      });
+      // 火曜、木曜、土曜それぞれに21:00まで敷き詰められていること
+      const tueBlocks = result.allBlocks.filter((b) => b.dayIndex === 1 && b.title === '筋トレ');
+      const thuBlocks = result.allBlocks.filter((b) => b.dayIndex === 3 && b.title === '筋トレ');
+      const satBlocks = result.allBlocks.filter((b) => b.dayIndex === 5 && b.title === '筋トレ');
+      expect(tueBlocks.length).toBeGreaterThan(10);
+      expect(thuBlocks.length).toBeGreaterThan(10);
+      expect(satBlocks.length).toBeGreaterThan(10);
+      // すべてのブロックが21:00 (1260分) 以内に収まっていること
+      for (const b of [...tueBlocks, ...thuBlocks, ...satBlocks]) {
+        expect(b.endMinutes).toBeLessThanOrEqual(1260);
+        expect(b.endMinutes - b.startMinutes).toBe(5);
+      }
     });
   });
 });

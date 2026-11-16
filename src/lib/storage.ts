@@ -884,8 +884,8 @@ export const TABLE_WORKOUT: ImportedTableData = {
   axisConfig: {
     startTime: null,
     endTime: '21:00',
-    periodMinutes: 60,
-    intervalMinutes: 10,
+    periodMinutes: 5,
+    intervalMinutes: 0,
     hasLunch: false,
     lunchAfterPeriod: 1,
     lunchMinutes: 0,
