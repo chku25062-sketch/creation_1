@@ -29,6 +29,7 @@ import {
   loadInclusionSettings,
   saveInclusionSettings,
   DEFAULT_INCLUSION_SETTINGS,
+  TABLE_CLASSES,
 } from '@/lib/storage';
 import { generateScheduleItemsForTable } from '@/lib/tableUtils';
 import { getMondayKey } from '@/lib/timeUtils';
@@ -634,6 +635,28 @@ export default function Home() {
     setActiveTab('data');
   };
 
+  const handleAddDefaultTable = () => {
+    const template = TABLE_CLASSES;
+    const newId = `table-${Date.now()}`;
+    const baseName = template.name;
+    const count = importedTables.filter((t) => t.name.startsWith(baseName)).length;
+    const newName = count === 0 ? baseName : `${baseName} (${count + 1})`;
+
+    const newTable: ImportedTableData = {
+      ...JSON.parse(JSON.stringify(template)),
+      id: newId,
+      name: newName,
+      colorIndex: importedTables.length % 12,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      isApplied: true,
+    };
+
+    const updated = [...importedTables, newTable];
+    setImportedTables(updated);
+    saveImportedTables(updated);
+  };
+
   const handleSignOut = async () => {
     if (supabase) {
       await supabase.auth.signOut();
@@ -856,6 +879,7 @@ export default function Home() {
         selectedDayIndex={selectedDayIndex}
         placementStrategy={placementStrategy}
         onTogglePlacementStrategy={handleTogglePlacementStrategy}
+        onAddDefaultTable={handleAddDefaultTable}
         debugTime={
           isDevelopment
             ? {

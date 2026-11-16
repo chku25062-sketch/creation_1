@@ -22,6 +22,7 @@ import {
   History,
   Layers,
   ChevronDown,
+  Plus,
 } from 'lucide-react';
 import { AppThemeMode, TheoreticalBlock, TaskItem, TaskPlacementStrategy } from '@/types';
 import { minutesToTimeString, timeStringToMinutes, formatDuration } from '@/lib/timeUtils';
@@ -68,6 +69,7 @@ interface SheetFooterProps {
   onResetCompletionStates?: () => void;
   activeDataName?: string;
   onOpenMobileSwitcher?: () => void;
+  onAddDefaultTable?: () => void;
 }
 
 export function SheetFooter({
@@ -94,9 +96,11 @@ export function SheetFooter({
   onResetCompletionStates,
   activeDataName,
   onOpenMobileSwitcher,
+  onAddDefaultTable,
 }: SheetFooterProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDebugDrawerOpen, setIsDebugDrawerOpen] = useState(false);
+  const [addedNotification, setAddedNotification] = useState(false);
 
   const footerRef = useRef<HTMLElement>(null);
   const [footerHeight, setFooterHeight] = useState(44);
@@ -821,6 +825,35 @@ export function SheetFooter({
                   <span>集中（前倒し）</span>
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* セクション 2-3: 時間割・データ */}
+          {onAddDefaultTable && (
+            <div className="space-y-1.5">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-blue-600" />
+                  時間割データ
+                </span>
+                {addedNotification && (
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-1.5 py-0.2 animate-fade-in">
+                    追加しました
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onAddDefaultTable();
+                  setAddedNotification(true);
+                  setTimeout(() => setAddedNotification(false), 2000);
+                }}
+                className="w-full flex items-center justify-center gap-2 p-2.5 text-xs font-bold transition cursor-pointer border border-slate-300 bg-white text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 shadow-2xs active:bg-blue-100"
+              >
+                <Plus className="h-4 w-4 text-blue-600 shrink-0" />
+                <span>デフォルトの時間割を追加</span>
+              </button>
             </div>
           )}
 
