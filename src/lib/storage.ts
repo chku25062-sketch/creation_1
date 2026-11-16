@@ -140,7 +140,7 @@ export const TABLE_CLASSES: ImportedTableData = {
   attachedTaskConfig: {
     enabled: true,
     titleTemplate: '{title} のタスク',
-    durationMinutes: 15,
+    durationMinutes: 90,
   },
   axisConfig: {
     startTime: '09:00',

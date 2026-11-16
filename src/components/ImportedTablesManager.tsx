@@ -737,8 +737,12 @@ export function ImportedTablesManager({
     setCellAttachedEnabled(
       cell.attachedTask?.enabled ?? activeTable.attachedTaskConfig?.enabled ?? false,
     );
+    const cellDefaultPeriod =
+      (periodTimes[r]
+        ? periodTimes[r].endMinutes - periodTimes[r].startMinutes
+        : activeTable.axisConfig.periodMinutes) || 90;
     setCellAttachedDuration(
-      cell.attachedTask?.durationMinutes || activeTable.attachedTaskConfig?.durationMinutes || 15,
+      cell.attachedTask?.durationMinutes || activeTable.attachedTaskConfig?.durationMinutes || cellDefaultPeriod,
     );
     setCellAttachedAllowSplit(
       cell.attachedTask?.allowSplit ?? activeTable.attachedTaskConfig?.allowSplit ?? false,
@@ -2368,13 +2372,14 @@ export function ImportedTablesManager({
                       aria-checked={activeTable.attachedTaskConfig?.enabled ?? false}
                       onClick={() => {
                         const nextEnabled = !(activeTable.attachedTaskConfig?.enabled ?? false);
+                        const defaultPeriod = activeTable.axisConfig.periodMinutes || 90;
                         updateActiveTable((prev) => ({
                           ...prev,
                           attachedTaskConfig: {
                             enabled: nextEnabled,
                             titleTemplate:
                               prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
-                            durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
+                            durationMinutes: prev.attachedTaskConfig?.durationMinutes || defaultPeriod,
                           },
                         }));
                       }}
@@ -2399,7 +2404,7 @@ export function ImportedTablesManager({
                             min={1}
                             max={180}
                             step={5}
-                            value={activeTable.attachedTaskConfig.durationMinutes || 15}
+                            value={activeTable.attachedTaskConfig.durationMinutes || activeTable.axisConfig.periodMinutes || 90}
                             onChange={(e) => {
                               const num = parseInt(e.target.value, 10);
                               if (!isNaN(num) && num >= 1) {
@@ -2442,7 +2447,8 @@ export function ImportedTablesManager({
                                   enabled: true,
                                   titleTemplate:
                                     prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
-                                  durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
+                                  durationMinutes:
+                                    prev.attachedTaskConfig?.durationMinutes || prev.axisConfig.periodMinutes || 90,
                                   allowSplit: val > 1,
                                   splitCount: val > 1 ? val : undefined,
                                 },
@@ -2456,7 +2462,7 @@ export function ImportedTablesManager({
                           </span>
                           {activeTable.attachedTaskConfig?.allowSplit && (activeTable.attachedTaskConfig.splitCount || 2) > 1 && (
                             <span className="text-[9px] text-indigo-700 bg-indigo-50 px-1 rounded font-mono font-medium">
-                              ({Math.floor((activeTable.attachedTaskConfig.durationMinutes || 15) / (activeTable.attachedTaskConfig.splitCount || 2))}分×{activeTable.attachedTaskConfig.splitCount || 2})
+                              ({Math.floor((activeTable.attachedTaskConfig.durationMinutes || activeTable.axisConfig.periodMinutes || 90) / (activeTable.attachedTaskConfig.splitCount || 2))}分×{activeTable.attachedTaskConfig.splitCount || 2})
                             </span>
                           )}
                         </div>
@@ -3634,12 +3640,13 @@ export function ImportedTablesManager({
                       aria-checked={activeTable.attachedTaskConfig?.enabled ?? false}
                       onClick={() => {
                         const nextEnabled = !(activeTable.attachedTaskConfig?.enabled ?? false);
+                        const defaultPeriod = activeTable.axisConfig.periodMinutes || 90;
                         updateActiveTable((prev) => ({
                           ...prev,
                           attachedTaskConfig: {
                             enabled: nextEnabled,
                             titleTemplate: prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
-                            durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
+                            durationMinutes: prev.attachedTaskConfig?.durationMinutes || defaultPeriod,
                           },
                         }));
                       }}
@@ -3665,7 +3672,7 @@ export function ImportedTablesManager({
                             min={1}
                             max={180}
                             step={5}
-                            value={activeTable.attachedTaskConfig.durationMinutes || 15}
+                            value={activeTable.attachedTaskConfig.durationMinutes || activeTable.axisConfig.periodMinutes || 90}
                             onChange={(e) => {
                               const num = parseInt(e.target.value, 10);
                               if (!isNaN(num) && num >= 1) {
@@ -3707,7 +3714,8 @@ export function ImportedTablesManager({
                                     ...prev.attachedTaskConfig,
                                     enabled: true,
                                     titleTemplate: prev.attachedTaskConfig?.titleTemplate || '{title} のタスク',
-                                    durationMinutes: prev.attachedTaskConfig?.durationMinutes || 15,
+                                    durationMinutes:
+                                      prev.attachedTaskConfig?.durationMinutes || prev.axisConfig.periodMinutes || 90,
                                     allowSplit: val > 1,
                                     splitCount: val > 1 ? val : undefined,
                                   },
@@ -3719,7 +3727,7 @@ export function ImportedTablesManager({
                           </div>
                           {activeTable.attachedTaskConfig?.allowSplit && (activeTable.attachedTaskConfig.splitCount || 2) > 1 && (
                             <span className="text-[10px] text-indigo-700 font-mono font-bold bg-indigo-50 px-1.5 py-0.5 rounded">
-                              {Math.floor((activeTable.attachedTaskConfig.durationMinutes || 15) / (activeTable.attachedTaskConfig.splitCount || 2))}分×{activeTable.attachedTaskConfig.splitCount || 2}
+                              {Math.floor((activeTable.attachedTaskConfig.durationMinutes || activeTable.axisConfig.periodMinutes || 90) / (activeTable.attachedTaskConfig.splitCount || 2))}分×{activeTable.attachedTaskConfig.splitCount || 2}
                             </span>
                           )}
                         </div>

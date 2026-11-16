@@ -706,8 +706,14 @@ export function generateScheduleItemsForTable(
           attachedTitleTemplate = '{title} のタスク';
         }
 
+        const defaultCellDuration = timeSlot
+          ? (timeSlot.endMinutes >= timeSlot.startMinutes
+              ? timeSlot.endMinutes - timeSlot.startMinutes
+              : 1440 - timeSlot.startMinutes + timeSlot.endMinutes)
+          : (table.axisConfig.periodMinutes || 90);
+
         const attachedDuration =
-          cellAttached?.durationMinutes || attachedConfig?.durationMinutes || 15;
+          cellAttached?.durationMinutes || attachedConfig?.durationMinutes || defaultCellDuration;
         const attachedAllowSplit =
           cellAttached?.allowSplit ?? attachedConfig?.allowSplit ?? false;
         const attachedSplitCount =

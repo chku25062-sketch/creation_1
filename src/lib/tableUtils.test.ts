@@ -834,7 +834,7 @@ describe('tableUtils', () => {
       expect(attachedTasks.length).toBeGreaterThan(0);
       for (const t of attachedTasks) {
         expect(t.title).toMatch(/.* のタスク$/);
-        expect(t.durationMinutes).toBe(15);
+        expect(t.durationMinutes).toBe(90); // 元のコマと同じ90分
         expect(t.scheduleAfterEnabled).toBe(true);
       }
     });
