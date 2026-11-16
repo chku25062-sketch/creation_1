@@ -2798,18 +2798,20 @@ export function ImportedTablesManager({
                                       }`}>
                                         {pt ? `${pt.startTime || ''}` : ''}
                                       </span>
-                                      {/* コマ削除ごみ箱アイコン */}
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleClearCell(rIdx, cIdx, e);
-                                        }}
-                                        title="このコマを削除"
-                                        className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded opacity-70 group-hover/cell:opacity-100 transition cursor-pointer"
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </button>
+                                      {/* コマ削除ごみ箱アイコン（デスクトップ版のみ表示。モバイル版はタップ誤動作防止のため編集シートから操作） */}
+                                      {viewMode === 'desktop' && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleClearCell(rIdx, cIdx, e);
+                                          }}
+                                          title="このコマを削除"
+                                          className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded opacity-70 group-hover/cell:opacity-100 transition cursor-pointer"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </button>
+                                      )}
                                     </div>
                                   </div>
                                 ) : (
