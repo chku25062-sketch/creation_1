@@ -870,22 +870,28 @@ export function ImportedTablesManager({
       name: `新しい表 ${tables.length + 1}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      numRows: 5,
-      numCols: 5,
+      placementMode: 'fixed',
       columnMode: 'cycle',
       cycleStartDay: 0,
       cycleStartDate: weekDateOptions[0]?.dateStr,
+      dailyRepeatCount: 'auto',
+      weeklyRepeatCount: 'auto',
+      weeklyTaskExpiryWeeks: 1,
+      isApplied: false,
+      numRows: 5,
+      numCols: 5,
       colHeaders: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5'],
       rowHeaders: ['1', '2', '3', '4', '5'],
-      dailyRepeatCount: 'auto',
       colorIndex: tables.length % TABLE_PALETTE_OPTIONS.length,
       axisConfig: {
         startTime: '09:00',
+        endTime: '18:00',
         periodMinutes: 90,
         intervalMinutes: 10,
         hasLunch: true,
         lunchAfterPeriod: 2,
         lunchMinutes: 50,
+        weeklyTaskExpiryWeeks: 1,
       },
       cells: Array.from({ length: 5 }, (_, r) =>
         Array.from({ length: 5 }, (_, c) => ({
@@ -1892,18 +1898,10 @@ export function ImportedTablesManager({
                           value={currentMode}
                           onChange={(e) => {
                             const nextMode = e.target.value as TablePlacementMode;
-                            updateActiveTable((prev) => {
-                              const nextConfig = { ...prev.axisConfig };
-                              if (nextMode === 'auto' && nextConfig.startTime) {
-                                // 自動配分に切り替えた際、時間帯の縛り（最早開始時刻）をなくして一日中空き枠へ敷き詰められるように開始時刻をクリア
-                                nextConfig.startTime = null;
-                              }
-                              return {
-                                ...prev,
-                                placementMode: nextMode,
-                                axisConfig: nextConfig,
-                              };
-                            });
+                            updateActiveTable((prev) => ({
+                              ...prev,
+                              placementMode: nextMode,
+                            }));
                           }}
                           className="text-[11px] font-bold text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
                           title="配置方法を選択（固定配置: 時間割のように固定枠として配置 / 自動配置: 空き枠・指定区間に自動配分）"
@@ -3594,17 +3592,10 @@ export function ImportedTablesManager({
                           <button
                             type="button"
                             onClick={() =>
-                              updateActiveTable((prev) => {
-                                const nextConfig = { ...prev.axisConfig };
-                                if (nextConfig.startTime) {
-                                  nextConfig.startTime = null;
-                                }
-                                return {
-                                  ...prev,
-                                  placementMode: 'auto',
-                                  axisConfig: nextConfig,
-                                };
-                              })
+                              updateActiveTable((prev) => ({
+                                ...prev,
+                                placementMode: 'auto',
+                              }))
                             }
                             className={`flex h-11 items-center justify-center gap-1.5 rounded-xl border text-xs font-bold transition shadow-2xs ${
                               !isFixed

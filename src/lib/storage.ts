@@ -149,6 +149,7 @@ export const TABLE_CLASSES: ImportedTableData = {
   },
   axisConfig: {
     startTime: '09:00',
+    endTime: '19:30',
     periodMinutes: 90,
     intervalMinutes: 10,
     hasLunch: true,
@@ -527,6 +528,7 @@ export const TABLE_SLEEP: ImportedTableData = {
   rowHeaders: ['睡眠'],
   axisConfig: {
     startTime: '00:00',
+    endTime: '08:00',
     periodMinutes: 480, // 8時間
     intervalMinutes: 0,
     hasLunch: false,
@@ -636,6 +638,7 @@ export const TABLE_MEAL: ImportedTableData = {
   rowHeaders: ['朝食', '昼食', '夕食'],
   axisConfig: {
     startTime: '07:30',
+    endTime: '20:00',
     periodMinutes: 30,
     intervalMinutes: 0,
     hasLunch: false,
@@ -1021,6 +1024,7 @@ export const TABLE_ENGLISH: ImportedTableData = {
   rowHeaders: ['英語学習'],
   axisConfig: {
     startTime: '20:15',
+    endTime: '21:00',
     periodMinutes: 45,
     intervalMinutes: 10,
     hasLunch: false,
@@ -1130,6 +1134,7 @@ export const TABLE_HOBBY: ImportedTableData = {
   rowHeaders: ['趣味'],
   axisConfig: {
     startTime: '21:30',
+    endTime: '22:30',
     periodMinutes: 60,
     intervalMinutes: 10,
     hasLunch: false,
@@ -1293,8 +1298,13 @@ export function loadImportedTables(): ImportedTableData[] {
       );
 
       // axisConfig の設定値の正規化 (UIで通常設定可能な範囲に適合)
+      const defaultTableMatch = INITIAL_IMPORTED_TABLES.find((it) => it.id === table.id);
       const axisConfig = {
         ...table.axisConfig,
+        endTime:
+          table.axisConfig?.endTime !== undefined
+            ? table.axisConfig.endTime
+            : defaultTableMatch?.axisConfig.endTime ?? null,
         lunchMinutes:
           table.axisConfig?.lunchMinutes !== undefined && table.axisConfig.lunchMinutes > 0
             ? table.axisConfig.lunchMinutes
@@ -1311,6 +1321,7 @@ export function loadImportedTables(): ImportedTableData[] {
 
       return {
         ...table,
+        placementMode: table.placementMode || defaultTableMatch?.placementMode || 'fixed',
         columnMode: table.columnMode || (table.colHeaders.some((h) => h.startsWith('Day ')) ? 'cycle' : 'weekday'),
         cycleStartDay: table.cycleStartDay !== undefined ? table.cycleStartDay : 0,
         dailyRepeatCount: table.dailyRepeatCount !== undefined ? table.dailyRepeatCount : 'auto',
