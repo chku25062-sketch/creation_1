@@ -3590,7 +3590,15 @@ export function ImportedTablesManager({
               </div>
 
               {/* ボトムアクションバー（親指で届く大ボタン・フッター被り防止＆セーフエリア確保） */}
-              <div className="shrink-0 border-t border-slate-200 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-slate-50/95 flex items-center gap-2.5 shadow-lg">
+              <div className="shrink-0 border-t border-slate-200 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-slate-50/95 flex items-center gap-2 shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => setEditingCell(null)}
+                  className="flex-1 h-12 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs font-bold hover:bg-slate-100 active:scale-98 transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                  <span>閉じる</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -3605,7 +3613,7 @@ export function ImportedTablesManager({
                 <button
                   type="button"
                   onClick={handleSaveEditCell}
-                  className="flex-1 h-12 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 active:scale-98 transition flex items-center justify-center gap-1.5 shadow-md cursor-pointer"
+                  className="flex-[1.2] h-12 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 active:scale-98 transition flex items-center justify-center gap-1.5 shadow-md cursor-pointer"
                 >
                   <Check className="h-4 w-4 stroke-[3]" />
                   <span>保存する</span>
@@ -3890,14 +3898,14 @@ export function ImportedTablesManager({
                 <button
                   type="button"
                   onClick={() => setEditingCell(null)}
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition"
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 transition cursor-pointer"
                 >
-                  キャンセル
+                  閉じる
                 </button>
                 <button
                   type="button"
                   onClick={handleSaveEditCell}
-                  className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 shadow-2xs transition"
+                  className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 shadow-2xs transition cursor-pointer"
                 >
                   保存
                 </button>
