@@ -292,6 +292,33 @@ describe('Table Templates Generator (Plan22 仮実装検証)', () => {
       const task = tasks[0];
       expect(task.targetDays).toEqual([0, 2, 4]);
     });
+
+    it('マルチタスク一括生成（週次）: 複数行が生成され、各行に指定した所要時間が反映されること', () => {
+      const table = createWeeklyTaskTable({
+        name: '今週の課題セット',
+        multiTasks: {
+          items: [
+            { title: 'レポート課題', durationMinutes: 90 },
+            { title: '部屋の掃除', durationMinutes: 30 },
+            { title: '英語リスニング', durationMinutes: 45 },
+          ],
+        },
+      });
+
+      expect(table.numRows).toBe(3);
+      expect(table.numCols).toBe(1);
+      expect(table.name).toBe('今週の課題セット');
+      expect(table.weeklyRepeatCount).toBe('auto'); // ★ デフォルト auto
+
+      expect(table.cells[0][0].title).toBe('レポート課題');
+      expect(table.cells[0][0].customDurationMinutes).toBe(90);
+
+      expect(table.cells[1][0].title).toBe('部屋の掃除');
+      expect(table.cells[1][0].customDurationMinutes).toBe(30);
+
+      expect(table.cells[2][0].title).toBe('英語リスニング');
+      expect(table.cells[2][0].customDurationMinutes).toBe(45);
+    });
   });
 
   describe('固定タスクテンプレート (createFixedSlotTable)', () => {
@@ -322,6 +349,35 @@ describe('Table Templates Generator (Plan22 仮実装検証)', () => {
       expect(slot.startMinutes).toBe(0);
       expect(slot.endMinutes).toBe(480);
       expect(slot.daysOfWeek).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    });
+
+    it('マルチスロット一括生成（固定枠）: 複数行が生成され、開始時刻順に自動整列（Auto-Sort）されること', () => {
+      const table = createFixedSlotTable({
+        name: '基本生活リズム',
+        multiSlots: {
+          items: [
+            { title: 'アルバイト', startTime: '17:00', endTime: '21:00', targetDays: [0, 2, 4] },
+            { title: '睡眠', startTime: '00:00', endTime: '08:00', targetDays: [0, 1, 2, 3, 4, 5, 6] },
+            { title: '昼食', startTime: '12:00', endTime: '13:00', targetDays: [0, 1, 2, 3, 4, 5, 6] },
+          ],
+        },
+      });
+
+      expect(table.numRows).toBe(3);
+      expect(table.name).toBe('基本生活リズム');
+      expect(table.placementMode).toBe('fixed');
+
+      // 開始時刻順に自動整列 (00:00 睡眠 -> 12:00 昼食 -> 17:00 アルバイト)
+      expect(table.cells[0][0].title).toBe('睡眠');
+      expect(table.cells[0][0].customStartTime).toBe('00:00');
+
+      expect(table.cells[1][0].title).toBe('昼食');
+      expect(table.cells[1][0].customStartTime).toBe('12:00');
+
+      expect(table.cells[2][0].title).toBe('アルバイト');
+      expect(table.cells[2][0].customStartTime).toBe('17:00');
+      expect(table.cells[2][0].text).toBe('アルバイト'); // 月曜は対象
+      expect(table.cells[2][1].text).toBeNull(); // 火曜は非対象
     });
   });
 });

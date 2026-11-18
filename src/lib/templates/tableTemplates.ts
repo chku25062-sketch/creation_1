@@ -58,10 +58,10 @@ export interface DailyRoutineTemplateInput {
 
 export interface WeeklyTaskTemplateInput {
   name?: string; // 表の表示名
-  title: string;
-  durationMinutes: number;
-  weeklyTargetCount: number | 'auto';
-  expiryWeeks: 1 | 2 | 'none';
+  title?: string;
+  durationMinutes?: number;
+  weeklyTargetCount?: number | 'auto';
+  expiryWeeks?: 1 | 2 | 'none';
   timeRange?: { startTime: string | null; endTime: string | null };
 
   // 複数項目（マルチタスクリスト）の場合
@@ -80,14 +80,21 @@ export interface WeeklyTaskTemplateInput {
   preferredDays?: number[]; // 例: [0, 2, 4] (月, 水, 金)
 }
 
-export interface FixedSlotTemplateInput {
-  name?: string;
+export interface FixedSlotItemInput {
   title: string;
   startTime: string;
   endTime: string;
-  targetDays: number[]; // 0:月〜6:日
-  multiTasks?: {
-    items: Array<{ title: string; startTime: string; endTime: string; durationMinutes?: number; url?: string }>;
+  targetDays?: number[]; // 0:月〜6:日、未指定時は全曜日
+}
+
+export interface FixedSlotTemplateInput {
+  name?: string;
+  title?: string;
+  startTime?: string;
+  endTime?: string;
+  targetDays?: number[]; // 0:月〜6:日
+  multiSlots?: {
+    items: FixedSlotItemInput[];
   };
 }
 
@@ -361,9 +368,25 @@ export function createWeeklyTaskTable(input: WeeklyTaskTemplateInput): ImportedT
   const id = `table-weekly-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const now = new Date().toISOString();
 
+  const taskItems: TemplateTaskItemInput[] =
+    input.multiTasks?.items && input.multiTasks.items.length > 0
+      ? input.multiTasks.items
+      : [
+          {
+            title: input.title || '週タスク',
+            durationMinutes: input.durationMinutes || 60,
+          },
+        ];
+
+  const firstDuration = taskItems[0]?.durationMinutes || 60;
+  const numRows = taskItems.length;
+  const rowHeaders = Array.from({ length: numRows }, (_, r) => String(r + 1));
+  const tableName = input.name || taskItems[0]?.title || '週タスク';
+  const weeklyRepeatCount = input.weeklyTargetCount ?? 'auto';
+  const expiryWeeks = input.expiryWeeks ?? 1;
+
   const startTimeStr = input.timeRange?.startTime ?? null;
   const endTimeStr = input.timeRange?.endTime ?? null;
-  const duration = input.durationMinutes > 0 ? input.durationMinutes : 60;
   const startMin = startTimeStr ? timeStringToMinutes(startTimeStr) : 540;
 
   const hasConstraint = input.startConstraint?.enabled;
@@ -375,49 +398,50 @@ export function createWeeklyTaskTable(input: WeeklyTaskTemplateInput): ImportedT
     const scheduleAfterTimeStr = input.startConstraint.scheduleAfterTime || startTimeStr || '14:30';
     const scheduleStartMin = timeStringToMinutes(scheduleAfterTimeStr);
 
-    // 7列の曜日モードで、開始曜日以降の曜日にセルを展開
-    const cells: GridCell[][] = [
-      Array.from({ length: 7 }, (_, c) => {
+    const cells: GridCell[][] = taskItems.map((item, r) => {
+      const dur = item.durationMinutes > 0 ? item.durationMinutes : 60;
+      return Array.from({ length: 7 }, (_, c) => {
         const isEligible = c >= startDay;
         return {
           dayIndex: c,
-          periodIndex: 1,
-          text: isEligible ? input.title : null,
-          title: isEligible ? input.title : '',
+          periodIndex: r + 1,
+          text: isEligible ? item.title : null,
+          title: isEligible ? item.title : '',
           roomOrNote: '',
-          rawLines: isEligible ? [input.title] : [],
-          fullText: isEligible ? input.title : '',
+          rawLines: isEligible ? [item.title] : [],
+          fullText: isEligible ? item.title : '',
           startMinutes: isEligible ? scheduleStartMin : 0,
-          endMinutes: isEligible ? scheduleStartMin + duration : 0,
+          endMinutes: isEligible ? scheduleStartMin + dur : 0,
+          customDurationMinutes: isEligible ? dur : undefined,
         };
-      }),
-    ];
+      });
+    });
 
     return {
       id,
-      name: input.title,
+      name: tableName,
       createdAt: now,
       updatedAt: now,
       placementMode: 'auto',
       columnMode: 'weekday',
       cycleStartDay: 0,
       dailyRepeatCount: 1,
-      weeklyRepeatCount: input.weeklyTargetCount,
-      weeklyTaskExpiryWeeks: input.expiryWeeks,
+      weeklyRepeatCount,
+      weeklyTaskExpiryWeeks: expiryWeeks,
       isApplied: true,
-      numRows: 1,
+      numRows,
       numCols: 7,
       colHeaders: [...WEEKDAY_HEADERS],
-      rowHeaders: ['1'],
+      rowHeaders,
       axisConfig: {
         startTime: scheduleAfterTimeStr,
         endTime: endTimeStr,
-        periodMinutes: duration,
+        periodMinutes: firstDuration,
         intervalMinutes: 10,
         hasLunch: false,
         lunchAfterPeriod: 1,
         lunchMinutes: 50,
-        weeklyTaskExpiryWeeks: input.expiryWeeks,
+        weeklyTaskExpiryWeeks: expiryWeeks,
       },
       cells,
     };
@@ -425,95 +449,99 @@ export function createWeeklyTaskTable(input: WeeklyTaskTemplateInput): ImportedT
 
   // パターンB: 希望曜日の指定がある場合
   if (preferredDays && preferredDays.length > 0 && preferredDays.length < 7) {
-    const cells: GridCell[][] = [
-      Array.from({ length: 7 }, (_, c) => {
+    const cells: GridCell[][] = taskItems.map((item, r) => {
+      const dur = item.durationMinutes > 0 ? item.durationMinutes : 60;
+      return Array.from({ length: 7 }, (_, c) => {
         const isTarget = preferredDays.includes(c);
         return {
           dayIndex: c,
-          periodIndex: 1,
-          text: isTarget ? input.title : null,
-          title: isTarget ? input.title : '',
+          periodIndex: r + 1,
+          text: isTarget ? item.title : null,
+          title: isTarget ? item.title : '',
           roomOrNote: '',
-          rawLines: isTarget ? [input.title] : [],
-          fullText: isTarget ? input.title : '',
+          rawLines: isTarget ? [item.title] : [],
+          fullText: isTarget ? item.title : '',
           startMinutes: isTarget ? startMin : 0,
-          endMinutes: isTarget ? startMin + duration : 0,
+          endMinutes: isTarget ? startMin + dur : 0,
+          customDurationMinutes: isTarget ? dur : undefined,
         };
-      }),
-    ];
+      });
+    });
 
     return {
       id,
-      name: input.title,
+      name: tableName,
       createdAt: now,
       updatedAt: now,
       placementMode: 'auto',
       columnMode: 'weekday',
       cycleStartDay: 0,
       dailyRepeatCount: 1,
-      weeklyRepeatCount: input.weeklyTargetCount,
-      weeklyTaskExpiryWeeks: input.expiryWeeks,
+      weeklyRepeatCount,
+      weeklyTaskExpiryWeeks: expiryWeeks,
       isApplied: true,
-      numRows: 1,
+      numRows,
       numCols: 7,
       colHeaders: [...WEEKDAY_HEADERS],
-      rowHeaders: ['1'],
+      rowHeaders,
       axisConfig: {
         startTime: startTimeStr,
         endTime: endTimeStr,
-        periodMinutes: duration,
+        periodMinutes: firstDuration,
         intervalMinutes: 10,
         hasLunch: false,
         lunchAfterPeriod: 1,
         lunchMinutes: 50,
-        weeklyTaskExpiryWeeks: input.expiryWeeks,
+        weeklyTaskExpiryWeeks: expiryWeeks,
       },
       cells,
     };
   }
 
   // パターンC: いつでも着手可能（おまかせ・Day 1の1列表）
-  const cells: GridCell[][] = [
-    [
+  const cells: GridCell[][] = taskItems.map((item, r) => {
+    const dur = item.durationMinutes > 0 ? item.durationMinutes : 60;
+    return [
       {
         dayIndex: 0,
-        periodIndex: 1,
-        text: input.title,
-        title: input.title,
+        periodIndex: r + 1,
+        text: item.title,
+        title: item.title,
         roomOrNote: '',
-        rawLines: [input.title],
-        fullText: input.title,
+        rawLines: [item.title],
+        fullText: item.title,
         startMinutes: startMin,
-        endMinutes: startMin + duration,
+        endMinutes: startMin + dur,
+        customDurationMinutes: dur,
       },
-    ],
-  ];
+    ];
+  });
 
   return {
     id,
-    name: input.title,
+    name: tableName,
     createdAt: now,
     updatedAt: now,
     placementMode: 'auto',
     columnMode: 'cycle',
     cycleStartDay: 0,
     dailyRepeatCount: 1,
-    weeklyRepeatCount: input.weeklyTargetCount,
-    weeklyTaskExpiryWeeks: input.expiryWeeks,
+    weeklyRepeatCount,
+    weeklyTaskExpiryWeeks: expiryWeeks,
     isApplied: true,
-    numRows: 1,
+    numRows,
     numCols: 1,
     colHeaders: ['Day 1'],
-    rowHeaders: ['1'],
+    rowHeaders,
     axisConfig: {
       startTime: startTimeStr,
       endTime: endTimeStr,
-      periodMinutes: duration,
+      periodMinutes: firstDuration,
       intervalMinutes: 10,
       hasLunch: false,
       lunchAfterPeriod: 1,
       lunchMinutes: 50,
-      weeklyTaskExpiryWeeks: input.expiryWeeks,
+      weeklyTaskExpiryWeeks: expiryWeeks,
     },
     cells,
   };
@@ -527,34 +555,60 @@ export function createFixedSlotTable(input: FixedSlotTemplateInput): ImportedTab
   const id = `table-fixed-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const now = new Date().toISOString();
 
-  const startMin = timeStringToMinutes(input.startTime);
-  let endMin = timeStringToMinutes(input.endTime);
-  if (endMin <= startMin) {
-    endMin += 1440; // 翌朝対応（例: 23:00〜07:00 等）
-  }
-  const duration = endMin - startMin;
+  const slotItems: FixedSlotItemInput[] =
+    input.multiSlots?.items && input.multiSlots.items.length > 0
+      ? input.multiSlots.items
+      : [
+          {
+            title: input.title || '固定枠',
+            startTime: input.startTime || '00:00',
+            endTime: input.endTime || '08:00',
+            targetDays: input.targetDays || [0, 1, 2, 3, 4, 5, 6],
+          },
+        ];
 
-  const targetDaysSet = new Set(input.targetDays);
-  const cells: GridCell[][] = [
-    Array.from({ length: 7 }, (_, c) => {
+  const numRows = slotItems.length;
+  const rowHeaders = Array.from({ length: numRows }, (_, r) => String(r + 1));
+  const tableName = input.name || slotItems[0]?.title || '固定枠';
+
+  const cells: GridCell[][] = slotItems.map((item, r) => {
+    const startMin = timeStringToMinutes(item.startTime);
+    let endMin = timeStringToMinutes(item.endTime);
+    if (endMin <= startMin) {
+      endMin += 1440; // 翌朝対応（例: 23:00〜07:00 等）
+    }
+    const dur = endMin - startMin;
+    const targetDaysSet = new Set(item.targetDays || [0, 1, 2, 3, 4, 5, 6]);
+
+    return Array.from({ length: 7 }, (_, c) => {
       const isTarget = targetDaysSet.has(c);
       return {
         dayIndex: c,
-        periodIndex: 1,
-        text: isTarget ? input.title : null,
-        title: isTarget ? input.title : '',
+        periodIndex: r + 1,
+        text: isTarget ? item.title : null,
+        title: isTarget ? item.title : '',
         roomOrNote: '',
-        rawLines: isTarget ? [input.title] : [],
-        fullText: isTarget ? input.title : '',
+        rawLines: isTarget ? [item.title] : [],
+        fullText: isTarget ? item.title : '',
         startMinutes: isTarget ? startMin : 0,
         endMinutes: isTarget ? endMin : 0,
+        customDurationMinutes: isTarget ? dur : undefined,
+        customStartTime: isTarget ? item.startTime : undefined,
+        hasCustomTime: isTarget ? true : undefined,
       };
-    }),
-  ];
+    });
+  });
 
-  return {
+  const firstStartMin = timeStringToMinutes(slotItems[0]?.startTime || '00:00');
+  let firstEndMin = timeStringToMinutes(slotItems[0]?.endTime || '08:00');
+  if (firstEndMin <= firstStartMin) {
+    firstEndMin += 1440;
+  }
+  const firstDuration = firstEndMin - firstStartMin;
+
+  const table: ImportedTableData = {
     id,
-    name: input.title,
+    name: tableName,
     createdAt: now,
     updatedAt: now,
     placementMode: 'fixed',
@@ -564,14 +618,14 @@ export function createFixedSlotTable(input: FixedSlotTemplateInput): ImportedTab
     weeklyRepeatCount: 'auto',
     weeklyTaskExpiryWeeks: 1,
     isApplied: true,
-    numRows: 1,
+    numRows,
     numCols: 7,
     colHeaders: [...WEEKDAY_HEADERS],
-    rowHeaders: ['1'],
+    rowHeaders,
     axisConfig: {
-      startTime: input.startTime,
-      endTime: input.endTime,
-      periodMinutes: duration,
+      startTime: slotItems[0]?.startTime || '00:00',
+      endTime: slotItems[0]?.endTime || '08:00',
+      periodMinutes: firstDuration,
       intervalMinutes: 0,
       hasLunch: false,
       lunchAfterPeriod: 1,
@@ -580,4 +634,6 @@ export function createFixedSlotTable(input: FixedSlotTemplateInput): ImportedTab
     },
     cells,
   };
+
+  return sortRowsByTime(table);
 }
