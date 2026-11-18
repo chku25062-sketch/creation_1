@@ -30,7 +30,9 @@ import {
   Settings,
   Copy,
   RotateCcw,
+  Sparkles,
 } from 'lucide-react';
+import { TableTemplateWizardModal } from '@/components/TableTemplateWizardModal';
 import { TABLE_PALETTE_OPTIONS, getTableColorSchemeByIndex } from '@/components/Timeline24h';
 import {
   ImportedTableData,
@@ -132,6 +134,9 @@ export function ImportedTablesManager({
 
   // 選択中のファイルアイテム (固定枠: sys-slots, 日課: sys-daily, 週次: sys-weekly, 表データ: table.id)
   const [selectedItemId, setSelectedItemId] = useState<string>(tables[0]?.id || 'sys-slots');
+
+  // Plan22 テンプレートウィザードモーダル開閉
+  const [isTemplateWizardOpen, setIsTemplateWizardOpen] = useState(false);
 
   const isSystemFile = selectedItemId.startsWith('sys-');
 
@@ -1047,6 +1052,24 @@ export function ImportedTablesManager({
                 )}
               </div>
               <div className="space-y-0.5">
+                {/* テンプレートから作成（Plan22 仮実装） */}
+                <div
+                  onClick={() => setIsTemplateWizardOpen(true)}
+                  title="✨ テンプレートから作成（日課・週次・固定枠）"
+                  className={`group relative flex items-center rounded-none border border-dashed border-indigo-300 bg-indigo-50/60 hover:bg-indigo-100 hover:border-indigo-500 cursor-pointer transition select-none ${
+                    isSidebarOpen
+                      ? 'px-2.5 py-2 text-xs font-bold text-indigo-800 shadow-2xs'
+                      : 'px-1.5 py-1.5 text-xs justify-center text-indigo-700 shadow-2xs'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-none bg-indigo-600 text-white shadow-2xs">
+                      <Sparkles className="h-3.5 w-3.5" />
+                    </div>
+                    {isSidebarOpen && <span className="truncate">✨ テンプレートから作成</span>}
+                  </div>
+                </div>
+
                 {/* 画面左の表データの一番上の項目: 「新しい表を追加」 */}
                 <div
                   onClick={handleAddNewTable}
@@ -1839,7 +1862,15 @@ export function ImportedTablesManager({
               <p className="mt-1 text-xs text-slate-400">
                 左サイドバーの「新しい表を追加」または「画像やcsvから読み取り」から表を追加してください。
               </p>
-              <div className="mt-4 flex items-center justify-center gap-2">
+              <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setIsTemplateWizardOpen(true)}
+                  className="flex items-center gap-1.5 rounded-none border border-indigo-400 bg-indigo-50 px-3.5 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 shadow-2xs transition active:scale-95"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>✨ テンプレートから作成</span>
+                </button>
                 <button
                   type="button"
                   onClick={handleAddNewTable}
@@ -4186,6 +4217,38 @@ export function ImportedTablesManager({
           <span>{applySuccessMsg}</span>
         </div>
       )}
+
+      {/* Plan22 テンプレートウィザードモーダル */}
+      <TableTemplateWizardModal
+        isOpen={isTemplateWizardOpen}
+        onClose={() => setIsTemplateWizardOpen(false)}
+        onAddTable={(newTable) => {
+          // 即時反映ロジックを呼び出して計画表に同期
+          const { slots: newSlots, tasks: newTasks, slotIds, taskIds } =
+            generateScheduleItemsForTable(newTable);
+          let finalTable = newTable;
+          if (newSlots.length > 0 || newTasks.length > 0) {
+            const nextSlots = fixedSlots
+              .filter((s) => s.sourceTableId !== newTable.id)
+              .concat(newSlots);
+            const nextTasks = tasks
+              .filter((t) => t.sourceTableId !== newTable.id)
+              .concat(newTasks);
+            onSlotsChange(nextSlots);
+            onTasksChange(nextTasks);
+            finalTable = {
+              ...newTable,
+              isApplied: true,
+              appliedSlotIds: slotIds,
+              appliedTaskIds: taskIds,
+            };
+          }
+          onTablesChange([...tables, finalTable]);
+          setSelectedItemId(finalTable.id);
+          setApplySuccessMsg(`テンプレートから「${finalTable.name}」を作成しました`);
+          setTimeout(() => setApplySuccessMsg(null), 3000);
+        }}
+      />
     </div>
   );
 }
