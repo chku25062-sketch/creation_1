@@ -1052,10 +1052,10 @@ export function ImportedTablesManager({
                 )}
               </div>
               <div className="space-y-0.5">
-                {/* テンプレートから作成（Plan22 仮実装） */}
+                {/* テンプレートから設定（Plan22） */}
                 <div
                   onClick={() => setIsTemplateWizardOpen(true)}
-                  title="✨ テンプレートから作成（日課・週次・固定枠）"
+                  title="✨ テンプレートから設定（日課・週次・固定枠）"
                   className={`group relative flex items-center rounded-none border border-dashed border-indigo-300 bg-indigo-50/60 hover:bg-indigo-100 hover:border-indigo-500 cursor-pointer transition select-none ${
                     isSidebarOpen
                       ? 'px-2.5 py-2 text-xs font-bold text-indigo-800 shadow-2xs'
@@ -1066,7 +1066,7 @@ export function ImportedTablesManager({
                     <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-none bg-indigo-600 text-white shadow-2xs">
                       <Sparkles className="h-3.5 w-3.5" />
                     </div>
-                    {isSidebarOpen && <span className="truncate">✨ テンプレートから作成</span>}
+                    {isSidebarOpen && <span className="truncate">✨ テンプレートから設定</span>}
                   </div>
                 </div>
 
@@ -1869,7 +1869,7 @@ export function ImportedTablesManager({
                   className="flex items-center gap-1.5 rounded-none border border-indigo-400 bg-indigo-50 px-3.5 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 shadow-2xs transition active:scale-95"
                 >
                   <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
-                  <span>✨ テンプレートから作成</span>
+                  <span>✨ テンプレートから設定</span>
                 </button>
                 <button
                   type="button"
@@ -1901,6 +1901,17 @@ export function ImportedTablesManager({
               {/* 高優先度メインバー（常時表示） */}
               <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-none border border-slate-200/90 bg-slate-50/95 px-2.5 py-1.5 text-xs text-slate-700 shadow-2xs">
                 <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                  {/* 0. テンプレートから設定（各表データ設定項目の先頭） */}
+                  <button
+                    type="button"
+                    onClick={() => setIsTemplateWizardOpen(true)}
+                    title="この表にテンプレート（日課・週次・固定枠）の設定を適用します"
+                    className="flex items-center gap-1 rounded-none border border-indigo-300 bg-indigo-50/80 hover:bg-indigo-100 hover:border-indigo-500 px-2 py-0.5 text-[11px] font-bold text-indigo-700 shadow-2xs transition active:scale-95 cursor-pointer"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                    <span className="whitespace-nowrap">✨ テンプレートから設定</span>
+                  </button>
+
                   {/* 1. 配置方法の選択（固定配置 / 自動配置） */}
                   {(() => {
                     const hasValidStartTime =
@@ -3339,6 +3350,21 @@ export function ImportedTablesManager({
 
             {/* ドロワーコンテンツ (スクロール可能: 上から順に設定していく最適化フロー) */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 divide-y divide-slate-100">
+              {/* セクション 0: ✨ テンプレートから設定（設定項目の先頭） */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileSettingsOpen(false);
+                    setIsTemplateWizardOpen(true);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-indigo-300 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-500 py-3 text-xs font-bold text-indigo-800 shadow-2xs transition active:scale-98 cursor-pointer"
+                >
+                  <Sparkles className="h-4 w-4 text-indigo-600" />
+                  <span>✨ テンプレートから設定</span>
+                </button>
+              </div>
+
               {/* セクション 1: 📐 表のマス目サイズ ＆ 取り込み (骨組み・インポート) */}
               <div className="space-y-3 pt-1">
                 <h4 className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
@@ -4222,30 +4248,40 @@ export function ImportedTablesManager({
       <TableTemplateWizardModal
         isOpen={isTemplateWizardOpen}
         onClose={() => setIsTemplateWizardOpen(false)}
-        onAddTable={(newTable) => {
+        targetTable={activeTable}
+        onApplyTable={(updatedTable) => {
           // 即時反映ロジックを呼び出して計画表に同期
           const { slots: newSlots, tasks: newTasks, slotIds, taskIds } =
-            generateScheduleItemsForTable(newTable);
-          let finalTable = newTable;
+            generateScheduleItemsForTable(updatedTable);
+          let finalTable = updatedTable;
           if (newSlots.length > 0 || newTasks.length > 0) {
             const nextSlots = fixedSlots
-              .filter((s) => s.sourceTableId !== newTable.id)
+              .filter((s) => s.sourceTableId !== updatedTable.id)
               .concat(newSlots);
             const nextTasks = tasks
-              .filter((t) => t.sourceTableId !== newTable.id)
+              .filter((t) => t.sourceTableId !== updatedTable.id)
               .concat(newTasks);
             onSlotsChange(nextSlots);
             onTasksChange(nextTasks);
             finalTable = {
-              ...newTable,
+              ...updatedTable,
               isApplied: true,
               appliedSlotIds: slotIds,
               appliedTaskIds: taskIds,
             };
           }
-          onTablesChange([...tables, finalTable]);
+          const exists = tables.some((t) => t.id === finalTable.id);
+          const nextTables = exists
+            ? tables.map((t) => (t.id === finalTable.id ? finalTable : t))
+            : [...tables, finalTable];
+
+          onTablesChange(nextTables);
           setSelectedItemId(finalTable.id);
-          setApplySuccessMsg(`テンプレートから「${finalTable.name}」を作成しました`);
+          setApplySuccessMsg(
+            exists
+              ? `「${finalTable.name}」にテンプレート設定を適用しました`
+              : `テンプレートから「${finalTable.name}」を作成しました`,
+          );
           setTimeout(() => setApplySuccessMsg(null), 3000);
         }}
       />

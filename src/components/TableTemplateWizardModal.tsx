@@ -24,7 +24,8 @@ import {
 interface TableTemplateWizardModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddTable: (table: ImportedTableData) => void;
+  onApplyTable: (table: ImportedTableData) => void;
+  targetTable?: ImportedTableData | null;
 }
 
 type TemplateCategory = 'daily' | 'weekly' | 'fixed';
@@ -45,15 +46,25 @@ const WEEKDAYS = [
 export function TableTemplateWizardModal({
   isOpen,
   onClose,
-  onAddTable,
+  onApplyTable,
+  targetTable,
 }: TableTemplateWizardModalProps) {
   const [category, setCategory] = useState<TemplateCategory>('daily');
 
   // ==========================================
   // 日課（Daily）ステート
   // ==========================================
-  const [dailyName, setDailyName] = useState('日課ルーティン');
+  const [dailyName, setDailyName] = useState(targetTable ? targetTable.name : '日課ルーティン');
   const [dailyMode, setDailyMode] = useState<DailyMode>('single');
+
+  // targetTable の切り替えに連動
+  React.useEffect(() => {
+    if (targetTable) {
+      setDailyName(targetTable.name);
+      setWeeklyTitle(targetTable.name);
+      setFixedTitle(targetTable.name);
+    }
+  }, [targetTable]);
   // 単一メニュー
   const [singleTitle, setSingleTitle] = useState('ストレッチ');
   const [singleDuration, setSingleDuration] = useState(20);
@@ -166,7 +177,17 @@ export function TableTemplateWizardModal({
       }
 
       const table = createDailyRoutineTable(input);
-      onAddTable(table);
+      const finalTable: ImportedTableData = targetTable
+        ? {
+            ...table,
+            id: targetTable.id,
+            colorIndex: targetTable.colorIndex,
+            customColor: targetTable.customColor,
+            createdAt: targetTable.createdAt,
+            updatedAt: new Date().toISOString(),
+          }
+        : table;
+      onApplyTable(finalTable);
     } else if (category === 'weekly') {
       const table = createWeeklyTaskTable({
         title: weeklyTitle || '週タスク',
@@ -174,7 +195,17 @@ export function TableTemplateWizardModal({
         weeklyTargetCount,
         expiryWeeks: weeklyExpiryWeeks,
       });
-      onAddTable(table);
+      const finalTable: ImportedTableData = targetTable
+        ? {
+            ...table,
+            id: targetTable.id,
+            colorIndex: targetTable.colorIndex,
+            customColor: targetTable.customColor,
+            createdAt: targetTable.createdAt,
+            updatedAt: new Date().toISOString(),
+          }
+        : table;
+      onApplyTable(finalTable);
     } else if (category === 'fixed') {
       const table = createFixedSlotTable({
         title: fixedTitle || '固定枠',
@@ -182,7 +213,17 @@ export function TableTemplateWizardModal({
         endTime: fixedEndTime || '08:00',
         targetDays: fixedTargetDays.length > 0 ? fixedTargetDays : [0, 1, 2, 3, 4, 5, 6],
       });
-      onAddTable(table);
+      const finalTable: ImportedTableData = targetTable
+        ? {
+            ...table,
+            id: targetTable.id,
+            colorIndex: targetTable.colorIndex,
+            customColor: targetTable.customColor,
+            createdAt: targetTable.createdAt,
+            updatedAt: new Date().toISOString(),
+          }
+        : table;
+      onApplyTable(finalTable);
     }
 
     onClose();
@@ -199,13 +240,15 @@ export function TableTemplateWizardModal({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-slate-800">テンプレートから表を作成</h2>
+                <h2 className="text-base font-bold text-slate-800">
+                  {targetTable ? `「${targetTable.name}」をテンプレートから設定` : 'テンプレートから設定'}
+                </h2>
                 <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
-                  Plan22 仮実装
+                  Plan22
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                目的を選ぶだけで、最適な設定のスケジュール表がすぐに完成します
+                目的を選ぶだけで、最適な設定・セル構造を素早く反映できます
               </p>
             </div>
           </div>
@@ -824,7 +867,7 @@ export function TableTemplateWizardModal({
             className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2 text-xs font-bold text-white hover:bg-blue-700 shadow-sm transition active:scale-95"
           >
             <Sparkles className="h-4 w-4" />
-            <span>この内容で表を作成</span>
+            <span>{targetTable ? 'この表に設定を適用' : 'この内容で表を作成'}</span>
           </button>
         </div>
       </div>
