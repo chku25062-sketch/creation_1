@@ -568,7 +568,7 @@ export function SheetFooter({
                           : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                       }`}
                     >
-                      {debugTime.enabled ? '🧪 デバッグ日時固定 ON' : '🕒 実日時（自動）を使用中'}
+                      {debugTime.enabled ? 'デバッグ日時固定 ON' : '実日時（自動）を使用中'}
                     </button>
                     {debugTime.enabled && onResetDebugTime && (
                       <button
@@ -809,7 +809,7 @@ export function SheetFooter({
                   }`}
                 >
                   <Scale className="h-4 w-4 text-emerald-700 shrink-0" />
-                  <span>分散（バランス）</span>
+                  <span>分散</span>
                 </button>
 
                 <button
@@ -822,7 +822,7 @@ export function SheetFooter({
                   }`}
                 >
                   <Zap className="h-4 w-4 text-indigo-600 shrink-0" />
-                  <span>集中（前倒し）</span>
+                  <span>集中</span>
                 </button>
               </div>
             </div>

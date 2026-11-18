@@ -1489,7 +1489,7 @@ export function TaskManager({
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-slate-900">
-                      📅 今日・日課タスク (今日用いられているタスク)
+                      日課タスク
                     </h4>
                   </div>
                   <span className="rounded-none bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
@@ -1596,7 +1596,7 @@ export function TaskManager({
 
                               {task.breakMinutes !== undefined && task.breakMinutes > 0 && (
                                 <span className="shrink-0 rounded bg-emerald-50 border border-emerald-200 px-1 py-0.2 text-[9px] font-bold text-emerald-700 flex items-center gap-0.5">
-                                  <span>☕</span>
+                                  <Coffee className="h-2.5 w-2.5 text-emerald-700 inline" />
                                   <span>休憩 {task.breakMinutes}分</span>
                                 </span>
                               )}
@@ -1684,7 +1684,7 @@ export function TaskManager({
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-slate-900">
-                      🗓️ 今週タスク (今週用いられているタスク)
+                      週次タスク
                     </h4>
                   </div>
                   <span className="rounded-none bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
@@ -1829,7 +1829,7 @@ export function TaskManager({
 
                               {task.breakMinutes !== undefined && task.breakMinutes > 0 && (
                                 <span className="shrink-0 rounded bg-emerald-50 border border-emerald-200 px-1 py-0.2 text-[9px] font-bold text-emerald-700 flex items-center gap-0.5">
-                                  <span>☕</span>
+                                  <Coffee className="h-2.5 w-2.5 text-emerald-700 inline" />
                                   <span>休憩 {task.breakMinutes}分</span>
                                 </span>
                               )}
@@ -1925,7 +1925,7 @@ export function TaskManager({
                   <div className="flex h-6 w-6 items-center justify-center rounded-none bg-sky-100 text-sky-700">
                     <Shield className="h-3.5 w-3.5" />
                   </div>
-                  <h4 className="text-xs font-bold text-slate-900">固定枠 (講義・睡眠)</h4>
+                  <h4 className="text-xs font-bold text-slate-900">固定枠</h4>
                   <span className="rounded-none bg-white border border-slate-200 px-1.5 py-0.2 text-[10px] font-medium text-slate-700">
                     {slots.length}件
                   </span>
@@ -2108,8 +2108,8 @@ export function TaskManager({
                   </h3>
                   <span className="text-[10px] text-slate-400">
                     {taskPeriodScope === 'day'
-                      ? '🏃 日課タスク（その日の中で繰り返す・日次）'
-                      : '🎯 週次タスク（日ごとに繰り返す・曜日／周期）'}
+                      ? '日課タスク'
+                      : '週次タスク'}
                   </span>
                 </div>
               </div>
@@ -2159,7 +2159,7 @@ export function TaskManager({
               <div className="flex flex-col gap-1">
                 <div className="flex items-center justify-between">
                   <label className="text-[11px] font-semibold text-slate-700">
-                    分類（表の分類になぞらえた区分）
+                    分類
                   </label>
                   <span className="text-[10px] text-slate-400">
                     {taskPeriodScope === 'day' ? '1日に複数回組み込み可' : '日ごとに反復または周期'}
@@ -2176,7 +2176,7 @@ export function TaskManager({
                     }`}
                   >
                     <Sun className="h-4 w-4 text-amber-600" />
-                    <span>🏃 日 (その日の中で反復)</span>
+                    <span>日課</span>
                   </button>
                   <button
                     type="button"
@@ -2188,7 +2188,7 @@ export function TaskManager({
                     }`}
                   >
                     <CalendarDays className="h-4 w-4 text-purple-600" />
-                    <span>🎯 週 (日ごとに反復 / 周期)</span>
+                    <span>週次タスク</span>
                   </button>
                 </div>
               </div>
@@ -2255,7 +2255,7 @@ export function TaskManager({
                           : 'text-slate-600 hover:bg-amber-50'
                       }`}
                     >
-                      📅 曜日・毎日で指定
+                      曜日指定
                     </button>
                     <button
                       type="button"
@@ -2266,7 +2266,7 @@ export function TaskManager({
                           : 'text-slate-600 hover:bg-amber-50'
                       }`}
                     >
-                      🔄 周期で指定 (Day 1〜N)
+                      周期指定
                     </button>
                   </div>
 
@@ -2395,7 +2395,7 @@ export function TaskManager({
                       </span>
                       <p className="text-[10px] text-slate-500">
                         {dailyRepeatMode === 'auto'
-                          ? '🌟 自動: スケジュールの空き時間に合わせて自動で最適配置されます'
+                          ? '自動配分: スケジュールの空き時間に合わせて自動で最適配置されます'
                           : '指定した回数分、朝・昼・晩などの空き時間に分散配置されます'}
                       </p>
                     </div>
@@ -2413,7 +2413,7 @@ export function TaskManager({
                         className="rounded-lg border border-amber-300 bg-amber-50/90 px-3 py-1.5 text-xs font-bold text-amber-900 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer shadow-2xs"
                         title="1日の中の繰り返し回数（デフォルト: 自動）"
                       >
-                        <option value="auto">🌟 自動</option>
+                        <option value="auto">自動配分</option>
                         <option value="1">1回</option>
                         <option value="2">2回</option>
                         <option value="3">3回</option>
@@ -2445,7 +2445,7 @@ export function TaskManager({
                           : 'text-slate-600 hover:bg-purple-50'
                       }`}
                     >
-                      📅 曜日で指定
+                      曜日指定
                     </button>
                     <button
                       type="button"
@@ -2456,7 +2456,7 @@ export function TaskManager({
                           : 'text-slate-600 hover:bg-purple-50'
                       }`}
                     >
-                      🔄 周期で指定
+                      周期指定
                     </button>
                     <button
                       type="button"
@@ -2467,7 +2467,7 @@ export function TaskManager({
                           : 'text-slate-600 hover:bg-purple-50'
                       }`}
                     >
-                      🎲 週N回 (おまかせ)
+                      週N回指定
                     </button>
                   </div>
 
@@ -2686,7 +2686,7 @@ export function TaskManager({
               {!isNoDurationTodo && (
                 <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-base">☕</span>
+                    <Coffee className="h-4 w-4 text-emerald-600 shrink-0" />
                     <div>
                       <span className="text-xs font-bold text-slate-800">タスク後の休憩時間</span>
                       <p className="text-[10px] text-slate-500">
@@ -2699,10 +2699,10 @@ export function TaskManager({
                     onChange={(e) => setTaskBreakMinutes(Number(e.target.value))}
                     className="rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 shadow-2xs focus:border-emerald-500 focus:outline-none cursor-pointer"
                   >
-                    <option value={0}>なし (0分)</option>
+                    <option value={0}>なし</option>
                     <option value={5}>5分</option>
                     <option value={10}>10分</option>
-                    <option value={15}>15分 (おすすめ)</option>
+                    <option value={15}>15分</option>
                     <option value={20}>20分</option>
                     <option value={30}>30分</option>
                     <option value={45}>45分</option>
@@ -2925,7 +2925,7 @@ export function TaskManager({
                     className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-900 focus:border-sky-600 focus:ring-1 focus:ring-sky-600 focus:outline-none"
                   >
                     <option value="lecture">大学講義・授業</option>
-                    <option value="sleep">睡眠 (休養)</option>
+                    <option value="sleep">睡眠</option>
                     <option value="work">仕事・学業・バイト</option>
                     <option value="routine">日課・身支度</option>
                     <option value="meal">食事・休憩</option>

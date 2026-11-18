@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { CalendarDays, Plus, Trash2, Check, Edit2, FileSpreadsheet, Tag } from 'lucide-react';
+import { CalendarDays, Plus, Trash2, Check, Edit2, FileSpreadsheet, Tag, Info } from 'lucide-react';
 import { GridCell } from '@/lib/importers/gridOcrParser';
 import { minutesToTimeString } from '@/lib/timeUtils';
 import { formatCellText, matrixToCsv, TimetableCsvMatrix } from '@/lib/importers/gridDetection';
@@ -348,10 +348,13 @@ export function TimetableGridEditor({
       </div>
 
       <div className="shrink-0 flex items-center justify-between text-[11px] text-slate-500">
-        <span>
-          💡 <strong className="text-slate-700">列名</strong>や
-          <strong className="text-slate-700">行名</strong>
-          をクリックしてリネームできます。
+        <span className="flex items-center gap-1">
+          <Info className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+          <span>
+            <strong className="text-slate-700">列名</strong>や
+            <strong className="text-slate-700">行名</strong>
+            をクリックしてリネームできます。
+          </span>
         </span>
       </div>
 

@@ -457,7 +457,7 @@ export function TableTemplateWizardModal({
             }`}
           >
             <RotateCcw className="h-4 w-4 text-blue-600" />
-            <span>🏃 日課（ルーティン）</span>
+            <span>日課</span>
           </button>
 
           <button
@@ -470,7 +470,7 @@ export function TableTemplateWizardModal({
             }`}
           >
             <CalendarDays className="h-4 w-4 text-emerald-600" />
-            <span>📅 週次タスク（目標）</span>
+            <span>週次タスク</span>
           </button>
 
           <button
@@ -483,7 +483,7 @@ export function TableTemplateWizardModal({
             }`}
           >
             <Shield className="h-4 w-4 text-purple-600" />
-            <span>📌 固定枠（生活リズム）</span>
+            <span>固定枠</span>
           </button>
         </div>
 
@@ -511,7 +511,7 @@ export function TableTemplateWizardModal({
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <Clock className="h-4 w-4 text-blue-600" />
-                    <span>活動時間帯（表全体）</span>
+                    <span>活動時間帯</span>
                   </label>
                   <span className="text-[11px] text-blue-600 font-medium">この時間枠内で空きコマに自動配置</span>
                 </div>
@@ -519,23 +519,32 @@ export function TableTemplateWizardModal({
                 {/* プリセット選択ボタン */}
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
                   {[
-                    { id: 'all' as const, label: '終日自由' },
-                    { id: 'morning' as const, label: '朝 (6〜12時)' },
-                    { id: 'afternoon' as const, label: '昼 (12〜18時)' },
-                    { id: 'evening' as const, label: '夜 (18〜23時)' },
+                    { id: 'all' as const, label: '終日' },
+                    { id: 'morning' as const, label: '朝', sub: '6:00〜12:00' },
+                    { id: 'afternoon' as const, label: '昼', sub: '12:00〜18:00' },
+                    { id: 'evening' as const, label: '夜', sub: '18:00〜23:00' },
                     { id: 'custom' as const, label: 'カスタム' },
                   ].map((p) => (
                     <button
                       key={p.id}
                       type="button"
                       onClick={() => handleSelectDailyPreset(p.id)}
-                      className={`rounded-lg border py-1.5 text-xs font-bold transition ${
+                      className={`rounded-lg border py-1.5 px-2 text-xs font-bold transition flex flex-col items-center justify-center ${
                         dailyTimePreset === p.id
                           ? 'border-blue-600 bg-blue-600 text-white shadow-2xs'
                           : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                       }`}
                     >
-                      {p.label}
+                      <span>{p.label}</span>
+                      {p.sub && (
+                        <span
+                          className={`text-[9px] font-normal leading-tight mt-0.5 ${
+                            dailyTimePreset === p.id ? 'text-blue-100' : 'text-slate-400'
+                          }`}
+                        >
+                          {p.sub}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -659,7 +668,7 @@ export function TableTemplateWizardModal({
                 >
                   <div className="flex items-center gap-2">
                     <SlidersHorizontal className="h-3.5 w-3.5 text-slate-500" />
-                    <span>⚙️ スケジュールの詳細オプション（任意）</span>
+                    <span>詳細オプション</span>
                   </div>
                   {isOpenDailyAdvanced ? (
                     <ChevronUp className="h-4 w-4 text-slate-400" />
@@ -846,7 +855,7 @@ export function TableTemplateWizardModal({
                 >
                   <div className="flex items-center gap-2">
                     <SlidersHorizontal className="h-3.5 w-3.5 text-slate-500" />
-                    <span>⚙️ スケジュールの詳細オプション（任意）</span>
+                    <span>詳細オプション</span>
                   </div>
                   {isOpenWeeklyAdvanced ? (
                     <ChevronUp className="h-4 w-4 text-slate-400" />
@@ -891,7 +900,7 @@ export function TableTemplateWizardModal({
                       <label className="block text-xs font-bold text-slate-700 mb-1.5">タスクの有効期限</label>
                       <div className="grid grid-cols-3 gap-2">
                         {[
-                          { id: 1 as const, label: '今週中 (推奨)' },
+                          { id: 1 as const, label: '今週中' },
                           { id: 2 as const, label: '2週間以内' },
                           { id: 'none' as const, label: '期限なし' },
                         ].map((opt) => (
@@ -914,13 +923,13 @@ export function TableTemplateWizardModal({
                     {/* 着手可能日時の指定 */}
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-xs font-bold text-slate-700">着手可能日時（出題日時縛り）</label>
+                        <label className="text-xs font-bold text-slate-700">着手可能日時</label>
                         <button
                           type="button"
                           onClick={() => setWeeklyHasConstraint(!weeklyHasConstraint)}
                           className="text-[11px] font-bold text-emerald-600 hover:underline"
                         >
-                          {weeklyHasConstraint ? '縛りを解除（いつでも着手）' : '+ 開始日時を指定する'}
+                          {weeklyHasConstraint ? '指定を解除' : '+ 開始日時を指定する'}
                         </button>
                       </div>
 
@@ -973,8 +982,8 @@ export function TableTemplateWizardModal({
               {/* フラットなテーブルリスト */}
               <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
                 <div className="grid grid-cols-12 gap-2 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-500 border-b border-slate-200">
-                  <div className="col-span-4 sm:col-span-4">枠の名前</div>
-                  <div className="col-span-4 sm:col-span-4 text-center">時間帯 (開始 〜 終了)</div>
+                  <div className="col-span-4 sm:col-span-4">枠名</div>
+                  <div className="col-span-4 sm:col-span-4 text-center">時間帯</div>
                   <div className="col-span-3 sm:col-span-3 text-center sm:text-left">対象曜日</div>
                   <div className="col-span-1 text-right">操作</div>
                 </div>
@@ -1038,7 +1047,7 @@ export function TableTemplateWizardModal({
                             }}
                             className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-700 focus:border-purple-500 focus:outline-hidden"
                           >
-                            <option value="all">毎日 (月〜日)</option>
+                            <option value="all">毎日</option>
                             <option value="weekday">平日のみ</option>
                             <option value="weekend">週末のみ</option>
                             <option value="custom">曜日個別</option>

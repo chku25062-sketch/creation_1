@@ -31,8 +31,11 @@ import {
   Copy,
   ClipboardPaste,
   RotateCcw,
+  RotateCw,
   Sparkles,
   ExternalLink,
+  Coffee,
+  Pin,
 } from 'lucide-react';
 import { TableTemplateWizardModal } from '@/components/TableTemplateWizardModal';
 import { TABLE_PALETTE_OPTIONS, getTableColorSchemeByIndex } from '@/components/Timeline24h';
@@ -1221,7 +1224,7 @@ export function ImportedTablesManager({
                     : 'px-1 py-0.5 text-[9px] font-bold text-slate-500 justify-center uppercase tracking-tighter'
                 }`}
               >
-                <span>{isSidebarOpen ? '📊 表データ (主要入力)' : '表'}</span>
+                <span>{isSidebarOpen ? '表データ' : '表'}</span>
                 {isSidebarOpen && (
                   <span className="font-mono text-slate-400">{filteredTables.length}</span>
                 )}
@@ -1404,7 +1407,7 @@ export function ImportedTablesManager({
                     : 'px-1 py-0.5 text-[9px] font-bold text-slate-400 text-center uppercase tracking-tighter'
                 }`}
               >
-                {isSidebarOpen ? '📋 タスク管理' : 'タスク'}
+                {isSidebarOpen ? 'タスク管理' : 'タスク'}
               </div>
               <div className="space-y-0.5">
                 {/* 固定枠 */}
@@ -1414,7 +1417,7 @@ export function ImportedTablesManager({
                     .includes(searchQuery.toLowerCase())) && (
                   <div
                     onClick={() => handleSelectItem('sys-slots')}
-                    title="固定枠 (生活リズム)"
+                    title="固定枠"
                     className={`group relative flex items-center rounded-none cursor-pointer transition ${
                       isSidebarOpen
                         ? 'justify-between px-2.5 py-2 text-xs'
@@ -1525,7 +1528,7 @@ export function ImportedTablesManager({
                             isSidebarOpen ? 'text-xs' : 'text-[11px] font-medium max-w-[42px]'
                           }`}
                         >
-                          {isSidebarOpen ? '📅 今日のタスク' : '今日'}
+                          {isSidebarOpen ? '今日のタスク' : '今日'}
                         </div>
                         {isSidebarOpen && (
                           <div className="mt-0.5 flex items-center justify-between text-[10px] text-slate-400 font-mono">
@@ -1586,7 +1589,7 @@ export function ImportedTablesManager({
                     .includes(searchQuery.toLowerCase())) && (
                   <div
                     onClick={() => handleSelectItem('sys-weekly')}
-                    title="今週用いられているタスク一覧"
+                    title="今週のタスク一覧"
                     className={`group relative flex items-center rounded-none cursor-pointer transition ${
                       isSidebarOpen
                         ? 'justify-between px-2.5 py-2 text-xs'
@@ -1611,11 +1614,11 @@ export function ImportedTablesManager({
                             isSidebarOpen ? 'text-xs' : 'text-[11px] font-medium max-w-[42px]'
                           }`}
                         >
-                          {isSidebarOpen ? '🗓️ 今週のタスク' : '今週'}
+                          {isSidebarOpen ? '今週のタスク' : '今週'}
                         </div>
                         {isSidebarOpen && (
                           <div className="mt-0.5 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                            <span>今週用いられているタスク ({tasks.length}件)</span>
+                            <span>今週のタスク ({tasks.length}件)</span>
                           </div>
                         )}
                       </div>
@@ -1694,10 +1697,10 @@ export function ImportedTablesManager({
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="font-bold text-xs text-slate-800 truncate">
                     {selectedItemId === 'sys-slots'
-                      ? '📌 固定枠'
+                      ? '固定枠'
                       : selectedItemId === 'sys-daily'
-                        ? '📅 日のタスク'
-                        : '🗓️ 週のタスク'}
+                        ? '日課'
+                        : '週次タスク'}
                   </span>
                 </div>
               ) : activeTable ? (
@@ -1849,10 +1852,10 @@ export function ImportedTablesManager({
                   <span className="text-slate-300">/</span>
                   <span className="font-bold text-slate-900 truncate">
                     {selectedItemId === 'sys-slots'
-                      ? '固定枠 (生活リズム)'
+                      ? '固定枠'
                       : selectedItemId === 'sys-daily'
-                        ? '📅 今日用いられているタスク'
-                        : '🗓️ 今週用いられているタスク'}
+                        ? '今日のタスク'
+                        : '今週のタスク'}
                   </span>
                 </div>
               ) : activeTable ? (
@@ -2055,7 +2058,7 @@ export function ImportedTablesManager({
                     className="flex items-center gap-1 rounded-none border border-indigo-300 bg-indigo-50/80 hover:bg-indigo-100 hover:border-indigo-500 px-2 py-0.5 text-[11px] font-bold text-indigo-700 shadow-2xs transition active:scale-95 cursor-pointer"
                   >
                     <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
-                    <span className="whitespace-nowrap">✨ テンプレートから設定</span>
+                    <span className="whitespace-nowrap">テンプレートから設定</span>
                   </button>
 
                   {/* 1. 配置方法の選択（固定配置 / 自動配置） */}
@@ -2094,8 +2097,8 @@ export function ImportedTablesManager({
                           className="text-[11px] font-bold text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
                           title="配置方法を選択（固定配置: 時間割のように固定枠として配置 / 自動配置: 空き枠・指定区間に自動配分）"
                         >
-                          <option value="fixed">📌 固定</option>
-                          <option value="auto">⚡ 自動</option>
+                          <option value="fixed">固定枠</option>
+                          <option value="auto">自動配分</option>
                         </select>
                       </div>
                     );
@@ -2350,10 +2353,10 @@ export function ImportedTablesManager({
                     const classification = getTableClassification(activeTable);
                     const label =
                       classification === 'fixed_slot'
-                        ? '📌 固定枠'
+                        ? '固定枠'
                         : classification === 'daily_task'
-                          ? '🏃 日課'
-                          : '🎯 週次';
+                          ? '日課'
+                          : '週次タスク';
 
                     return (
                       <div
@@ -2502,7 +2505,7 @@ export function ImportedTablesManager({
                       }}
                       className="rounded border border-slate-200/80 bg-white/80 px-1 py-0.5 text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-1 focus:ring-blue-500 hover:border-slate-300 transition cursor-pointer"
                     >
-                      <option value="1">1週間 (基本)</option>
+                      <option value="1">1週間</option>
                       <option value="2">2週間</option>
                       <option value="none">期限なし</option>
                     </select>
@@ -2734,8 +2737,9 @@ export function ImportedTablesManager({
                           </div>
                         ) : (
                           <div className="flex flex-col items-center gap-0.5">
-                            <span className="font-bold text-emerald-700 uppercase tracking-wider text-[9px]">
-                              🔄 周期の頭
+                            <span className="font-bold text-emerald-700 uppercase tracking-wider text-[9px] flex items-center justify-center gap-1">
+                              <RotateCw className="h-2.5 w-2.5" />
+                              <span>周期の開始</span>
                             </span>
                             <select
                               value={activeTable.cycleStartDay ?? 0}
@@ -2814,7 +2818,7 @@ export function ImportedTablesManager({
                                     }`}
                                     title="空列のため、周期内で何もしないオフ日になります"
                                   >
-                                    {viewMode === 'mobile' ? '💤' : '💤 オフ日'}
+                                    <span>オフ日</span>
                                   </span>
                                 )}
                                 {viewMode === 'desktop' && activeTable.numCols > 1 && (
@@ -3030,17 +3034,19 @@ export function ImportedTablesManager({
                                       <div className="mt-0.5 flex flex-wrap items-center gap-1">
                                         {cell.customDurationMinutes && cell.customDurationMinutes > 0 && (
                                           <span className="inline-flex items-center gap-0.5 rounded bg-blue-100 text-blue-800 font-mono font-bold px-1 py-0.2 text-[8px]" title={`個別所要時間: ${cell.customDurationMinutes}分`}>
-                                            ⏱{cell.customDurationMinutes}m
+                                            <Clock className="h-2 w-2 text-blue-700" />
+                                            <span>{cell.customDurationMinutes}m</span>
                                           </span>
                                         )}
                                         {cell.customStartTime && (
                                           <span className="inline-flex items-center gap-0.5 rounded bg-amber-100 text-amber-900 font-mono font-bold px-1 py-0.2 text-[8px]" title={`個別開始時刻: ${cell.customStartTime}`}>
-                                            🕒{cell.customStartTime}
+                                            <Clock className="h-2 w-2 text-amber-700" />
+                                            <span>{cell.customStartTime}</span>
                                           </span>
                                         )}
                                         {cell.url && (
                                           <span className="inline-flex items-center gap-0.5 rounded bg-emerald-100 text-emerald-800 font-bold px-1 py-0.2 text-[8px]" title={`関連URL: ${cell.url}`}>
-                                            🔗
+                                            <ExternalLink className="h-2 w-2 text-emerald-700" />
                                           </span>
                                         )}
                                       </div>
@@ -3310,7 +3316,7 @@ export function ImportedTablesManager({
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-xl">🕒</span>
+                      <Clock className="h-5 w-5 text-blue-600 shrink-0" />
                       <div>
                         <div className="text-xs font-bold text-slate-800">開始時刻</div>
                         <div className="text-[10px] text-slate-500">
@@ -3370,7 +3376,7 @@ export function ImportedTablesManager({
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 space-y-1.5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-xl">🔗</span>
+                      <ExternalLink className="h-5 w-5 text-indigo-600 shrink-0" />
                       <div>
                         <div className="text-xs font-bold text-slate-800">関連URL</div>
                         <div className="text-[10px] text-slate-500">Zoom / Meet / LMS課題リンクなど</div>
@@ -3400,7 +3406,7 @@ export function ImportedTablesManager({
                 {/* タスク後の休憩時間 */}
                 <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-emerald-50/60 p-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-xl">☕</span>
+                    <Coffee className="h-5 w-5 text-amber-600 shrink-0" />
                     <div>
                       <div className="text-xs font-bold text-slate-800">タスク後の休憩時間</div>
                       <div className="text-[10px] text-slate-500">コマ直後に確保する休憩</div>
@@ -3431,9 +3437,9 @@ export function ImportedTablesManager({
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 space-y-3">
                   <label className="flex items-center justify-between cursor-pointer select-none">
                     <div className="flex items-center gap-2">
-                      <span className="text-xl">📌</span>
+                      <Pin className="h-5 w-5 text-purple-600 shrink-0" />
                       <div>
-                        <div className="text-xs font-bold text-slate-800">付随タスク（復習等）</div>
+                        <div className="text-xs font-bold text-slate-800">付随タスク</div>
                         <div className="text-[10px] text-slate-500">このコマに連動してタスクを生成</div>
                       </div>
                     </div>
@@ -3598,7 +3604,7 @@ export function ImportedTablesManager({
                     onClick={() => setEditingCell(null)}
                     className="text-slate-400 hover:text-slate-600 transition p-1 cursor-pointer"
                   >
-                    ✕
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               </div>
@@ -3615,7 +3621,7 @@ export function ImportedTablesManager({
               {/* 所要時間（Plan23: デフォルトで表の設定を参照・直接編集可能） */}
               <div className="mt-2.5 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-base">⏱</span>
+                  <Clock className="h-4 w-4 text-blue-600 shrink-0" />
                   <div>
                     <div className="text-xs font-bold text-slate-800">所要時間</div>
                     <div className="text-[10px] text-slate-500">
@@ -3659,7 +3665,7 @@ export function ImportedTablesManager({
               <div className="mt-2.5 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-base">🕒</span>
+                    <Clock className="h-4 w-4 text-amber-600 shrink-0" />
                     <div>
                       <div className="text-xs font-bold text-slate-800">開始時刻</div>
                       <div className="text-[10px] text-slate-500">
@@ -3712,7 +3718,7 @@ export function ImportedTablesManager({
               <div className="mt-2.5 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-base">🔗</span>
+                    <ExternalLink className="h-4 w-4 text-indigo-600 shrink-0" />
                     <span className="text-xs font-bold text-slate-800">関連URL</span>
                   </div>
                   {cellUrl.trim() && (
@@ -3739,7 +3745,7 @@ export function ImportedTablesManager({
               {/* タスク後の休憩時間 */}
               <div className="mt-3 flex items-center justify-between rounded-lg border border-slate-200 bg-emerald-50/50 p-2.5">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-base">☕</span>
+                  <Coffee className="h-4 w-4 text-amber-600 shrink-0" />
                   <div>
                     <div className="text-xs font-bold text-slate-800">タスク後の休憩時間</div>
                     <div className="text-[10px] text-slate-500">直後に確保する休憩</div>
@@ -3895,7 +3901,7 @@ export function ImportedTablesManager({
                   className="w-full flex items-center justify-center gap-2 rounded-xl border border-indigo-300 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-500 py-3 text-xs font-bold text-indigo-800 shadow-2xs transition active:scale-98 cursor-pointer"
                 >
                   <Sparkles className="h-4 w-4 text-indigo-600" />
-                  <span>✨ テンプレートから設定</span>
+                  <span>テンプレートから設定</span>
                 </button>
               </div>
 
@@ -3908,7 +3914,7 @@ export function ImportedTablesManager({
 
                 <div className="grid grid-cols-2 gap-2">
                   <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-center">
-                    <span className="block text-[11px] font-semibold text-slate-500 mb-1.5">行数 (時限)</span>
+                    <span className="block text-[11px] font-semibold text-slate-500 mb-1.5">行数</span>
                     <div className="flex items-center justify-center gap-2">
                       <button
                         type="button"
@@ -3930,7 +3936,7 @@ export function ImportedTablesManager({
                   </div>
 
                   <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-center">
-                    <span className="block text-[11px] font-semibold text-slate-500 mb-1.5">列数 (曜日)</span>
+                    <span className="block text-[11px] font-semibold text-slate-500 mb-1.5">列数</span>
                     <div className="flex items-center justify-center gap-2">
                       <button
                         type="button"
@@ -3985,7 +3991,7 @@ export function ImportedTablesManager({
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">終了時刻 (上限)</label>
+                    <label className="block text-[11px] font-semibold text-slate-500 mb-1">終了時刻</label>
                     <input
                       type="time"
                       value={activeTable.axisConfig.endTime ?? ''}
@@ -4129,7 +4135,7 @@ export function ImportedTablesManager({
                 </h4>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">周期の頭 (Day 1の曜日)</label>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1">周期の開始曜日</label>
                   <select
                     value={activeTable.cycleStartDay ?? 0}
                     onChange={(e) => handleCycleStartDayChange(Number(e.target.value))}
@@ -4178,7 +4184,7 @@ export function ImportedTablesManager({
                             }`}
                           >
                             <Shield className="h-4 w-4" />
-                            <span>📌 固定枠</span>
+                            <span>固定枠</span>
                           </button>
                           <button
                             type="button"
@@ -4195,7 +4201,7 @@ export function ImportedTablesManager({
                             }`}
                           >
                             <Sun className="h-4 w-4" />
-                            <span>⚡ 自動配分</span>
+                            <span>自動配分</span>
                           </button>
                         </div>
                       );
@@ -4273,7 +4279,7 @@ export function ImportedTablesManager({
                     }}
                     className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-bold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-100 transition shadow-2xs cursor-pointer"
                   >
-                    <option value="1">1週間 (当週内・基本)</option>
+                    <option value="1">1週間</option>
                     <option value="2">2週間</option>
                     <option value="none">期限なし</option>
                   </select>
@@ -4647,7 +4653,7 @@ export function ImportedTablesManager({
                 >
                   <div className="flex items-center gap-2">
                     <Shield className="h-4 w-4 text-blue-600" />
-                    <span>固定枠 (生活リズム・授業)</span>
+                    <span>固定枠</span>
                   </div>
                   <button
                     type="button"
@@ -4687,7 +4693,7 @@ export function ImportedTablesManager({
                 >
                   <div className="flex items-center gap-2">
                     <Sun className="h-4 w-4 text-amber-500" />
-                    <span>日のタスク (日課・ルーティン)</span>
+                    <span>日課</span>
                   </div>
                   <button
                     type="button"
@@ -4727,7 +4733,7 @@ export function ImportedTablesManager({
                 >
                   <div className="flex items-center gap-2">
                     <CalendarDays className="h-4 w-4 text-purple-600" />
-                    <span>週のタスク (目標・課題・週次)</span>
+                    <span>週次タスク</span>
                   </div>
                   <button
                     type="button"

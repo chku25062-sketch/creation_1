@@ -222,7 +222,7 @@ export function FixedSlotsManager({ slots, onChange }: FixedSlotsManagerProps) {
                 onChange={(e) => setCategory(e.target.value as FixedCategory)}
                 className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 focus:outline-none"
               >
-                <option value="sleep">睡眠 (休養)</option>
+                <option value="sleep">睡眠</option>
                 <option value="lecture">大学講義・授業</option>
                 <option value="work">仕事・学業・バイト</option>
                 <option value="routine">日課・身支度</option>

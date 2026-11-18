@@ -678,7 +678,7 @@ export function Timeline24h({
                       className="hidden sm:inline rounded bg-amber-500/90 px-1.5 py-0.5 font-mono text-[10px] font-bold text-white shadow-2xs"
                       title="メニューのデバッグ日時設定が適用されています"
                     >
-                      🧪 {WEEKDAY_NAMES[todayIndex]} {effectiveNowTimeString}
+                      固定日時: {WEEKDAY_NAMES[todayIndex]} {effectiveNowTimeString}
                     </span>
                   )}
                   <span className="font-mono text-slate-700 bg-slate-100/90 border border-slate-200/80 rounded px-1.5 py-0.5 text-[10px] sm:text-[11px] font-bold shadow-2xs whitespace-nowrap">
