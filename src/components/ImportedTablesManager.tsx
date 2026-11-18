@@ -221,6 +221,14 @@ export function ImportedTablesManager({
     }
   };
 
+  const handleSwitchViewMode = (target: 'desktop' | 'mobile') => {
+    if (viewMode === target) {
+      handleToggleViewMode(target === 'desktop' ? 'mobile' : 'desktop');
+    } else {
+      handleToggleViewMode(target);
+    }
+  };
+
   const toggleSidebar = () => {
     setIsSidebarOpen((prev) => {
       const next = !prev;
@@ -1762,12 +1770,12 @@ export function ImportedTablesManager({
               ) : null}
             </div>
 
-            {/* 右側アクション群: 周期のはじまり, 反映スイッチ, モード切替, ⚙️設定ボタン */}
+            {/* 右側アクション群: テンプレート, 設定, 周期, 反映スイッチ, モード切替 */}
             <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
               {/* 周期のはじまり (表データ選択時のみ表示・編集可能) */}
               {activeTable && !isSystemFile && (
                 <div
-                  className="flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50/90 px-2 py-1 text-xs font-bold text-emerald-800 shadow-2xs"
+                  className="hidden md:flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50/90 px-2 py-1 text-xs font-bold text-emerald-800 shadow-2xs"
                   title="周期のはじまり（Day 1）となる日付（曜日）を指定"
                 >
                   <Calendar className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
@@ -1783,6 +1791,30 @@ export function ImportedTablesManager({
                     ))}
                   </select>
                 </div>
+              )}
+
+              {/* テンプレートから作成・設定ボタン (独立配置) */}
+              <button
+                type="button"
+                onClick={() => setIsTemplateWizardOpen(true)}
+                title="テンプレート（日課・週次・固定枠）から作成・設定"
+                className="flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-300 px-2 py-1 text-xs font-bold text-indigo-700 shadow-2xs active:scale-95 transition cursor-pointer"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                <span className="hidden xs:inline">テンプレート</span>
+              </button>
+
+              {/* 設定ドロワー開閉ボタン (独立配置: activeTable がある場合のみ表示) */}
+              {activeTable && !isSystemFile && (
+                <button
+                  type="button"
+                  onClick={() => setIsMobileSettingsOpen(true)}
+                  title="時間割の詳細設定を開く"
+                  className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700 shadow-2xs active:scale-95 transition cursor-pointer"
+                >
+                  <Settings className="h-3.5 w-3.5 text-slate-600 shrink-0" />
+                  <span className="hidden xs:inline">設定</span>
+                </button>
               )}
 
               {/* 反映トグル (表データまたは固定枠の場合) */}
@@ -1806,28 +1838,33 @@ export function ImportedTablesManager({
                 </button>
               </div>
 
-              {/* モード切替（PC版へ） */}
-              <button
-                type="button"
-                onClick={() => handleToggleViewMode('desktop')}
-                title="デスクトップ版デザインに切り替え"
-                className="flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-2 text-slate-600 hover:bg-slate-100 hover:text-blue-600 shadow-2xs transition cursor-pointer"
-              >
-                <Monitor className="h-4 w-4" />
-              </button>
-
-              {/* ⚙️ 設定ドロワー開閉ボタン (activeTable がある場合のみ表示) */}
-              {activeTable && !isSystemFile && (
+              {/* デスクトップ ⇔ モバイル 表示モード切替ボタングループ（デスクトップと統一） */}
+              <div className="flex items-center rounded-lg border border-slate-200 bg-slate-100 p-0.5 shadow-2xs">
                 <button
                   type="button"
-                  onClick={() => setIsMobileSettingsOpen(true)}
-                  title="時間割の詳細設定を開く"
-                  className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 active:scale-95 transition"
+                  onClick={() => handleSwitchViewMode('desktop')}
+                  title="デスクトップ版レイアウトに切り替え"
+                  className={`flex items-center justify-center rounded-md p-1.5 transition cursor-pointer ${
+                    (viewMode as string) === 'desktop'
+                      ? 'bg-white text-blue-600 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
                 >
-                  <Settings className="h-4 w-4" />
-                  <span>設定</span>
+                  <Monitor className="h-3.5 w-3.5" />
                 </button>
-              )}
+                <button
+                  type="button"
+                  onClick={() => handleSwitchViewMode('mobile')}
+                  title="モバイル版（時間割アプリ風）レイアウトに切り替え"
+                  className={`flex items-center justify-center rounded-md p-1.5 transition cursor-pointer ${
+                    (viewMode as string) === 'mobile'
+                      ? 'bg-white text-blue-600 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Smartphone className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           </div>
         ) : (
@@ -1942,7 +1979,7 @@ export function ImportedTablesManager({
               <div className="flex items-center rounded-lg border border-slate-200 bg-slate-100 p-0.5 shadow-2xs">
                 <button
                   type="button"
-                  onClick={() => handleToggleViewMode('desktop')}
+                  onClick={() => handleSwitchViewMode('desktop')}
                   title="デスクトップ版レイアウトに切り替え"
                   className={`flex items-center justify-center rounded-md p-1.5 transition cursor-pointer ${
                     (viewMode as string) === 'desktop'
@@ -1954,7 +1991,7 @@ export function ImportedTablesManager({
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleToggleViewMode('mobile')}
+                  onClick={() => handleSwitchViewMode('mobile')}
                   title="モバイル版（時間割アプリ風）レイアウトに切り替え"
                   className={`flex items-center justify-center rounded-md p-1.5 transition cursor-pointer ${
                     (viewMode as string) === 'mobile'
