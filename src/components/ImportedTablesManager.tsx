@@ -1697,175 +1697,191 @@ export function ImportedTablesManager({
       <main className="flex flex-1 min-w-0 w-full flex-col bg-white p-1.5 sm:p-2 gap-1.5 overflow-hidden min-h-0">
         {/* Top Header & Actions Bar (Desktop vs Mobile 分岐) */}
         {viewMode === 'mobile' ? (
-          /* モバイル専用アプリ風ヘッダー (表データ・タスク管理共通) */
-          <div className="flex items-center justify-between gap-1.5 sm:gap-2 border-b border-slate-200 pb-2 px-0.5 overflow-hidden">
-            {/* 左側: 表データ名表示 ＆ インライン編集（切り替えボタン廃止） */}
-            <div className="flex items-center gap-1 min-w-0 flex-1 mr-1">
-              {isSystemFile ? (
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="font-bold text-xs text-slate-800 truncate">
-                    {selectedItemId === 'sys-slots'
-                      ? '固定枠'
-                      : selectedItemId === 'sys-daily'
-                        ? '日課'
-                        : '週次タスク'}
-                  </span>
+          /* モバイル専用アプリ風ヘッダー (表データ・タスク管理共通: 2行構成) */
+          <div className="flex flex-col gap-1.5 border-b border-slate-200 pb-2 px-0.5">
+            {/* 1行目: 表データ名表示 ＆ 全体共通コントロール（モード切替 ＋ 一番右に反映トグル） */}
+            <div className="flex items-center justify-between gap-2 min-w-0">
+              {/* 左側: 表データ名表示 ＆ インライン編集 */}
+              <div className="flex items-center gap-1 min-w-0 flex-1">
+                {isSystemFile ? (
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="font-bold text-xs text-slate-800 truncate">
+                      {selectedItemId === 'sys-slots'
+                        ? '固定枠'
+                        : selectedItemId === 'sys-daily'
+                          ? '日課'
+                          : '週次タスク'}
+                    </span>
+                  </div>
+                ) : activeTable ? (
+                  isEditingMobileHeaderName ? (
+                    <div className="flex items-center gap-1 min-w-0 flex-1" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="text"
+                        value={mobileTempTableName}
+                        onChange={(e) => setMobileTempTableName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveMobileTableName(activeTable.id);
+                          if (e.key === 'Escape') setIsEditingMobileHeaderName(false);
+                        }}
+                        autoFocus
+                        className="h-7 flex-1 min-w-0 rounded-lg border border-blue-500 bg-white px-2 text-xs font-bold text-slate-900 focus:outline-hidden ring-1 ring-blue-300"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSaveMobileTableName(activeTable.id)}
+                        className="h-7 px-2 rounded-lg bg-blue-600 text-white text-xs font-bold flex items-center justify-center shadow-2xs active:scale-95 transition cursor-pointer shrink-0"
+                        title="保存"
+                      >
+                        <Check className="h-3.5 w-3.5 stroke-[3]" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingMobileHeaderName(false)}
+                        className="h-7 px-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold flex items-center justify-center active:scale-95 transition cursor-pointer shrink-0"
+                        title="キャンセル"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span
+                        onClick={() => {
+                          setMobileTempTableName(activeTable.name);
+                          setIsEditingMobileHeaderName(true);
+                        }}
+                        className="font-bold text-xs sm:text-sm text-slate-900 truncate max-w-[150px] xs:max-w-[200px] cursor-pointer hover:text-blue-700"
+                        title="タップして表データ名を編集"
+                      >
+                        {activeTable.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMobileTempTableName(activeTable.name);
+                          setIsEditingMobileHeaderName(true);
+                        }}
+                        title="表データ名を編集"
+                        className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer shrink-0"
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )
+                ) : null}
+              </div>
+
+              {/* 右側: モード切替ボタングループ ＆ 一番右に反映トグル (デスクトップ版と完全一致) */}
+              <div className="flex items-center gap-2 shrink-0">
+                {/* デスクトップ ⇔ モバイル 表示モード切替ボタングループ */}
+                <div className="flex items-center rounded-lg border border-slate-200 bg-slate-100 p-0.5 shadow-2xs">
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchViewMode('desktop')}
+                    title="デスクトップ版レイアウトに切り替え"
+                    className={`flex items-center justify-center rounded-md p-1.5 transition cursor-pointer ${
+                      (viewMode as string) === 'desktop'
+                        ? 'bg-white text-blue-600 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    <Monitor className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchViewMode('mobile')}
+                    title="モバイル版（時間割アプリ風）レイアウトに切り替え"
+                    className={`flex items-center justify-center rounded-md p-1.5 transition cursor-pointer ${
+                      (viewMode as string) === 'mobile'
+                        ? 'bg-white text-blue-600 shadow-2xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    <Smartphone className="h-3.5 w-3.5" />
+                  </button>
                 </div>
-              ) : activeTable ? (
-                isEditingMobileHeaderName ? (
-                  <div className="flex items-center gap-1 min-w-0 flex-1" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="text"
-                      value={mobileTempTableName}
-                      onChange={(e) => setMobileTempTableName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSaveMobileTableName(activeTable.id);
-                        if (e.key === 'Escape') setIsEditingMobileHeaderName(false);
-                      }}
-                      autoFocus
-                      className="h-7 flex-1 min-w-0 rounded-lg border border-blue-500 bg-white px-2 text-xs font-bold text-slate-900 focus:outline-hidden ring-1 ring-blue-300"
-                    />
+
+                {/* 反映トグル (一番右端で統一) */}
+                {(isSystemFile || activeTable) && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] font-bold text-slate-500 hidden sm:inline">反映</span>
                     <button
                       type="button"
-                      onClick={() => handleSaveMobileTableName(activeTable.id)}
-                      className="h-7 px-2 rounded-lg bg-blue-600 text-white text-xs font-bold flex items-center justify-center shadow-2xs active:scale-95 transition cursor-pointer shrink-0"
-                      title="保存"
+                      role="switch"
+                      aria-checked={isCurrentItemApplied}
+                      onClick={handleToggleCurrentApplied}
+                      title={`計画表への反映を${isCurrentItemApplied ? 'オフ' : 'オン'}にする`}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 ${
+                        isCurrentItemApplied ? 'bg-emerald-500' : 'bg-slate-300'
+                      }`}
                     >
-                      <Check className="h-3.5 w-3.5 stroke-[3]" />
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                          isCurrentItemApplied ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingMobileHeaderName(false)}
-                      className="h-7 px-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold flex items-center justify-center active:scale-95 transition cursor-pointer shrink-0"
-                      title="キャンセル"
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 2行目: モバイル版固有のアクション・テーブル設定バー（周期開始・テンプレート・設定） */}
+            {(!isSystemFile || activeTable) && (
+              <div className="flex items-center justify-between gap-1.5 pt-0.5">
+                {/* 周期のはじまり（省略せず常時表示） */}
+                {activeTable && !isSystemFile ? (
+                  <div
+                    className="flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50/90 px-2 py-1 text-xs font-bold text-emerald-800 shadow-2xs"
+                    title="周期の開始曜日を指定"
+                  >
+                    <Calendar className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                    <span className="text-[10px] text-emerald-700 whitespace-nowrap">周期開始:</span>
+                    <select
+                      value={activeTable.cycleStartDay ?? 0}
+                      onChange={(e) => handleCycleStartDayChange(Number(e.target.value))}
+                      className="bg-transparent text-[11px] font-bold text-emerald-900 focus:outline-hidden cursor-pointer"
                     >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
+                      {weekDateOptions.map((opt) => (
+                        <option key={opt.dayIndex} value={opt.dayIndex}>
+                          {opt.label}〜
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1 min-w-0">
-                    <span
-                      onClick={() => {
-                        setMobileTempTableName(activeTable.name);
-                        setIsEditingMobileHeaderName(true);
-                      }}
-                      className="font-bold text-xs sm:text-sm text-slate-900 truncate max-w-[140px] xs:max-w-[180px] cursor-pointer hover:text-blue-700"
-                      title="タップして表データ名を編集"
-                    >
-                      {activeTable.name}
-                    </span>
+                  <div />
+                )}
+
+                {/* 右側: テンプレート ＆ 設定 ボタン */}
+                <div className="flex items-center gap-1.5 ml-auto">
+                  {/* テンプレートボタン（「テンプレート」と明確に表示） */}
+                  <button
+                    type="button"
+                    onClick={() => setIsTemplateWizardOpen(true)}
+                    title="テンプレート（日課・週次・固定枠）から作成・設定"
+                    className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-300 px-2.5 py-1 text-xs font-bold text-indigo-700 shadow-2xs active:scale-95 transition cursor-pointer"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                    <span>テンプレート</span>
+                  </button>
+
+                  {/* 設定ボタン (activeTable がある場合のみ表示) */}
+                  {activeTable && !isSystemFile && (
                     <button
                       type="button"
-                      onClick={() => {
-                        setMobileTempTableName(activeTable.name);
-                        setIsEditingMobileHeaderName(true);
-                      }}
-                      title="表データ名を編集"
-                      className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer shrink-0"
+                      onClick={() => setIsMobileSettingsOpen(true)}
+                      title="時間割の詳細設定を開く"
+                      className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700 shadow-2xs active:scale-95 transition cursor-pointer"
                     >
-                      <Edit2 className="h-3 w-3" />
+                      <Settings className="h-3.5 w-3.5 text-slate-600 shrink-0" />
+                      <span>設定</span>
                     </button>
-                  </div>
-                )
-              ) : null}
-            </div>
-
-            {/* 右側アクション群: テンプレート, 設定, 周期, 反映スイッチ, モード切替 */}
-            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-              {/* 周期のはじまり (表データ選択時のみ表示・編集可能) */}
-              {activeTable && !isSystemFile && (
-                <div
-                  className="hidden md:flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50/90 px-2 py-1 text-xs font-bold text-emerald-800 shadow-2xs"
-                  title="周期のはじまり（Day 1）となる日付（曜日）を指定"
-                >
-                  <Calendar className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                  <select
-                    value={activeTable.cycleStartDay ?? 0}
-                    onChange={(e) => handleCycleStartDayChange(Number(e.target.value))}
-                    className="bg-transparent text-[11px] font-bold text-emerald-900 focus:outline-hidden cursor-pointer"
-                  >
-                    {weekDateOptions.map((opt) => (
-                      <option key={opt.dayIndex} value={opt.dayIndex}>
-                        {opt.label}〜
-                      </option>
-                    ))}
-                  </select>
+                  )}
                 </div>
-              )}
-
-              {/* テンプレートから作成・設定ボタン (独立配置) */}
-              <button
-                type="button"
-                onClick={() => setIsTemplateWizardOpen(true)}
-                title="テンプレート（日課・週次・固定枠）から作成・設定"
-                className="flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-300 px-2 py-1 text-xs font-bold text-indigo-700 shadow-2xs active:scale-95 transition cursor-pointer"
-              >
-                <Sparkles className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
-                <span className="hidden xs:inline">テンプレート</span>
-              </button>
-
-              {/* 設定ドロワー開閉ボタン (独立配置: activeTable がある場合のみ表示) */}
-              {activeTable && !isSystemFile && (
-                <button
-                  type="button"
-                  onClick={() => setIsMobileSettingsOpen(true)}
-                  title="時間割の詳細設定を開く"
-                  className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700 shadow-2xs active:scale-95 transition cursor-pointer"
-                >
-                  <Settings className="h-3.5 w-3.5 text-slate-600 shrink-0" />
-                  <span className="hidden xs:inline">設定</span>
-                </button>
-              )}
-
-              {/* 反映トグル (表データまたは固定枠の場合) */}
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] font-bold text-slate-500 hidden sm:inline">反映</span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={isCurrentItemApplied}
-                  onClick={handleToggleCurrentApplied}
-                  title={`計画表への反映を${isCurrentItemApplied ? 'オフ' : 'オン'}にする`}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 ${
-                    isCurrentItemApplied ? 'bg-emerald-500' : 'bg-slate-300'
-                  }`}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-                      isCurrentItemApplied ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
               </div>
-
-              {/* デスクトップ ⇔ モバイル 表示モード切替ボタングループ（デスクトップと統一） */}
-              <div className="flex items-center rounded-lg border border-slate-200 bg-slate-100 p-0.5 shadow-2xs">
-                <button
-                  type="button"
-                  onClick={() => handleSwitchViewMode('desktop')}
-                  title="デスクトップ版レイアウトに切り替え"
-                  className={`flex items-center justify-center rounded-md p-1.5 transition cursor-pointer ${
-                    (viewMode as string) === 'desktop'
-                      ? 'bg-white text-blue-600 shadow-2xs'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  <Monitor className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSwitchViewMode('mobile')}
-                  title="モバイル版（時間割アプリ風）レイアウトに切り替え"
-                  className={`flex items-center justify-center rounded-md p-1.5 transition cursor-pointer ${
-                    (viewMode as string) === 'mobile'
-                      ? 'bg-white text-blue-600 shadow-2xs'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  <Smartphone className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
+            )}
           </div>
         ) : (
           /* デスクトップ版ヘッダー (現行のファイルパス表示 ＋ モード切替) */
