@@ -173,7 +173,7 @@ describe('Table Templates Generator (Plan22 仮実装検証)', () => {
   });
 
   describe('週次タスクテンプレート (createWeeklyTaskTable)', () => {
-    it('週3回のレポート作成タスクが正しく生成されること', () => {
+    it('いつでも着手可能（おまかせ）: Day 1の最小表として生成され、週3回のタスクとして抽出されること', () => {
       const table = createWeeklyTaskTable({
         title: 'プログラミング課題',
         durationMinutes: 90,
@@ -187,8 +187,8 @@ describe('Table Templates Generator (Plan22 仮実装検証)', () => {
 
       expect(table.placementMode).toBe('auto');
       expect(table.columnMode).toBe('cycle');
-      expect(table.numCols).toBe(3);
-      expect(table.colHeaders).toEqual(['Day 1', 'Day 2', 'Day 3']);
+      expect(table.numCols).toBe(1);
+      expect(table.colHeaders).toEqual(['Day 1']);
       expect(table.weeklyRepeatCount).toBe(3);
       expect(table.weeklyTaskExpiryWeeks).toBe(1);
 
@@ -197,8 +197,68 @@ describe('Table Templates Generator (Plan22 仮実装検証)', () => {
       const task = tasks[0];
       expect(task.title).toBe('プログラミング課題');
       expect(task.durationMinutes).toBe(90);
+      expect(task.frequencyCount).toBe(3);
       expect(task.earliestStartTime).toBe(13 * 60);
       expect(task.latestEndTime).toBe(21 * 60);
+    });
+
+    it('特定日時以降に着手（水曜 14:30以降）: 7列展開され、水曜以降のセルと開始日時制約が正しく設定されること', () => {
+      const table = createWeeklyTaskTable({
+        title: '講義後レポート',
+        durationMinutes: 60,
+        weeklyTargetCount: 2,
+        expiryWeeks: 1,
+        startConstraint: {
+          enabled: true,
+          startDay: 2, // 水曜日
+          scheduleAfterTime: '14:30',
+        },
+      });
+
+      expect(table.placementMode).toBe('auto');
+      expect(table.columnMode).toBe('weekday');
+      expect(table.numCols).toBe(7);
+      expect(table.axisConfig.startTime).toBe('14:30');
+
+      // 水曜より前の月・火はセルが null
+      expect(table.cells[0][0].text).toBeNull(); // 月曜
+      expect(table.cells[0][1].text).toBeNull(); // 火曜
+      // 水曜以降はセルが入っている
+      expect(table.cells[0][2].text).toBe('講義後レポート'); // 水曜
+      expect(table.cells[0][3].text).toBe('講義後レポート'); // 木曜
+
+      const { tasks } = generateScheduleItemsForTable(table);
+      expect(tasks).toHaveLength(1);
+      const task = tasks[0];
+      expect(task.title).toBe('講義後レポート');
+      expect(task.startDay).toBe(2);
+      expect(task.targetDays).toEqual([2, 3, 4, 5, 6]);
+      expect(task.earliestStartTime).toBe(14 * 60 + 30);
+    });
+
+    it('希望曜日指定あり（平日・月水金）: 指定された希望曜日のみセルが生成されること', () => {
+      const table = createWeeklyTaskTable({
+        title: 'ジム・筋トレ',
+        durationMinutes: 60,
+        weeklyTargetCount: 3,
+        expiryWeeks: 1,
+        preferredDays: [0, 2, 4], // 月, 水, 金
+      });
+
+      expect(table.columnMode).toBe('weekday');
+      expect(table.numCols).toBe(7);
+      expect(table.cells[0][0].text).toBe('ジム・筋トレ'); // 月
+      expect(table.cells[0][1].text).toBeNull(); // 火
+      expect(table.cells[0][2].text).toBe('ジム・筋トレ'); // 水
+      expect(table.cells[0][3].text).toBeNull(); // 木
+      expect(table.cells[0][4].text).toBe('ジム・筋トレ'); // 金
+      expect(table.cells[0][5].text).toBeNull(); // 土
+      expect(table.cells[0][6].text).toBeNull(); // 日
+
+      const { tasks } = generateScheduleItemsForTable(table);
+      expect(tasks).toHaveLength(1);
+      const task = tasks[0];
+      expect(task.targetDays).toEqual([0, 2, 4]);
     });
   });
 

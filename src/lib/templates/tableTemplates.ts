@@ -46,6 +46,16 @@ export interface WeeklyTaskTemplateInput {
   weeklyTargetCount: number | 'auto';
   expiryWeeks: 1 | 2 | 'none';
   timeRange?: { startTime: string | null; endTime: string | null };
+
+  // 開始日時（出題日時）の指定オプション
+  startConstraint?: {
+    enabled: boolean;
+    startDay: number; // 0:月〜6:日
+    scheduleAfterTime?: string; // 例: "14:30"
+  };
+
+  // 配置希望曜日（未指定時は空き枠おまかせ）
+  preferredDays?: number[]; // 例: [0, 2, 4] (月, 水, 金)
 }
 
 export interface FixedSlotTemplateInput {
@@ -298,29 +308,132 @@ export function createWeeklyTaskTable(input: WeeklyTaskTemplateInput): ImportedT
   const id = `table-weekly-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const now = new Date().toISOString();
 
-  const numCols =
-    input.weeklyTargetCount === 'auto' || !input.weeklyTargetCount || input.weeklyTargetCount <= 0
-      ? 1
-      : Number(input.weeklyTargetCount);
-
-  const colHeaders = Array.from({ length: numCols }, (_, i) => `Day ${i + 1}`);
   const startTimeStr = input.timeRange?.startTime ?? null;
   const endTimeStr = input.timeRange?.endTime ?? null;
   const duration = input.durationMinutes > 0 ? input.durationMinutes : 60;
   const startMin = startTimeStr ? timeStringToMinutes(startTimeStr) : 540;
 
+  const hasConstraint = input.startConstraint?.enabled;
+  const preferredDays = input.preferredDays;
+
+  // パターンA: 開始日時指定（出題・開始縛り）がある場合
+  if (hasConstraint && input.startConstraint) {
+    const startDay = input.startConstraint.startDay;
+    const scheduleAfterTimeStr = input.startConstraint.scheduleAfterTime || startTimeStr || '14:30';
+    const scheduleStartMin = timeStringToMinutes(scheduleAfterTimeStr);
+
+    // 7列の曜日モードで、開始曜日以降の曜日にセルを展開
+    const cells: GridCell[][] = [
+      Array.from({ length: 7 }, (_, c) => {
+        const isEligible = c >= startDay;
+        return {
+          dayIndex: c,
+          periodIndex: 1,
+          text: isEligible ? input.title : null,
+          title: isEligible ? input.title : '',
+          roomOrNote: '',
+          rawLines: isEligible ? [input.title] : [],
+          fullText: isEligible ? input.title : '',
+          startMinutes: isEligible ? scheduleStartMin : 0,
+          endMinutes: isEligible ? scheduleStartMin + duration : 0,
+        };
+      }),
+    ];
+
+    return {
+      id,
+      name: input.title,
+      createdAt: now,
+      updatedAt: now,
+      placementMode: 'auto',
+      columnMode: 'weekday',
+      cycleStartDay: 0,
+      dailyRepeatCount: 1,
+      weeklyRepeatCount: input.weeklyTargetCount,
+      weeklyTaskExpiryWeeks: input.expiryWeeks,
+      isApplied: true,
+      numRows: 1,
+      numCols: 7,
+      colHeaders: [...WEEKDAY_HEADERS],
+      rowHeaders: ['1'],
+      axisConfig: {
+        startTime: scheduleAfterTimeStr,
+        endTime: endTimeStr,
+        periodMinutes: duration,
+        intervalMinutes: 10,
+        hasLunch: false,
+        lunchAfterPeriod: 1,
+        lunchMinutes: 50,
+        weeklyTaskExpiryWeeks: input.expiryWeeks,
+      },
+      cells,
+    };
+  }
+
+  // パターンB: 希望曜日の指定がある場合
+  if (preferredDays && preferredDays.length > 0 && preferredDays.length < 7) {
+    const cells: GridCell[][] = [
+      Array.from({ length: 7 }, (_, c) => {
+        const isTarget = preferredDays.includes(c);
+        return {
+          dayIndex: c,
+          periodIndex: 1,
+          text: isTarget ? input.title : null,
+          title: isTarget ? input.title : '',
+          roomOrNote: '',
+          rawLines: isTarget ? [input.title] : [],
+          fullText: isTarget ? input.title : '',
+          startMinutes: isTarget ? startMin : 0,
+          endMinutes: isTarget ? startMin + duration : 0,
+        };
+      }),
+    ];
+
+    return {
+      id,
+      name: input.title,
+      createdAt: now,
+      updatedAt: now,
+      placementMode: 'auto',
+      columnMode: 'weekday',
+      cycleStartDay: 0,
+      dailyRepeatCount: 1,
+      weeklyRepeatCount: input.weeklyTargetCount,
+      weeklyTaskExpiryWeeks: input.expiryWeeks,
+      isApplied: true,
+      numRows: 1,
+      numCols: 7,
+      colHeaders: [...WEEKDAY_HEADERS],
+      rowHeaders: ['1'],
+      axisConfig: {
+        startTime: startTimeStr,
+        endTime: endTimeStr,
+        periodMinutes: duration,
+        intervalMinutes: 10,
+        hasLunch: false,
+        lunchAfterPeriod: 1,
+        lunchMinutes: 50,
+        weeklyTaskExpiryWeeks: input.expiryWeeks,
+      },
+      cells,
+    };
+  }
+
+  // パターンC: いつでも着手可能（おまかせ・Day 1の1列表）
   const cells: GridCell[][] = [
-    Array.from({ length: numCols }, (_, c) => ({
-      dayIndex: c,
-      periodIndex: 1,
-      text: input.title,
-      title: input.title,
-      roomOrNote: '',
-      rawLines: [input.title],
-      fullText: input.title,
-      startMinutes: startMin,
-      endMinutes: startMin + duration,
-    })),
+    [
+      {
+        dayIndex: 0,
+        periodIndex: 1,
+        text: input.title,
+        title: input.title,
+        roomOrNote: '',
+        rawLines: [input.title],
+        fullText: input.title,
+        startMinutes: startMin,
+        endMinutes: startMin + duration,
+      },
+    ],
   ];
 
   return {
@@ -336,8 +449,8 @@ export function createWeeklyTaskTable(input: WeeklyTaskTemplateInput): ImportedT
     weeklyTaskExpiryWeeks: input.expiryWeeks,
     isApplied: true,
     numRows: 1,
-    numCols,
-    colHeaders,
+    numCols: 1,
+    colHeaders: ['Day 1'],
     rowHeaders: ['1'],
     axisConfig: {
       startTime: startTimeStr,
