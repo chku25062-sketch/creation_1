@@ -14,6 +14,8 @@ import {
   generateScheduleItemsForTable,
   parseColHeader,
   sortRowsByTime,
+  getCellDefaultDuration,
+  getCellDefaultStartTime,
 } from './tableUtils';
 import { ImportedTableData } from '@/types';
 import { INITIAL_IMPORTED_TABLES, INITIAL_TASKS, INITIAL_FIXED_SLOTS } from './storage';
@@ -942,6 +944,77 @@ describe('tableUtils', () => {
         const night = tasks.find((t) => t.title === '夜のストレッチ')!;
         expect(night.durationMinutes).toBe(15);
         expect(night.earliestStartTime).toBe(21 * 60);
+      });
+
+      it('getCellDefaultDuration は表全体のコマ分数（例: 20分, 45分）を正しく参照し、誤って90分にフォールバックしないこと', () => {
+        // 20分の日課表（startTime は未設定）
+        const workoutTable: ImportedTableData = {
+          ...createBaseTable(null),
+          axisConfig: {
+            startTime: null,
+            periodMinutes: 20,
+            intervalMinutes: 5,
+            hasLunch: false,
+            lunchAfterPeriod: 2,
+            lunchMinutes: 50,
+          },
+          cells: [
+            [
+              {
+                periodIndex: 1,
+                dayIndex: 0,
+                text: '瞑想',
+                title: '瞑想',
+                roomOrNote: '',
+                fullText: '瞑想',
+                rawLines: ['瞑想'],
+                startMinutes: 0,
+                endMinutes: 0,
+              },
+            ],
+          ],
+        };
+
+        const duration = getCellDefaultDuration(workoutTable, 0, 0);
+        // 90分ではなく表の設定である20分が返ること
+        expect(duration).toBe(20);
+
+        // 45分の筋トレ表
+        const gymTable: ImportedTableData = {
+          ...workoutTable,
+          axisConfig: {
+            ...workoutTable.axisConfig,
+            periodMinutes: 45,
+          },
+        };
+        expect(getCellDefaultDuration(gymTable, 0, 0)).toBe(45);
+      });
+
+      it('getCellDefaultStartTime は表の開始時刻または行開始時刻を正しく参照すること', () => {
+        const tableWithTime: ImportedTableData = {
+          ...createBaseTable('08:30'),
+          axisConfig: {
+            startTime: '08:30',
+            periodMinutes: 50,
+            intervalMinutes: 10,
+            hasLunch: false,
+            lunchAfterPeriod: 2,
+            lunchMinutes: 50,
+          },
+        };
+        const periodTimes = [
+          {
+            periodIndex: 1,
+            startMinutes: 8 * 60 + 30,
+            endMinutes: 9 * 60 + 20,
+            startTime: '08:30',
+            endTime: '09:20',
+          },
+        ];
+
+        const { startTime, hasExplicitTime } = getCellDefaultStartTime(tableWithTime, 0, 0, periodTimes);
+        expect(startTime).toBe('08:30');
+        expect(hasExplicitTime).toBe(true);
       });
     });
   });

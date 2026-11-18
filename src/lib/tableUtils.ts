@@ -6,7 +6,7 @@ import {
   FixedSlot,
   TaskItem,
 } from '@/types';
-import { calculatePeriodTimes, timeStringToMinutes, minutesToTimeString } from './timeUtils';
+import { calculatePeriodTimes, timeStringToMinutes, minutesToTimeString, PeriodTimeSlot } from './timeUtils';
 
 const WEEKDAY_NAMES = [
   '月曜',
@@ -1003,4 +1003,111 @@ export function generateScheduleItemsForTable(
     slotIds: slots.map((s) => s.id),
     taskIds: tasks.map((t) => t.id),
   };
+}
+
+/**
+ * 表データ・行・セルから、そのコマに適用されるデフォルトの所要時間（分）を取得する
+ * 優先順位:
+ * 1. セル個別の customDurationMinutes
+ * 2. 行の個別時間帯（customRowTimes / periodTimes）の差分（> 0 の場合）
+ * 3. セル固有の endMinutes - startMinutes（> 0 の場合）
+ * 4. 表全体の axisConfig.periodMinutes（> 0 の場合）
+ * 5. 表の分類に応じたフォールバック（daily: 30分, weekly: 60分, fixed: 90分）
+ */
+export function getCellDefaultDuration(
+  table: ImportedTableData,
+  r: number,
+  c?: number,
+  periodTimes?: PeriodTimeSlot[],
+): number {
+  const cell = c !== undefined && table.cells[r] ? table.cells[r][c] : undefined;
+  if (cell?.customDurationMinutes && cell.customDurationMinutes > 0) {
+    return cell.customDurationMinutes;
+  }
+
+  // 行の計算済みスロットがある場合、その差分（> 0 のときのみ）
+  if (periodTimes && periodTimes[r]) {
+    const diff = periodTimes[r].endMinutes - periodTimes[r].startMinutes;
+    if (diff > 0) return diff;
+  }
+
+  // customRowTimes がある場合
+  const customRow = table.axisConfig.customRowTimes?.[r + 1];
+  if (customRow && customRow.startMinutes !== undefined && customRow.endMinutes !== undefined) {
+    const diff = customRow.endMinutes - customRow.startMinutes;
+    if (diff > 0) return diff;
+  }
+
+  // セル固有の開始・終了分がある場合
+  if (cell && cell.startMinutes !== undefined && cell.endMinutes !== undefined) {
+    const diff = cell.endMinutes - cell.startMinutes;
+    if (diff > 0) return diff;
+  }
+
+  // 表全体のコマ分数
+  if (
+    table.axisConfig.periodMinutes !== null &&
+    table.axisConfig.periodMinutes !== undefined &&
+    table.axisConfig.periodMinutes > 0
+  ) {
+    return table.axisConfig.periodMinutes;
+  }
+
+  // 表の分類に応じたフォールバック
+  const classification = getTableClassification(table);
+  if (classification === 'daily_task') return 30;
+  if (classification === 'weekly_task') return 60;
+  return 90;
+}
+
+/**
+ * 表データ・行・セルから、そのコマに適用されるデフォルトの開始時刻（"HH:mm"）を取得する
+ * 優先順位:
+ * 1. セル個別の customStartTime
+ * 2. 行の計算済みスロットの startTime（有効な場合）
+ * 3. customRowTimes の startMinutes
+ * 4. セル固有の startMinutes
+ * 5. 表全体の axisConfig.startTime（有効な場合）
+ * 6. "09:00"
+ */
+export function getCellDefaultStartTime(
+  table: ImportedTableData,
+  r: number,
+  c?: number,
+  periodTimes?: PeriodTimeSlot[],
+): { startTime: string; hasExplicitTime: boolean } {
+  const cell = c !== undefined && table.cells[r] ? table.cells[r][c] : undefined;
+  if (cell?.customStartTime && cell.customStartTime.trim()) {
+    return { startTime: cell.customStartTime.trim(), hasExplicitTime: true };
+  }
+
+  // 行の計算済みスロットの startTime が空でなければ使用
+  if (periodTimes && periodTimes[r] && periodTimes[r].startTime && periodTimes[r].startTime.trim()) {
+    return { startTime: periodTimes[r].startTime, hasExplicitTime: true };
+  }
+
+  // customRowTimes
+  const customRow = table.axisConfig.customRowTimes?.[r + 1];
+  if (customRow && customRow.startMinutes !== undefined) {
+    return { startTime: minutesToTimeString(customRow.startMinutes), hasExplicitTime: true };
+  }
+
+  // セル固有
+  if (cell && cell.startMinutes !== undefined && cell.startMinutes > 0) {
+    return { startTime: minutesToTimeString(cell.startMinutes), hasExplicitTime: true };
+  }
+
+  // 表全体の開始時刻
+  const axisStart = table.axisConfig.startTime;
+  if (
+    axisStart &&
+    axisStart !== 'auto' &&
+    axisStart !== 'unset' &&
+    axisStart !== '未設定' &&
+    axisStart !== '自動'
+  ) {
+    return { startTime: axisStart, hasExplicitTime: true };
+  }
+
+  return { startTime: '09:00', hasExplicitTime: false };
 }

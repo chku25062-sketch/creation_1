@@ -43,7 +43,7 @@ import {
   ScheduleInclusionSettings,
   TablePlacementMode,
 } from '@/types';
-import { calculatePeriodTimes, timeStringToMinutes, minutesToTimeString } from '@/lib/timeUtils';
+import { calculatePeriodTimes, timeStringToMinutes } from '@/lib/timeUtils';
 import { matrixToCsv } from '@/lib/importers/gridDetection';
 import {
   getTableClassification,
@@ -59,6 +59,8 @@ import {
   generateScheduleItemsForTable,
   parseColHeader,
   sortRowsByTime,
+  getCellDefaultDuration,
+  getCellDefaultStartTime,
 } from '@/lib/tableUtils';
 import { TaskManager } from '@/components/TaskManager';
 
@@ -777,29 +779,22 @@ export function ImportedTablesManager({
     setCellBreakMinutes(cell.breakMinutes || 0);
 
     // 表の設定から算出したコマのデフォルト所要時間（分）
-    const cellDefaultPeriod = Math.min(
-      300,
-      Math.max(
-        1,
-        (periodTimes[r]
-          ? periodTimes[r].endMinutes - periodTimes[r].startMinutes
-          : activeTable.axisConfig.periodMinutes) || 90,
-      ),
-    );
+    const cellDefaultPeriod = getCellDefaultDuration(activeTable, r, c, periodTimes);
     // デフォルトで表の設定を参照して所要時間を入力
     setCellCustomDuration(cell.customDurationMinutes || cellDefaultPeriod);
 
     // 表の設定から算出したコマのデフォルト開始時刻（"HH:mm"）
-    const rowStartTime = periodTimes[r]
-      ? minutesToTimeString(periodTimes[r].startMinutes)
-      : activeTable.axisConfig.startTime &&
-        activeTable.axisConfig.startTime !== 'auto' &&
-        activeTable.axisConfig.startTime !== 'unset'
-        ? activeTable.axisConfig.startTime
-        : '09:00';
+    const { startTime: defaultStartTime, hasExplicitTime } = getCellDefaultStartTime(
+      activeTable,
+      r,
+      c,
+      periodTimes,
+    );
     // デフォルトで表の設定を参照して開始時刻を入力
-    setCellCustomStartTime(cell.customStartTime || rowStartTime);
-    setCellHasCustomTime(cell.hasCustomTime !== undefined ? cell.hasCustomTime : true);
+    setCellCustomStartTime(cell.customStartTime || defaultStartTime);
+    setCellHasCustomTime(
+      cell.hasCustomTime !== undefined ? cell.hasCustomTime : hasExplicitTime,
+    );
 
     setCellUrl(cell.url || '');
     setCellAttachedEnabled(
@@ -3269,9 +3264,7 @@ export function ImportedTablesManager({
                       <div>
                         <div className="text-xs font-bold text-slate-800">所要時間</div>
                         <div className="text-[10px] text-slate-500">
-                          {periodTimes[editingCell.r]
-                            ? `表の設定（${periodTimes[editingCell.r].endMinutes - periodTimes[editingCell.r].startMinutes}分）から初期入力`
-                            : '表の設定から初期入力'}
+                          {`表の設定（${getCellDefaultDuration(activeTable, editingCell.r, editingCell.c, periodTimes)}分）から初期入力`}
                         </div>
                       </div>
                     </div>
@@ -3296,10 +3289,12 @@ export function ImportedTablesManager({
                       <button
                         type="button"
                         onClick={() => {
-                          const defaultMins =
-                            (periodTimes[editingCell.r]
-                              ? periodTimes[editingCell.r].endMinutes - periodTimes[editingCell.r].startMinutes
-                              : activeTable.axisConfig.periodMinutes) || 90;
+                          const defaultMins = getCellDefaultDuration(
+                            activeTable,
+                            editingCell.r,
+                            editingCell.c,
+                            periodTimes,
+                          );
                           setCellCustomDuration(defaultMins);
                         }}
                         className="text-[10px] text-slate-400 hover:text-slate-600 underline ml-1 cursor-pointer"
@@ -3353,10 +3348,13 @@ export function ImportedTablesManager({
                         <button
                           type="button"
                           onClick={() => {
-                            const rowStart = periodTimes[editingCell.r]
-                              ? minutesToTimeString(periodTimes[editingCell.r].startMinutes)
-                              : '09:00';
-                            setCellCustomStartTime(rowStart);
+                            const { startTime: defStart } = getCellDefaultStartTime(
+                              activeTable,
+                              editingCell.r,
+                              editingCell.c,
+                              periodTimes,
+                            );
+                            setCellCustomStartTime(defStart);
                           }}
                           className="text-[10px] text-slate-400 hover:text-slate-600 underline cursor-pointer"
                           title="表の開始時刻に戻す"
@@ -3621,9 +3619,7 @@ export function ImportedTablesManager({
                   <div>
                     <div className="text-xs font-bold text-slate-800">所要時間</div>
                     <div className="text-[10px] text-slate-500">
-                      {periodTimes[editingCell.r]
-                        ? `表の設定（${periodTimes[editingCell.r].endMinutes - periodTimes[editingCell.r].startMinutes}分）から初期入力`
-                        : '表の設定から初期入力'}
+                      {`表の設定（${getCellDefaultDuration(activeTable, editingCell.r, editingCell.c, periodTimes)}分）から初期入力`}
                     </div>
                   </div>
                 </div>
@@ -3643,10 +3639,12 @@ export function ImportedTablesManager({
                   <button
                     type="button"
                     onClick={() => {
-                      const defaultMins =
-                        (periodTimes[editingCell.r]
-                          ? periodTimes[editingCell.r].endMinutes - periodTimes[editingCell.r].startMinutes
-                          : activeTable.axisConfig.periodMinutes) || 90;
+                      const defaultMins = getCellDefaultDuration(
+                        activeTable,
+                        editingCell.r,
+                        editingCell.c,
+                        periodTimes,
+                      );
                       setCellCustomDuration(defaultMins);
                     }}
                     className="text-[10px] text-slate-400 hover:text-slate-600 underline ml-0.5 cursor-pointer"
@@ -3692,10 +3690,13 @@ export function ImportedTablesManager({
                       <button
                         type="button"
                         onClick={() => {
-                          const rowStart = periodTimes[editingCell.r]
-                            ? minutesToTimeString(periodTimes[editingCell.r].startMinutes)
-                            : '09:00';
-                          setCellCustomStartTime(rowStart);
+                          const { startTime: defStart } = getCellDefaultStartTime(
+                            activeTable,
+                            editingCell.r,
+                            editingCell.c,
+                            periodTimes,
+                          );
+                          setCellCustomStartTime(defStart);
                         }}
                         className="text-[10px] text-slate-400 hover:text-slate-600 underline cursor-pointer"
                         title="表の開始時刻に戻す"
