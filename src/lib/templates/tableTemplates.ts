@@ -18,7 +18,8 @@ export interface DailyRoutineTemplateInput {
   singleTask?: {
     title: string;
     durationMinutes: number;
-    targetDays: number[]; // 0:月〜6:日
+    isEveryday?: boolean; // true の場合は1行1列の最小表を生成
+    targetDays?: number[]; // 曜日指定時（0:月〜6:日）
   };
 
   // 曜日別ローテーションの場合（月〜日でメニューを変える）
@@ -183,10 +184,64 @@ export function createDailyRoutineTable(input: DailyRoutineTemplateInput): Impor
   const single = input.singleTask || {
     title: input.name || '日課',
     durationMinutes: 30,
-    targetDays: [0, 1, 2, 3, 4, 5, 6], // デフォルト毎日
+    isEveryday: true,
   };
   const duration = single.durationMinutes > 0 ? single.durationMinutes : 30;
-  const targetDaysSet = new Set(single.targetDays);
+
+  // 毎日実施（曜日指定なし・7列も不要なため1マス最小表にする）
+  const isEveryday =
+    single.isEveryday ??
+    (!single.targetDays || single.targetDays.length === 0 || single.targetDays.length === 7);
+
+  if (isEveryday) {
+    const cells: GridCell[][] = [
+      [
+        {
+          dayIndex: 0,
+          periodIndex: 1,
+          text: single.title,
+          title: single.title,
+          roomOrNote: '',
+          rawLines: [single.title],
+          fullText: single.title,
+          startMinutes: startMin,
+          endMinutes: startMin + duration,
+        },
+      ],
+    ];
+
+    return {
+      id,
+      name: input.name || single.title,
+      createdAt: now,
+      updatedAt: now,
+      placementMode: 'auto',
+      columnMode: 'weekday',
+      cycleStartDay: 0,
+      dailyRepeatCount: input.dailyRepeatCount ?? 'auto',
+      weeklyRepeatCount: 'auto',
+      weeklyTaskExpiryWeeks: 1,
+      isApplied: true,
+      numRows: 1,
+      numCols: 1,
+      colHeaders: ['毎日'],
+      rowHeaders: ['1'],
+      axisConfig: {
+        startTime: startTimeStr,
+        endTime: endTimeStr,
+        periodMinutes: duration,
+        intervalMinutes: 0,
+        hasLunch: false,
+        lunchAfterPeriod: 1,
+        lunchMinutes: 50,
+        weeklyTaskExpiryWeeks: 1,
+      },
+      cells,
+    };
+  }
+
+  // 曜日を指定する場合のみ7列（月〜日）を展開
+  const targetDaysSet = new Set(single.targetDays || []);
 
   const cells: GridCell[][] = [
     Array.from({ length: 7 }, (_, c) => {

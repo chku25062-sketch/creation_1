@@ -8,13 +8,51 @@ import {
 
 describe('Table Templates Generator (Plan22 仮実装検証)', () => {
   describe('日課テンプレート (createDailyRoutineTable)', () => {
-    it('単一メニュー: 毎日の読書タスクが正しく生成・抽出されること', () => {
+    it('単一メニュー（毎日実施・1マス最小表）: 7列展開を省き、1行1列のコンパクト表として生成・抽出されること', () => {
+      const table = createDailyRoutineTable({
+        name: '毎日のストレッチ',
+        mode: 'single',
+        singleTask: {
+          title: 'ストレッチ',
+          durationMinutes: 7, // 任意の分数（自由入力）
+          isEveryday: true, // 毎日実施
+        },
+        dailyRepeatCount: 2, // 1日2回
+        timeRange: {
+          startTime: '07:00',
+          endTime: '22:00',
+        },
+      });
+
+      expect(table.placementMode).toBe('auto');
+      expect(table.columnMode).toBe('weekday');
+      expect(table.numCols).toBe(1); // ★ 7列ではなく1列の最小表！
+      expect(table.colHeaders).toEqual(['毎日']);
+      expect(table.axisConfig.periodMinutes).toBe(7);
+      expect(table.dailyRepeatCount).toBe(2);
+
+      const classification = getTableClassification(table);
+      expect(classification).toBe('daily_task');
+
+      const { tasks } = generateScheduleItemsForTable(table);
+      expect(tasks).toHaveLength(1);
+      const task = tasks[0];
+      expect(task.title).toBe('ストレッチ');
+      expect(task.durationMinutes).toBe(7);
+      expect(task.dailyCount).toBe(2);
+      expect(task.targetDays).toBeUndefined(); // 曜日制限なし（毎日配置対象）
+      expect(task.earliestStartTime).toBe(7 * 60);
+      expect(task.latestEndTime).toBe(22 * 60);
+    });
+
+    it('単一メニュー（曜日指定時）: 7列展開され、指定曜日のみセルが生成されること', () => {
       const table = createDailyRoutineTable({
         name: '夜の読書習慣',
         mode: 'single',
         singleTask: {
           title: '読書',
           durationMinutes: 20,
+          isEveryday: false,
           targetDays: [0, 1, 2, 3, 4], // 平日のみ
         },
         dailyRepeatCount: 1,
@@ -27,13 +65,8 @@ describe('Table Templates Generator (Plan22 仮実装検証)', () => {
       expect(table.placementMode).toBe('auto');
       expect(table.columnMode).toBe('weekday');
       expect(table.numCols).toBe(7);
+      expect(table.colHeaders).toEqual(['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜']);
       expect(table.axisConfig.periodMinutes).toBe(20);
-      expect(table.axisConfig.startTime).toBe('21:00');
-      expect(table.axisConfig.endTime).toBe('23:00');
-
-      // スケジューラー解析チェック
-      const classification = getTableClassification(table);
-      expect(classification).toBe('daily_task');
 
       const { tasks } = generateScheduleItemsForTable(table);
       expect(tasks).toHaveLength(1);
@@ -41,9 +74,6 @@ describe('Table Templates Generator (Plan22 仮実装検証)', () => {
       expect(task.title).toBe('読書');
       expect(task.durationMinutes).toBe(20);
       expect(task.targetDays).toEqual([0, 1, 2, 3, 4]);
-      expect(task.dailyCount).toBe(1);
-      expect(task.earliestStartTime).toBe(21 * 60); // 1260
-      expect(task.latestEndTime).toBe(23 * 60); // 1380
     });
 
     it('曜日別ローテーション: 月〜金の科目別学習タスクが各曜日ごとに生成されること', () => {

@@ -68,7 +68,8 @@ export function TableTemplateWizardModal({
   // 単一メニュー
   const [singleTitle, setSingleTitle] = useState('ストレッチ');
   const [singleDuration, setSingleDuration] = useState(20);
-  const [singleTargetDays, setSingleTargetDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]); // 毎日
+  const [isSingleEveryday, setIsSingleEveryday] = useState(true); // 毎日実施（1マス最小表）
+  const [singleTargetDays, setSingleTargetDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   // 曜日別ローテーション
   const [weekdayRotationDays, setWeekdayRotationDays] = useState<
     Record<number, { title: string; durationMinutes: number }>
@@ -159,8 +160,9 @@ export function TableTemplateWizardModal({
       if (dailyMode === 'single') {
         input.singleTask = {
           title: singleTitle || '日課',
-          durationMinutes: singleDuration,
-          targetDays: singleTargetDays.length > 0 ? singleTargetDays : [0, 1, 2, 3, 4, 5, 6],
+          durationMinutes: singleDuration > 0 ? singleDuration : 30,
+          isEveryday: isSingleEveryday,
+          targetDays: !isSingleEveryday && singleTargetDays.length > 0 ? singleTargetDays : undefined,
         };
       } else if (dailyMode === 'weekday_rotation') {
         input.weekdayRotation = {
@@ -376,16 +378,29 @@ export function TableTemplateWizardModal({
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-slate-600 mb-1">1回の所要時間</label>
-                      <div className="flex items-center gap-1">
-                        {[15, 20, 30, 45, 60].map((m) => (
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <input
+                          type="number"
+                          min={1}
+                          max={1440}
+                          step={5}
+                          value={singleDuration || ''}
+                          onChange={(e) => setSingleDuration(Math.max(1, parseInt(e.target.value, 10) || 0))}
+                          className="w-20 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-mono font-bold text-center text-slate-800 focus:border-blue-500 focus:outline-hidden"
+                        />
+                        <span className="text-xs font-bold text-slate-500">分</span>
+                        <span className="text-[10px] text-slate-400">（直接入力可能）</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1">
+                        {[5, 10, 15, 20, 30, 45, 60].map((m) => (
                           <button
                             key={m}
                             type="button"
                             onClick={() => setSingleDuration(m)}
-                            className={`flex-1 rounded-lg border py-1 text-xs font-bold transition ${
+                            className={`rounded-md border px-2 py-0.5 text-[10px] font-bold transition ${
                               singleDuration === m
                                 ? 'border-blue-600 bg-blue-600 text-white'
-                                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                             }`}
                           >
                             {m}分
@@ -395,47 +410,93 @@ export function TableTemplateWizardModal({
                     </div>
                   </div>
 
-                  {/* 実施曜日 */}
+                  {/* 実施頻度・曜日設定（最適化: 毎日なら1マス、指定時のみ7列） */}
                   <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-[11px] font-bold text-slate-600">実施する曜日</label>
-                      <div className="flex gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setSingleTargetDays([0, 1, 2, 3, 4, 5, 6])}
-                          className="text-[10px] font-bold text-blue-600 hover:underline"
-                        >
-                          毎日
-                        </button>
-                        <span className="text-slate-300">|</span>
-                        <button
-                          type="button"
-                          onClick={() => setSingleTargetDays([0, 1, 2, 3, 4])}
-                          className="text-[10px] font-bold text-blue-600 hover:underline"
-                        >
-                          平日のみ
-                        </button>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1.5">実施頻度・曜日</label>
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsSingleEveryday(true)}
+                        className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-bold transition ${
+                          isSingleEveryday
+                            ? 'border-blue-600 bg-blue-50 text-blue-700 ring-1 ring-blue-500'
+                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <Check className={`h-3.5 w-3.5 ${isSingleEveryday ? 'text-blue-600' : 'opacity-0'}`} />
+                        <span>毎日実施（曜日指定なし・1マス）</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsSingleEveryday(false)}
+                        className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-bold transition ${
+                          !isSingleEveryday
+                            ? 'border-blue-600 bg-blue-50 text-blue-700 ring-1 ring-blue-500'
+                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <Check className={`h-3.5 w-3.5 ${!isSingleEveryday ? 'text-blue-600' : 'opacity-0'}`} />
+                        <span>曜日を指定する</span>
+                      </button>
+                    </div>
+
+                    {isSingleEveryday ? (
+                      <div className="rounded-lg bg-blue-50/70 p-2.5 text-[11px] text-blue-800 border border-blue-100 flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-blue-600 shrink-0" />
+                        <span>7列の不要な枠を省き、1マス（1行×1列）のシンプルな日課表を生成します。</span>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-7 gap-1">
-                      {WEEKDAYS.map((w) => {
-                        const active = singleTargetDays.includes(w.dayIndex);
-                        return (
-                          <button
-                            key={w.dayIndex}
-                            type="button"
-                            onClick={() => toggleSingleWeekday(w.dayIndex)}
-                            className={`rounded-lg border py-2 text-xs font-bold transition ${
-                              active
-                                ? 'border-blue-600 bg-blue-600 text-white shadow-xs'
-                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
-                            }`}
-                          >
-                            {w.label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    ) : (
+                      <div className="space-y-1.5 pt-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] text-slate-500">実施する曜日を選択:</span>
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setSingleTargetDays([0, 1, 2, 3, 4])}
+                              className="text-[10px] font-bold text-blue-600 hover:underline"
+                            >
+                              平日のみ
+                            </button>
+                            <span className="text-slate-300">|</span>
+                            <button
+                              type="button"
+                              onClick={() => setSingleTargetDays([5, 6])}
+                              className="text-[10px] font-bold text-blue-600 hover:underline"
+                            >
+                              週末のみ
+                            </button>
+                            <span className="text-slate-300">|</span>
+                            <button
+                              type="button"
+                              onClick={() => setSingleTargetDays([0, 1, 2, 3, 4, 5, 6])}
+                              className="text-[10px] font-bold text-blue-600 hover:underline"
+                            >
+                              全選択
+                            </button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-7 gap-1">
+                          {WEEKDAYS.map((w) => {
+                            const active = singleTargetDays.includes(w.dayIndex);
+                            return (
+                              <button
+                                key={w.dayIndex}
+                                type="button"
+                                onClick={() => toggleSingleWeekday(w.dayIndex)}
+                                className={`rounded-lg border py-2 text-xs font-bold transition ${
+                                  active
+                                    ? 'border-blue-600 bg-blue-600 text-white shadow-xs'
+                                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                                }`}
+                              >
+                                {w.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -596,24 +657,48 @@ export function TableTemplateWizardModal({
                 </div>
               )}
 
-              {/* 1日の実施回数 */}
+              {/* 1日の実施回数（自由入力 ＋ クイックチップ） */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">1日の目標回数</label>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <div className="flex items-center">
+                    <input
+                      type="number"
+                      min={1}
+                      max={24}
+                      value={dailyRepeatCount === 'auto' ? '' : dailyRepeatCount}
+                      onChange={(e) => {
+                        const val = e.target.value.trim();
+                        if (!val) {
+                          setDailyRepeatCount('auto');
+                        } else {
+                          const n = parseInt(val, 10);
+                          setDailyRepeatCount(isNaN(n) || n <= 0 ? 'auto' : n);
+                        }
+                      }}
+                      placeholder="自動"
+                      className="w-20 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-mono font-bold text-center text-slate-800 focus:border-blue-500 focus:outline-hidden"
+                    />
+                    <span className="ml-1.5 text-xs font-bold text-slate-500">回</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">（直接数値入力可能）</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1">
                   {[
                     { val: 1, label: '1回' },
                     { val: 2, label: '2回' },
                     { val: 3, label: '3回' },
+                    { val: 4, label: '4回' },
                     { val: 'auto' as const, label: '自動' },
                   ].map((opt) => (
                     <button
                       key={String(opt.val)}
                       type="button"
                       onClick={() => setDailyRepeatCount(opt.val)}
-                      className={`flex-1 rounded-lg border py-1.5 text-xs font-bold transition ${
+                      className={`rounded-md border px-2.5 py-1 text-xs font-bold transition ${
                         dailyRepeatCount === opt.val
                           ? 'border-blue-600 bg-blue-600 text-white'
-                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                       }`}
                     >
                       {opt.label}
@@ -687,16 +772,28 @@ export function TableTemplateWizardModal({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">1回の所要時間</label>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <input
+                      type="number"
+                      min={1}
+                      max={1440}
+                      step={5}
+                      value={weeklyDuration || ''}
+                      onChange={(e) => setWeeklyDuration(Math.max(1, parseInt(e.target.value, 10) || 0))}
+                      className="w-20 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-mono font-bold text-center text-slate-800 focus:border-emerald-500 focus:outline-hidden"
+                    />
+                    <span className="text-xs font-bold text-slate-500">分</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1">
                     {[30, 45, 60, 90, 120].map((m) => (
                       <button
                         key={m}
                         type="button"
                         onClick={() => setWeeklyDuration(m)}
-                        className={`flex-1 rounded-lg border py-1.5 text-xs font-bold transition ${
+                        className={`rounded-md border px-2 py-0.5 text-[10px] font-bold transition ${
                           weeklyDuration === m
                             ? 'border-emerald-600 bg-emerald-600 text-white'
                             : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
@@ -710,13 +807,24 @@ export function TableTemplateWizardModal({
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">週の目標消化回数</label>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <input
+                      type="number"
+                      min={1}
+                      max={7}
+                      value={weeklyTargetCount || ''}
+                      onChange={(e) => setWeeklyTargetCount(Math.min(7, Math.max(1, parseInt(e.target.value, 10) || 1)))}
+                      className="w-20 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-mono font-bold text-center text-slate-800 focus:border-emerald-500 focus:outline-hidden"
+                    />
+                    <span className="text-xs font-bold text-slate-500">回</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1">
                     {[1, 2, 3, 4, 5].map((c) => (
                       <button
                         key={c}
                         type="button"
                         onClick={() => setWeeklyTargetCount(c)}
-                        className={`flex-1 rounded-lg border py-1.5 text-xs font-bold transition ${
+                        className={`rounded-md border px-2.5 py-0.5 text-[10px] font-bold transition ${
                           weeklyTargetCount === c
                             ? 'border-emerald-600 bg-emerald-600 text-white'
                             : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
