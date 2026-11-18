@@ -20,6 +20,26 @@ import {
   createFixedSlotTable,
   DailyRoutineTemplateInput,
 } from '@/lib/templates/tableTemplates';
+import { DrumRollPicker, DrumRollItem } from './DrumRollPicker';
+
+// ドラムロール用の選択肢定数
+const DURATION_ROLL_ITEMS: DrumRollItem<number>[] = [
+  ...Array.from({ length: 30 }, (_, i) => ({ value: i + 1, label: `${i + 1}` })), // 1〜30分 (1分刻み)
+  ...[35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 100, 110, 120, 135, 150, 180].map((m) => ({
+    value: m,
+    label: `${m}`,
+  })),
+];
+
+const DAILY_REPEAT_ROLL_ITEMS: DrumRollItem<number | 'auto'>[] = [
+  { value: 'auto', label: '自動 (推奨)' },
+  ...Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: `${i + 1}回` })),
+];
+
+const WEEKLY_REPEAT_ROLL_ITEMS: DrumRollItem<number>[] = Array.from({ length: 7 }, (_, i) => ({
+  value: i + 1,
+  label: `週${i + 1}回`,
+}));
 
 interface TableTemplateWizardModalProps {
   isOpen: boolean;
@@ -377,35 +397,24 @@ export function TableTemplateWizardModal({
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">1回の所要時間</label>
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <input
-                          type="number"
-                          min={1}
-                          max={1440}
-                          step={5}
-                          value={singleDuration || ''}
-                          onChange={(e) => setSingleDuration(Math.max(1, parseInt(e.target.value, 10) || 0))}
-                          className="w-20 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-mono font-bold text-center text-slate-800 focus:border-blue-500 focus:outline-hidden"
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                        1回の所要時間（ロールで選択）
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <DrumRollPicker
+                          items={DURATION_ROLL_ITEMS}
+                          value={singleDuration}
+                          onChange={(val) => setSingleDuration(Number(val))}
+                          unit="分"
+                          ariaLabel="所要時間"
+                          className="w-36"
                         />
-                        <span className="text-xs font-bold text-slate-500">分</span>
-                        <span className="text-[10px] text-slate-400">（直接入力可能）</span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1">
-                        {[5, 10, 15, 20, 30, 45, 60].map((m) => (
-                          <button
-                            key={m}
-                            type="button"
-                            onClick={() => setSingleDuration(m)}
-                            className={`rounded-md border px-2 py-0.5 text-[10px] font-bold transition ${
-                              singleDuration === m
-                                ? 'border-blue-600 bg-blue-600 text-white'
-                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                            }`}
-                          >
-                            {m}分
-                          </button>
-                        ))}
+                        <div className="flex flex-col gap-1 text-[11px] text-slate-500">
+                          <span className="font-bold text-slate-700">
+                            現在: <span className="font-mono text-sm text-blue-700">{singleDuration}</span> 分
+                          </span>
+                          <span className="text-[10px] text-slate-400">上下にロールして調整</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -657,53 +666,32 @@ export function TableTemplateWizardModal({
                 </div>
               )}
 
-              {/* 1日の実施回数（自由入力 ＋ クイックチップ） */}
+              {/* 1日の実施回数（ドラムロール式・選択ボタン撤廃） */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">1日の目標回数</label>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <div className="flex items-center">
-                    <input
-                      type="number"
-                      min={1}
-                      max={24}
-                      value={dailyRepeatCount === 'auto' ? '' : dailyRepeatCount}
-                      onChange={(e) => {
-                        const val = e.target.value.trim();
-                        if (!val) {
-                          setDailyRepeatCount('auto');
-                        } else {
-                          const n = parseInt(val, 10);
-                          setDailyRepeatCount(isNaN(n) || n <= 0 ? 'auto' : n);
-                        }
-                      }}
-                      placeholder="自動"
-                      className="w-20 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-mono font-bold text-center text-slate-800 focus:border-blue-500 focus:outline-hidden"
-                    />
-                    <span className="ml-1.5 text-xs font-bold text-slate-500">回</span>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  1日の目標回数（ロールで選択）
+                </label>
+                <div className="flex items-center gap-3">
+                  <DrumRollPicker
+                    items={DAILY_REPEAT_ROLL_ITEMS}
+                    value={dailyRepeatCount}
+                    onChange={(val) => setDailyRepeatCount(val as number | 'auto')}
+                    ariaLabel="1日の目標回数"
+                    className="w-44"
+                  />
+                  <div className="flex flex-col gap-1 text-[11px] text-slate-500">
+                    <span className="font-bold text-slate-700">
+                      設定:{' '}
+                      <span className="text-blue-700">
+                        {dailyRepeatCount === 'auto' ? '自動配分（空きコマ優先）' : `${dailyRepeatCount}回 / 日`}
+                      </span>
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {dailyRepeatCount === 'auto'
+                        ? 'スケジュール状況に応じて最適な回数を自動決定します'
+                        : `1日の中で最大${dailyRepeatCount}回こなすよう配置されます`}
+                    </span>
                   </div>
-                  <span className="text-[10px] text-slate-400">（直接数値入力可能）</span>
-                </div>
-                <div className="flex flex-wrap items-center gap-1">
-                  {[
-                    { val: 1, label: '1回' },
-                    { val: 2, label: '2回' },
-                    { val: 3, label: '3回' },
-                    { val: 4, label: '4回' },
-                    { val: 'auto' as const, label: '自動' },
-                  ].map((opt) => (
-                    <button
-                      key={String(opt.val)}
-                      type="button"
-                      onClick={() => setDailyRepeatCount(opt.val)}
-                      className={`rounded-md border px-2.5 py-1 text-xs font-bold transition ${
-                        dailyRepeatCount === opt.val
-                          ? 'border-blue-600 bg-blue-600 text-white'
-                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
                 </div>
               </div>
 
@@ -772,67 +760,47 @@ export function TableTemplateWizardModal({
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">1回の所要時間</label>
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <input
-                      type="number"
-                      min={1}
-                      max={1440}
-                      step={5}
-                      value={weeklyDuration || ''}
-                      onChange={(e) => setWeeklyDuration(Math.max(1, parseInt(e.target.value, 10) || 0))}
-                      className="w-20 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-mono font-bold text-center text-slate-800 focus:border-emerald-500 focus:outline-hidden"
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    1回の所要時間（ロールで選択）
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <DrumRollPicker
+                      items={DURATION_ROLL_ITEMS}
+                      value={weeklyDuration}
+                      onChange={(val) => setWeeklyDuration(Number(val))}
+                      unit="分"
+                      ariaLabel="週タスク所要時間"
+                      className="w-36"
                     />
-                    <span className="text-xs font-bold text-slate-500">分</span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1">
-                    {[30, 45, 60, 90, 120].map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setWeeklyDuration(m)}
-                        className={`rounded-md border px-2 py-0.5 text-[10px] font-bold transition ${
-                          weeklyDuration === m
-                            ? 'border-emerald-600 bg-emerald-600 text-white'
-                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        {m}分
-                      </button>
-                    ))}
+                    <div className="flex flex-col gap-1 text-[11px] text-slate-500">
+                      <span className="font-bold text-slate-700">
+                        <span className="font-mono text-sm text-emerald-700">{weeklyDuration}</span> 分 / 回
+                      </span>
+                      <span className="text-[10px] text-slate-400">上下ロールで調整</span>
+                    </div>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">週の目標消化回数</label>
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <input
-                      type="number"
-                      min={1}
-                      max={7}
-                      value={weeklyTargetCount || ''}
-                      onChange={(e) => setWeeklyTargetCount(Math.min(7, Math.max(1, parseInt(e.target.value, 10) || 1)))}
-                      className="w-20 rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-mono font-bold text-center text-slate-800 focus:border-emerald-500 focus:outline-hidden"
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    週の目標消化回数（ロールで選択）
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <DrumRollPicker
+                      items={WEEKLY_REPEAT_ROLL_ITEMS}
+                      value={weeklyTargetCount}
+                      onChange={(val) => setWeeklyTargetCount(Number(val))}
+                      ariaLabel="週の目標消化回数"
+                      className="w-36"
                     />
-                    <span className="text-xs font-bold text-slate-500">回</span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1">
-                    {[1, 2, 3, 4, 5].map((c) => (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => setWeeklyTargetCount(c)}
-                        className={`rounded-md border px-2.5 py-0.5 text-[10px] font-bold transition ${
-                          weeklyTargetCount === c
-                            ? 'border-emerald-600 bg-emerald-600 text-white'
-                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        週{c}回
-                      </button>
-                    ))}
+                    <div className="flex flex-col gap-1 text-[11px] text-slate-500">
+                      <span className="font-bold text-slate-700">
+                        週 <span className="font-mono text-sm text-emerald-700">{weeklyTargetCount}</span> 回
+                      </span>
+                      <span className="text-[10px] text-slate-400">上下ロールで調整</span>
+                    </div>
                   </div>
                 </div>
               </div>
