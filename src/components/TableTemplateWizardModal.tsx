@@ -20,26 +20,15 @@ import {
   createFixedSlotTable,
   DailyRoutineTemplateInput,
 } from '@/lib/templates/tableTemplates';
-import { DrumRollPicker, DrumRollItem } from './DrumRollPicker';
+import { NumberStepper } from './NumberStepper';
+import { timeStringToMinutes, minutesToTimeString } from '@/lib/timeUtils';
 
-// ドラムロール用の選択肢定数
-const DURATION_ROLL_ITEMS: DrumRollItem<number>[] = [
-  ...Array.from({ length: 30 }, (_, i) => ({ value: i + 1, label: `${i + 1}` })), // 1〜30分 (1分刻み)
-  ...[35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 100, 110, 120, 135, 150, 180].map((m) => ({
-    value: m,
-    label: `${m}`,
-  })),
-];
-
-const DAILY_REPEAT_ROLL_ITEMS: DrumRollItem<number | 'auto'>[] = [
-  { value: 'auto', label: '自動 (推奨)' },
-  ...Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: `${i + 1}回` })),
-];
-
-const WEEKLY_REPEAT_ROLL_ITEMS: DrumRollItem<number>[] = Array.from({ length: 7 }, (_, i) => ({
-  value: i + 1,
-  label: `週${i + 1}回`,
-}));
+export interface WizardTaskItem {
+  id: string;
+  title: string;
+  durationMinutes: number;
+  startTime: string; // 例: "07:00"、空文字なら未指定
+}
 
 interface TableTemplateWizardModalProps {
   isOpen: boolean;
@@ -83,13 +72,63 @@ export function TableTemplateWizardModal({
       setDailyName(targetTable.name);
       setWeeklyTitle(targetTable.name);
       setFixedTitle(targetTable.name);
+
+      // 既存の表セルからタスク情報を読み取って multiTasks に初期反映
+      if (targetTable.cells && targetTable.cells.length > 0) {
+        const loadedTasks: WizardTaskItem[] = [];
+        targetTable.cells.forEach((row, rIdx) => {
+          const activeCell = row.find((c) => c && c.text);
+          if (activeCell) {
+            loadedTasks.push({
+              id: `row-${rIdx}-${Date.now()}`,
+              title: activeCell.title || activeCell.text || '',
+              durationMinutes: activeCell.customDurationMinutes || targetTable.axisConfig.periodMinutes || 30,
+              startTime: activeCell.customStartTime || '',
+            });
+          }
+        });
+        if (loadedTasks.length > 0) {
+          setMultiTasks(loadedTasks);
+        }
+      }
     }
   }, [targetTable]);
-  // 単一メニュー
-  const [singleTitle, setSingleTitle] = useState('ストレッチ');
-  const [singleDuration, setSingleDuration] = useState(20);
+  // 単一/複数メニュー（マルチタスクリスト）
+  const [multiTasks, setMultiTasks] = useState<WizardTaskItem[]>([
+    { id: '1', title: 'ストレッチ', durationMinutes: 20, startTime: '' },
+  ]);
   const [isSingleEveryday, setIsSingleEveryday] = useState(true); // 毎日実施（1マス最小表）
   const [singleTargetDays, setSingleTargetDays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
+
+  const handleAddTaskItem = () => {
+    const last = multiTasks[multiTasks.length - 1];
+    let nextStart = '';
+    if (last && last.startTime) {
+      const startM = timeStringToMinutes(last.startTime);
+      const endM = startM + (last.durationMinutes || 15);
+      nextStart = minutesToTimeString(endM % 1440);
+    }
+    setMultiTasks((prev) => [
+      ...prev,
+      {
+        id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        title: '',
+        durationMinutes: last ? last.durationMinutes : 15,
+        startTime: nextStart,
+      },
+    ]);
+  };
+
+  const handleRemoveTaskItem = (id: string) => {
+    if (multiTasks.length <= 1) return;
+    setMultiTasks((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleUpdateTaskItem = (id: string, updates: Partial<WizardTaskItem>) => {
+    setMultiTasks((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...updates } : item)),
+    );
+  };
   // 曜日別ローテーション
   const [weekdayRotationDays, setWeekdayRotationDays] = useState<
     Record<number, { title: string; durationMinutes: number }>
@@ -189,9 +228,20 @@ export function TableTemplateWizardModal({
       };
 
       if (dailyMode === 'single') {
+        const first = multiTasks[0];
         input.singleTask = {
-          title: singleTitle || '日課',
-          durationMinutes: singleDuration > 0 ? singleDuration : 30,
+          title: first?.title?.trim() || '日課',
+          durationMinutes: first?.durationMinutes && first.durationMinutes > 0 ? first.durationMinutes : 30,
+          startTime: first?.startTime?.trim() || undefined,
+          isEveryday: isSingleEveryday,
+          targetDays: !isSingleEveryday && singleTargetDays.length > 0 ? singleTargetDays : undefined,
+        };
+        input.multiTasks = {
+          items: multiTasks.map((t) => ({
+            title: t.title.trim() || '日課',
+            durationMinutes: t.durationMinutes > 0 ? t.durationMinutes : 15,
+            startTime: t.startTime.trim() || undefined,
+          })),
           isEveryday: isSingleEveryday,
           targetDays: !isSingleEveryday && singleTargetDays.length > 0 ? singleTargetDays : undefined,
         };
@@ -404,40 +454,106 @@ export function TableTemplateWizardModal({
                 </div>
               </div>
 
-              {/* A. 単一メニューの場合 */}
+              {/* A. 固定・日課メニュー（複数項目一括設定） */}
               {dailyMode === 'single' && (
                 <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4 space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">タスク名</label>
-                      <input
-                        type="text"
-                        value={singleTitle}
-                        onChange={(e) => setSingleTitle(e.target.value)}
-                        placeholder="例: ストレッチ、読書"
-                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-hidden"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                        1回の所要時間（ロールで選択）
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-bold text-slate-700">
+                        📋 設定する項目一覧（{multiTasks.length}件）
                       </label>
-                      <div className="flex items-center gap-2">
-                        <DrumRollPicker
-                          items={DURATION_ROLL_ITEMS}
-                          value={singleDuration}
-                          onChange={(val) => setSingleDuration(Number(val))}
-                          unit="分"
-                          ariaLabel="所要時間"
-                          className="w-36"
-                        />
-                        <div className="flex flex-col gap-1 text-[11px] text-slate-500">
-                          <span className="font-bold text-slate-700">
-                            現在: <span className="font-mono text-sm text-blue-700">{singleDuration}</span> 分
-                          </span>
-                          <span className="text-[10px] text-slate-400">上下にロールして調整</span>
+                      <button
+                        type="button"
+                        onClick={handleAddTaskItem}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-blue-300 bg-white text-[11px] font-bold text-blue-700 hover:bg-blue-50 hover:border-blue-400 transition shadow-2xs active:scale-95"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>項目を追加</span>
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      {multiTasks.map((item, idx) => (
+                        <div
+                          key={item.id}
+                          className="flex flex-col sm:flex-row sm:items-center gap-2 p-2.5 rounded-xl border border-blue-200/70 bg-white shadow-2xs"
+                        >
+                          {/* 上段（モバイル）/ 左側（デスクトップ）: 番号とタイトル、削除 */}
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <span className="text-xs font-bold text-slate-400 w-5 shrink-0 text-center">
+                              {idx + 1}.
+                            </span>
+                            <input
+                              type="text"
+                              value={item.title}
+                              onChange={(e) => handleUpdateTaskItem(item.id, { title: e.target.value })}
+                              placeholder={`例: ${idx === 0 ? 'ストレッチ' : idx === 1 ? '読書' : 'タスク名'}`}
+                              className="flex-1 min-w-0 rounded-lg border border-slate-200 bg-slate-50/50 px-2.5 py-1.5 text-xs text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-hidden transition"
+                            />
+                            {/* モバイル用削除ボタン */}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTaskItem(item.id)}
+                              disabled={multiTasks.length <= 1}
+                              aria-label="削除"
+                              className="sm:hidden p-1.5 text-slate-400 hover:text-red-500 disabled:opacity-30 disabled:hover:text-slate-400 transition"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+
+                          {/* 下段（モバイル）/ 右側（デスクトップ）: 所要時間ステッパー と 開始時刻 */}
+                          <div className="flex items-center justify-between sm:justify-start gap-2 pl-7 sm:pl-0 shrink-0">
+                            <div className="flex items-center gap-1.5">
+                              <NumberStepper
+                                value={item.durationMinutes}
+                                onChange={(val) => handleUpdateTaskItem(item.id, { durationMinutes: val })}
+                                min={5}
+                                max={720}
+                                step={5}
+                                unit="分"
+                                ariaLabel={`項目${idx + 1}の所要時間`}
+                              />
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                              <input
+                                type="time"
+                                value={item.startTime}
+                                onChange={(e) => handleUpdateTaskItem(item.id, { startTime: e.target.value })}
+                                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-mono font-bold text-slate-700 focus:border-blue-500 focus:outline-hidden"
+                                title="開始時刻（任意。空欄の場合は自動配置）"
+                              />
+                            </div>
+
+                            {/* デスクトップ用削除ボタン */}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTaskItem(item.id)}
+                              disabled={multiTasks.length <= 1}
+                              aria-label="削除"
+                              className="hidden sm:inline-flex p-1.5 text-slate-400 hover:text-red-500 disabled:opacity-30 disabled:hover:text-slate-400 transition"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2">
+                      <button
+                        type="button"
+                        onClick={handleAddTaskItem}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-blue-400 bg-blue-50/60 text-xs font-bold text-blue-700 hover:bg-blue-100 hover:border-blue-500 transition active:scale-95"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>項目を追加</span>
+                      </button>
+                      <span className="text-[10px] text-slate-400">
+                        ※ 各項目の開始時刻に応じて時系列順に自動整列されます
+                      </span>
                     </div>
                   </div>
 
@@ -677,27 +793,44 @@ export function TableTemplateWizardModal({
                 </div>
               )}
 
-              {/* 1日の実施回数（ドラムロール式・選択ボタン撤廃） */}
+              {/* 1日の実施回数（ステッパー式） */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  1日の目標回数（ロールで選択）
+                  1日の目標回数
                 </label>
-                <div className="flex items-center gap-3">
-                  <DrumRollPicker
-                    items={DAILY_REPEAT_ROLL_ITEMS}
-                    value={dailyRepeatCount}
-                    onChange={(val) => setDailyRepeatCount(val as number | 'auto')}
-                    ariaLabel="1日の目標回数"
-                    className="w-44"
-                  />
-                  <div className="flex flex-col gap-1 text-[11px] text-slate-500">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDailyRepeatCount(dailyRepeatCount === 'auto' ? 1 : 'auto')}
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition ${
+                        dailyRepeatCount === 'auto'
+                          ? 'border-blue-500 bg-blue-50 text-blue-800 ring-2 ring-blue-500/10'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      自動配分
+                    </button>
+                    {dailyRepeatCount !== 'auto' && (
+                      <NumberStepper
+                        value={dailyRepeatCount}
+                        onChange={(val) => setDailyRepeatCount(val)}
+                        min={1}
+                        max={12}
+                        step={1}
+                        unit="回/日"
+                        ariaLabel="1日の目標回数"
+                      />
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-500">
                     <span className="font-bold text-slate-700">
                       設定:{' '}
-                      <span className="text-blue-700">
+                      <span className="text-blue-700 font-bold">
                         {dailyRepeatCount === 'auto' ? '自動配分（空きコマ優先）' : `${dailyRepeatCount}回 / 日`}
                       </span>
                     </span>
-                    <span className="text-[10px] text-slate-400">
+                    <span className="text-[10px] text-slate-400 ml-2">
                       {dailyRepeatCount === 'auto'
                         ? 'スケジュール状況に応じて最適な回数を自動決定します'
                         : `1日の中で最大${dailyRepeatCount}回こなすよう配置されます`}
@@ -869,47 +1002,48 @@ export function TableTemplateWizardModal({
                 </div>
               )}
 
-              {/* 所要時間 & 週の目標回数（ドラムロール式） */}
+              {/* 所要時間 & 週の目標回数（ステッパー式） */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    1回の所要時間（ロールで選択）
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    1回の所要時間
                   </label>
-                  <div className="flex items-center gap-2">
-                    <DrumRollPicker
-                      items={DURATION_ROLL_ITEMS}
+                  <div className="flex items-center gap-3">
+                    <NumberStepper
                       value={weeklyDuration}
-                      onChange={(val) => setWeeklyDuration(Number(val))}
+                      onChange={(val) => setWeeklyDuration(val)}
+                      min={5}
+                      max={720}
+                      step={5}
                       unit="分"
                       ariaLabel="週タスク所要時間"
-                      className="w-36"
                     />
-                    <div className="flex flex-col gap-1 text-[11px] text-slate-500">
+                    <div className="text-[11px] text-slate-500">
                       <span className="font-bold text-slate-700">
                         <span className="font-mono text-sm text-emerald-700">{weeklyDuration}</span> 分 / 回
                       </span>
-                      <span className="text-[10px] text-slate-400">上下ロールで調整</span>
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    週の目標消化回数（ロールで選択）
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    週の目標消化回数
                   </label>
-                  <div className="flex items-center gap-2">
-                    <DrumRollPicker
-                      items={WEEKLY_REPEAT_ROLL_ITEMS}
+                  <div className="flex items-center gap-3">
+                    <NumberStepper
                       value={weeklyTargetCount}
-                      onChange={(val) => setWeeklyTargetCount(Number(val))}
+                      onChange={(val) => setWeeklyTargetCount(val)}
+                      min={1}
+                      max={7}
+                      step={1}
+                      unit="回/週"
                       ariaLabel="週の目標消化回数"
-                      className="w-36"
                     />
-                    <div className="flex flex-col gap-1 text-[11px] text-slate-500">
+                    <div className="text-[11px] text-slate-500">
                       <span className="font-bold text-slate-700">
                         週 <span className="font-mono text-sm text-emerald-700">{weeklyTargetCount}</span> 回
                       </span>
-                      <span className="text-[10px] text-slate-400">上下ロールで調整</span>
                     </div>
                   </div>
                 </div>

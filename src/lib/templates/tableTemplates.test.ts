@@ -85,6 +85,38 @@ describe('Table Templates Generator (Plan22 仮実装検証)', () => {
       expect(task.targetDays).toEqual([0, 1, 2, 3, 4]);
     });
 
+    it('マルチタスク（複数項目一括設定）: 複数行が生成され、開始時刻順に自動整列（Auto-Sort）されること', () => {
+      const table = createDailyRoutineTable({
+        name: 'モーニング＆ナイトルーティン',
+        mode: 'single',
+        multiTasks: {
+          items: [
+            { title: '夜の筋トレ', durationMinutes: 40, startTime: '21:00' },
+            { title: '朝の瞑想', durationMinutes: 10, startTime: '07:00' },
+            { title: '昼の読書', durationMinutes: 20, startTime: '12:30' },
+          ],
+          isEveryday: true,
+        },
+      });
+
+      expect(table.numRows).toBe(3);
+      expect(table.numCols).toBe(1);
+      expect(table.colHeaders).toEqual(['Day 1']);
+
+      // 開始時刻順に自動整列されていることを検証 (07:00 -> 12:30 -> 21:00)
+      expect(table.cells[0][0].title).toBe('朝の瞑想');
+      expect(table.cells[0][0].customStartTime).toBe('07:00');
+      expect(table.cells[0][0].customDurationMinutes).toBe(10);
+
+      expect(table.cells[1][0].title).toBe('昼の読書');
+      expect(table.cells[1][0].customStartTime).toBe('12:30');
+      expect(table.cells[1][0].customDurationMinutes).toBe(20);
+
+      expect(table.cells[2][0].title).toBe('夜の筋トレ');
+      expect(table.cells[2][0].customStartTime).toBe('21:00');
+      expect(table.cells[2][0].customDurationMinutes).toBe(40);
+    });
+
     it('曜日別ローテーション: 月〜金の科目別学習タスクが各曜日ごとに生成されること', () => {
       const table = createDailyRoutineTable({
         name: '英語学習（曜日別）',

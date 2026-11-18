@@ -1,9 +1,17 @@
 import { GridCell, ImportedTableData } from '@/types';
 import { timeStringToMinutes } from '../timeUtils';
+import { sortRowsByTime } from '../tableUtils';
 
 // ========================================================
 // テンプレート入力型定義
 // ========================================================
+
+export interface TemplateTaskItemInput {
+  title: string;
+  durationMinutes: number;
+  startTime?: string; // 例: "07:00"
+  url?: string;
+}
 
 export interface DailyMenuItem {
   title: string;
@@ -18,8 +26,16 @@ export interface DailyRoutineTemplateInput {
   singleTask?: {
     title: string;
     durationMinutes: number;
+    startTime?: string;
     isEveryday?: boolean; // true の場合は1行1列の最小表を生成
     targetDays?: number[]; // 曜日指定時（0:月〜6:日）
+  };
+
+  // 複数項目（マルチタスクリスト）の場合
+  multiTasks?: {
+    items: TemplateTaskItemInput[];
+    isEveryday?: boolean;
+    targetDays?: number[];
   };
 
   // 曜日別ローテーションの場合（月〜日でメニューを変える）
@@ -41,11 +57,17 @@ export interface DailyRoutineTemplateInput {
 }
 
 export interface WeeklyTaskTemplateInput {
+  name?: string; // 表の表示名
   title: string;
   durationMinutes: number;
   weeklyTargetCount: number | 'auto';
   expiryWeeks: 1 | 2 | 'none';
   timeRange?: { startTime: string | null; endTime: string | null };
+
+  // 複数項目（マルチタスクリスト）の場合
+  multiTasks?: {
+    items: TemplateTaskItemInput[];
+  };
 
   // 開始日時（出題日時）の指定オプション
   startConstraint?: {
@@ -59,10 +81,14 @@ export interface WeeklyTaskTemplateInput {
 }
 
 export interface FixedSlotTemplateInput {
+  name?: string;
   title: string;
   startTime: string;
   endTime: string;
   targetDays: number[]; // 0:月〜6:日
+  multiTasks?: {
+    items: Array<{ title: string; startTime: string; endTime: string; durationMinutes?: number; url?: string }>;
+  };
 }
 
 const WEEKDAY_HEADERS = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'];
@@ -190,39 +216,60 @@ export function createDailyRoutineTable(input: DailyRoutineTemplateInput): Impor
     };
   }
 
-  // mode === 'single' (単一メニュー)
-  const single = input.singleTask || {
-    title: input.name || '日課',
-    durationMinutes: 30,
-    isEveryday: true,
-  };
-  const duration = single.durationMinutes > 0 ? single.durationMinutes : 30;
+  // mode === 'single' または複数項目リスト
+  const taskItems: TemplateTaskItemInput[] =
+    input.multiTasks?.items && input.multiTasks.items.length > 0
+      ? input.multiTasks.items
+      : [
+          {
+            title: input.singleTask?.title || input.name || '日課',
+            durationMinutes: input.singleTask?.durationMinutes || 30,
+            startTime: input.singleTask?.startTime,
+          },
+        ];
 
-  // 毎日実施（Day 1 のみ設定 ＝ 毎日を意味するサイクル表）
+  const firstDuration = taskItems[0]?.durationMinutes || 30;
   const isEveryday =
-    single.isEveryday ??
-    (!single.targetDays || single.targetDays.length === 0 || single.targetDays.length === 7);
+    input.multiTasks?.isEveryday ??
+    input.singleTask?.isEveryday ??
+    (!input.singleTask?.targetDays ||
+      input.singleTask.targetDays.length === 0 ||
+      input.singleTask.targetDays.length === 7);
+
+  const targetDays = input.multiTasks?.targetDays ?? input.singleTask?.targetDays;
+  const targetDaysSet = new Set(targetDays || []);
+
+  const numRows = taskItems.length;
+  const rowHeaders = Array.from({ length: numRows }, (_, r) => String(r + 1));
+
+  let createdTable: ImportedTableData;
 
   if (isEveryday) {
-    const cells: GridCell[][] = [
-      [
+    const cells: GridCell[][] = taskItems.map((item, r) => {
+      const duration = item.durationMinutes > 0 ? item.durationMinutes : 30;
+      const itemStart = item.startTime ? timeStringToMinutes(item.startTime) : startMin;
+      return [
         {
           dayIndex: 0,
-          periodIndex: 1,
-          text: single.title,
-          title: single.title,
+          periodIndex: r + 1,
+          text: item.title,
+          title: item.title,
           roomOrNote: '',
-          rawLines: [single.title],
-          fullText: single.title,
-          startMinutes: startMin,
-          endMinutes: startMin + duration,
+          rawLines: [item.title],
+          fullText: item.title,
+          startMinutes: itemStart,
+          endMinutes: itemStart + duration,
+          customDurationMinutes: duration,
+          customStartTime: item.startTime,
+          hasCustomTime: Boolean(item.startTime),
+          url: item.url,
         },
-      ],
-    ];
+      ];
+    });
 
-    return {
+    createdTable = {
       id,
-      name: input.name || single.title,
+      name: input.name || taskItems[0]?.title || '日課',
       createdAt: now,
       updatedAt: now,
       placementMode: 'auto',
@@ -232,14 +279,67 @@ export function createDailyRoutineTable(input: DailyRoutineTemplateInput): Impor
       weeklyRepeatCount: 'auto',
       weeklyTaskExpiryWeeks: 1,
       isApplied: true,
-      numRows: 1,
+      numRows,
       numCols: 1,
       colHeaders: ['Day 1'],
-      rowHeaders: ['1'],
+      rowHeaders,
       axisConfig: {
         startTime: startTimeStr,
         endTime: endTimeStr,
-        periodMinutes: duration,
+        periodMinutes: firstDuration,
+        intervalMinutes: 0,
+        hasLunch: false,
+        lunchAfterPeriod: 1,
+        lunchMinutes: 50,
+        weeklyTaskExpiryWeeks: 1,
+      },
+      cells,
+    };
+  } else {
+    const cells: GridCell[][] = taskItems.map((item, r) => {
+      const duration = item.durationMinutes > 0 ? item.durationMinutes : 30;
+      const itemStart = item.startTime ? timeStringToMinutes(item.startTime) : startMin;
+
+      return Array.from({ length: 7 }, (_, c) => {
+        const isTarget = targetDaysSet.has(c);
+        return {
+          dayIndex: c,
+          periodIndex: r + 1,
+          text: isTarget ? item.title : null,
+          title: isTarget ? item.title : '',
+          roomOrNote: '',
+          rawLines: isTarget ? [item.title] : [],
+          fullText: isTarget ? item.title : '',
+          startMinutes: isTarget ? itemStart : 0,
+          endMinutes: isTarget ? itemStart + duration : 0,
+          customDurationMinutes: isTarget ? duration : undefined,
+          customStartTime: isTarget ? item.startTime : undefined,
+          hasCustomTime: isTarget ? Boolean(item.startTime) : undefined,
+          url: isTarget ? item.url : undefined,
+        };
+      });
+    });
+
+    createdTable = {
+      id,
+      name: input.name || taskItems[0]?.title || '日課',
+      createdAt: now,
+      updatedAt: now,
+      placementMode: 'auto',
+      columnMode: 'weekday',
+      cycleStartDay: 0,
+      dailyRepeatCount: input.dailyRepeatCount ?? 'auto',
+      weeklyRepeatCount: 'auto',
+      weeklyTaskExpiryWeeks: 1,
+      isApplied: true,
+      numRows,
+      numCols: 7,
+      colHeaders: [...WEEKDAY_HEADERS],
+      rowHeaders,
+      axisConfig: {
+        startTime: startTimeStr,
+        endTime: endTimeStr,
+        periodMinutes: firstDuration,
         intervalMinutes: 0,
         hasLunch: false,
         lunchAfterPeriod: 1,
@@ -250,54 +350,7 @@ export function createDailyRoutineTable(input: DailyRoutineTemplateInput): Impor
     };
   }
 
-  // 曜日を指定する場合のみ7列（月〜日）を展開
-  const targetDaysSet = new Set(single.targetDays || []);
-
-  const cells: GridCell[][] = [
-    Array.from({ length: 7 }, (_, c) => {
-      const isTarget = targetDaysSet.has(c);
-      return {
-        dayIndex: c,
-        periodIndex: 1,
-        text: isTarget ? single.title : null,
-        title: isTarget ? single.title : '',
-        roomOrNote: '',
-        rawLines: isTarget ? [single.title] : [],
-        fullText: isTarget ? single.title : '',
-        startMinutes: isTarget ? startMin : 0,
-        endMinutes: isTarget ? startMin + duration : 0,
-      };
-    }),
-  ];
-
-  return {
-    id,
-    name: input.name || single.title,
-    createdAt: now,
-    updatedAt: now,
-    placementMode: 'auto',
-    columnMode: 'weekday',
-    cycleStartDay: 0,
-    dailyRepeatCount: input.dailyRepeatCount ?? 'auto',
-    weeklyRepeatCount: 'auto',
-    weeklyTaskExpiryWeeks: 1,
-    isApplied: true,
-    numRows: 1,
-    numCols: 7,
-    colHeaders: [...WEEKDAY_HEADERS],
-    rowHeaders: ['1'],
-    axisConfig: {
-      startTime: startTimeStr,
-      endTime: endTimeStr,
-      periodMinutes: duration,
-      intervalMinutes: 0,
-      hasLunch: false,
-      lunchAfterPeriod: 1,
-      lunchMinutes: 50,
-      weeklyTaskExpiryWeeks: 1,
-    },
-    cells,
-  };
+  return sortRowsByTime(createdTable);
 }
 
 // ========================================================
