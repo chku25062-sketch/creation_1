@@ -305,9 +305,9 @@ export function SheetFooter({
       ref={footerRef}
       className="relative z-50 shrink-0 border-t border-slate-300 bg-[#ede8dc] px-2 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] select-none shadow-xs"
     >
-      <div className="mx-auto flex flex-nowrap w-full max-w-full items-center justify-between gap-x-1.5 sm:gap-x-2 h-9">
+      <div className="mx-auto flex flex-wrap sm:flex-nowrap w-full max-w-full items-center justify-between gap-x-2 gap-y-1 sm:h-9">
         {/* Left: Excel-style Sheet Tabs */}
-        <div className="flex items-center gap-1 min-w-0 flex-1 sm:flex-none">
+        <div className="flex items-center gap-1 overflow-x-auto order-1">
           {/* Sheet 1: 計画表 */}
           <button
             onClick={() => onTabChange('timeline')}
@@ -374,11 +374,11 @@ export function SheetFooter({
           )}
         </div>
 
-        {/* Center: App Title in available space (PCでのみ中央表示し、スマホの行数増加を根本防止) */}
-        <div className="hidden sm:flex sm:flex-1 items-center justify-center min-w-0 px-2 pointer-events-auto">
+        {/* Center / Row 2: App Title in available space (スマホでは2行目・PCでは中央) */}
+        <div className="order-3 sm:order-2 flex w-full sm:w-auto sm:flex-1 items-center justify-center min-w-0 px-2 pt-0.5 sm:pt-0 pointer-events-none sm:pointer-events-auto">
           <div className="flex items-center gap-1.5 truncate">
-            <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-blue-600 text-white shadow-2xs">
-              <Target className="h-3 w-3" />
+            <div className="flex h-4.5 w-4.5 sm:h-5 sm:w-5 shrink-0 items-center justify-center rounded bg-blue-600 text-white shadow-2xs">
+              <Target className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
             </div>
             <h1 className="text-xs sm:text-sm font-bold text-slate-800 tracking-tight truncate select-text">
               理論値計画表
@@ -387,7 +387,7 @@ export function SheetFooter({
         </div>
 
         {/* Right: Status and Menu Action */}
-        <div className="flex items-center gap-1.5 sm:gap-2 text-xs shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 text-xs order-2 sm:order-3 shrink-0">
           {/* Autosave Status */}
           {lastSavedAt && (
             <span
