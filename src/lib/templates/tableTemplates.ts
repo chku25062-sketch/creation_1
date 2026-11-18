@@ -85,6 +85,11 @@ export interface FixedSlotItemInput {
   startTime: string;
   endTime: string;
   targetDays?: number[]; // 0:月〜6:日、未指定時は全曜日
+  attachedTask?: {
+    enabled: boolean;
+    title?: string;
+    durationMinutes?: number;
+  };
 }
 
 export interface FixedSlotTemplateInput {
@@ -582,6 +587,7 @@ export function createFixedSlotTable(input: FixedSlotTemplateInput): ImportedTab
 
     return Array.from({ length: 7 }, (_, c) => {
       const isTarget = targetDaysSet.has(c);
+      const hasAttached = isTarget && item.attachedTask?.enabled;
       return {
         dayIndex: c,
         periodIndex: r + 1,
@@ -595,6 +601,16 @@ export function createFixedSlotTable(input: FixedSlotTemplateInput): ImportedTab
         customDurationMinutes: isTarget ? dur : undefined,
         customStartTime: isTarget ? item.startTime : undefined,
         hasCustomTime: isTarget ? true : undefined,
+        attachedTask: hasAttached
+          ? {
+              enabled: true,
+              title: item.attachedTask?.title?.trim() || `${item.title} の課題`,
+              durationMinutes:
+                item.attachedTask?.durationMinutes && item.attachedTask.durationMinutes > 0
+                  ? item.attachedTask.durationMinutes
+                  : 30,
+            }
+          : undefined,
       };
     });
   });

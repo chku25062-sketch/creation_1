@@ -379,5 +379,42 @@ describe('Table Templates Generator (Plan22 仮実装検証)', () => {
       expect(table.cells[2][0].text).toBe('アルバイト'); // 月曜は対象
       expect(table.cells[2][1].text).toBeNull(); // 火曜は非対象
     });
+
+    it('固定枠に付随タスクが設定された場合: 固定枠スロットとともに付随タスクが正しく生成されること', () => {
+      const table = createFixedSlotTable({
+        name: '大学講義',
+        multiSlots: {
+          items: [
+            {
+              title: 'アルゴリズム論',
+              startTime: '13:00',
+              endTime: '14:30',
+              targetDays: [2], // 水曜
+              attachedTask: {
+                enabled: true,
+                title: 'アルゴリズム課題レポート',
+                durationMinutes: 45,
+              },
+            },
+          ],
+        },
+      });
+
+      expect(table.placementMode).toBe('fixed');
+      const cell = table.cells[0][2]; // 水曜
+      expect(cell.attachedTask?.enabled).toBe(true);
+      expect(cell.attachedTask?.title).toBe('アルゴリズム課題レポート');
+      expect(cell.attachedTask?.durationMinutes).toBe(45);
+
+      const { slots, tasks } = generateScheduleItemsForTable(table);
+      expect(slots).toHaveLength(1);
+      expect(slots[0].title).toBe('アルゴリズム論');
+
+      // 付随タスクが自動生成されること（「〜のタスク」形式）
+      expect(tasks).toHaveLength(1);
+      expect(tasks[0].title).toBe('アルゴリズム論 のタスク');
+      expect(tasks[0].durationMinutes).toBe(45);
+      expect(tasks[0].isAttachedTask).toBe(true);
+    });
   });
 });
