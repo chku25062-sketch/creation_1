@@ -775,22 +775,35 @@ export function ImportedTablesManager({
     setEditingCell({ r, c });
     setCellEditText(cell.text || cell.title || '');
     setCellBreakMinutes(cell.breakMinutes || 0);
-    setCellCustomDuration(cell.customDurationMinutes || 0);
-    const rowStartTime = periodTimes[r] ? minutesToTimeString(periodTimes[r].startMinutes) : '07:00';
-    setCellCustomStartTime(cell.customStartTime || rowStartTime);
-    setCellHasCustomTime(Boolean(cell.hasCustomTime || cell.customStartTime));
-    setCellUrl(cell.url || '');
-    setCellAttachedEnabled(
-      cell.attachedTask?.enabled ?? activeTable.attachedTaskConfig?.enabled ?? false,
-    );
+
+    // 表の設定から算出したコマのデフォルト所要時間（分）
     const cellDefaultPeriod = Math.min(
-      180,
+      300,
       Math.max(
         1,
         (periodTimes[r]
           ? periodTimes[r].endMinutes - periodTimes[r].startMinutes
           : activeTable.axisConfig.periodMinutes) || 90,
       ),
+    );
+    // デフォルトで表の設定を参照して所要時間を入力
+    setCellCustomDuration(cell.customDurationMinutes || cellDefaultPeriod);
+
+    // 表の設定から算出したコマのデフォルト開始時刻（"HH:mm"）
+    const rowStartTime = periodTimes[r]
+      ? minutesToTimeString(periodTimes[r].startMinutes)
+      : activeTable.axisConfig.startTime &&
+        activeTable.axisConfig.startTime !== 'auto' &&
+        activeTable.axisConfig.startTime !== 'unset'
+        ? activeTable.axisConfig.startTime
+        : '09:00';
+    // デフォルトで表の設定を参照して開始時刻を入力
+    setCellCustomStartTime(cell.customStartTime || rowStartTime);
+    setCellHasCustomTime(cell.hasCustomTime !== undefined ? cell.hasCustomTime : true);
+
+    setCellUrl(cell.url || '');
+    setCellAttachedEnabled(
+      cell.attachedTask?.enabled ?? activeTable.attachedTaskConfig?.enabled ?? false,
     );
     setCellAttachedDuration(
       cell.attachedTask?.durationMinutes ||
@@ -3248,83 +3261,65 @@ export function ImportedTablesManager({
                   </span>
                 </div>
 
-                {/* 個別所要時間（Plan23） */}
+                {/* 所要時間（Plan23: デフォルトで表の設定を参照・直接編集可能） */}
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-xl">⏱</span>
                       <div>
-                        <div className="text-xs font-bold text-slate-800">個別所要時間</div>
+                        <div className="text-xs font-bold text-slate-800">所要時間</div>
                         <div className="text-[10px] text-slate-500">
-                          {cellCustomDuration > 0
-                            ? 'このコマ限定の所要時間'
-                            : `表の規定時間（${
-                                periodTimes[editingCell.r]
-                                  ? periodTimes[editingCell.r].endMinutes - periodTimes[editingCell.r].startMinutes
-                                  : activeTable.axisConfig.periodMinutes || 90
-                              }分）を使用中`}
+                          {periodTimes[editingCell.r]
+                            ? `表の設定（${periodTimes[editingCell.r].endMinutes - periodTimes[editingCell.r].startMinutes}分）から初期入力`
+                            : '表の設定から初期入力'}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      {cellCustomDuration > 0 ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => setCellCustomDuration(Math.max(5, cellCustomDuration - 5))}
-                            className="h-8 w-8 rounded-lg bg-white border border-slate-300 flex items-center justify-center font-bold text-slate-700 active:scale-95 shadow-2xs"
-                          >
-                            -
-                          </button>
-                          <span className="w-12 text-center font-mono font-bold text-sm text-blue-700">
-                            {cellCustomDuration}分
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setCellCustomDuration(Math.min(300, cellCustomDuration + 5))}
-                            className="h-8 w-8 rounded-lg bg-white border border-slate-300 flex items-center justify-center font-bold text-slate-700 active:scale-95 shadow-2xs"
-                          >
-                            +
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setCellCustomDuration(0)}
-                            className="text-[10px] text-slate-400 hover:text-slate-600 underline ml-1 cursor-pointer"
-                            title="表の規定時間に戻す"
-                          >
-                            リセット
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const defaultMins =
-                              (periodTimes[editingCell.r]
-                                ? periodTimes[editingCell.r].endMinutes - periodTimes[editingCell.r].startMinutes
-                                : activeTable.axisConfig.periodMinutes) || 90;
-                            setCellCustomDuration(defaultMins);
-                          }}
-                          className="text-xs font-semibold text-blue-600 bg-white border border-blue-200 rounded-lg px-2.5 py-1 hover:bg-blue-50 active:scale-95 shadow-2xs cursor-pointer"
-                        >
-                          個別指定する
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => setCellCustomDuration(Math.max(5, cellCustomDuration - 5))}
+                        className="h-8 w-8 rounded-lg bg-white border border-slate-300 flex items-center justify-center font-bold text-slate-700 active:scale-95 shadow-2xs cursor-pointer"
+                      >
+                        -
+                      </button>
+                      <span className="w-12 text-center font-mono font-bold text-sm text-blue-700">
+                        {cellCustomDuration}分
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setCellCustomDuration(Math.min(300, cellCustomDuration + 5))}
+                        className="h-8 w-8 rounded-lg bg-white border border-slate-300 flex items-center justify-center font-bold text-slate-700 active:scale-95 shadow-2xs cursor-pointer"
+                      >
+                        +
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const defaultMins =
+                            (periodTimes[editingCell.r]
+                              ? periodTimes[editingCell.r].endMinutes - periodTimes[editingCell.r].startMinutes
+                              : activeTable.axisConfig.periodMinutes) || 90;
+                          setCellCustomDuration(defaultMins);
+                        }}
+                        className="text-[10px] text-slate-400 hover:text-slate-600 underline ml-1 cursor-pointer"
+                        title="表の規定時間に戻す"
+                      >
+                        リセット
+                      </button>
                     </div>
                   </div>
                 </div>
 
-                {/* 開始時刻の個別指定（Plan23） */}
+                {/* 開始時刻（Plan23: デフォルトで表の設定を参照・直接編集可能） */}
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-xl">🕒</span>
                       <div>
-                        <div className="text-xs font-bold text-slate-800">開始時刻の個別指定</div>
+                        <div className="text-xs font-bold text-slate-800">開始時刻</div>
                         <div className="text-[10px] text-slate-500">
-                          {cellHasCustomTime
-                            ? 'このコマの開始時刻を固定'
-                            : '指定なし（表のコマ時刻または空き枠に自動配置）'}
+                          {cellHasCustomTime ? '表の設定から初期入力（変更可能）' : '指定なし（自動配置）'}
                         </div>
                       </div>
                     </div>
@@ -3336,6 +3331,7 @@ export function ImportedTablesManager({
                       className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
                         cellHasCustomTime ? 'bg-blue-600' : 'bg-slate-300'
                       }`}
+                      title={cellHasCustomTime ? '時刻指定を解除（空き枠自動配置）' : '時刻を指定'}
                     >
                       <span
                         className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
@@ -3347,12 +3343,27 @@ export function ImportedTablesManager({
                   {cellHasCustomTime && (
                     <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between">
                       <span className="text-xs font-medium text-slate-600">開始時刻:</span>
-                      <input
-                        type="time"
-                        value={cellCustomStartTime}
-                        onChange={(e) => setCellCustomStartTime(e.target.value)}
-                        className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-sm font-mono font-bold text-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-hidden"
-                      />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="time"
+                          value={cellCustomStartTime}
+                          onChange={(e) => setCellCustomStartTime(e.target.value)}
+                          className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-sm font-mono font-bold text-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const rowStart = periodTimes[editingCell.r]
+                              ? minutesToTimeString(periodTimes[editingCell.r].startMinutes)
+                              : '09:00';
+                            setCellCustomStartTime(rowStart);
+                          }}
+                          className="text-[10px] text-slate-400 hover:text-slate-600 underline cursor-pointer"
+                          title="表の開始時刻に戻す"
+                        >
+                          リセット
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -3603,74 +3614,58 @@ export function ImportedTablesManager({
                 className="w-full rounded-lg border border-slate-300 p-2 text-xs focus:border-blue-500 focus:outline-hidden"
               />
 
-              {/* 個別所要時間（Plan23） */}
+              {/* 所要時間（Plan23: デフォルトで表の設定を参照・直接編集可能） */}
               <div className="mt-2.5 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
                 <div className="flex items-center gap-1.5">
                   <span className="text-base">⏱</span>
                   <div>
-                    <div className="text-xs font-bold text-slate-800">個別所要時間</div>
+                    <div className="text-xs font-bold text-slate-800">所要時間</div>
                     <div className="text-[10px] text-slate-500">
-                      {cellCustomDuration > 0
-                        ? '個別指定'
-                        : `表の規定時間（${
-                            periodTimes[editingCell.r]
-                              ? periodTimes[editingCell.r].endMinutes - periodTimes[editingCell.r].startMinutes
-                              : activeTable.axisConfig.periodMinutes || 90
-                          }分）`}
+                      {periodTimes[editingCell.r]
+                        ? `表の設定（${periodTimes[editingCell.r].endMinutes - periodTimes[editingCell.r].startMinutes}分）から初期入力`
+                        : '表の設定から初期入力'}
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  {cellCustomDuration > 0 ? (
-                    <>
-                      <input
-                        type="number"
-                        min={5}
-                        max={300}
-                        step={5}
-                        value={cellCustomDuration}
-                        onChange={(e) =>
-                          setCellCustomDuration(Math.max(5, parseInt(e.target.value, 10) || 5))
-                        }
-                        className="w-16 rounded border border-blue-300 bg-white px-2 py-1 font-mono text-xs text-center text-blue-700 font-bold focus:border-blue-500 focus:outline-hidden"
-                      />
-                      <span className="text-xs text-slate-500 font-medium">分</span>
-                      <button
-                        type="button"
-                        onClick={() => setCellCustomDuration(0)}
-                        className="text-[10px] text-slate-400 hover:text-slate-600 underline ml-0.5 cursor-pointer"
-                        title="表の規定時間に戻す"
-                      >
-                        リセット
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const defaultMins =
-                          (periodTimes[editingCell.r]
-                            ? periodTimes[editingCell.r].endMinutes - periodTimes[editingCell.r].startMinutes
-                            : activeTable.axisConfig.periodMinutes) || 90;
-                        setCellCustomDuration(defaultMins);
-                      }}
-                      className="text-[11px] font-semibold text-blue-600 bg-white border border-blue-200 rounded px-2 py-0.5 hover:bg-blue-50 transition cursor-pointer"
-                    >
-                      個別指定
-                    </button>
-                  )}
+                  <input
+                    type="number"
+                    min={5}
+                    max={300}
+                    step={5}
+                    value={cellCustomDuration}
+                    onChange={(e) =>
+                      setCellCustomDuration(Math.max(5, parseInt(e.target.value, 10) || 5))
+                    }
+                    className="w-16 rounded border border-blue-300 bg-white px-2 py-1 font-mono text-xs text-center text-blue-700 font-bold focus:border-blue-500 focus:outline-hidden"
+                  />
+                  <span className="text-xs text-slate-500 font-medium">分</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const defaultMins =
+                        (periodTimes[editingCell.r]
+                          ? periodTimes[editingCell.r].endMinutes - periodTimes[editingCell.r].startMinutes
+                          : activeTable.axisConfig.periodMinutes) || 90;
+                      setCellCustomDuration(defaultMins);
+                    }}
+                    className="text-[10px] text-slate-400 hover:text-slate-600 underline ml-0.5 cursor-pointer"
+                    title="表の規定時間に戻す"
+                  >
+                    リセット
+                  </button>
                 </div>
               </div>
 
-              {/* 開始時刻の個別指定（Plan23） */}
+              {/* 開始時刻（Plan23: デフォルトで表の設定を参照・直接編集可能） */}
               <div className="mt-2.5 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <span className="text-base">🕒</span>
                     <div>
-                      <div className="text-xs font-bold text-slate-800">開始時刻の個別指定</div>
+                      <div className="text-xs font-bold text-slate-800">開始時刻</div>
                       <div className="text-[10px] text-slate-500">
-                        {cellHasCustomTime ? '開始時刻を固定' : '指定なし（自動配置）'}
+                        {cellHasCustomTime ? '表の設定から初期入力（変更可能）' : '指定なし（自動配置）'}
                       </div>
                     </div>
                   </div>
@@ -3687,12 +3682,27 @@ export function ImportedTablesManager({
                 {cellHasCustomTime && (
                   <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between">
                     <span className="text-[10px] text-slate-500">開始時刻:</span>
-                    <input
-                      type="time"
-                      value={cellCustomStartTime}
-                      onChange={(e) => setCellCustomStartTime(e.target.value)}
-                      className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-mono font-bold text-slate-800 focus:border-blue-500 focus:outline-hidden"
-                    />
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="time"
+                        value={cellCustomStartTime}
+                        onChange={(e) => setCellCustomStartTime(e.target.value)}
+                        className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-mono font-bold text-slate-800 focus:border-blue-500 focus:outline-hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const rowStart = periodTimes[editingCell.r]
+                            ? minutesToTimeString(periodTimes[editingCell.r].startMinutes)
+                            : '09:00';
+                          setCellCustomStartTime(rowStart);
+                        }}
+                        className="text-[10px] text-slate-400 hover:text-slate-600 underline cursor-pointer"
+                        title="表の開始時刻に戻す"
+                      >
+                        リセット
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
