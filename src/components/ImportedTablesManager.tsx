@@ -29,8 +29,10 @@ import {
   Smartphone,
   Settings,
   Copy,
+  ClipboardPaste,
   RotateCcw,
   Sparkles,
+  ExternalLink,
 } from 'lucide-react';
 import { TableTemplateWizardModal } from '@/components/TableTemplateWizardModal';
 import { TABLE_PALETTE_OPTIONS, getTableColorSchemeByIndex } from '@/components/Timeline24h';
@@ -41,7 +43,7 @@ import {
   ScheduleInclusionSettings,
   TablePlacementMode,
 } from '@/types';
-import { calculatePeriodTimes, timeStringToMinutes } from '@/lib/timeUtils';
+import { calculatePeriodTimes, timeStringToMinutes, minutesToTimeString } from '@/lib/timeUtils';
 import { matrixToCsv } from '@/lib/importers/gridDetection';
 import {
   getTableClassification,
@@ -56,6 +58,7 @@ import {
   setTableNumCols,
   generateScheduleItemsForTable,
   parseColHeader,
+  sortRowsByTime,
 } from '@/lib/tableUtils';
 import { TaskManager } from '@/components/TaskManager';
 
@@ -326,11 +329,31 @@ export function ImportedTablesManager({
   const [editingCell, setEditingCell] = useState<{ r: number; c: number } | null>(null);
   const [cellEditText, setCellEditText] = useState('');
   const [cellBreakMinutes, setCellBreakMinutes] = useState<number>(0);
+  const [cellCustomDuration, setCellCustomDuration] = useState<number>(0);
+  const [cellHasCustomTime, setCellHasCustomTime] = useState<boolean>(false);
+  const [cellCustomStartTime, setCellCustomStartTime] = useState<string>('07:00');
+  const [cellUrl, setCellUrl] = useState<string>('');
   const [cellAttachedEnabled, setCellAttachedEnabled] = useState<boolean>(false);
   const [cellAttachedDuration, setCellAttachedDuration] = useState<number>(15);
   const [cellAttachedAllowSplit, setCellAttachedAllowSplit] = useState<boolean>(false);
   const [cellAttachedSplitCount, setCellAttachedSplitCount] = useState<number>(2);
   const [cellAttachedMinSplit, setCellAttachedMinSplit] = useState<number>(15);
+
+  // コマのコピー・ペースト用ステート（Plan23）
+  const [copiedCellData, setCopiedCellData] = useState<{
+    text: string;
+    breakMinutes: number;
+    customDurationMinutes?: number;
+    customStartTime?: string;
+    hasCustomTime?: boolean;
+    url?: string;
+    attachedEnabled: boolean;
+    attachedDuration: number;
+    attachedAllowSplit: boolean;
+    attachedSplitCount: number;
+    attachedMinSplit: number;
+  } | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState<boolean>(false);
 
   const [applySuccessMsg, setApplySuccessMsg] = useState<string | null>(null);
 
@@ -750,6 +773,11 @@ export function ImportedTablesManager({
     setEditingCell({ r, c });
     setCellEditText(cell.text || cell.title || '');
     setCellBreakMinutes(cell.breakMinutes || 0);
+    setCellCustomDuration(cell.customDurationMinutes || 0);
+    const rowStartTime = periodTimes[r] ? minutesToTimeString(periodTimes[r].startMinutes) : '07:00';
+    setCellCustomStartTime(cell.customStartTime || rowStartTime);
+    setCellHasCustomTime(Boolean(cell.hasCustomTime || cell.customStartTime));
+    setCellUrl(cell.url || '');
     setCellAttachedEnabled(
       cell.attachedTask?.enabled ?? activeTable.attachedTaskConfig?.enabled ?? false,
     );
@@ -778,6 +806,51 @@ export function ImportedTablesManager({
     );
   };
 
+  // コマ設定のコピー（Plan23: アイコンで操作）
+  const handleCopyCell = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCopiedCellData({
+      text: cellEditText,
+      breakMinutes: cellBreakMinutes,
+      customDurationMinutes: cellCustomDuration,
+      customStartTime: cellCustomStartTime,
+      hasCustomTime: cellHasCustomTime,
+      url: cellUrl,
+      attachedEnabled: cellAttachedEnabled,
+      attachedDuration: cellAttachedDuration,
+      attachedAllowSplit: cellAttachedAllowSplit,
+      attachedSplitCount: cellAttachedSplitCount,
+      attachedMinSplit: cellAttachedMinSplit,
+    });
+    setCopyFeedback(true);
+    setTimeout(() => setCopyFeedback(false), 1500);
+  };
+
+  // コマ設定の貼り付け（Plan23: アイコンで操作）
+  const handlePasteCell = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!copiedCellData) return;
+    setCellEditText(copiedCellData.text);
+    setCellBreakMinutes(copiedCellData.breakMinutes);
+    if (copiedCellData.customDurationMinutes !== undefined) {
+      setCellCustomDuration(copiedCellData.customDurationMinutes);
+    }
+    if (copiedCellData.hasCustomTime !== undefined) {
+      setCellHasCustomTime(copiedCellData.hasCustomTime);
+      if (copiedCellData.customStartTime) {
+        setCellCustomStartTime(copiedCellData.customStartTime);
+      }
+    }
+    if (copiedCellData.url !== undefined) {
+      setCellUrl(copiedCellData.url);
+    }
+    setCellAttachedEnabled(copiedCellData.attachedEnabled);
+    setCellAttachedDuration(copiedCellData.attachedDuration);
+    setCellAttachedAllowSplit(copiedCellData.attachedAllowSplit);
+    setCellAttachedSplitCount(copiedCellData.attachedSplitCount);
+    setCellAttachedMinSplit(copiedCellData.attachedMinSplit);
+  };
+
   const handleSaveEditCell = () => {
     if (!editingCell) return;
     const { r, c } = editingCell;
@@ -798,6 +871,10 @@ export function ImportedTablesManager({
               fullText: trimmed,
               rawLines: lines,
               breakMinutes: cellBreakMinutes > 0 ? cellBreakMinutes : undefined,
+              customDurationMinutes: cellCustomDuration > 0 ? cellCustomDuration : undefined,
+              customStartTime: cellHasCustomTime && cellCustomStartTime ? cellCustomStartTime : undefined,
+              hasCustomTime: cellHasCustomTime,
+              url: cellUrl.trim() ? cellUrl.trim() : undefined,
               attachedTask: cellAttachedEnabled
                 ? {
                     enabled: true,
@@ -816,11 +893,13 @@ export function ImportedTablesManager({
           return cell;
         }),
       );
-      return {
+      const nextTable: ImportedTableData = {
         ...prev,
         cells: nextCells,
         updatedAt: new Date().toISOString(),
       };
+      // 保存時に開始時間順に自動並び替え（Plan23）
+      return sortRowsByTime(nextTable);
     });
 
     setEditingCell(null);
@@ -2958,13 +3037,39 @@ export function ImportedTablesManager({
                       </p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setEditingCell(null)}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 active:scale-95 transition"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    {/* コピーアイコン */}
+                    <button
+                      type="button"
+                      onClick={handleCopyCell}
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 active:scale-95 transition relative cursor-pointer"
+                      title="このコマの内容と設定をコピー"
+                    >
+                      <Copy className="h-4 w-4" />
+                      {copyFeedback && (
+                        <span className="absolute -top-7 right-0 bg-slate-800 text-white text-[10px] px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap animate-in fade-in">
+                          コピー済
+                        </span>
+                      )}
+                    </button>
+                    {/* ペーストアイコン */}
+                    <button
+                      type="button"
+                      onClick={handlePasteCell}
+                      disabled={!copiedCellData}
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 active:scale-95 transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                      title={copiedCellData ? 'コピーした内容を貼り付け' : 'クリップボードが空です'}
+                    >
+                      <ClipboardPaste className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingCell(null)}
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 active:scale-95 transition cursor-pointer"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -2985,6 +3090,146 @@ export function ImportedTablesManager({
                   <span className="text-[10px] text-slate-400 mt-0.5 block">
                     改行すると2行目以降が場所・メモとして小さく表示されます
                   </span>
+                </div>
+
+                {/* 個別所要時間（Plan23） */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">⏱</span>
+                      <div>
+                        <div className="text-xs font-bold text-slate-800">個別所要時間</div>
+                        <div className="text-[10px] text-slate-500">
+                          {cellCustomDuration > 0
+                            ? 'このコマ限定の所要時間'
+                            : `表の規定時間（${
+                                periodTimes[editingCell.r]
+                                  ? periodTimes[editingCell.r].endMinutes - periodTimes[editingCell.r].startMinutes
+                                  : activeTable.axisConfig.periodMinutes || 90
+                              }分）を使用中`}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {cellCustomDuration > 0 ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setCellCustomDuration(Math.max(5, cellCustomDuration - 5))}
+                            className="h-8 w-8 rounded-lg bg-white border border-slate-300 flex items-center justify-center font-bold text-slate-700 active:scale-95 shadow-2xs"
+                          >
+                            -
+                          </button>
+                          <span className="w-12 text-center font-mono font-bold text-sm text-blue-700">
+                            {cellCustomDuration}分
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setCellCustomDuration(Math.min(300, cellCustomDuration + 5))}
+                            className="h-8 w-8 rounded-lg bg-white border border-slate-300 flex items-center justify-center font-bold text-slate-700 active:scale-95 shadow-2xs"
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCellCustomDuration(0)}
+                            className="text-[10px] text-slate-400 hover:text-slate-600 underline ml-1 cursor-pointer"
+                            title="表の規定時間に戻す"
+                          >
+                            リセット
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const defaultMins =
+                              (periodTimes[editingCell.r]
+                                ? periodTimes[editingCell.r].endMinutes - periodTimes[editingCell.r].startMinutes
+                                : activeTable.axisConfig.periodMinutes) || 90;
+                            setCellCustomDuration(defaultMins);
+                          }}
+                          className="text-xs font-semibold text-blue-600 bg-white border border-blue-200 rounded-lg px-2.5 py-1 hover:bg-blue-50 active:scale-95 shadow-2xs cursor-pointer"
+                        >
+                          個別指定する
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 開始時刻の個別指定（Plan23） */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">🕒</span>
+                      <div>
+                        <div className="text-xs font-bold text-slate-800">開始時刻の個別指定</div>
+                        <div className="text-[10px] text-slate-500">
+                          {cellHasCustomTime
+                            ? 'このコマの開始時刻を固定'
+                            : '指定なし（表のコマ時刻または空き枠に自動配置）'}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={cellHasCustomTime}
+                      onClick={() => setCellHasCustomTime(!cellHasCustomTime)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                        cellHasCustomTime ? 'bg-blue-600' : 'bg-slate-300'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                          cellHasCustomTime ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  {cellHasCustomTime && (
+                    <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between">
+                      <span className="text-xs font-medium text-slate-600">開始時刻:</span>
+                      <input
+                        type="time"
+                        value={cellCustomStartTime}
+                        onChange={(e) => setCellCustomStartTime(e.target.value)}
+                        className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-sm font-mono font-bold text-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-hidden"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* 関連URL（Plan23） */}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">🔗</span>
+                      <div>
+                        <div className="text-xs font-bold text-slate-800">関連URL</div>
+                        <div className="text-[10px] text-slate-500">Zoom / Meet / LMS課題リンクなど</div>
+                      </div>
+                    </div>
+                    {cellUrl.trim() && (
+                      <a
+                        href={cellUrl.trim()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md hover:bg-blue-100 transition"
+                      >
+                        <span>開く</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </div>
+                  <input
+                    type="url"
+                    value={cellUrl}
+                    onChange={(e) => setCellUrl(e.target.value)}
+                    placeholder="https://zoom.us/... や LMSのURL"
+                    className="w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-hidden"
+                  />
                 </div>
 
                 {/* タスク後の休憩時間 */}
@@ -3152,19 +3397,45 @@ export function ImportedTablesManager({
           >
             <div
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-4 shadow-xl animate-in zoom-in-95 duration-150 cursor-default"
+              className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-4 shadow-xl animate-in zoom-in-95 duration-150 cursor-default max-h-[90vh] overflow-y-auto"
             >
               <div className="mb-2.5 flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-800">
                   コマ内容を編集 ({editingCell.r + 1}行目・{activeTable.colHeaders[editingCell.c]})
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setEditingCell(null)}
-                  className="text-slate-400 hover:text-slate-600 transition p-1 cursor-pointer"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center gap-1">
+                  {/* コピーアイコン */}
+                  <button
+                    type="button"
+                    onClick={handleCopyCell}
+                    className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition relative cursor-pointer"
+                    title="このコマの内容と設定をコピー"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    {copyFeedback && (
+                      <span className="absolute -top-7 right-0 bg-slate-800 text-white text-[10px] px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap animate-in fade-in">
+                        コピー済
+                      </span>
+                    )}
+                  </button>
+                  {/* ペーストアイコン */}
+                  <button
+                    type="button"
+                    onClick={handlePasteCell}
+                    disabled={!copiedCellData}
+                    className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                    title={copiedCellData ? 'コピーした内容を貼り付け' : 'クリップボードが空です'}
+                  >
+                    <ClipboardPaste className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingCell(null)}
+                    className="text-slate-400 hover:text-slate-600 transition p-1 cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
 
               {/* コマ内容入力 */}
@@ -3175,6 +3446,128 @@ export function ImportedTablesManager({
                 placeholder="1行目: コマ名称（講義名・メニュー・日課名など）&#13;&#10;2行目以降: 場所・メモ・詳細"
                 className="w-full rounded-lg border border-slate-300 p-2 text-xs focus:border-blue-500 focus:outline-hidden"
               />
+
+              {/* 個別所要時間（Plan23） */}
+              <div className="mt-2.5 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-base">⏱</span>
+                  <div>
+                    <div className="text-xs font-bold text-slate-800">個別所要時間</div>
+                    <div className="text-[10px] text-slate-500">
+                      {cellCustomDuration > 0
+                        ? '個別指定'
+                        : `表の規定時間（${
+                            periodTimes[editingCell.r]
+                              ? periodTimes[editingCell.r].endMinutes - periodTimes[editingCell.r].startMinutes
+                              : activeTable.axisConfig.periodMinutes || 90
+                          }分）`}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  {cellCustomDuration > 0 ? (
+                    <>
+                      <input
+                        type="number"
+                        min={5}
+                        max={300}
+                        step={5}
+                        value={cellCustomDuration}
+                        onChange={(e) =>
+                          setCellCustomDuration(Math.max(5, parseInt(e.target.value, 10) || 5))
+                        }
+                        className="w-16 rounded border border-blue-300 bg-white px-2 py-1 font-mono text-xs text-center text-blue-700 font-bold focus:border-blue-500 focus:outline-hidden"
+                      />
+                      <span className="text-xs text-slate-500 font-medium">分</span>
+                      <button
+                        type="button"
+                        onClick={() => setCellCustomDuration(0)}
+                        className="text-[10px] text-slate-400 hover:text-slate-600 underline ml-0.5 cursor-pointer"
+                        title="表の規定時間に戻す"
+                      >
+                        リセット
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const defaultMins =
+                          (periodTimes[editingCell.r]
+                            ? periodTimes[editingCell.r].endMinutes - periodTimes[editingCell.r].startMinutes
+                            : activeTable.axisConfig.periodMinutes) || 90;
+                        setCellCustomDuration(defaultMins);
+                      }}
+                      className="text-[11px] font-semibold text-blue-600 bg-white border border-blue-200 rounded px-2 py-0.5 hover:bg-blue-50 transition cursor-pointer"
+                    >
+                      個別指定
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 開始時刻の個別指定（Plan23） */}
+              <div className="mt-2.5 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-base">🕒</span>
+                    <div>
+                      <div className="text-xs font-bold text-slate-800">開始時刻の個別指定</div>
+                      <div className="text-[10px] text-slate-500">
+                        {cellHasCustomTime ? '開始時刻を固定' : '指定なし（自動配置）'}
+                      </div>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={cellHasCustomTime}
+                      onChange={(e) => setCellHasCustomTime(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-8 h-4 bg-slate-300 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+                {cellHasCustomTime && (
+                  <div className="mt-2 pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                    <span className="text-[10px] text-slate-500">開始時刻:</span>
+                    <input
+                      type="time"
+                      value={cellCustomStartTime}
+                      onChange={(e) => setCellCustomStartTime(e.target.value)}
+                      className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-mono font-bold text-slate-800 focus:border-blue-500 focus:outline-hidden"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* 関連URL（Plan23） */}
+              <div className="mt-2.5 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-base">🔗</span>
+                    <span className="text-xs font-bold text-slate-800">関連URL</span>
+                  </div>
+                  {cellUrl.trim() && (
+                    <a
+                      href={cellUrl.trim()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-0.5 text-[10px] font-medium text-blue-600 hover:underline"
+                    >
+                      <span>開く</span>
+                      <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                  )}
+                </div>
+                <input
+                  type="url"
+                  value={cellUrl}
+                  onChange={(e) => setCellUrl(e.target.value)}
+                  placeholder="https://zoom.us/... や LMS等のURL"
+                  className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-hidden"
+                />
+              </div>
 
               {/* タスク後の休憩時間 */}
               <div className="mt-3 flex items-center justify-between rounded-lg border border-slate-200 bg-emerald-50/50 p-2.5">

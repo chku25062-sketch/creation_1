@@ -159,6 +159,7 @@ export class SlotManager {
           dayIndex: d,
           sourceTableId: slot.sourceTableId,
           sourceTableName: slot.sourceTableName,
+          url: slot.url,
         });
 
         slotsWithBreaks.push(slot);

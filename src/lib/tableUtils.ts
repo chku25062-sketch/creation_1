@@ -256,6 +256,80 @@ export function removeRowAtIndex(table: ImportedTableData, rowIndex: number): Im
 }
 
 /**
+ * 表内の行を開始時間順（時系列昇順: 早朝 → 夜）に自動ソート
+ * 各行のセルから代表開始時刻を取得し、早い順に並び替える。
+ * 開始時刻未指定の行は末尾に配置。
+ */
+export function sortRowsByTime(table: ImportedTableData): ImportedTableData {
+  if (table.numRows <= 1) return table;
+
+  // 各行の代表開始時刻（分）と元のインデックスを計算
+  const rowData = table.cells.map((rowCells, origIdx) => {
+    let earliestMin = Infinity;
+
+    for (const cell of rowCells) {
+      if (!cell.text || cell.text.trim() === '') continue;
+
+      if (cell.customStartTime) {
+        const m = timeStringToMinutes(cell.customStartTime);
+        if (m < earliestMin) earliestMin = m;
+      } else if (cell.startMinutes !== undefined && cell.startMinutes > 0) {
+        if (cell.startMinutes < earliestMin) earliestMin = cell.startMinutes;
+      }
+    }
+
+    // もし有効なテキストセルがなくても、セル自体にcustomStartTimeがある場合
+    if (earliestMin === Infinity) {
+      for (const cell of rowCells) {
+        if (cell.customStartTime) {
+          const m = timeStringToMinutes(cell.customStartTime);
+          if (m < earliestMin) earliestMin = m;
+        }
+      }
+    }
+
+    return {
+      origIdx,
+      rowCells,
+      earliestMin,
+    };
+  });
+
+  // 昇順ソート（earliestMinが小さい順、同着なら元のインデックス順を維持）
+  rowData.sort((a, b) => {
+    if (a.earliestMin !== b.earliestMin) {
+      return a.earliestMin - b.earliestMin;
+    }
+    return a.origIdx - b.origIdx;
+  });
+
+  // すでにソート済みか確認（変更がなければオブジェクト参照を維持）
+  const isUnchanged = rowData.every((item, idx) => item.origIdx === idx);
+  if (isUnchanged) return table;
+
+  // 新しいセル配列（periodIndexを新しい行番号に更新）
+  const nextCells = rowData.map((item, newRowIdx) =>
+    item.rowCells.map((cell) => ({
+      ...cell,
+      periodIndex: newRowIdx + 1,
+    }))
+  );
+
+  // 行ヘッダーの扱い: 通常の連番なら連番のまま、カスタム名なら行と一緒に並び替え
+  const isDefaultNumberedHeaders = table.rowHeaders.every((h, idx) => h === `${idx + 1}`);
+  const nextRowHeaders = isDefaultNumberedHeaders
+    ? nextCells.map((_, idx) => `${idx + 1}`)
+    : rowData.map((item) => table.rowHeaders[item.origIdx] || `${item.origIdx + 1}`);
+
+  return {
+    ...table,
+    cells: nextCells,
+    rowHeaders: nextRowHeaders,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
  * 表に新しい列を右端に追加
  */
 /**
@@ -502,6 +576,9 @@ export function generateScheduleItemsForTable(
                 effectiveBreakMinutes,
               );
             }
+            if (cell.url && !existingSlot.url) {
+              existingSlot.url = cell.url;
+            }
           } else {
             const slotId = `slot-table-${table.id}-${r}-${c}`;
             const slotStart =
@@ -520,6 +597,7 @@ export function generateScheduleItemsForTable(
               daysOfWeek: days,
               sourceTableId: table.id,
               sourceTableName: table.name,
+              url: cell.url || undefined,
             });
           }
         }
@@ -576,12 +654,15 @@ export function generateScheduleItemsForTable(
           }
         } else {
           const taskId = `task-table-${table.id}-${r}-${c}`;
+          const cellCustomStart = cell.customStartTime ? timeStringToMinutes(cell.customStartTime) : undefined;
           const duration =
-            cell.endMinutes !== undefined &&
-            cell.startMinutes !== undefined &&
-            cell.endMinutes > cell.startMinutes
-              ? cell.endMinutes - cell.startMinutes
-              : table.axisConfig.periodMinutes || 30;
+            cell.customDurationMinutes && cell.customDurationMinutes > 0
+              ? cell.customDurationMinutes
+              : cell.endMinutes !== undefined &&
+                cell.startMinutes !== undefined &&
+                cell.endMinutes > cell.startMinutes
+                ? cell.endMinutes - cell.startMinutes
+                : table.axisConfig.periodMinutes || 30;
 
           taskMap.set(taskKey, {
             id: taskId,
@@ -603,13 +684,14 @@ export function generateScheduleItemsForTable(
             cycleCount: isCycle ? cycleCount : undefined,
             cycleStartDay: table.cycleStartDay,
             cycleStartDate: table.cycleStartDate,
-            earliestStartTime: tableStartTimeMinutes,
+            earliestStartTime: cellCustomStart ?? tableStartTimeMinutes,
             latestEndTime: tableEndTimeMinutes,
             autoPlaceWithinRange: isAutoRange,
             priority: 'medium',
             completed: false,
             sourceTableId: table.id,
             sourceTableName: table.name,
+            url: cell.url || undefined,
           });
         }
       } else {
@@ -641,6 +723,9 @@ export function generateScheduleItemsForTable(
           if (effectiveBreakMinutes !== undefined) {
             existing.breakMinutes = Math.max(existing.breakMinutes || 0, effectiveBreakMinutes);
           }
+          if (cell.url && !existing.url) {
+            existing.url = cell.url;
+          }
           if (tableDailyCount) {
             existing.dailyCount = tableDailyCount;
             existing.dailyRepeatMode = 'custom';
@@ -664,12 +749,15 @@ export function generateScheduleItemsForTable(
           }
         } else {
           const taskId = `task-table-${table.id}-${r}-${c}`;
+          const cellCustomStart = cell.customStartTime ? timeStringToMinutes(cell.customStartTime) : undefined;
           const duration =
-            cell.endMinutes !== undefined &&
-            cell.startMinutes !== undefined &&
-            cell.endMinutes > cell.startMinutes
-              ? cell.endMinutes - cell.startMinutes
-              : table.axisConfig.periodMinutes || 60;
+            cell.customDurationMinutes && cell.customDurationMinutes > 0
+              ? cell.customDurationMinutes
+              : cell.endMinutes !== undefined &&
+                cell.startMinutes !== undefined &&
+                cell.endMinutes > cell.startMinutes
+                ? cell.endMinutes - cell.startMinutes
+                : table.axisConfig.periodMinutes || 60;
 
           taskMap.set(taskKey, {
             id: taskId,
@@ -696,13 +784,14 @@ export function generateScheduleItemsForTable(
             startDay: isWeekday ? effectiveWeekday : undefined,
             deadlineDay: undefined, // 表の列は開始/対象曜日であり、週タスクの締切ではない（他曜日への柔軟配置を許可）
             cycleIndex: isCycle ? cycleIdx : undefined,
-            earliestStartTime: tableStartTimeMinutes,
+            earliestStartTime: cellCustomStart ?? tableStartTimeMinutes,
             latestEndTime: tableEndTimeMinutes,
             autoPlaceWithinRange: isAutoRange,
             priority: 'medium',
             completed: false,
             sourceTableId: table.id,
             sourceTableName: table.name,
+            url: cell.url || undefined,
             expiryWeeks:
               table.weeklyTaskExpiryWeeks ?? table.axisConfig?.weeklyTaskExpiryWeeks ?? 1,
           });

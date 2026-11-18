@@ -11,6 +11,7 @@ import {
   Circle,
   Sparkles,
   RotateCcw,
+  ExternalLink,
 } from 'lucide-react';
 import { TheoreticalBlock, TaskItem, ImportedTableData, AppThemeMode } from '@/types';
 import { minutesToTimeString, formatDuration } from '@/lib/timeUtils';
@@ -1230,6 +1231,24 @@ export function Timeline24h({
                                 </div>
 
                                 <div className="shrink-0 flex items-center gap-1">
+                                  {/* ★ 関連URLがある場合の外部リンクアイコンボタン */}
+                                  {block.url && (
+                                    <a
+                                      href={block.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className={`pointer-events-auto relative z-30 shrink-0 flex items-center justify-center transition cursor-pointer ${
+                                        isPlanner
+                                          ? 'p-0.5 text-blue-600 hover:text-blue-800'
+                                          : 'rounded p-0.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50/80 bg-white/70 shadow-2xs border border-slate-200'
+                                      }`}
+                                      title={`関連リンクを開く: ${block.url}`}
+                                    >
+                                      <ExternalLink className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                                    </a>
+                                  )}
+
                                   {/* ★ 同じ開始位置で早期完了した元タスクがある場合、重ならない横並びボタンとして完了取消を提供 */}
                                   {latestCoveredEarly && onToggleBlockComplete && (
                                     <button

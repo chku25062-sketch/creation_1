@@ -13,6 +13,7 @@ import {
   setTableNumCols,
   generateScheduleItemsForTable,
   parseColHeader,
+  sortRowsByTime,
 } from './tableUtils';
 import { ImportedTableData } from '@/types';
 import { INITIAL_IMPORTED_TABLES, INITIAL_TASKS, INITIAL_FIXED_SLOTS } from './storage';
@@ -837,6 +838,111 @@ describe('tableUtils', () => {
         expect(t.durationMinutes).toBe(90); // 元のコマと同じ90分
         expect(t.scheduleAfterEnabled).toBe(true);
       }
+    });
+
+    describe('sortRowsByTime (Plan23: 開始時間ごとの自動並び替え)', () => {
+      it('バラバラの開始時刻を持つ行が、早い順（朝 → 昼 → 夜）に正しくソートされること', () => {
+        const table: ImportedTableData = {
+          id: 'test-sort',
+          name: '日課テスト',
+          createdAt: '2026-11-18T00:00:00Z',
+          updatedAt: '2026-11-18T00:00:00Z',
+          numRows: 3,
+          numCols: 1,
+          colHeaders: ['Day 1'],
+          rowHeaders: ['1', '2', '3'],
+          placementMode: 'auto',
+          columnMode: 'cycle',
+          dailyRepeatCount: 1,
+          axisConfig: {
+            startTime: null,
+            endTime: null,
+            periodMinutes: 30,
+            intervalMinutes: 0,
+            hasLunch: false,
+            lunchAfterPeriod: 1,
+            lunchMinutes: 50,
+          },
+          cells: [
+            // 行0: 夜のストレッチ (21:00)
+            [
+              {
+                dayIndex: 0,
+                periodIndex: 1,
+                text: '夜のストレッチ',
+                title: '夜のストレッチ',
+                roomOrNote: '',
+                rawLines: ['夜のストレッチ'],
+                fullText: '夜のストレッチ',
+                customStartTime: '21:00',
+                customDurationMinutes: 15,
+                startMinutes: 21 * 60,
+                endMinutes: 21 * 60 + 15,
+              },
+            ],
+            // 行1: 朝の瞑想 (07:00)
+            [
+              {
+                dayIndex: 0,
+                periodIndex: 2,
+                text: '朝の瞑想',
+                title: '朝の瞑想',
+                roomOrNote: '',
+                rawLines: ['朝の瞑想'],
+                fullText: '朝の瞑想',
+                customStartTime: '07:00',
+                customDurationMinutes: 10,
+                startMinutes: 7 * 60,
+                endMinutes: 7 * 60 + 10,
+              },
+            ],
+            // 行2: 昼の散歩 (12:30)
+            [
+              {
+                dayIndex: 0,
+                periodIndex: 3,
+                text: '昼の散歩',
+                title: '昼の散歩',
+                roomOrNote: '',
+                rawLines: ['昼の散歩'],
+                fullText: '昼の散歩',
+                customStartTime: '12:30',
+                customDurationMinutes: 20,
+                startMinutes: 12 * 60 + 30,
+                endMinutes: 12 * 60 + 50,
+              },
+            ],
+          ],
+        };
+
+        const sorted = sortRowsByTime(table);
+
+        // 朝(07:00) → 昼(12:30) → 夜(21:00) の順序に整列されていること
+        expect(sorted.cells[0][0].title).toBe('朝の瞑想');
+        expect(sorted.cells[0][0].periodIndex).toBe(1);
+
+        expect(sorted.cells[1][0].title).toBe('昼の散歩');
+        expect(sorted.cells[1][0].periodIndex).toBe(2);
+
+        expect(sorted.cells[2][0].title).toBe('夜のストレッチ');
+        expect(sorted.cells[2][0].periodIndex).toBe(3);
+
+        // タスク抽出時も個別所要時間・個別開始時刻が反映されていること
+        const { tasks } = generateScheduleItemsForTable(sorted);
+        expect(tasks).toHaveLength(3);
+
+        const morning = tasks.find((t) => t.title === '朝の瞑想')!;
+        expect(morning.durationMinutes).toBe(10);
+        expect(morning.earliestStartTime).toBe(7 * 60);
+
+        const lunch = tasks.find((t) => t.title === '昼の散歩')!;
+        expect(lunch.durationMinutes).toBe(20);
+        expect(lunch.earliestStartTime).toBe(12 * 60 + 30);
+
+        const night = tasks.find((t) => t.title === '夜のストレッチ')!;
+        expect(night.durationMinutes).toBe(15);
+        expect(night.earliestStartTime).toBe(21 * 60);
+      });
     });
   });
 });

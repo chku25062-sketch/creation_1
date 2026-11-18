@@ -102,6 +102,7 @@ export function tryPlaceSplitAttachedTask(
       dayIndex: d,
       sourceTableId: task.sourceTableId,
       sourceTableName: task.sourceTableName,
+      url: task.url,
       isWeeklyTask: true,
       isSplitBlock: true,
       splitIndex,

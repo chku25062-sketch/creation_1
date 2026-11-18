@@ -179,6 +179,7 @@ export function createPlaceContextHelper(ctx: SchedulingExecutionContext) {
         dayIndex: d,
         sourceTableId: taskCtx.task.sourceTableId,
         sourceTableName: taskCtx.task.sourceTableName,
+        url: taskCtx.task.url,
         isWeeklyTask: isWeekly,
         isRescheduled: taskCtx.plan.isRescheduledPlan,
         rescheduledFromDay: taskCtx.plan.rescheduledFromDay,

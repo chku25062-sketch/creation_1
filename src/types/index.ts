@@ -11,6 +11,7 @@ export interface FixedSlot {
   breakMinutes?: number; // 固定枠後の休憩時間（分）
   sourceTableId?: string; // 参照元テーブルID
   sourceTableName?: string; // 参照元テーブル名
+  url?: string; // 関連URL（Zoom / LMS / 外部リンク等）
   enabled?: boolean; // 計画表への個別反映ON/OFF（未指定またはtrueはON、falseはOFF）
 }
 
@@ -85,6 +86,8 @@ export interface TaskItem {
   splitIndex?: number; // 分割タスクの場合のインデックス (0, 1...)
   totalSplits?: number; // 分割タスクの場合の分割総数 (2, 3...)
   originalTaskId?: string; // 分割元の大元タスクID
+  // Plan23: 関連Webリンク
+  url?: string; // 関連Webリンク (Zoom, Meet, 課題ページなど)
 }
 
 export interface TheoreticalBlock {
@@ -105,6 +108,7 @@ export interface TheoreticalBlock {
   dayIndex?: number; // 0:月〜6:日
   sourceTableId?: string; // 参照元テーブルID
   sourceTableName?: string; // 参照元テーブル名
+  url?: string; // 関連URL（Zoom / LMS / 外部リンク等）
   // Plan11: リアルタイム完了状態・動的再配置・代行タスク用プロパティ
   isWeeklyTask?: boolean; // 週タスクかどうか（日課・固定枠と区別し、トグル可能にするフラグ）
   isCompleted?: boolean; // 完了状態（過去タスクまたは早期完了）
@@ -204,6 +208,11 @@ export interface GridCell {
   endMinutes: number;
   category?: string; // "lecture", "workout", "routine", "work", "hobby", "study" 等の自由カテゴリ
   breakMinutes?: number; // タスク後の休憩時間（分）
+  // Plan23: 個別タスク時間設定 & 関連URL
+  customDurationMinutes?: number; // 個別所要時間（分）
+  customStartTime?: string; // 個別開始時刻 ("HH:mm")
+  hasCustomTime?: boolean; // 個別時間設定が有効かどうか
+  url?: string; // 関連Webリンク (Zoom, Meet, 課題ページなど)
   attachedTask?: {
     enabled: boolean;
     title: string;
