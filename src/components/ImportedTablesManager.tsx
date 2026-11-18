@@ -1800,10 +1800,9 @@ export function ImportedTablesManager({
                 type="button"
                 onClick={() => handleToggleViewMode('desktop')}
                 title="デスクトップ版デザインに切り替え"
-                className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-100 hover:text-blue-600 shadow-2xs transition"
+                className="flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-2 text-slate-600 hover:bg-slate-100 hover:text-blue-600 shadow-2xs transition cursor-pointer"
               >
-                <Monitor className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">PC版</span>
+                <Monitor className="h-4 w-4" />
               </button>
 
               {/* ⚙️ 設定ドロワー開閉ボタン (activeTable がある場合のみ表示) */}
@@ -1928,33 +1927,31 @@ export function ImportedTablesManager({
 
             {/* 右側: モード切替 & 反映トグル */}
             <div className="flex items-center gap-2">
-              {/* デスクトップ ⇔ モバイル 表示モード切替ボタングループ */}
+              {/* デスクトップ ⇔ モバイル 表示モード切替ボタングループ（文字なしアイコンのみ） */}
               <div className="flex items-center rounded-lg border border-slate-200 bg-slate-100 p-0.5 shadow-2xs">
                 <button
                   type="button"
                   onClick={() => handleToggleViewMode('desktop')}
                   title="デスクトップ版レイアウトに切り替え"
-                  className={`flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold transition ${
+                  className={`flex items-center justify-center rounded-md p-1.5 transition cursor-pointer ${
                     (viewMode as string) === 'desktop'
                       ? 'bg-white text-blue-600 shadow-2xs'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
                   <Monitor className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">デスクトップ</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleToggleViewMode('mobile')}
                   title="モバイル版（時間割アプリ風）レイアウトに切り替え"
-                  className={`flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold transition ${
+                  className={`flex items-center justify-center rounded-md p-1.5 transition cursor-pointer ${
                     (viewMode as string) === 'mobile'
                       ? 'bg-white text-blue-600 shadow-2xs'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
                   <Smartphone className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">モバイル</span>
                 </button>
               </div>
 
