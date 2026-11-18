@@ -354,6 +354,8 @@ export function ImportedTablesManager({
     attachedMinSplit: number;
   } | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<boolean>(false);
+  const [copiedDirectKey, setCopiedDirectKey] = useState<string | null>(null);
+  const [pastedDirectKey, setPastedDirectKey] = useState<string | null>(null);
 
   const [applySuccessMsg, setApplySuccessMsg] = useState<string | null>(null);
 
@@ -849,6 +851,92 @@ export function ImportedTablesManager({
     setCellAttachedAllowSplit(copiedCellData.attachedAllowSplit);
     setCellAttachedSplitCount(copiedCellData.attachedSplitCount);
     setCellAttachedMinSplit(copiedCellData.attachedMinSplit);
+  };
+
+  // コマ上から直接コピー（編集画面を開かずにワンタップでコピー）
+  const handleCopyDirectCell = (r: number, c: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!activeTable) return;
+    const cell = activeTable.cells[r][c];
+    if (!cell.text && !cell.title) return;
+
+    setCopiedCellData({
+      text: cell.text || cell.title || '',
+      breakMinutes: cell.breakMinutes || 0,
+      customDurationMinutes: cell.customDurationMinutes || 0,
+      customStartTime: cell.customStartTime,
+      hasCustomTime: Boolean(cell.hasCustomTime || cell.customStartTime),
+      url: cell.url || '',
+      attachedEnabled: cell.attachedTask?.enabled ?? false,
+      attachedDuration: cell.attachedTask?.durationMinutes ?? 15,
+      attachedAllowSplit: cell.attachedTask?.allowSplit ?? false,
+      attachedSplitCount: cell.attachedTask?.splitCount ?? 2,
+      attachedMinSplit: cell.attachedTask?.minSplitMinutes ?? 15,
+    });
+    setCopiedDirectKey(`${r}-${c}`);
+    setTimeout(() => setCopiedDirectKey(null), 1200);
+  };
+
+  // コマ上から直接貼り付け（編集画面を開かずにワンタップでペースト＆自動ソート）
+  const handlePasteDirectCell = (r: number, c: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!activeTable || !copiedCellData) return;
+
+    const trimmed = copiedCellData.text.trim();
+    const lines = trimmed ? trimmed.split('\n') : [];
+    const title = lines[0] || '';
+    const roomOrNote = lines.slice(1).join('\n');
+
+    updateActiveTable((prev) => {
+      const nextCells = prev.cells.map((row, rIdx) =>
+        row.map((cell, cIdx) => {
+          if (rIdx === r && cIdx === c) {
+            return {
+              ...cell,
+              text: trimmed ? trimmed : null,
+              title,
+              roomOrNote,
+              fullText: trimmed,
+              rawLines: lines,
+              breakMinutes: copiedCellData.breakMinutes > 0 ? copiedCellData.breakMinutes : undefined,
+              customDurationMinutes:
+                copiedCellData.customDurationMinutes && copiedCellData.customDurationMinutes > 0
+                  ? copiedCellData.customDurationMinutes
+                  : undefined,
+              customStartTime:
+                copiedCellData.hasCustomTime && copiedCellData.customStartTime
+                  ? copiedCellData.customStartTime
+                  : undefined,
+              hasCustomTime: copiedCellData.hasCustomTime,
+              url: copiedCellData.url && copiedCellData.url.trim() ? copiedCellData.url.trim() : undefined,
+              attachedTask: copiedCellData.attachedEnabled
+                ? {
+                    enabled: true,
+                    title:
+                      cell.attachedTask?.title ||
+                      prev.attachedTaskConfig?.titleTemplate ||
+                      '{title} のタスク',
+                    durationMinutes: copiedCellData.attachedDuration,
+                    allowSplit: copiedCellData.attachedAllowSplit,
+                    splitCount: copiedCellData.attachedSplitCount,
+                    minSplitMinutes: copiedCellData.attachedMinSplit,
+                  }
+                : undefined,
+            };
+          }
+          return cell;
+        }),
+      );
+      const nextTable: ImportedTableData = {
+        ...prev,
+        cells: nextCells,
+        updatedAt: new Date().toISOString(),
+      };
+      return sortRowsByTime(nextTable);
+    });
+
+    setPastedDirectKey(`${r}-${c}`);
+    setTimeout(() => setPastedDirectKey(null), 1200);
   };
 
   const handleSaveEditCell = () => {
@@ -2892,6 +2980,9 @@ export function ImportedTablesManager({
                           {row.map((cell, cIdx) => {
                             const isExcluded = activeTable.colHeaders[cIdx] === '除外';
                             const hasContent = Boolean(cell.text && cell.title.trim());
+                            const cellKey = `${rIdx}-${cIdx}`;
+                            const isJustCopied = copiedDirectKey === cellKey;
+                            const isJustPasted = pastedDirectKey === cellKey;
 
                             return (
                               <td
@@ -2930,32 +3021,100 @@ export function ImportedTablesManager({
                                           {cell.roomOrNote}
                                         </p>
                                       )}
+                                      {/* Plan23: 個別設定バッジ（個別所要時間・開始時刻・URL） */}
+                                      <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                                        {cell.customDurationMinutes && cell.customDurationMinutes > 0 && (
+                                          <span className="inline-flex items-center gap-0.5 rounded bg-blue-100 text-blue-800 font-mono font-bold px-1 py-0.2 text-[8px]" title={`個別所要時間: ${cell.customDurationMinutes}分`}>
+                                            ⏱{cell.customDurationMinutes}m
+                                          </span>
+                                        )}
+                                        {cell.customStartTime && (
+                                          <span className="inline-flex items-center gap-0.5 rounded bg-amber-100 text-amber-900 font-mono font-bold px-1 py-0.2 text-[8px]" title={`個別開始時刻: ${cell.customStartTime}`}>
+                                            🕒{cell.customStartTime}
+                                          </span>
+                                        )}
+                                        {cell.url && (
+                                          <span className="inline-flex items-center gap-0.5 rounded bg-emerald-100 text-emerald-800 font-bold px-1 py-0.2 text-[8px]" title={`関連URL: ${cell.url}`}>
+                                            🔗
+                                          </span>
+                                        )}
+                                      </div>
                                     </div>
                                     <div className="flex items-center justify-between text-slate-400 mt-0.5">
                                       <span className={`font-mono ${
                                         (viewMode as string) === 'mobile' ? 'text-[8px]' : 'text-[9px] sm:text-[10px]'
                                       }`}>
-                                        {pt ? `${pt.startTime || ''}` : ''}
+                                        {cell.customStartTime || (pt ? `${pt.startTime || ''}` : '')}
                                       </span>
-                                      {/* コマ削除ごみ箱アイコン（デスクトップ版のみ表示。モバイル版はタップ誤動作防止のため編集シートから操作） */}
-                                      {viewMode === 'desktop' && (
+
+                                      {/* 各コマ上のコピー・ペースト・削除ボタングループ（Plan23） */}
+                                      <div className="flex items-center gap-0.5">
+                                        {/* コマ直接コピーボタン */}
                                         <button
                                           type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleClearCell(rIdx, cIdx, e);
-                                          }}
-                                          title="このコマを削除"
-                                          className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded opacity-70 group-hover/cell:opacity-100 transition cursor-pointer"
+                                          onClick={(e) => handleCopyDirectCell(rIdx, cIdx, e)}
+                                          title={isJustCopied ? 'コピーしました！' : 'このコマをコピー'}
+                                          className={`p-1 rounded transition cursor-pointer ${
+                                            isJustCopied
+                                              ? 'text-emerald-700 bg-emerald-100 scale-110 shadow-xs'
+                                              : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200/70'
+                                          } ${
+                                            (viewMode as string) === 'mobile' ? 'opacity-90' : 'opacity-60 group-hover/cell:opacity-100'
+                                          }`}
                                         >
-                                          <Trash2 className="h-3 w-3" />
+                                          {isJustCopied ? <Check className="h-3 w-3 stroke-[3]" /> : <Copy className="h-3 w-3" />}
                                         </button>
-                                      )}
+
+                                        {/* コマ直接貼り付けボタン（コピーデータがある場合に表示） */}
+                                        {copiedCellData && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => handlePasteDirectCell(rIdx, cIdx, e)}
+                                            title={isJustPasted ? '貼り付けました！' : `コピーしたコマ「${copiedCellData.text.split('\n')[0]}」で上書き貼り付け`}
+                                            className={`p-1 rounded transition cursor-pointer ${
+                                              isJustPasted
+                                                ? 'text-blue-700 bg-blue-100 scale-110 shadow-xs'
+                                                : 'text-blue-600 hover:text-blue-800 hover:bg-blue-100/70'
+                                            } ${
+                                              (viewMode as string) === 'mobile' ? 'opacity-100 bg-blue-50/80 shadow-2xs' : 'opacity-80 group-hover/cell:opacity-100 bg-blue-50/60'
+                                            }`}
+                                          >
+                                            {isJustPasted ? <Check className="h-3 w-3 stroke-[3]" /> : <ClipboardPaste className="h-3 w-3" />}
+                                          </button>
+                                        )}
+
+                                        {/* コマ削除ごみ箱アイコン（デスクトップ版のみ表示。モバイル版はタップ誤動作防止のため編集シートから操作） */}
+                                        {viewMode === 'desktop' && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleClearCell(rIdx, cIdx, e);
+                                            }}
+                                            title="このコマを削除"
+                                            className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded opacity-60 group-hover/cell:opacity-100 transition cursor-pointer"
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                          </button>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                 ) : (
-                                  <div className="flex h-full items-center justify-center text-slate-400">
-                                    <Plus className={`h-3.5 w-3.5 ${(viewMode as string) === 'mobile' ? 'opacity-30' : 'opacity-0 group-hover:opacity-100'} transition`} />
+                                  <div className="flex h-full flex-col items-center justify-center text-slate-400 relative group/empty">
+                                    <Plus className={`h-3.5 w-3.5 ${(viewMode as string) === 'mobile' ? 'opacity-30' : 'opacity-0 group-hover/empty:opacity-100'} transition`} />
+                                    {/* 空コマへの直接貼り付けボタン（コピーデータがある場合に表示） */}
+                                    {copiedCellData && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handlePasteDirectCell(rIdx, cIdx, e)}
+                                        title={`コピーしたコマ「${copiedCellData.text.split('\n')[0]}」を貼り付け`}
+                                        className="absolute inset-x-1 bottom-1 sm:bottom-1.5 py-0.5 sm:py-1 rounded-md bg-blue-50/95 hover:bg-blue-100 border border-blue-200 text-blue-700 text-[9px] sm:text-[10px] font-bold flex items-center justify-center gap-1 shadow-2xs transition active:scale-95 cursor-pointer"
+                                      >
+                                        <ClipboardPaste className="h-3 w-3" />
+                                        <span>貼付</span>
+                                      </button>
+                                    )}
                                   </div>
                                 )}
                               </td>
