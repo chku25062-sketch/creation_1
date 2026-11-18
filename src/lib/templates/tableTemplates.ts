@@ -70,7 +70,7 @@ export function createDailyRoutineTable(input: DailyRoutineTemplateInput): Impor
   const startMin = startTimeStr ? timeStringToMinutes(startTimeStr) : 540; // 09:00 fallback
 
   if (input.mode === 'cycle_rotation') {
-    const cycleLength = Math.max(2, input.cycleRotation?.cycleLength || 3);
+    const cycleLength = Math.max(1, input.cycleRotation?.cycleLength || 1);
     const defaultDur = input.cycleRotation?.defaultDurationMinutes || 30;
     const items = input.cycleRotation?.items || [];
     const cycleStartDay = input.cycleRotation?.cycleStartDay ?? 0;
@@ -188,7 +188,7 @@ export function createDailyRoutineTable(input: DailyRoutineTemplateInput): Impor
   };
   const duration = single.durationMinutes > 0 ? single.durationMinutes : 30;
 
-  // 毎日実施（曜日指定なし・7列も不要なため1マス最小表にする）
+  // 毎日実施（Day 1 のみ設定 ＝ 毎日を意味するサイクル表）
   const isEveryday =
     single.isEveryday ??
     (!single.targetDays || single.targetDays.length === 0 || single.targetDays.length === 7);
@@ -216,7 +216,7 @@ export function createDailyRoutineTable(input: DailyRoutineTemplateInput): Impor
       createdAt: now,
       updatedAt: now,
       placementMode: 'auto',
-      columnMode: 'weekday',
+      columnMode: 'cycle',
       cycleStartDay: 0,
       dailyRepeatCount: input.dailyRepeatCount ?? 'auto',
       weeklyRepeatCount: 'auto',
@@ -224,7 +224,7 @@ export function createDailyRoutineTable(input: DailyRoutineTemplateInput): Impor
       isApplied: true,
       numRows: 1,
       numCols: 1,
-      colHeaders: ['毎日'],
+      colHeaders: ['Day 1'],
       rowHeaders: ['1'],
       axisConfig: {
         startTime: startTimeStr,

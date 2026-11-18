@@ -102,12 +102,12 @@ export function TableTemplateWizardModal({
     5: { title: '読書', durationMinutes: 30 },
     6: { title: '週間振り返り', durationMinutes: 30 },
   });
-  // サイクルローテーション
+  // サイクルローテーション（項目未入力のDayは自動的にオフ・休みとして扱われます）
   const [cycleItems, setCycleItems] = useState<Array<{ title: string; durationMinutes: number }>>([
     { title: '胸・三頭筋', durationMinutes: 45 },
     { title: '背中・二頭筋', durationMinutes: 45 },
     { title: '脚・腹筋', durationMinutes: 45 },
-    { title: '休養日（オフ）', durationMinutes: 0 },
+    { title: '', durationMinutes: 0 }, // 空欄＝オフ
   ]);
   const [cycleStartDay, setCycleStartDay] = useState(0); // 月曜起算
   // 日課共通
@@ -419,41 +419,23 @@ export function TableTemplateWizardModal({
                     </div>
                   </div>
 
-                  {/* 実施頻度・曜日設定（最適化: 毎日なら1マス、指定時のみ7列） */}
+                  {/* 曜日指定オプション（Day 1のみで毎日配置、曜日指定時のみ7列展開） */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-1.5">実施頻度・曜日</label>
-                    <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[11px] font-bold text-slate-600">配置スケジュール</label>
                       <button
                         type="button"
-                        onClick={() => setIsSingleEveryday(true)}
-                        className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-bold transition ${
-                          isSingleEveryday
-                            ? 'border-blue-600 bg-blue-50 text-blue-700 ring-1 ring-blue-500'
-                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                        }`}
+                        onClick={() => setIsSingleEveryday(!isSingleEveryday)}
+                        className="text-[11px] font-bold text-blue-600 hover:underline"
                       >
-                        <Check className={`h-3.5 w-3.5 ${isSingleEveryday ? 'text-blue-600' : 'opacity-0'}`} />
-                        <span>毎日実施（曜日指定なし・1マス）</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setIsSingleEveryday(false)}
-                        className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-bold transition ${
-                          !isSingleEveryday
-                            ? 'border-blue-600 bg-blue-50 text-blue-700 ring-1 ring-blue-500'
-                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <Check className={`h-3.5 w-3.5 ${!isSingleEveryday ? 'text-blue-600' : 'opacity-0'}`} />
-                        <span>曜日を指定する</span>
+                        {isSingleEveryday ? '+ 特定の曜日のみに限定する' : '毎日（Day 1のみ）に戻す'}
                       </button>
                     </div>
 
                     {isSingleEveryday ? (
                       <div className="rounded-lg bg-blue-50/70 p-2.5 text-[11px] text-blue-800 border border-blue-100 flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-blue-600 shrink-0" />
-                        <span>7列の不要な枠を省き、1マス（1行×1列）のシンプルな日課表を生成します。</span>
+                        <span>Day 1 のみの1列表を作成し、毎日全曜日に自動配置します。</span>
                       </div>
                     ) : (
                       <div className="space-y-1.5 pt-1">
@@ -575,7 +557,7 @@ export function TableTemplateWizardModal({
                                 newItems[idx].title = e.target.value;
                                 setCycleItems(newItems);
                               }}
-                              placeholder="タスク名（空欄でオフ）"
+                              placeholder="未入力でオフ（休息）"
                               className="flex-1 rounded border border-slate-200 px-2.5 py-1 text-xs text-slate-800 focus:outline-hidden focus:border-indigo-500"
                             />
                             <div className="flex items-center gap-1 shrink-0">
@@ -593,11 +575,12 @@ export function TableTemplateWizardModal({
                               />
                               <span className="text-[10px] text-slate-500 font-bold">分</span>
                             </div>
-                            {cycleItems.length > 2 && (
+                            {cycleItems.length > 1 && (
                               <button
                                 type="button"
                                 onClick={() => setCycleItems(cycleItems.filter((_, i) => i !== idx))}
                                 className="p-1 text-slate-400 hover:text-red-500 transition"
+                                title="この日を削除"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
@@ -605,6 +588,12 @@ export function TableTemplateWizardModal({
                           </div>
                         ))}
                       </div>
+
+                      {cycleItems.length === 1 && (
+                        <div className="rounded-lg bg-indigo-50 p-2 text-[11px] text-indigo-700">
+                          💡 Day 1 のみ設定されているため、毎日巡回（毎日実施）として配置されます。
+                        </div>
+                      )}
 
                       {cycleItems.length < 7 && (
                         <button

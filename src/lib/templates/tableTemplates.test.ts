@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generateScheduleItemsForTable, getTableClassification } from '../tableUtils';
+import { generateTheoreticalSchedule } from '../scheduler';
 import {
   createDailyRoutineTable,
   createFixedSlotTable,
@@ -8,7 +9,7 @@ import {
 
 describe('Table Templates Generator (Plan22 仮実装検証)', () => {
   describe('日課テンプレート (createDailyRoutineTable)', () => {
-    it('単一メニュー（毎日実施・1マス最小表）: 7列展開を省き、1行1列のコンパクト表として生成・抽出されること', () => {
+    it('単一メニュー（Day 1のみのサイクル表＝毎日）: 7列展開を省き、Day 1 の1行1列コンパクト表として生成・抽出されること', () => {
       const table = createDailyRoutineTable({
         name: '毎日のストレッチ',
         mode: 'single',
@@ -25,9 +26,9 @@ describe('Table Templates Generator (Plan22 仮実装検証)', () => {
       });
 
       expect(table.placementMode).toBe('auto');
-      expect(table.columnMode).toBe('weekday');
+      expect(table.columnMode).toBe('cycle'); // ★ Day 1 のみ＝毎日を表すサイクルモード
       expect(table.numCols).toBe(1); // ★ 7列ではなく1列の最小表！
-      expect(table.colHeaders).toEqual(['毎日']);
+      expect(table.colHeaders).toEqual(['Day 1']); // ★ 「毎日」という独自名ではなく正規の Day 1
       expect(table.axisConfig.periodMinutes).toBe(7);
       expect(table.dailyRepeatCount).toBe(2);
 
@@ -40,9 +41,17 @@ describe('Table Templates Generator (Plan22 仮実装検証)', () => {
       expect(task.title).toBe('ストレッチ');
       expect(task.durationMinutes).toBe(7);
       expect(task.dailyCount).toBe(2);
-      expect(task.targetDays).toBeUndefined(); // 曜日制限なし（毎日配置対象）
+      expect(task.cycleDays).toEqual([0]);
+      expect(task.cycleCount).toBe(1);
       expect(task.earliestStartTime).toBe(7 * 60);
       expect(task.latestEndTime).toBe(22 * 60);
+
+      // スケジューラーで全曜日（月〜日）に配置されることを検証
+      const schedule = generateTheoreticalSchedule([], [task]);
+      for (let day = 0; day < 7; day++) {
+        const blocks = schedule.dayBlocks[day];
+        expect(blocks.some((b) => b.taskId === task.id)).toBe(true);
+      }
     });
 
     it('単一メニュー（曜日指定時）: 7列展開され、指定曜日のみセルが生成されること', () => {
