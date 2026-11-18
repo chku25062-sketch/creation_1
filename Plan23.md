@@ -52,35 +52,37 @@ flowchart TD
 
 ## 3. タスク個別設定項目の仕様設計
 
-表内のセル・行編集モーダル（またはポップオーバー）において、以下の個別設定項目を整備します。
+> [!IMPORTANT] **設計原則: 既存コマ設定を上書きせず「追加レイヤー」として実装**
+> 本新機能は、既存の表全体のコマ設定（`TableAxisConfig` による開始時刻や一律コマ分数）を上書き・破棄するものではありません。
+> **「既存のコマ設定をベースとして維持しつつ、タスク単位で個別設定を追加できるオプショナル構造」** とします。
+> - 個別設定が未指定のセル: 従来の表全体の軸設定（コマ分数・行のデフォルト時刻）がそのまま完全有効に機能（後方互換性を100%維持）。
+> - 個別設定が指定されたセル: そのタスク固有の所要時間や開始時刻が優先して適用される。
+
+### 3.1. 個別設定項目の詳細（必要最小限の3項目に厳選）
+フォームの複雑化を避け、初心者でも直感的に扱えるよう以下の3項目に絞り込みます。
 
 ```mermaid
 classDiagram
     class TaskItemSetting {
         +string title "タスク名"
-        +number durationMinutes "所要時間（分数）"
+        +number customDurationMinutes "個別所要時間（分数）※オプショナル追加"
         +string startTimeMode "開始時刻モード (unset | specific)"
-        +string startTime "個別開始時刻 (HH:mm)"
-        +string endTime "個別終了時刻 (自動計算: HH:mm)"
-        +string timeRangePreference "時間帯希望 (終日 | 朝 | 昼 | 夜)"
-        +AttachedTaskConfig attachedTask "付随タスク（任意）"
+        +string customStartTime "個別開始時刻 (HH:mm) ※オプショナル追加"
+        +string customEndTime "個別終了時刻 (自動計算: HH:mm)"
     }
 ```
 
-### 3.1. 個別設定項目の詳細
 1. **タスク名（タイトル）**:
    - テキスト入力（例:「朝の瞑想」「英語リスニング」）
-2. **個別所要時間（ドラムロール式 / 数値入力）**:
-   - **仕様**: 1分〜180分を上下ドラムロール（または直接数値）で選択。
-   - **挙動**: 表全体の `periodMinutes` より優先され、セルごとの正確な分数（`duration = endMinutes - startMinutes`）として保持。
-3. **開始時刻（個別設定）**:
-   - **モードA. 指定なし（自動配分）**:
-     - スケジューラーが空きコマを見つけて自動配置。
-   - **モードB. 開始時刻を指定（固定・希望開始時刻）**:
+2. **個別所要時間（追加項目 / ドラムロール式）**:
+   - **仕様**: 1分〜180分を上下ドラムロールで選択。
+   - **挙動**: 未指定時は表全体の `periodMinutes` を採用。指定された場合のみ、そのタスク固有のコマサイズとして優先適用。
+3. **個別開始時刻（追加項目）**:
+   - **モードA. 指定なし（空き枠自動配分）**:
+     - スケジューラーが最適な空きコマを探して自動配置。
+   - **モードB. 開始時刻を指定（個別固定・希望時刻）**:
      - `[ 07:00 ]` などの時刻ピッカー入力。
-     - 終了時刻は `開始時刻 ＋ 所要時間` により**リアルタイム自動算出**。
-4. **時間帯の希望（開始時刻未指定時）**:
-   - `[ 終日自由 | 朝 (06〜12時) | 昼 (12〜18時) | 夜 (18〜23時) ]`
+     - 終了時刻は `個別開始時刻 ＋ 個別所要時間` により**リアルタイム自動算出**。
 
 ---
 
@@ -137,7 +139,7 @@ flowchart TD
 ## 6. データモデル拡張設計（TypeScript型定義案）
 
 ```typescript
-// 1. GridCell の個別タスク時間設定の拡張
+// 1. GridCell の個別タスク時間設定の拡張（既存コマ設定を上書きせず追加）
 export interface GridCell {
   dayIndex: number;
   periodIndex: number;
@@ -146,12 +148,14 @@ export interface GridCell {
   roomOrNote?: string;
   rawLines?: string[];
   fullText?: string;
+  startMinutes: number; // 既存のコマ開始分（未個別指定時は表の軸設定から自動算出）
+  endMinutes: number;   // 既存のコマ終了分
 
-  // Plan23: 個別時間設定
-  startMinutes?: number; // 開始時刻（0〜1440分、未指定時は undefined）
-  endMinutes?: number;   // 終了時刻（0〜1440分、未指定時は undefined）
-  customDurationMinutes?: number; // 個別所要時間（明示設定）
-  timeRangePreference?: 'all' | 'morning' | 'afternoon' | 'evening'; // 時間帯希望
+  // ★ Plan23: 個別設定の追加レイヤー（オプショナル）
+  // 未指定時は undefined となり、従来のコマ設定（startMinutes / periodMinutes）が完全有効
+  customDurationMinutes?: number; // タスク個別の所要時間（分）
+  customStartTime?: string;       // タスク個別の開始時刻（"HH:mm"）
+  hasCustomTime?: boolean;        // 個別時間設定が有効かどうかのフラグ
 
   attachedTask?: AttachedTaskConfig;
 }
