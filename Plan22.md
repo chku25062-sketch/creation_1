@@ -99,26 +99,38 @@ classDiagram
 ### 4.1. 🏃 日課テンプレート（ルーティン・習慣タスク）
 - **対象例**: 筋トレ、英会話、読書、ストレッチ、散歩、瞑想
 - **内部配置方式**: `placementMode: 'auto'`
-- **ピックアップ設定項目（ユーザー入力）**:
-  1. **タスク名**: 例「英会話」「筋トレ」「読書」
-  2. **1回の所要時間**: `[ 5分 | 15分 | 30分 | 45分 | 60分 | カスタム入力 ]`
-  3. **実施曜日**: `[ 毎日 | 平日のみ | 週末のみ | 曜日個別選択 (月〜日) ]`
-  4. **1日の実施回数**: `[ 1回 (デフォルト) | 2回 | 3回 | 自動 ]`
-  5. **時間帯の希望（任意）**:
-     - `終日自由 (指定なし)`
-     - `午前中 (06:00〜12:00)` / `午後 (12:00〜18:00)` / `夜 (18:00〜23:00)`
-     - `カスタム指定 (開始時刻 〜 終了時刻)`
+- **構成モード**:
+  - **モードA. 単一メニュー（毎日同じ）**: 例「読書」「瞑想」
+  - **モードB. ローテーション（日替わり・サイクル巡回）**: 例「筋トレ（胸/背中/脚/休）」「学習（単語/文法/長文）」
+
+#### ピックアップ設定項目（ユーザー入力）
+1. **メニュー構成**: `[ ● 単一メニュー（毎日同じ） | ○ ローテーション（日替わり） ]`
+2. **【単一メニューの場合】**:
+   - タスク名: 例「読書」「ストレッチ」
+   - 1回の所要時間: `[ 5分 | 15分 | 30分 | 45分 | 60分 | カスタム入力 ]`
+   - 実施曜日: `[ 毎日 | 平日のみ | 週末のみ | 曜日個別選択 (月〜日) ]`
+3. **【ローテーションの場合】**:
+   - ローテーション方式: `[ 曜日別（月〜日の7日固定） | N日サイクル（Day 1, Day 2... 周期） ]`
+   - メニューリスト（各日のタイトルと所要時間）:
+     - 曜日別の場合: 月曜〜日曜の各曜日にタスク名・所要時間を入力（休み・未実施の曜日は空欄）
+     - N日サイクルの場合: 「Day 1: [胸トレ] 30分」「Day 2: [背中トレ] 30分」「Day 3: [脚トレ] 30分」「Day 4: [オフ] 0分」のようにリスト追加
+   - サイクルの開始曜日（N日サイクルの場合）: `[ 月曜日〜日曜日 ]`（周期の頭）
+4. **1日の実施回数**: `[ 1回 (デフォルト) | 2回 | 3回 | 自動 ]`
+5. **時間帯の希望（任意）**:
+   - `終日自由 (指定なし)`
+   - `午前中 (06:00〜12:00)` / `午後 (12:00〜18:00)` / `夜 (18:00〜23:00)`
+   - `カスタム指定 (開始時刻 〜 終了時刻)`
 
 #### 【日課】ピックアップ項目と実際に設定される項目の対応
 | ピックアップ設定項目（UI） | 実際に設定される内部プロパティ（ImportedTableData） | 設定される値・挙動 |
 | :--- | :--- | :--- |
-| **タスク名** | `table.name`, `cells[0][c].title`, `cells[0][c].text` | 表名および該当曜日セルのタイトルに反映 |
-| **1回の所要時間** | `axisConfig.periodMinutes`, 各セルの所要時間 | コマ分数・タスクの所要時間（分）に設定 |
-| **実施曜日** | `columnMode: 'weekday'`, `numCols: 7`, `colHeaders` | 対象曜日列のみセルに文字を入れ、非対象列は `null` セル化 |
+| **タスク名 / メニューリスト** | `table.name`, 各セルの `title`, `text` | 単一なら該当セルに同名、ローテーションなら日替わりタイトルをセルへ展開 |
+| **所要時間** | `axisConfig.periodMinutes`, 各セルの所要時間 | コマ分数・タスクの所要時間（分）に設定（日替わり個別時間もセルに設定可能） |
+| **実施曜日 / サイクル指定** | `columnMode: 'weekday' \| 'cycle'`, `colHeaders` | 曜日別なら 7列（月〜日）、N日サイクルなら N列（Day 1〜N）を生成 |
+| **サイクルの開始曜日** | `table.cycleStartDay` | N日サイクルの場合、起算曜日（0:月〜6:日）をセット |
 | **1日の実施回数** | `table.dailyRepeatCount` | `1`, `2`, `3` または `'auto'` として設定 |
 | **時間帯の希望** | `axisConfig.startTime`, `axisConfig.endTime` | 最早開始時刻・最新終了時刻（指定区間）に反映（未指定時は `null`） |
 | *(自動補完・隠蔽項目)* | `placementMode: 'auto'` | 固定枠にせず、空き枠へ自動配分するモードに固定 |
-| *(自動補完・隠蔽項目)* | `cycleStartDay: 0` | 周期の頭を月曜起算に初期化 |
 | *(自動補完・隠蔽項目)* | `weeklyRepeatCount: 'auto'` | 曜日の指定通りに配置するため週回数は自動 |
 | *(自動補完・隠蔽項目)* | `weeklyTaskExpiryWeeks: 1` | 当週有効（1週間）に設定 |
 | *(自動補完・隠蔽項目)* | `axisConfig.intervalMinutes: 0`, `hasLunch: false` | 休憩・昼休みなしでシンプル化 |
@@ -244,15 +256,41 @@ stateDiagram-v2
 
 ```typescript
 // 変換マッピングのシグネチャ例
-interface DailyRoutineTemplateInput {
+export interface DailyMenuItem {
   title: string;
-  durationMinutes: number;
-  targetDays: number[]; // 0:月〜6:日
-  dailyRepeatCount: number | 'auto';
+  durationMinutes?: number; // 未指定時はデフォルト所要時間を適用
+}
+
+export interface DailyRoutineTemplateInput {
+  name: string; // 表のタイトル（例:「朝の筋トレ」「英語学習」）
+  mode: 'single' | 'weekday_rotation' | 'cycle_rotation';
+
+  // 単一メニューの場合（毎日・特定曜日に同じタスク）
+  singleTask?: {
+    title: string;
+    durationMinutes: number;
+    targetDays: number[]; // 0:月〜6:日
+  };
+
+  // 曜日別ローテーションの場合（月〜日でメニューを変える）
+  weekdayRotation?: {
+    days: Record<number, DailyMenuItem | null>; // 0:月〜6:日
+    defaultDurationMinutes?: number;
+  };
+
+  // N日サイクルローテーションの場合（Day 1..N を巡回する）
+  cycleRotation?: {
+    cycleLength: number; // 周期日数（例: 3, 4）
+    items: (DailyMenuItem | null)[]; // 各Dayのメニュー（Day 1 〜 Day N）
+    cycleStartDay?: number; // 周期の開始曜日（0:月〜6:日、デフォルト0）
+    defaultDurationMinutes?: number;
+  };
+
+  dailyRepeatCount?: number | 'auto';
   timeRange?: { startTime: string | null; endTime: string | null };
 }
 
-interface WeeklyTaskTemplateInput {
+export interface WeeklyTaskTemplateInput {
   title: string;
   durationMinutes: number;
   weeklyTargetCount: number | 'auto';
@@ -260,31 +298,39 @@ interface WeeklyTaskTemplateInput {
   timeRange?: { startTime: string | null; endTime: string | null };
 }
 
-interface FixedSlotTemplateInput {
+export interface FixedSlotTemplateInput {
   title: string;
   startTime: string;
   endTime: string;
-  targetDays: number[];
+  targetDays: number[]; // 0:月〜6:日
 }
 ```
 
 ### 6.1. 日課（`DailyRoutineTemplateInput`）のマッピング仕様
 - `id`: `table-daily-${Date.now()}`
+- `name`: `input.name`
 - `placementMode`: `'auto'`
-- `columnMode`: `'weekday'`
-- `cycleStartDay`: 0
-- `dailyRepeatCount`: `input.dailyRepeatCount`
+- `dailyRepeatCount`: `input.dailyRepeatCount ?? 'auto'`
 - `weeklyRepeatCount`: `'auto'`
 - `weeklyTaskExpiryWeeks`: 1
-- `numRows`: 1, `numCols`: 7
-- `colHeaders`: `['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜']`
+- `numRows`: 1
 - `axisConfig`:
   - `startTime`: `input.timeRange?.startTime ?? null`
   - `endTime`: `input.timeRange?.endTime ?? null`
-  - `periodMinutes`: `input.durationMinutes`
-  - `intervalMinutes`: 0, `hasLunch`: false
-- `cells`:
-  - `input.targetDays` に含まれる列のみ `title: input.title`, `text: input.title` を設定。
+  - `periodMinutes`: 主要な所要時間（未指定時は 30）
+  - `intervalMinutes`: 0, `hasLunch`: false, `weeklyTaskExpiryWeeks`: 1
+- **モード別の列とセルの生成**:
+  1. **単一メニュー (`mode: 'single'`)**:
+     - `columnMode: 'weekday'`, `numCols: 7`, `colHeaders: ['月曜'..'日曜']`
+     - `targetDays` に含まれる列のみ `title: singleTask.title`, `text: singleTask.title` を設定。
+  2. **曜日別ローテーション (`mode: 'weekday_rotation'`)**:
+     - `columnMode: 'weekday'`, `numCols: 7`, `colHeaders: ['月曜'..'日曜']`
+     - 月〜日の各曜日に `days[c]` で指定された日替わりタイトル・所要時間をセット（未指定日は `null`）。
+  3. **N日サイクルローテーション (`mode: 'cycle_rotation'`)**:
+     - `columnMode: 'cycle'`, `numCols: cycleLength`
+     - `colHeaders`: `['Day 1', 'Day 2', ... 'Day N']`
+     - `cycleStartDay`: `input.cycleRotation.cycleStartDay ?? 0`
+     - 各Dayのセルに `items[c]` のタイトル・所要時間をセット。
 
 ### 6.2. 週次タスク（`WeeklyTaskTemplateInput`）のマッピング仕様
 - `id`: `table-weekly-${Date.now()}`

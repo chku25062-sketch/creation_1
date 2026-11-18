@@ -576,7 +576,12 @@ export function generateScheduleItemsForTable(
           }
         } else {
           const taskId = `task-table-${table.id}-${r}-${c}`;
-          const duration = table.axisConfig.periodMinutes || 30;
+          const duration =
+            cell.endMinutes !== undefined &&
+            cell.startMinutes !== undefined &&
+            cell.endMinutes > cell.startMinutes
+              ? cell.endMinutes - cell.startMinutes
+              : table.axisConfig.periodMinutes || 30;
 
           taskMap.set(taskKey, {
             id: taskId,
@@ -659,7 +664,12 @@ export function generateScheduleItemsForTable(
           }
         } else {
           const taskId = `task-table-${table.id}-${r}-${c}`;
-          const duration = table.axisConfig.periodMinutes || 60;
+          const duration =
+            cell.endMinutes !== undefined &&
+            cell.startMinutes !== undefined &&
+            cell.endMinutes > cell.startMinutes
+              ? cell.endMinutes - cell.startMinutes
+              : table.axisConfig.periodMinutes || 60;
 
           taskMap.set(taskKey, {
             id: taskId,
