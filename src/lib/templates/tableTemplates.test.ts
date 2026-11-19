@@ -416,5 +416,84 @@ describe('Table Templates Generator (Plan22 仮実装検証)', () => {
       expect(tasks[0].durationMinutes).toBe(45);
       expect(tasks[0].isAttachedTask).toBe(true);
     });
+
+    it('毎日同じ固定枠（mode: everyday）: Day 1 の1列コンパクト固定表が生成され、全曜日に展開されること', () => {
+      const table = createFixedSlotTable({
+        name: '睡眠固定枠',
+        mode: 'everyday',
+        multiSlots: {
+          items: [
+            {
+              title: '睡眠',
+              startTime: '23:00',
+              endTime: '07:00',
+            },
+          ],
+        },
+      });
+
+      expect(table.placementMode).toBe('fixed');
+      expect(table.columnMode).toBe('cycle');
+      expect(table.numCols).toBe(1);
+      expect(table.colHeaders).toEqual(['Day 1']);
+      expect(table.cells[0][0].title).toBe('睡眠');
+
+      const { slots } = generateScheduleItemsForTable(table);
+      expect(slots).toHaveLength(1);
+      expect(slots[0].title).toBe('睡眠');
+      // 1日周期のため、全曜日（月〜日）に展開される
+      expect(slots[0].daysOfWeek).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    });
+
+    it('くり返しサイクル固定枠（mode: cycle、3日周期）: Day 2 や Day 3 に異なる予定が正しく設定されること', () => {
+      const table = createFixedSlotTable({
+        name: '3交替シフト勤務',
+        mode: 'cycle',
+        cycleLength: 3,
+        cycleStartDay: 1, // 火曜起算
+        multiSlots: {
+          items: [
+            {
+              title: '早番勤務',
+              startTime: '08:30',
+              endTime: '17:00',
+              targetDays: [0], // Day 1
+            },
+            {
+              title: '夜勤',
+              startTime: '17:00',
+              endTime: '09:00',
+              targetDays: [1], // Day 2
+            },
+          ],
+        },
+      });
+
+      expect(table.placementMode).toBe('fixed');
+      expect(table.columnMode).toBe('cycle');
+      expect(table.numCols).toBe(3);
+      expect(table.colHeaders).toEqual(['Day 1', 'Day 2', 'Day 3']);
+      expect(table.cycleStartDay).toBe(1);
+
+      // 行の自動整列 (08:30 早番勤務 -> 17:00 夜勤)
+      expect(table.cells[0][0].title).toBe('早番勤務'); // Day 1
+      expect(table.cells[0][0].text).toBe('早番勤務');
+      expect(table.cells[0][1].text).toBeNull(); // Day 2は対象外
+      expect(table.cells[0][2].text).toBeNull(); // Day 3は対象外
+
+      expect(table.cells[1][1].title).toBe('夜勤'); // Day 2
+      expect(table.cells[1][1].text).toBe('夜勤');
+      expect(table.cells[1][0].text).toBeNull(); // Day 1は対象外
+      expect(table.cells[1][2].text).toBeNull(); // Day 3は対象外 (オフ日)
+
+      const { slots } = generateScheduleItemsForTable(table);
+      expect(slots).toHaveLength(2);
+      const earlySlot = slots.find((s) => s.title === '早番勤務');
+      const nightSlot = slots.find((s) => s.title === '夜勤');
+      // 火曜(1)起算の3日サイクルのため、Day 1(index 0)は 火(1), 金(4), 翌週月(0)
+      expect(earlySlot?.daysOfWeek).toEqual([0, 1, 4]);
+      // Day 2(index 1)は 水(2), 土(5)
+      expect(nightSlot?.daysOfWeek).toEqual([2, 5]);
+    });
   });
 });

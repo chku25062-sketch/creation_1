@@ -97,10 +97,13 @@ export interface FixedSlotTemplateInput {
   title?: string;
   startTime?: string;
   endTime?: string;
-  targetDays?: number[]; // 0:月〜6:日
+  targetDays?: number[]; // 0:月〜6:日 または 0..cycleLength-1
   multiSlots?: {
     items: FixedSlotItemInput[];
   };
+  mode?: 'everyday' | 'weekday' | 'cycle'; // 毎日同じ(1日分) / 曜日ごと(7日分) / くり返しサイクル(N日分)
+  cycleLength?: number; // 2..14 (cycle時) または 1 (everyday時)
+  cycleStartDay?: number; // 0:月〜6:日 (cycle時)
 }
 
 const WEEKDAY_HEADERS = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'];
@@ -560,6 +563,42 @@ export function createFixedSlotTable(input: FixedSlotTemplateInput): ImportedTab
   const id = `table-fixed-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const now = new Date().toISOString();
 
+  // モード判定（未指定時の自動推定含む）
+  let mode: 'everyday' | 'weekday' | 'cycle' = input.mode ?? 'weekday';
+  if (!input.mode) {
+    if (input.cycleLength && input.cycleLength > 1) {
+      mode = 'cycle';
+    } else if (input.cycleLength === 1) {
+      mode = 'everyday';
+    }
+  }
+
+  // 列数・ヘッダー・周期開始曜日の決定
+  let numCols: number;
+  let colHeaders: string[];
+  let columnMode: 'weekday' | 'cycle';
+  let cycleStartDay: number;
+
+  if (mode === 'everyday') {
+    numCols = 1;
+    colHeaders = ['Day 1'];
+    columnMode = 'cycle';
+    cycleStartDay = 0;
+  } else if (mode === 'cycle') {
+    const len = Math.max(2, Math.min(14, input.cycleLength || 3));
+    numCols = len;
+    colHeaders = Array.from({ length: len }, (_, i) => `Day ${i + 1}`);
+    columnMode = 'cycle';
+    cycleStartDay = input.cycleStartDay ?? 0;
+  } else {
+    numCols = 7;
+    colHeaders = [...WEEKDAY_HEADERS];
+    columnMode = 'weekday';
+    cycleStartDay = 0;
+  }
+
+  const defaultAllDays = Array.from({ length: numCols }, (_, i) => i);
+
   const slotItems: FixedSlotItemInput[] =
     input.multiSlots?.items && input.multiSlots.items.length > 0
       ? input.multiSlots.items
@@ -568,7 +607,7 @@ export function createFixedSlotTable(input: FixedSlotTemplateInput): ImportedTab
             title: input.title || '固定枠',
             startTime: input.startTime || '00:00',
             endTime: input.endTime || '08:00',
-            targetDays: input.targetDays || [0, 1, 2, 3, 4, 5, 6],
+            targetDays: input.targetDays || defaultAllDays,
           },
         ];
 
@@ -583,9 +622,13 @@ export function createFixedSlotTable(input: FixedSlotTemplateInput): ImportedTab
       endMin += 1440; // 翌朝対応（例: 23:00〜07:00 等）
     }
     const dur = endMin - startMin;
-    const targetDaysSet = new Set(item.targetDays || [0, 1, 2, 3, 4, 5, 6]);
+    // everydayモード時は常にDay 1(列0)が対象。それ以外は item.targetDays を参照
+    const targetDaysSet =
+      mode === 'everyday'
+        ? new Set([0])
+        : new Set(item.targetDays && item.targetDays.length > 0 ? item.targetDays : defaultAllDays);
 
-    return Array.from({ length: 7 }, (_, c) => {
+    return Array.from({ length: numCols }, (_, c) => {
       const isTarget = targetDaysSet.has(c);
       const hasAttached = isTarget && item.attachedTask?.enabled;
       return {
@@ -628,15 +671,15 @@ export function createFixedSlotTable(input: FixedSlotTemplateInput): ImportedTab
     createdAt: now,
     updatedAt: now,
     placementMode: 'fixed',
-    columnMode: 'weekday',
-    cycleStartDay: 0,
+    columnMode,
+    cycleStartDay,
     dailyRepeatCount: 'auto',
     weeklyRepeatCount: 'auto',
     weeklyTaskExpiryWeeks: 1,
     isApplied: true,
     numRows,
-    numCols: 7,
-    colHeaders: [...WEEKDAY_HEADERS],
+    numCols,
+    colHeaders,
     rowHeaders,
     axisConfig: {
       startTime: slotItems[0]?.startTime || '00:00',

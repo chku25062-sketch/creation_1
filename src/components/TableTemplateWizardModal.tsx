@@ -107,8 +107,11 @@ export function TableTemplateWizardModal({
   // 固定枠（Fixed）ステート
   // ==========================================
   const [fixedName, setFixedName] = useState('固定枠');
+  const [fixedDayMode, setFixedDayMode] = useState<'everyday' | 'weekday' | 'cycle'>('everyday');
+  const [fixedCycleLength, setFixedCycleLength] = useState<number>(3);
+  const [fixedCycleStartDay, setFixedCycleStartDay] = useState<number>(0);
   const [fixedSlots, setFixedSlots] = useState<WizardSlotItem[]>([
-    { id: 'f-1', title: '睡眠', startTime: '00:00', endTime: '08:00', targetDays: [0, 1, 2, 3, 4, 5, 6] },
+    { id: 'f-1', title: '睡眠', startTime: '00:00', endTime: '08:00', targetDays: [0] },
   ]);
 
   // targetTable の切り替えに連動
@@ -120,6 +123,17 @@ export function TableTemplateWizardModal({
 
       if (targetTable.placementMode === 'fixed') {
         setCategory('fixed');
+        if (targetTable.columnMode === 'cycle') {
+          if (targetTable.numCols === 1) {
+            setFixedDayMode('everyday');
+          } else {
+            setFixedDayMode('cycle');
+            setFixedCycleLength(targetTable.numCols);
+            setFixedCycleStartDay(targetTable.cycleStartDay ?? 0);
+          }
+        } else {
+          setFixedDayMode('weekday');
+        }
       } else if (targetTable.weeklyRepeatCount !== undefined && targetTable.weeklyRepeatCount !== 'auto') {
         setCategory('weekly');
       }
@@ -250,6 +264,13 @@ export function TableTemplateWizardModal({
       const startM = timeStringToMinutes(last.endTime);
       nextEnd = minutesToTimeString((startM + 60) % 1440);
     }
+    const defaultDays =
+      fixedDayMode === 'everyday'
+        ? [0]
+        : fixedDayMode === 'cycle'
+          ? Array.from({ length: fixedCycleLength }, (_, i) => i)
+          : [0, 1, 2, 3, 4, 5, 6];
+
     setFixedSlots((prev) => [
       ...prev,
       {
@@ -257,7 +278,7 @@ export function TableTemplateWizardModal({
         title: '',
         startTime: nextStart,
         endTime: nextEnd,
-        targetDays: [0, 1, 2, 3, 4, 5, 6],
+        targetDays: defaultDays,
         attachedTaskEnabled: false,
         attachedTaskDuration: 30,
       },
@@ -272,6 +293,19 @@ export function TableTemplateWizardModal({
   const handleUpdateFixedSlot = (id: string, updates: Partial<WizardSlotItem>) => {
     setFixedSlots((prev) =>
       prev.map((item) => (item.id === id ? { ...item, ...updates } : item)),
+    );
+  };
+
+  const toggleFixedSlotDay = (slotId: string, day: number) => {
+    setFixedSlots((prev) =>
+      prev.map((s) => {
+        if (s.id !== slotId) return s;
+        const current = s.targetDays || [];
+        const updated = current.includes(day)
+          ? current.filter((d) => d !== day)
+          : [...current, day].sort((a, b) => a - b);
+        return { ...s, targetDays: updated };
+      }),
     );
   };
 
@@ -376,18 +410,27 @@ export function TableTemplateWizardModal({
         : table;
       onApplyTable(finalTable);
     } else if (category === 'fixed') {
+      const defaultDays =
+        fixedDayMode === 'everyday'
+          ? [0]
+          : fixedDayMode === 'cycle'
+            ? Array.from({ length: fixedCycleLength }, (_, i) => i)
+            : [0, 1, 2, 3, 4, 5, 6];
+
       const table = createFixedSlotTable({
         name: fixedName || '固定枠',
         title: fixedSlots[0]?.title || '固定枠',
         startTime: fixedSlots[0]?.startTime || '00:00',
         endTime: fixedSlots[0]?.endTime || '08:00',
-        targetDays: fixedSlots[0]?.targetDays || [0, 1, 2, 3, 4, 5, 6],
+        mode: fixedDayMode,
+        cycleLength: fixedDayMode === 'cycle' ? fixedCycleLength : fixedDayMode === 'everyday' ? 1 : undefined,
+        cycleStartDay: fixedDayMode === 'cycle' ? fixedCycleStartDay : undefined,
         multiSlots: {
           items: fixedSlots.map((s) => ({
             title: s.title.trim() || '固定枠',
             startTime: s.startTime || '00:00',
             endTime: s.endTime || '01:00',
-            targetDays: s.targetDays && s.targetDays.length > 0 ? s.targetDays : [0, 1, 2, 3, 4, 5, 6],
+            targetDays: s.targetDays && s.targetDays.length > 0 ? s.targetDays : defaultDays,
             attachedTask: s.attachedTaskEnabled
               ? {
                   enabled: true,
@@ -496,7 +539,7 @@ export function TableTemplateWizardModal({
             <div className="space-y-4">
               {/* 表の表示名 */}
               <div className="flex items-center gap-3">
-                <label className="text-xs font-bold text-slate-700 shrink-0 w-20">表のタイトル</label>
+                <label className="text-xs font-bold text-slate-700 shrink-0 w-24">表の名前は何にしますか？</label>
                 <input
                   type="text"
                   value={dailyName}
@@ -511,7 +554,7 @@ export function TableTemplateWizardModal({
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <Clock className="h-4 w-4 text-blue-600" />
-                    <span>活動時間帯</span>
+                    <span>どの時間帯に行いますか？</span>
                   </label>
                   <span className="text-[11px] text-blue-600 font-medium">この時間枠内で空きコマに自動配置</span>
                 </div>
@@ -580,8 +623,8 @@ export function TableTemplateWizardModal({
               <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
                 {/* テーブルヘッダー */}
                 <div className="grid grid-cols-12 gap-2 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-500 border-b border-slate-200">
-                  <div className="col-span-7 sm:col-span-8">項目名</div>
-                  <div className="col-span-4 sm:col-span-3 text-center sm:text-left">1回の所要時間</div>
+                  <div className="col-span-6 sm:col-span-7">予定の名称</div>
+                  <div className="col-span-5 sm:col-span-4 text-center sm:text-left">1タスク当たり何分ぐらいかかりますか？</div>
                   <div className="col-span-1 text-right">操作</div>
                 </div>
 
@@ -593,7 +636,7 @@ export function TableTemplateWizardModal({
                       className="grid grid-cols-12 gap-2 items-center px-3 py-2 hover:bg-slate-50/50 transition"
                     >
                       {/* 項目名 */}
-                      <div className="col-span-7 sm:col-span-8 flex items-center gap-1.5 min-w-0">
+                      <div className="col-span-6 sm:col-span-7 flex items-center gap-1.5 min-w-0">
                         <span className="text-[11px] font-bold text-slate-400 w-4 shrink-0 text-center">
                           {idx + 1}.
                         </span>
@@ -607,7 +650,7 @@ export function TableTemplateWizardModal({
                       </div>
 
                       {/* 所要時間ステッパー */}
-                      <div className="col-span-4 sm:col-span-3 flex justify-center sm:justify-start">
+                      <div className="col-span-5 sm:col-span-4 flex justify-center sm:justify-start">
                         <NumberStepper
                           value={item.durationMinutes}
                           onChange={(val) => handleUpdateTaskItem(item.id, { durationMinutes: val })}
@@ -759,7 +802,7 @@ export function TableTemplateWizardModal({
             <div className="space-y-4">
               {/* 表の表示名 */}
               <div className="flex items-center gap-3">
-                <label className="text-xs font-bold text-slate-700 shrink-0 w-20">表のタイトル</label>
+                <label className="text-xs font-bold text-slate-700 shrink-0 w-24">表の名前は何にしますか？</label>
                 <input
                   type="text"
                   value={weeklyName}
@@ -772,8 +815,8 @@ export function TableTemplateWizardModal({
               {/* フラットなテーブルリスト */}
               <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
                 <div className="grid grid-cols-12 gap-2 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-500 border-b border-slate-200">
-                  <div className="col-span-7 sm:col-span-8">項目名</div>
-                  <div className="col-span-4 sm:col-span-3 text-center sm:text-left">1回の所要時間</div>
+                  <div className="col-span-6 sm:col-span-7">タスク名</div>
+                  <div className="col-span-5 sm:col-span-4 text-center sm:text-left">1回当たり何分ぐらいかかりますか？</div>
                   <div className="col-span-1 text-right">操作</div>
                 </div>
 
@@ -783,7 +826,7 @@ export function TableTemplateWizardModal({
                       key={item.id}
                       className="grid grid-cols-12 gap-2 items-center px-3 py-2 hover:bg-slate-50/50 transition"
                     >
-                      <div className="col-span-7 sm:col-span-8 flex items-center gap-1.5 min-w-0">
+                      <div className="col-span-6 sm:col-span-7 flex items-center gap-1.5 min-w-0">
                         <span className="text-[11px] font-bold text-slate-400 w-4 shrink-0 text-center">
                           {idx + 1}.
                         </span>
@@ -796,7 +839,7 @@ export function TableTemplateWizardModal({
                         />
                       </div>
 
-                      <div className="col-span-4 sm:col-span-3 flex justify-center sm:justify-start">
+                      <div className="col-span-5 sm:col-span-4 flex justify-center sm:justify-start">
                         <NumberStepper
                           value={item.durationMinutes}
                           onChange={(val) => handleUpdateWeeklyTask(item.id, { durationMinutes: val })}
@@ -967,134 +1010,344 @@ export function TableTemplateWizardModal({
              ======================================================== */}
           {category === 'fixed' && (
             <div className="space-y-4">
-              {/* 表の表示名 */}
-              <div className="flex items-center gap-3">
-                <label className="text-xs font-bold text-slate-700 shrink-0 w-20">表のタイトル</label>
+              {/* 【ステップ 1】表の名前は何にしますか？ */}
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2 shadow-2xs">
+                <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-purple-100 text-[11px] font-black text-purple-700">
+                    1
+                  </span>
+                  <span>表の名前は何にしますか？</span>
+                </label>
                 <input
                   type="text"
                   value={fixedName}
                   onChange={(e) => setFixedName(e.target.value)}
-                  placeholder="例: 基本生活リズム、固定予定"
-                  className="flex-1 rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-1.5 text-xs text-slate-800 focus:bg-white focus:border-purple-500 focus:outline-hidden transition"
+                  placeholder="例: 基本生活リズム、シフト勤務、アルバイト"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs text-slate-800 focus:bg-white focus:border-purple-500 focus:outline-hidden transition"
                 />
               </div>
 
-              {/* フラットなテーブルリスト */}
-              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
-                <div className="grid grid-cols-12 gap-2 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-500 border-b border-slate-200">
-                  <div className="col-span-4 sm:col-span-4">枠名</div>
-                  <div className="col-span-4 sm:col-span-4 text-center">時間帯</div>
-                  <div className="col-span-3 sm:col-span-3 text-center sm:text-left">対象曜日</div>
-                  <div className="col-span-1 text-right">操作</div>
+              {/* 【ステップ 2】何日分の予定を設定しますか？ */}
+              <div className="rounded-xl border border-purple-100 bg-purple-50/40 p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-purple-600 text-[11px] font-black text-white">
+                      2
+                    </span>
+                    <span>何日分の予定を設定しますか？</span>
+                  </label>
+                  <span className="text-[11px] text-purple-700 font-medium">スケジュール形式を選択</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {[
+                    {
+                      id: 'everyday' as const,
+                      title: '毎日同じ (1日分)',
+                      desc: '全曜日に同じ予定を配置（睡眠や固定ルーティン）',
+                    },
+                    {
+                      id: 'weekday' as const,
+                      title: '曜日ごと (7日分)',
+                      desc: '月〜日で異なる予定（授業・定休・平日と週末）',
+                    },
+                    {
+                      id: 'cycle' as const,
+                      title: 'くり返しサイクル',
+                      desc: '2〜14日周期の交代勤務（日勤/夜勤/休）など',
+                    },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        setFixedDayMode(m.id);
+                        // モード変更時に各スロットのtargetDaysを適合
+                        if (m.id === 'everyday') {
+                          setFixedSlots((prev) => prev.map((s) => ({ ...s, targetDays: [0] })));
+                        } else if (m.id === 'weekday') {
+                          setFixedSlots((prev) =>
+                            prev.map((s) => ({
+                              ...s,
+                              targetDays:
+                                s.targetDays && s.targetDays.length > 0 && s.targetDays.every((d) => d < 7)
+                                  ? s.targetDays
+                                  : [0, 1, 2, 3, 4, 5, 6],
+                            })),
+                          );
+                        } else if (m.id === 'cycle') {
+                          setFixedSlots((prev) =>
+                            prev.map((s) => ({
+                              ...s,
+                              targetDays:
+                                s.targetDays && s.targetDays.length > 0 && s.targetDays.every((d) => d < fixedCycleLength)
+                                  ? s.targetDays
+                                  : Array.from({ length: fixedCycleLength }, (_, i) => i),
+                            })),
+                          );
+                        }
+                      }}
+                      className={`rounded-xl border p-2.5 text-left transition flex flex-col justify-between ${
+                        fixedDayMode === m.id
+                          ? 'border-purple-600 bg-white ring-2 ring-purple-500/20 shadow-xs'
+                          : 'border-slate-200 bg-white/70 hover:bg-white text-slate-600'
+                      }`}
+                    >
+                      <div className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                        <span>{m.title}</span>
+                        {fixedDayMode === m.id && (
+                          <span className="h-2 w-2 rounded-full bg-purple-600" />
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">
+                        {m.desc}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                {/* くり返しサイクル選択時の詳細質問 */}
+                {fixedDayMode === 'cycle' && (
+                  <div className="rounded-lg border border-purple-200 bg-white p-3 space-y-2.5 animate-in fade-in duration-150">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-700">周期の日数（何日分くり返しますか？）:</span>
+                        <NumberStepper
+                          value={fixedCycleLength}
+                          onChange={(val) => {
+                            setFixedCycleLength(val);
+                            // cycleLength縮小時に範囲外のtargetDaysをクリップ
+                            setFixedSlots((prev) =>
+                              prev.map((s) => ({
+                                ...s,
+                                targetDays: (s.targetDays || []).filter((d) => d < val),
+                              })),
+                            );
+                          }}
+                          min={2}
+                          max={14}
+                          step={1}
+                          unit="日分"
+                          ariaLabel="周期の日数"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-slate-700">何曜日から始まりますか？:</span>
+                        <select
+                          value={fixedCycleStartDay}
+                          onChange={(e) => setFixedCycleStartDay(Number(e.target.value))}
+                          className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-bold text-slate-700 focus:border-purple-500 focus:outline-hidden"
+                        >
+                          {WEEKDAYS.map((w) => (
+                            <option key={w.dayIndex} value={w.dayIndex}>
+                              {w.label}曜日（Day 1）
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 【ステップ 3】予定と時間帯を登録してください */}
+              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs space-y-0">
+                <div className="bg-slate-50 px-3.5 py-2.5 border-b border-slate-200 flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-purple-600 text-[11px] font-black text-white">
+                      3
+                    </span>
+                    <span>予定と時間帯を登録してください</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">
+                    ※ 開始時刻順に自動整列されます
+                  </span>
                 </div>
 
                 <div className="divide-y divide-slate-100">
-                  {fixedSlots.map((item, idx) => (
-                    <div
-                      key={item.id}
-                      className="px-3 py-2 hover:bg-slate-50/50 transition space-y-1.5"
-                    >
-                      <div className="grid grid-cols-12 gap-2 items-center">
-                        <div className="col-span-4 sm:col-span-4 flex items-center gap-1.5 min-w-0">
-                          <span className="text-[11px] font-bold text-slate-400 w-4 shrink-0 text-center">
-                            {idx + 1}.
-                          </span>
-                          <input
-                            type="text"
-                            value={item.title}
-                            onChange={(e) => handleUpdateFixedSlot(item.id, { title: e.target.value })}
-                            placeholder={`例: ${idx === 0 ? '睡眠' : idx === 1 ? '昼食' : '固定枠名'}`}
-                            className="w-full rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-800 focus:border-purple-500 focus:outline-hidden"
-                          />
-                        </div>
+                  {fixedSlots.map((item, idx) => {
+                    // 所要時間の計算
+                    const startM = timeStringToMinutes(item.startTime || '00:00');
+                    let endM = timeStringToMinutes(item.endTime || '08:00');
+                    if (endM <= startM) endM += 1440;
+                    const diffM = endM - startM;
+                    const hours = Math.floor(diffM / 60);
+                    const mins = diffM % 60;
+                    const durationLabel = hours > 0 && mins > 0 ? `${hours}h${mins}m` : hours > 0 ? `${hours}時間` : `${mins}分`;
 
-                        <div className="col-span-4 sm:col-span-4 flex items-center justify-center gap-1">
-                          <input
-                            type="time"
-                            value={item.startTime}
-                            onChange={(e) => handleUpdateFixedSlot(item.id, { startTime: e.target.value })}
-                            className="w-18 sm:w-20 rounded-lg border border-slate-200 px-1 py-1 text-xs font-mono font-bold text-slate-700 text-center focus:border-purple-500 focus:outline-hidden"
-                          />
-                          <span className="text-slate-400 text-xs">〜</span>
-                          <input
-                            type="time"
-                            value={item.endTime}
-                            onChange={(e) => handleUpdateFixedSlot(item.id, { endTime: e.target.value })}
-                            className="w-18 sm:w-20 rounded-lg border border-slate-200 px-1 py-1 text-xs font-mono font-bold text-slate-700 text-center focus:border-purple-500 focus:outline-hidden"
-                          />
-                        </div>
+                    return (
+                      <div
+                        key={item.id}
+                        className="p-3 hover:bg-slate-50/50 transition space-y-2.5"
+                      >
+                        {/* 1行目: タイトル、時間帯、削除 */}
+                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                          <div className="flex items-center gap-1.5 flex-1 min-w-[140px]">
+                            <span className="text-xs font-bold text-slate-400 w-5 shrink-0 text-center">
+                              {idx + 1}.
+                            </span>
+                            <input
+                              type="text"
+                              value={item.title}
+                              onChange={(e) => handleUpdateFixedSlot(item.id, { title: e.target.value })}
+                              placeholder={`例: ${idx === 0 ? '睡眠' : idx === 1 ? '日勤' : '固定予定'}`}
+                              className="w-full rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-800 font-bold focus:border-purple-500 focus:outline-hidden"
+                            />
+                          </div>
 
-                        <div className="col-span-3 sm:col-span-3 flex justify-center sm:justify-start">
-                          <select
-                            value={
-                              item.targetDays.length === 7
-                                ? 'all'
-                                : item.targetDays.length === 5 &&
-                                  !item.targetDays.includes(5) &&
-                                  !item.targetDays.includes(6)
-                                ? 'weekday'
-                                : item.targetDays.length === 2 &&
-                                  item.targetDays.includes(5) &&
-                                  item.targetDays.includes(6)
-                                ? 'weekend'
-                                : 'custom'
-                            }
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val === 'all') handleUpdateFixedSlot(item.id, { targetDays: [0, 1, 2, 3, 4, 5, 6] });
-                              else if (val === 'weekday') handleUpdateFixedSlot(item.id, { targetDays: [0, 1, 2, 3, 4] });
-                              else if (val === 'weekend') handleUpdateFixedSlot(item.id, { targetDays: [5, 6] });
-                            }}
-                            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-700 focus:border-purple-500 focus:outline-hidden"
-                          >
-                            <option value="all">毎日</option>
-                            <option value="weekday">平日のみ</option>
-                            <option value="weekend">週末のみ</option>
-                            <option value="custom">曜日個別</option>
-                          </select>
-                        </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className="text-[11px] font-medium text-slate-500">時間帯:</span>
+                            <input
+                              type="time"
+                              value={item.startTime}
+                              onChange={(e) => handleUpdateFixedSlot(item.id, { startTime: e.target.value })}
+                              className="w-18 rounded-lg border border-slate-200 px-1 py-0.5 text-xs font-mono font-bold text-slate-700 text-center focus:border-purple-500 focus:outline-hidden"
+                            />
+                            <span className="text-slate-400 text-xs font-bold">〜</span>
+                            <input
+                              type="time"
+                              value={item.endTime}
+                              onChange={(e) => handleUpdateFixedSlot(item.id, { endTime: e.target.value })}
+                              className="w-18 rounded-lg border border-slate-200 px-1 py-0.5 text-xs font-mono font-bold text-slate-700 text-center focus:border-purple-500 focus:outline-hidden"
+                            />
+                            <span className="text-[10px] text-purple-700 font-mono font-bold bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
+                              {durationLabel}
+                            </span>
+                          </div>
 
-                        <div className="col-span-1 flex justify-end">
                           <button
                             type="button"
                             onClick={() => handleRemoveFixedSlot(item.id)}
                             disabled={fixedSlots.length <= 1}
                             aria-label="削除"
-                            className="p-1 text-slate-400 hover:text-red-500 disabled:opacity-20 transition"
+                            className="p-1 text-slate-400 hover:text-red-500 disabled:opacity-20 transition ml-auto"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
-                      </div>
 
-                      {/* 付随タスク設定 */}
-                      <div className="ml-5 pl-2 border-l-2 border-purple-200 flex flex-wrap items-center gap-3 text-xs pt-0.5">
-                        <label className="inline-flex items-center gap-1.5 cursor-pointer text-slate-700 hover:text-purple-900 select-none">
-                          <input
-                            type="checkbox"
-                            checked={item.attachedTaskEnabled ?? false}
-                            onChange={(e) => handleUpdateFixedSlot(item.id, { attachedTaskEnabled: e.target.checked })}
-                            className="rounded text-purple-600 focus:ring-purple-500 h-3.5 w-3.5"
-                          />
-                          <span className="font-medium text-[11px]">終了後に課題・復習タスクを付ける</span>
-                        </label>
-                        {item.attachedTaskEnabled && (
-                          <div className="flex items-center gap-1.5 bg-purple-50 px-2 py-0.5 rounded-lg border border-purple-200">
-                            <span className="text-[11px] text-purple-700 font-bold">所要時間:</span>
-                            <NumberStepper
-                              value={item.attachedTaskDuration ?? 30}
-                              onChange={(val) => handleUpdateFixedSlot(item.id, { attachedTaskDuration: val })}
-                              min={5}
-                              max={240}
-                              step={5}
-                              unit="分"
-                              ariaLabel={`${item.title || '固定枠'}の付随タスク所要時間`}
+                        {/* 2行目: 設定する日（対象日のチップ選択） */}
+                        <div className="ml-6 flex flex-wrap items-center gap-2 text-xs">
+                          <span className="text-[11px] font-bold text-slate-600 shrink-0">
+                            設定する日:
+                          </span>
+
+                          {fixedDayMode === 'everyday' ? (
+                            <span className="text-[11px] text-purple-700 font-bold bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+                              毎日適用されます
+                            </span>
+                          ) : fixedDayMode === 'weekday' ? (
+                            <div className="flex flex-wrap items-center gap-1">
+                              {WEEKDAYS.map((w) => {
+                                const isSelected = item.targetDays.includes(w.dayIndex);
+                                return (
+                                  <button
+                                    key={w.dayIndex}
+                                    type="button"
+                                    onClick={() => toggleFixedSlotDay(item.id, w.dayIndex)}
+                                    className={`h-6 px-2 rounded-md text-[11px] font-bold transition ${
+                                      isSelected
+                                        ? 'bg-purple-600 text-white shadow-2xs'
+                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                    }`}
+                                  >
+                                    {w.label}
+                                  </button>
+                                );
+                              })}
+                              <div className="flex items-center gap-1 ml-1 text-[10px] text-slate-400">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateFixedSlot(item.id, { targetDays: [0, 1, 2, 3, 4, 5, 6] })}
+                                  className="underline hover:text-slate-600"
+                                >
+                                  全日
+                                </button>
+                                <span>/</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateFixedSlot(item.id, { targetDays: [0, 1, 2, 3, 4] })}
+                                  className="underline hover:text-slate-600"
+                                >
+                                  平日
+                                </button>
+                                <span>/</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateFixedSlot(item.id, { targetDays: [5, 6] })}
+                                  className="underline hover:text-slate-600"
+                                >
+                                  週末
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            /* fixedDayMode === 'cycle' */
+                            <div className="flex flex-wrap items-center gap-1">
+                              {Array.from({ length: fixedCycleLength }, (_, i) => {
+                                const isSelected = item.targetDays.includes(i);
+                                return (
+                                  <button
+                                    key={i}
+                                    type="button"
+                                    onClick={() => toggleFixedSlotDay(item.id, i)}
+                                    className={`h-6 px-2 rounded-md text-[11px] font-bold transition ${
+                                      isSelected
+                                        ? 'bg-purple-600 text-white shadow-2xs'
+                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                    }`}
+                                  >
+                                    Day {i + 1}
+                                  </button>
+                                );
+                              })}
+                              <div className="flex items-center gap-1 ml-1 text-[10px] text-slate-400">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleUpdateFixedSlot(item.id, {
+                                      targetDays: Array.from({ length: fixedCycleLength }, (_, i) => i),
+                                    })
+                                  }
+                                  className="underline hover:text-slate-600"
+                                >
+                                  全Day
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 3行目: 課題・復習タスク設定 */}
+                        <div className="ml-6 pl-2 border-l-2 border-purple-200 flex flex-wrap items-center gap-3 text-xs pt-0.5">
+                          <label className="inline-flex items-center gap-1.5 cursor-pointer text-slate-700 hover:text-purple-900 select-none">
+                            <input
+                              type="checkbox"
+                              checked={item.attachedTaskEnabled ?? false}
+                              onChange={(e) => handleUpdateFixedSlot(item.id, { attachedTaskEnabled: e.target.checked })}
+                              className="rounded text-purple-600 focus:ring-purple-500 h-3.5 w-3.5"
                             />
-                          </div>
-                        )}
+                            <span className="font-medium text-[11px]">終了後に課題・復習タスクを付ける</span>
+                          </label>
+                          {item.attachedTaskEnabled && (
+                            <div className="flex items-center gap-1.5 bg-purple-50 px-2 py-0.5 rounded-lg border border-purple-200">
+                              <span className="text-[11px] text-purple-700 font-bold">1タスク当たり何分ぐらいかかりますか？:</span>
+                              <NumberStepper
+                                value={item.attachedTaskDuration ?? 30}
+                                onChange={(val) => handleUpdateFixedSlot(item.id, { attachedTaskDuration: val })}
+                                min={5}
+                                max={240}
+                                step={5}
+                                unit="分"
+                                ariaLabel={`${item.title || '固定枠'}の付随タスク所要時間`}
+                              />
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-3 py-2">
@@ -1104,11 +1357,8 @@ export function TableTemplateWizardModal({
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-purple-400 bg-white text-xs font-bold text-purple-700 hover:bg-purple-50 transition active:scale-95 shadow-2xs"
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    <span>固定枠を追加</span>
+                    <span>予定を追加する</span>
                   </button>
-                  <span className="text-[10px] text-slate-400 hidden sm:inline">
-                    ※ 登録された固定枠は開始時刻順に自動整列されます
-                  </span>
                 </div>
               </div>
 
