@@ -11,6 +11,7 @@ export interface TemplateTaskItemInput {
   durationMinutes: number;
   startTime?: string; // 例: "07:00"
   url?: string;
+  targetDays?: number[]; // 対象とする日 (Day 1..N または 曜日 0..6)
 }
 
 export interface DailyMenuItem {
@@ -20,7 +21,12 @@ export interface DailyMenuItem {
 
 export interface DailyRoutineTemplateInput {
   name: string; // 表の表示名（例:「朝の筋トレ」「英語学習」）
-  mode: 'single' | 'weekday_rotation' | 'cycle_rotation';
+  mode?: 'single' | 'weekday_rotation' | 'cycle_rotation';
+
+  // 日数・くり返し設定（新統一仕様）
+  daysCount?: number; // 何日分の予定を設定するか（1〜14日）
+  isRepeat?: boolean; // この予定をくり返すか（true: サイクル巡回、false: 曜日固定等）
+  repeatStartDay?: number; // 何曜日から始まるか（0:月〜6:日）
 
   // 単一メニューの場合（毎日・特定曜日に同じタスク）
   singleTask?: {
@@ -64,6 +70,11 @@ export interface WeeklyTaskTemplateInput {
   expiryWeeks?: 1 | 2 | 'none';
   timeRange?: { startTime: string | null; endTime: string | null };
 
+  // 日数・くり返し設定（新統一仕様）
+  daysCount?: number; // 何日分の予定を設定するか（1〜14日）
+  isRepeat?: boolean; // 毎週くり返すか（true: 期限なし/継続、false: 当週限り）
+  repeatStartDay?: number; // 何曜日から始まるか（0:月〜6:日）
+
   // 複数項目（マルチタスクリスト）の場合
   multiTasks?: {
     items: TemplateTaskItemInput[];
@@ -84,7 +95,7 @@ export interface FixedSlotItemInput {
   title: string;
   startTime: string;
   endTime: string;
-  targetDays?: number[]; // 0:月〜6:日、未指定時は全曜日
+  targetDays?: number[]; // 0:月〜6:日、未指定時は全日
   attachedTask?: {
     enabled: boolean;
     title?: string;
@@ -101,9 +112,14 @@ export interface FixedSlotTemplateInput {
   multiSlots?: {
     items: FixedSlotItemInput[];
   };
-  mode?: 'everyday' | 'weekday' | 'cycle'; // 毎日同じ(1日分) / 曜日ごと(7日分) / くり返しサイクル(N日分)
-  cycleLength?: number; // 2..14 (cycle時) または 1 (everyday時)
-  cycleStartDay?: number; // 0:月〜6:日 (cycle時)
+  mode?: 'everyday' | 'weekday' | 'cycle'; // 互換性維持
+  cycleLength?: number;
+  cycleStartDay?: number;
+
+  // 日数・くり返し設定（新統一仕様）
+  daysCount?: number; // 何日分の予定を設定するか（1〜14日）
+  isRepeat?: boolean; // この予定をくり返すか
+  repeatStartDay?: number; // 何曜日から始まるか（0:月〜6:日）
 }
 
 const WEEKDAY_HEADERS = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'];
@@ -244,126 +260,111 @@ export function createDailyRoutineTable(input: DailyRoutineTemplateInput): Impor
         ];
 
   const firstDuration = taskItems[0]?.durationMinutes || 30;
-  const isEveryday =
-    input.multiTasks?.isEveryday ??
-    input.singleTask?.isEveryday ??
-    (!input.singleTask?.targetDays ||
-      input.singleTask.targetDays.length === 0 ||
-      input.singleTask.targetDays.length === 7);
+  const legacyTargetDays = input.multiTasks?.targetDays ?? input.singleTask?.targetDays;
 
-  const targetDays = input.multiTasks?.targetDays ?? input.singleTask?.targetDays;
-  const targetDaysSet = new Set(targetDays || []);
+  // 新統一仕様（daysCount, isRepeat, repeatStartDay）の適用判定
+  const days = Math.max(
+    1,
+    Math.min(
+      14,
+      input.daysCount ??
+        (input.multiTasks?.isEveryday || input.singleTask?.isEveryday
+          ? 1
+          : (input.multiTasks?.targetDays && input.multiTasks.targetDays.length > 0) ||
+              (input.singleTask?.targetDays && input.singleTask.targetDays.length > 0)
+            ? 7
+            : 1),
+    ),
+  );
+  // daysCount未指定時、isEverydayならくり返し(true)、曜日指定なら曜日固定(false)
+  const isRepeat =
+    input.isRepeat ??
+    (input.daysCount !== undefined
+      ? true
+      : input.multiTasks?.isEveryday || input.singleTask?.isEveryday
+        ? true
+        : false);
+  const startDay = input.repeatStartDay ?? input.cycleRotation?.cycleStartDay ?? 0;
 
   const numRows = taskItems.length;
   const rowHeaders = Array.from({ length: numRows }, (_, r) => String(r + 1));
 
-  let createdTable: ImportedTableData;
+  const numCols: number = days;
+  let colHeaders: string[];
+  let columnMode: 'weekday' | 'cycle';
+  let cycleStartDay: number;
 
-  if (isEveryday) {
-    const cells: GridCell[][] = taskItems.map((item, r) => {
-      const duration = item.durationMinutes > 0 ? item.durationMinutes : 30;
-      const itemStart = item.startTime ? timeStringToMinutes(item.startTime) : startMin;
-      return [
-        {
-          dayIndex: 0,
-          periodIndex: r + 1,
-          text: item.title,
-          title: item.title,
-          roomOrNote: '',
-          rawLines: [item.title],
-          fullText: item.title,
-          startMinutes: itemStart,
-          endMinutes: itemStart + duration,
-          customDurationMinutes: duration,
-          customStartTime: item.startTime,
-          hasCustomTime: Boolean(item.startTime),
-          url: item.url,
-        },
-      ];
-    });
-
-    createdTable = {
-      id,
-      name: input.name || taskItems[0]?.title || '日課',
-      createdAt: now,
-      updatedAt: now,
-      placementMode: 'auto',
-      columnMode: 'cycle',
-      cycleStartDay: 0,
-      dailyRepeatCount: input.dailyRepeatCount ?? 'auto',
-      weeklyRepeatCount: 'auto',
-      weeklyTaskExpiryWeeks: 1,
-      isApplied: true,
-      numRows,
-      numCols: 1,
-      colHeaders: ['Day 1'],
-      rowHeaders,
-      axisConfig: {
-        startTime: startTimeStr,
-        endTime: endTimeStr,
-        periodMinutes: firstDuration,
-        intervalMinutes: 0,
-        hasLunch: false,
-        lunchAfterPeriod: 1,
-        lunchMinutes: 50,
-        weeklyTaskExpiryWeeks: 1,
-      },
-      cells,
-    };
+  if (days === 7 && !isRepeat) {
+    columnMode = 'weekday';
+    colHeaders = [...WEEKDAY_HEADERS];
+    cycleStartDay = 0;
   } else {
-    const cells: GridCell[][] = taskItems.map((item, r) => {
-      const duration = item.durationMinutes > 0 ? item.durationMinutes : 30;
-      const itemStart = item.startTime ? timeStringToMinutes(item.startTime) : startMin;
-
-      return Array.from({ length: 7 }, (_, c) => {
-        const isTarget = targetDaysSet.has(c);
-        return {
-          dayIndex: c,
-          periodIndex: r + 1,
-          text: isTarget ? item.title : null,
-          title: isTarget ? item.title : '',
-          roomOrNote: '',
-          rawLines: isTarget ? [item.title] : [],
-          fullText: isTarget ? item.title : '',
-          startMinutes: isTarget ? itemStart : 0,
-          endMinutes: isTarget ? itemStart + duration : 0,
-          customDurationMinutes: isTarget ? duration : undefined,
-          customStartTime: isTarget ? item.startTime : undefined,
-          hasCustomTime: isTarget ? Boolean(item.startTime) : undefined,
-          url: isTarget ? item.url : undefined,
-        };
-      });
-    });
-
-    createdTable = {
-      id,
-      name: input.name || taskItems[0]?.title || '日課',
-      createdAt: now,
-      updatedAt: now,
-      placementMode: 'auto',
-      columnMode: 'weekday',
-      cycleStartDay: 0,
-      dailyRepeatCount: input.dailyRepeatCount ?? 'auto',
-      weeklyRepeatCount: 'auto',
-      weeklyTaskExpiryWeeks: 1,
-      isApplied: true,
-      numRows,
-      numCols: 7,
-      colHeaders: [...WEEKDAY_HEADERS],
-      rowHeaders,
-      axisConfig: {
-        startTime: startTimeStr,
-        endTime: endTimeStr,
-        periodMinutes: firstDuration,
-        intervalMinutes: 0,
-        hasLunch: false,
-        lunchAfterPeriod: 1,
-        lunchMinutes: 50,
-        weeklyTaskExpiryWeeks: 1,
-      },
-      cells,
-    };
+    columnMode = 'cycle';
+    colHeaders = Array.from({ length: days }, (_, i) => `Day ${i + 1}`);
+    cycleStartDay = startDay;
   }
+
+  const defaultAllDays = Array.from({ length: numCols }, (_, i) => i);
+
+  const cells: GridCell[][] = taskItems.map((item, r) => {
+    const duration = item.durationMinutes > 0 ? item.durationMinutes : 30;
+    const itemStart = item.startTime ? timeStringToMinutes(item.startTime) : startMin;
+    const itemTargetDays =
+      item.targetDays && item.targetDays.length > 0
+        ? item.targetDays
+        : legacyTargetDays && legacyTargetDays.length > 0
+          ? legacyTargetDays
+          : defaultAllDays;
+    const targetSet = new Set(days === 1 ? [0] : itemTargetDays);
+
+    return Array.from({ length: numCols }, (_, c) => {
+      const isTarget = targetSet.has(c);
+      return {
+        dayIndex: c,
+        periodIndex: r + 1,
+        text: isTarget ? item.title : null,
+        title: isTarget ? item.title : '',
+        roomOrNote: '',
+        rawLines: isTarget ? [item.title] : [],
+        fullText: isTarget ? item.title : '',
+        startMinutes: isTarget ? itemStart : 0,
+        endMinutes: isTarget ? itemStart + duration : 0,
+        customDurationMinutes: isTarget ? duration : undefined,
+        customStartTime: isTarget ? item.startTime : undefined,
+        hasCustomTime: isTarget ? Boolean(item.startTime) : undefined,
+        url: isTarget ? item.url : undefined,
+      };
+    });
+  });
+
+  const createdTable: ImportedTableData = {
+    id,
+    name: input.name || taskItems[0]?.title || '日課',
+    createdAt: now,
+    updatedAt: now,
+    placementMode: 'auto',
+    columnMode,
+    cycleStartDay,
+    dailyRepeatCount: input.dailyRepeatCount ?? 'auto',
+    weeklyRepeatCount: 'auto',
+    weeklyTaskExpiryWeeks: 1,
+    isApplied: true,
+    numRows,
+    numCols,
+    colHeaders,
+    rowHeaders,
+    axisConfig: {
+      startTime: startTimeStr,
+      endTime: endTimeStr,
+      periodMinutes: firstDuration,
+      intervalMinutes: 0,
+      hasLunch: false,
+      lunchAfterPeriod: 1,
+      lunchMinutes: 50,
+      weeklyTaskExpiryWeeks: 1,
+    },
+    cells,
+  };
 
   return sortRowsByTime(createdTable);
 }
@@ -506,23 +507,51 @@ export function createWeeklyTaskTable(input: WeeklyTaskTemplateInput): ImportedT
     };
   }
 
-  // パターンC: いつでも着手可能（おまかせ・Day 1の1列表）
+  // パターンC: 日数（daysCount）およびくり返し設定に基づく生成
+  const days = Math.max(1, Math.min(14, input.daysCount ?? 1));
+  const isRepeat = input.isRepeat ?? true;
+  const startDay = input.repeatStartDay ?? 0;
+
+  const numCols: number = days;
+  let colHeaders: string[];
+  let columnMode: 'weekday' | 'cycle';
+  let cycleStartDay: number;
+
+  if (days === 7 && !isRepeat) {
+    columnMode = 'weekday';
+    colHeaders = [...WEEKDAY_HEADERS];
+    cycleStartDay = 0;
+  } else {
+    columnMode = 'cycle';
+    colHeaders = Array.from({ length: days }, (_, i) => `Day ${i + 1}`);
+    cycleStartDay = startDay;
+  }
+
+  const defaultAllDays = Array.from({ length: numCols }, (_, i) => i);
+
   const cells: GridCell[][] = taskItems.map((item, r) => {
     const dur = item.durationMinutes > 0 ? item.durationMinutes : 60;
-    return [
-      {
-        dayIndex: 0,
+    const itemTargetDays =
+      item.targetDays && item.targetDays.length > 0
+        ? item.targetDays
+        : defaultAllDays;
+    const targetSet = new Set(days === 1 ? [0] : itemTargetDays);
+
+    return Array.from({ length: numCols }, (_, c) => {
+      const isTarget = targetSet.has(c);
+      return {
+        dayIndex: c,
         periodIndex: r + 1,
-        text: item.title,
-        title: item.title,
+        text: isTarget ? item.title : null,
+        title: isTarget ? item.title : '',
         roomOrNote: '',
-        rawLines: [item.title],
-        fullText: item.title,
-        startMinutes: startMin,
-        endMinutes: startMin + dur,
-        customDurationMinutes: dur,
-      },
-    ];
+        rawLines: isTarget ? [item.title] : [],
+        fullText: isTarget ? item.title : '',
+        startMinutes: isTarget ? startMin : 0,
+        endMinutes: isTarget ? startMin + dur : 0,
+        customDurationMinutes: isTarget ? dur : undefined,
+      };
+    });
   });
 
   return {
@@ -531,15 +560,15 @@ export function createWeeklyTaskTable(input: WeeklyTaskTemplateInput): ImportedT
     createdAt: now,
     updatedAt: now,
     placementMode: 'auto',
-    columnMode: 'cycle',
-    cycleStartDay: 0,
+    columnMode,
+    cycleStartDay,
     dailyRepeatCount: 1,
     weeklyRepeatCount,
-    weeklyTaskExpiryWeeks: expiryWeeks,
+    weeklyTaskExpiryWeeks: isRepeat ? (input.expiryWeeks ?? 'none') : 1,
     isApplied: true,
     numRows,
-    numCols: 1,
-    colHeaders: ['Day 1'],
+    numCols,
+    colHeaders,
     rowHeaders,
     axisConfig: {
       startTime: startTimeStr,
@@ -549,7 +578,7 @@ export function createWeeklyTaskTable(input: WeeklyTaskTemplateInput): ImportedT
       hasLunch: false,
       lunchAfterPeriod: 1,
       lunchMinutes: 50,
-      weeklyTaskExpiryWeeks: expiryWeeks,
+      weeklyTaskExpiryWeeks: isRepeat ? (input.expiryWeeks ?? 'none') : 1,
     },
     cells,
   };
@@ -563,38 +592,42 @@ export function createFixedSlotTable(input: FixedSlotTemplateInput): ImportedTab
   const id = `table-fixed-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const now = new Date().toISOString();
 
-  // モード判定（未指定時の自動推定含む）
-  let mode: 'everyday' | 'weekday' | 'cycle' = input.mode ?? 'weekday';
-  if (!input.mode) {
-    if (input.cycleLength && input.cycleLength > 1) {
-      mode = 'cycle';
-    } else if (input.cycleLength === 1) {
-      mode = 'everyday';
-    }
+  // 日数・くり返しモードの決定（新統一仕様 ＆ 従来互換）
+  let days: number;
+  let isRepeat: boolean;
+
+  if (input.daysCount !== undefined) {
+    days = Math.max(1, Math.min(14, input.daysCount));
+    isRepeat = input.isRepeat ?? true;
+  } else if (input.mode === 'everyday' || input.cycleLength === 1) {
+    days = 1;
+    isRepeat = true;
+  } else if (input.mode === 'cycle' || (input.cycleLength && input.cycleLength > 1)) {
+    days = Math.max(2, Math.min(14, input.cycleLength || 3));
+    isRepeat = true;
+  } else {
+    // デフォルト（mode === 'weekday' または未指定）
+    days = 7;
+    isRepeat = false;
   }
 
-  // 列数・ヘッダー・周期開始曜日の決定
-  let numCols: number;
+  const startDay = input.repeatStartDay ?? input.cycleStartDay ?? 0;
+
+  const numCols: number = days;
   let colHeaders: string[];
   let columnMode: 'weekday' | 'cycle';
   let cycleStartDay: number;
 
-  if (mode === 'everyday') {
-    numCols = 1;
-    colHeaders = ['Day 1'];
-    columnMode = 'cycle';
-    cycleStartDay = 0;
-  } else if (mode === 'cycle') {
-    const len = Math.max(2, Math.min(14, input.cycleLength || 3));
-    numCols = len;
-    colHeaders = Array.from({ length: len }, (_, i) => `Day ${i + 1}`);
-    columnMode = 'cycle';
-    cycleStartDay = input.cycleStartDay ?? 0;
-  } else {
-    numCols = 7;
-    colHeaders = [...WEEKDAY_HEADERS];
+  if (days === 7 && !isRepeat) {
+    // 7日分かつくり返さない場合は標準の曜日固定テーブル（月〜日）
     columnMode = 'weekday';
+    colHeaders = [...WEEKDAY_HEADERS];
     cycleStartDay = 0;
+  } else {
+    // 1日分またはN日サイクル（くり返し）
+    columnMode = 'cycle';
+    colHeaders = Array.from({ length: days }, (_, i) => `Day ${i + 1}`);
+    cycleStartDay = startDay;
   }
 
   const defaultAllDays = Array.from({ length: numCols }, (_, i) => i);
@@ -622,9 +655,9 @@ export function createFixedSlotTable(input: FixedSlotTemplateInput): ImportedTab
       endMin += 1440; // 翌朝対応（例: 23:00〜07:00 等）
     }
     const dur = endMin - startMin;
-    // everydayモード時は常にDay 1(列0)が対象。それ以外は item.targetDays を参照
+    // 1日かつくり返す（everyday）時は常にDay 1(列0)が対象。それ以外は item.targetDays を参照
     const targetDaysSet =
-      mode === 'everyday'
+      days === 1
         ? new Set([0])
         : new Set(item.targetDays && item.targetDays.length > 0 ? item.targetDays : defaultAllDays);
 

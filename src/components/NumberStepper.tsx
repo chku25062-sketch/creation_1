@@ -14,6 +14,7 @@ interface NumberStepperProps {
   inputWidth?: string;
   size?: 'sm' | 'md';
   ariaLabel?: string;
+  disabled?: boolean;
 }
 
 export function NumberStepper({
@@ -27,18 +28,22 @@ export function NumberStepper({
   inputWidth = 'w-14 sm:w-16',
   size = 'md',
   ariaLabel,
+  disabled = false,
 }: NumberStepperProps) {
   const handleDecrement = (e: React.MouseEvent) => {
+    if (disabled) return;
     e.stopPropagation();
     onChange(Math.max(min, value - step));
   };
 
   const handleIncrement = (e: React.MouseEvent) => {
+    if (disabled) return;
     e.stopPropagation();
     onChange(Math.min(max, value + step));
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
     const parsed = parseInt(e.target.value, 10);
     if (!isNaN(parsed)) {
       onChange(Math.min(max, Math.max(min, parsed)));
@@ -52,11 +57,11 @@ export function NumberStepper({
   const iconSize = size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5';
 
   return (
-    <div className={`inline-flex items-center gap-1 ${className}`}>
+    <div className={`inline-flex items-center gap-1 ${disabled ? 'opacity-40 pointer-events-none' : ''} ${className}`}>
       <button
         type="button"
         onClick={handleDecrement}
-        disabled={value <= min}
+        disabled={disabled || value <= min}
         aria-label={`${ariaLabel || ''} 減らす`}
         className={`${btnSize} shrink-0 rounded-lg border border-slate-300 bg-white flex items-center justify-center font-bold text-slate-700 active:scale-95 shadow-2xs hover:bg-slate-50 transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer`}
       >
@@ -71,15 +76,16 @@ export function NumberStepper({
           step={step}
           value={value}
           onChange={handleInputChange}
+          disabled={disabled}
           aria-label={ariaLabel}
-          className={`${inputWidth} ${inputSize} rounded-lg border border-slate-300 bg-white font-mono font-bold text-center text-blue-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-hidden`}
+          className={`${inputWidth} ${inputSize} rounded-lg border border-slate-300 bg-white font-mono font-bold text-center text-blue-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 focus:outline-hidden disabled:bg-slate-100 disabled:text-slate-400`}
         />
       </div>
 
       <button
         type="button"
         onClick={handleIncrement}
-        disabled={value >= max}
+        disabled={disabled || value >= max}
         aria-label={`${ariaLabel || ''} 増やす`}
         className={`${btnSize} shrink-0 rounded-lg border border-slate-300 bg-white flex items-center justify-center font-bold text-slate-700 active:scale-95 shadow-2xs hover:bg-slate-50 transition disabled:opacity-40 disabled:pointer-events-none cursor-pointer`}
       >

@@ -496,4 +496,85 @@ describe('Table Templates Generator (Plan22 仮実装検証)', () => {
       expect(nightSlot?.daysOfWeek).toEqual([2, 5]);
     });
   });
+
+  describe('新仕様: 日数数値入力・くり返し独立設定・Dayチップ選択 (Plan22 セクション12)', () => {
+    it('固定枠: daysCount: 4, isRepeat: true, repeatStartDay: 2 (水曜起算) で Day 2/Day 4 にスロットが正しく設定されること', () => {
+      const table = createFixedSlotTable({
+        name: '4日交代シフト',
+        daysCount: 4,
+        isRepeat: true,
+        repeatStartDay: 2,
+        multiSlots: {
+          items: [
+            {
+              title: '夜勤シフト',
+              startTime: '18:00',
+              endTime: '09:00',
+              targetDays: [1, 3], // Day 2 と Day 4 に配置
+            },
+          ],
+        },
+      });
+
+      expect(table.columnMode).toBe('cycle');
+      expect(table.numCols).toBe(4);
+      expect(table.colHeaders).toEqual(['Day 1', 'Day 2', 'Day 3', 'Day 4']);
+      expect(table.cycleStartDay).toBe(2);
+
+      // セル配置の確認
+      expect(table.cells[0][0].text).toBeNull(); // Day 1 なし
+      expect(table.cells[0][1].text).toBe('夜勤シフト'); // Day 2 あり
+      expect(table.cells[0][2].text).toBeNull(); // Day 3 なし
+      expect(table.cells[0][3].text).toBe('夜勤シフト'); // Day 4 あり
+    });
+
+    it('日課: daysCount: 3, isRepeat: true で Day 2, Day 3 にのみタスクが設定されること', () => {
+      const table = createDailyRoutineTable({
+        name: '3日サイクル日課',
+        daysCount: 3,
+        isRepeat: true,
+        repeatStartDay: 0,
+        multiTasks: {
+          items: [
+            {
+              title: '筋トレB',
+              durationMinutes: 30,
+              targetDays: [1, 2], // Day 2, Day 3 のみ
+            },
+          ],
+        },
+      });
+
+      expect(table.columnMode).toBe('cycle');
+      expect(table.numCols).toBe(3);
+      expect(table.colHeaders).toEqual(['Day 1', 'Day 2', 'Day 3']);
+      expect(table.cells[0][0].text).toBeNull(); // Day 1 なし
+      expect(table.cells[0][1].text).toBe('筋トレB'); // Day 2 あり
+      expect(table.cells[0][2].text).toBe('筋トレB'); // Day 3 あり
+    });
+
+    it('週次タスク: daysCount: 7, isRepeat: false で 曜日固定（月〜日）テーブルとして生成されること', () => {
+      const table = createWeeklyTaskTable({
+        name: '今週の特別課題',
+        daysCount: 7,
+        isRepeat: false,
+        multiTasks: {
+          items: [
+            {
+              title: 'レポート執筆',
+              durationMinutes: 90,
+              targetDays: [5, 6], // 土日
+            },
+          ],
+        },
+      });
+
+      expect(table.columnMode).toBe('weekday');
+      expect(table.numCols).toBe(7);
+      expect(table.colHeaders).toEqual(['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜']);
+      expect(table.cells[0][0].text).toBeNull(); // 月
+      expect(table.cells[0][5].text).toBe('レポート執筆'); // 土
+      expect(table.cells[0][6].text).toBe('レポート執筆'); // 日
+    });
+  });
 });
