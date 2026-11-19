@@ -368,12 +368,6 @@ export function TableTemplateWizardModal({
         : color === 'emerald'
           ? 'border-emerald-600 ring-2 ring-emerald-500/20'
           : 'border-purple-600 ring-2 ring-purple-500/20';
-    const colorPill =
-      color === 'blue'
-        ? 'bg-blue-600 text-white border-blue-600'
-        : color === 'emerald'
-          ? 'bg-emerald-600 text-white border-emerald-600'
-          : 'bg-purple-600 text-white border-purple-600';
 
     return (
       <div className="space-y-3">
@@ -389,7 +383,7 @@ export function TableTemplateWizardModal({
             <span className="text-[11px] text-slate-500">1〜14日の日数を設定</span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-xl border border-slate-300 shadow-2xs">
               <button
                 type="button"
@@ -417,28 +411,6 @@ export function TableTemplateWizardModal({
               >
                 +
               </button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-1.5">
-              {[
-                { label: '1日分 (毎日)', count: 1 },
-                { label: '3日分', count: 3 },
-                { label: '5日分 (平日)', count: 5 },
-                { label: '7日分 (1週間)', count: 7 },
-              ].map((btn) => (
-                <button
-                  key={btn.count}
-                  type="button"
-                  onClick={() => onChangeDays(btn.count)}
-                  className={`h-7 px-2.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
-                    daysCount === btn.count
-                      ? `${colorPill} shadow-2xs`
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                  }`}
-                >
-                  {btn.label}
-                </button>
-              ))}
             </div>
           </div>
         </div>
