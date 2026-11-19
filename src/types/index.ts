@@ -212,6 +212,7 @@ export interface GridCell {
   customDurationMinutes?: number; // 個別所要時間（分）
   customStartTime?: string; // 個別開始時刻 ("HH:mm")
   hasCustomTime?: boolean; // 個別時間設定が有効かどうか
+  targetWeeklyCount?: number; // 週次タスク: このタスクの週あたり目標回数
   url?: string; // 関連Webリンク (Zoom, Meet, 課題ページなど)
   attachedTask?: {
     enabled: boolean;

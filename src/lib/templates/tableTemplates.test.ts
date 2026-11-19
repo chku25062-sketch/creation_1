@@ -576,5 +576,48 @@ describe('Table Templates Generator (Plan22 仮実装検証)', () => {
       expect(table.cells[0][5].text).toBe('レポート執筆'); // 土
       expect(table.cells[0][6].text).toBe('レポート執筆'); // 日
     });
+
+    it('週次タスク: タスクごとの週目標回数（weeklyCount: 3 と 1）が個別のTaskItemに正しく反映されること', () => {
+      const table = createWeeklyTaskTable({
+        name: '今週のルーティン＆課題',
+        daysCount: 7,
+        isRepeat: false,
+        multiTasks: {
+          items: [
+            {
+              title: 'ジム・筋トレ',
+              durationMinutes: 60,
+              weeklyCount: 3, // 週3回やりたい
+            },
+            {
+              title: '部屋の大掃除',
+              durationMinutes: 45,
+              weeklyCount: 1, // 週1回やりたい
+            },
+          ],
+        },
+      });
+
+      // セルに targetWeeklyCount が保存されていること
+      expect(table.cells[0][0].targetWeeklyCount).toBe(3);
+      expect(table.cells[1][0].targetWeeklyCount).toBe(1);
+
+      // スケジュールアイテム展開
+      const { tasks } = generateScheduleItemsForTable(table);
+      expect(tasks).toHaveLength(2);
+
+      const gymTask = tasks.find((t) => t.title === 'ジム・筋トレ');
+      const cleanTask = tasks.find((t) => t.title === '部屋の大掃除');
+
+      expect(gymTask).toBeDefined();
+      expect(gymTask?.period).toBe('week');
+      expect(gymTask?.frequency).toBe('custom');
+      expect(gymTask?.frequencyCount).toBe(3); // 週3回！
+
+      expect(cleanTask).toBeDefined();
+      expect(cleanTask?.period).toBe('week');
+      expect(cleanTask?.frequency).toBe('custom');
+      expect(cleanTask?.frequencyCount).toBe(1); // 週1回！
+    });
   });
 });

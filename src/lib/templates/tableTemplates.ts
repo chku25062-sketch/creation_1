@@ -12,6 +12,7 @@ export interface TemplateTaskItemInput {
   startTime?: string; // 例: "07:00"
   url?: string;
   targetDays?: number[]; // 対象とする日 (Day 1..N または 曜日 0..6)
+  weeklyCount?: number; // 週次タスク: 週あたりの目標回数（例: 週2回なら2）
 }
 
 export interface DailyMenuItem {
@@ -391,7 +392,11 @@ export function createWeeklyTaskTable(input: WeeklyTaskTemplateInput): ImportedT
   const numRows = taskItems.length;
   const rowHeaders = Array.from({ length: numRows }, (_, r) => String(r + 1));
   const tableName = input.name || taskItems[0]?.title || '週タスク';
-  const weeklyRepeatCount = input.weeklyTargetCount ?? 'auto';
+  const itemWeeklyCounts = taskItems
+    .map((t) => t.weeklyCount)
+    .filter((c): c is number => typeof c === 'number' && c > 0);
+  const maxItemWeeklyCount = itemWeeklyCounts.length > 0 ? Math.max(...itemWeeklyCounts) : undefined;
+  const weeklyRepeatCount = input.weeklyTargetCount ?? maxItemWeeklyCount ?? 'auto';
   const expiryWeeks = input.expiryWeeks ?? 1;
 
   const startTimeStr = input.timeRange?.startTime ?? null;
@@ -422,6 +427,7 @@ export function createWeeklyTaskTable(input: WeeklyTaskTemplateInput): ImportedT
           startMinutes: isEligible ? scheduleStartMin : 0,
           endMinutes: isEligible ? scheduleStartMin + dur : 0,
           customDurationMinutes: isEligible ? dur : undefined,
+          targetWeeklyCount: item.weeklyCount,
         };
       });
     });
@@ -473,6 +479,7 @@ export function createWeeklyTaskTable(input: WeeklyTaskTemplateInput): ImportedT
           startMinutes: isTarget ? startMin : 0,
           endMinutes: isTarget ? startMin + dur : 0,
           customDurationMinutes: isTarget ? dur : undefined,
+          targetWeeklyCount: item.weeklyCount,
         };
       });
     });
@@ -550,6 +557,7 @@ export function createWeeklyTaskTable(input: WeeklyTaskTemplateInput): ImportedT
         startMinutes: isTarget ? startMin : 0,
         endMinutes: isTarget ? startMin + dur : 0,
         customDurationMinutes: isTarget ? dur : undefined,
+        targetWeeklyCount: item.weeklyCount,
       };
     });
   });

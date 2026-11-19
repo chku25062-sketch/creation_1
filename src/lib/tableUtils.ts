@@ -700,10 +700,12 @@ export function generateScheduleItemsForTable(
         const taskKey = fullTitle;
         const existing = taskMap.get(taskKey);
 
-        const tableWeeklyCount =
-          table.weeklyRepeatCount && table.weeklyRepeatCount !== 'auto'
-            ? Number(table.weeklyRepeatCount)
-            : undefined;
+        const effectiveWeeklyCount =
+          cell.targetWeeklyCount !== undefined && cell.targetWeeklyCount > 0
+            ? cell.targetWeeklyCount
+            : table.weeklyRepeatCount && table.weeklyRepeatCount !== 'auto'
+              ? Number(table.weeklyRepeatCount)
+              : undefined;
 
         const tableDailyCount =
           table.dailyRepeatCount && table.dailyRepeatCount !== 'auto'
@@ -730,9 +732,9 @@ export function generateScheduleItemsForTable(
             existing.dailyCount = tableDailyCount;
             existing.dailyRepeatMode = 'custom';
           }
-          if (tableWeeklyCount) {
+          if (effectiveWeeklyCount) {
             existing.frequency = 'custom';
-            existing.frequencyCount = tableWeeklyCount;
+            existing.frequencyCount = effectiveWeeklyCount;
           }
           if (isWeekday && effectiveWeekday !== undefined) {
             const curDays = existing.targetDays || [];
@@ -766,15 +768,15 @@ export function generateScheduleItemsForTable(
             durationSize: duration <= 25 ? 'small' : duration <= 60 ? 'medium' : 'large',
             durationMinutes: duration,
             breakMinutes: effectiveBreakMinutes,
-            frequency: tableWeeklyCount ? 'custom' : 'medium',
-            frequencyCount: tableWeeklyCount,
+            frequency: effectiveWeeklyCount ? 'custom' : 'medium',
+            frequencyCount: effectiveWeeklyCount,
             dailyCount: tableDailyCount ?? 1,
             dailyRepeatMode: tableDailyCount ? 'custom' : 'auto',
             period: 'week',
             targetDays:
               isWeekday && effectiveWeekday !== undefined
                 ? [effectiveWeekday]
-                : !isCycle && !tableWeeklyCount
+                : !isCycle && !effectiveWeeklyCount
                   ? [0, 1, 2, 3, 4, 5, 6]
                   : undefined,
             cycleDays: isCycle ? [cycleIdx] : undefined,

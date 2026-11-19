@@ -29,6 +29,7 @@ export interface WizardTaskItem {
   durationMinutes: number;
   startTime: string; // 例: "07:00"、空文字なら未指定
   targetDays?: number[]; // 対象とする日 (Day 1..N または 曜日 0..6)
+  weeklyCount?: number; // 週次タスク: 週あたりの目標回数（デフォルト 1）
 }
 
 export interface WizardSlotItem {
@@ -98,9 +99,8 @@ export function TableTemplateWizardModal({
   const [weeklyIsRepeat, setWeeklyIsRepeat] = useState<boolean>(false);
   const [weeklyRepeatStartDay, setWeeklyRepeatStartDay] = useState<number>(0);
   const [weeklyTasks, setWeeklyTasks] = useState<WizardTaskItem[]>([
-    { id: 'w-1', title: 'レポート課題', durationMinutes: 60, startTime: '', targetDays: [0, 1, 2, 3, 4, 5, 6] },
+    { id: 'w-1', title: 'レポート課題', durationMinutes: 60, weeklyCount: 2, startTime: '', targetDays: [0, 1, 2, 3, 4, 5, 6] },
   ]);
-  const [weeklyTargetCount, setWeeklyTargetCount] = useState<number | 'auto'>('auto');
   const [weeklyExpiryWeeks, setWeeklyExpiryWeeks] = useState<WeeklyExpiryWeeks>(1);
   const [weeklyHasConstraint, setWeeklyHasConstraint] = useState<boolean>(false); // 開始日時の指定有無
   const [weeklyStartDay, setWeeklyStartDay] = useState<number>(2); // 水曜 (0:月〜6:日)
@@ -267,6 +267,7 @@ export function TableTemplateWizardModal({
         id: `wtask-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         title: '',
         durationMinutes: last ? last.durationMinutes : 60,
+        weeklyCount: last ? (last.weeklyCount || 1) : 1,
         startTime: '',
         targetDays: defaultDays,
       },
@@ -679,7 +680,6 @@ export function TableTemplateWizardModal({
         name: weeklyName || '今週のタスク',
         title: weeklyTasks[0]?.title || '週タスク',
         durationMinutes: weeklyTasks[0]?.durationMinutes || 60,
-        weeklyTargetCount,
         expiryWeeks: weeklyExpiryWeeks,
         daysCount: weeklyDaysCount,
         isRepeat: weeklyIsRepeat,
@@ -688,6 +688,7 @@ export function TableTemplateWizardModal({
           items: weeklyTasks.map((t) => ({
             title: t.title.trim() || '週タスク',
             durationMinutes: t.durationMinutes > 0 ? t.durationMinutes : 60,
+            weeklyCount: t.weeklyCount || 1,
             targetDays:
               t.targetDays && t.targetDays.length > 0
                 ? t.targetDays
@@ -1144,17 +1145,17 @@ export function TableTemplateWizardModal({
                 />
               </div>
 
-              {/* 【ステップ 2】タスクの登録 */}
+              {/* 【ステップ 2】今週こなしたいタスクの登録 */}
               <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs space-y-0">
                 <div className="bg-slate-50 px-3.5 py-2.5 border-b border-slate-200 flex items-center justify-between">
                   <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-[11px] font-black text-white">
                       2
                     </span>
-                    <span>タスク名と1回当たりの時間を登録してください</span>
+                    <span>今週こなしたいタスクと目標回数を登録してください</span>
                   </label>
                   <span className="text-[10px] text-slate-400">
-                    ※ 空き枠の多い曜日に自動配分されます
+                    ※ 空き枠の多い曜日に自動バランス配置
                   </span>
                 </div>
 
@@ -1174,7 +1175,7 @@ export function TableTemplateWizardModal({
                             type="text"
                             value={item.title}
                             onChange={(e) => handleUpdateWeeklyTask(item.id, { title: e.target.value })}
-                            placeholder={`例: ${idx === 0 ? 'レポート課題' : idx === 1 ? '部屋の掃除' : 'タスク名'}`}
+                            placeholder={`例: ${idx === 0 ? 'レポート課題' : idx === 1 ? 'ジム・筋トレ' : '部屋の掃除'}`}
                             className="w-full rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-800 font-bold focus:border-emerald-500 focus:outline-hidden"
                           />
                         </div>
@@ -1193,6 +1194,20 @@ export function TableTemplateWizardModal({
                           />
                         </div>
 
+                        {/* 週あたりの目標回数ステッパー */}
+                        <div className="flex items-center gap-1.5 shrink-0 bg-emerald-50/60 px-2 py-0.5 rounded-lg border border-emerald-200">
+                          <span className="text-[11px] font-bold text-emerald-800">週:</span>
+                          <NumberStepper
+                            value={item.weeklyCount ?? 1}
+                            onChange={(val) => handleUpdateWeeklyTask(item.id, { weeklyCount: val })}
+                            min={1}
+                            max={7}
+                            step={1}
+                            unit="回"
+                            ariaLabel={`タスク${idx + 1}の週目標回数`}
+                          />
+                        </div>
+
                         {/* 削除ボタン */}
                         <button
                           type="button"
@@ -1205,10 +1220,10 @@ export function TableTemplateWizardModal({
                         </button>
                       </div>
 
-                      {/* 設定する日（Dayチップ） */}
+                      {/* 希望曜日（Dayチップ） */}
                       <div className="ml-6 flex flex-wrap items-center gap-2 text-xs">
                         <span className="text-[11px] font-bold text-slate-600 shrink-0">
-                          設定する日:
+                          配置希望:
                         </span>
                         {renderDayChips(
                           'emerald',
@@ -1230,7 +1245,7 @@ export function TableTemplateWizardModal({
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-emerald-400 bg-white text-xs font-bold text-emerald-700 hover:bg-emerald-50 transition active:scale-95 shadow-2xs cursor-pointer"
                   >
                     <Plus className="h-3.5 w-3.5" />
-                    <span>項目を追加</span>
+                    <span>タスクを追加</span>
                   </button>
                   <span className="text-[10px] text-slate-400 hidden sm:inline">
                     ※ 1つの表に今週こなしたいタスクをまとめて登録できます
@@ -1242,7 +1257,7 @@ export function TableTemplateWizardModal({
               <div className="flex items-center gap-2 rounded-xl bg-emerald-50/60 p-2.5 text-xs text-emerald-900 border border-emerald-100">
                 <Sparkles className="h-4 w-4 text-emerald-600 shrink-0" />
                 <div>
-                  <strong>回数は「自動配分」</strong>です。今週の空き枠の多い曜日に合わせて前倒し・バランスよく配置されます。
+                  各タスクの<strong>「週の目標回数」</strong>に合わせて、空いているコマが多い曜日にバランスよく前倒し配置されます。
                 </div>
               </div>
 
@@ -1255,7 +1270,7 @@ export function TableTemplateWizardModal({
                 >
                   <div className="flex items-center gap-2">
                     <SlidersHorizontal className="h-3.5 w-3.5 text-slate-500" />
-                    <span>詳細オプション</span>
+                    <span>詳細オプション（有効期限・着手可能日時）</span>
                   </div>
                   {isOpenWeeklyAdvanced ? (
                     <ChevronUp className="h-4 w-4 text-slate-400" />
@@ -1266,34 +1281,6 @@ export function TableTemplateWizardModal({
 
                 {isOpenWeeklyAdvanced && (
                   <div className="border-t border-slate-100 p-4 space-y-4 bg-slate-50/40">
-                    {/* 週の消化目標回数 */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1.5">週の消化目標回数</label>
-                      <div className="flex flex-wrap items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setWeeklyTargetCount(weeklyTargetCount === 'auto' ? 1 : 'auto')}
-                          className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition cursor-pointer ${
-                            weeklyTargetCount === 'auto'
-                              ? 'border-emerald-500 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-500/10'
-                              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                          }`}
-                        >
-                          自動配分（推奨）
-                        </button>
-                        {weeklyTargetCount !== 'auto' && (
-                          <NumberStepper
-                            value={weeklyTargetCount}
-                            onChange={(val) => setWeeklyTargetCount(val)}
-                            min={1}
-                            max={7}
-                            step={1}
-                            unit="回/週"
-                            ariaLabel="週の目標回数"
-                          />
-                        )}
-                      </div>
-                    </div>
 
                     {/* タスクの有効期限 */}
                     <div>
