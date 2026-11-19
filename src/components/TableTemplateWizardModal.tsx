@@ -84,23 +84,23 @@ export function TableTemplateWizardModal({
     { id: '1', title: 'ストレッチ', durationMinutes: 15, startTime: '', targetDays: [0] },
   ]);
 
-  // 日課共通（★デフォルトは 'auto'）
-  const [dailyRepeatCount, setDailyRepeatCount] = useState<number | 'auto'>('auto');
+  // 日課共通（デフォルトは1日1回）
+  const [dailyRepeatCount, setDailyRepeatCount] = useState<number | 'auto'>(1);
   const [dailyTimePreset, setDailyTimePreset] = useState<DailyTimePreset>('all');
   const [dailyStartTime, setDailyStartTime] = useState<string>('');
   const [dailyEndTime, setDailyEndTime] = useState<string>('');
 
   // ==========================================
-  // 週次タスク（Weekly）ステート
+  // 週次タスク（Weekly）ステート（デフォルトは当週7日分）
   // ==========================================
   const [weeklyName, setWeeklyName] = useState('今週のタスク');
-  const [weeklyDaysCount, setWeeklyDaysCount] = useState<number>(1);
-  const [weeklyIsRepeat, setWeeklyIsRepeat] = useState<boolean>(true);
+  const [weeklyDaysCount, setWeeklyDaysCount] = useState<number>(7);
+  const [weeklyIsRepeat, setWeeklyIsRepeat] = useState<boolean>(false);
   const [weeklyRepeatStartDay, setWeeklyRepeatStartDay] = useState<number>(0);
   const [weeklyTasks, setWeeklyTasks] = useState<WizardTaskItem[]>([
-    { id: 'w-1', title: 'レポート課題', durationMinutes: 60, startTime: '', targetDays: [0] },
+    { id: 'w-1', title: 'レポート課題', durationMinutes: 60, startTime: '', targetDays: [0, 1, 2, 3, 4, 5, 6] },
   ]);
-  const [weeklyTargetCount, setWeeklyTargetCount] = useState<number | 'auto'>('auto'); // ★デフォルトは 'auto'
+  const [weeklyTargetCount, setWeeklyTargetCount] = useState<number | 'auto'>('auto');
   const [weeklyExpiryWeeks, setWeeklyExpiryWeeks] = useState<WeeklyExpiryWeeks>(1);
   const [weeklyHasConstraint, setWeeklyHasConstraint] = useState<boolean>(false); // 開始日時の指定有無
   const [weeklyStartDay, setWeeklyStartDay] = useState<number>(2); // 水曜 (0:月〜6:日)
@@ -108,15 +108,16 @@ export function TableTemplateWizardModal({
   const [isOpenWeeklyAdvanced, setIsOpenWeeklyAdvanced] = useState(false);
 
   // ==========================================
-  // 固定枠（Fixed）ステート
+  // 固定枠（Fixed）ステート（デフォルトは毎週月〜日くり返し）
   // ==========================================
   const [fixedName, setFixedName] = useState('固定枠');
-  const [fixedDaysCount, setFixedDaysCount] = useState<number>(1);
+  const [fixedDaysCount, setFixedDaysCount] = useState<number>(7);
   const [fixedIsRepeat, setFixedIsRepeat] = useState<boolean>(true);
   const [fixedRepeatStartDay, setFixedRepeatStartDay] = useState<number>(0);
   const [fixedSlots, setFixedSlots] = useState<WizardSlotItem[]>([
-    { id: 'f-1', title: '睡眠', startTime: '00:00', endTime: '08:00', targetDays: [0] },
+    { id: 'f-1', title: '睡眠', startTime: '23:00', endTime: '07:00', targetDays: [0, 1, 2, 3, 4, 5, 6] },
   ]);
+  const [isOpenFixedAdvanced, setIsOpenFixedAdvanced] = useState(false);
 
   // targetTable の切り替えに連動
   React.useEffect(() => {
@@ -854,31 +855,12 @@ export function TableTemplateWizardModal({
                 />
               </div>
 
-              {/* 【ステップ 2 & 3】何日分 ＆ くり返し設定 */}
-              {renderDaysAndRepeatSelector(
-                'blue',
-                dailyDaysCount,
-                (val) => {
-                  setDailyDaysCount(val);
-                  setMultiTasks((prev) =>
-                    prev.map((t) => ({
-                      ...t,
-                      targetDays: (t.targetDays || []).filter((d) => d < val),
-                    })),
-                  );
-                },
-                dailyIsRepeat,
-                setDailyIsRepeat,
-                dailyRepeatStartDay,
-                setDailyRepeatStartDay,
-              )}
-
-              {/* 【ステップ 4】活動時間帯 */}
+              {/* 【ステップ 2】活動時間帯 */}
               <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[11px] font-black text-white">
-                      4
+                      2
                     </span>
                     <Clock className="h-4 w-4 text-blue-600" />
                     <span>どの時間帯に行いますか？</span>
@@ -946,12 +928,12 @@ export function TableTemplateWizardModal({
                 )}
               </div>
 
-              {/* 【ステップ 5】予定・タスクの登録 */}
+              {/* 【ステップ 3】予定・タスクの登録 */}
               <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs space-y-0">
                 <div className="bg-slate-50 px-3.5 py-2.5 border-b border-slate-200 flex items-center justify-between">
                   <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[11px] font-black text-white">
-                      5
+                      3
                     </span>
                     <span>予定の名称と所要時間を登録してください</span>
                   </label>
@@ -1007,20 +989,22 @@ export function TableTemplateWizardModal({
                         </button>
                       </div>
 
-                      {/* 設定する日（Dayチップ） */}
-                      <div className="ml-6 flex flex-wrap items-center gap-2 text-xs">
-                        <span className="text-[11px] font-bold text-slate-600 shrink-0">
-                          設定する日:
-                        </span>
-                        {renderDayChips(
-                          'blue',
-                          dailyDaysCount,
-                          dailyIsRepeat,
-                          item.targetDays || [],
-                          (day) => toggleDailyTaskDay(item.id, day),
-                          (days) => handleUpdateTaskItem(item.id, { targetDays: days }),
-                        )}
-                      </div>
+                      {/* 設定する日（2日以上のサイクル設定時のみ表示） */}
+                      {dailyDaysCount > 1 && (
+                        <div className="ml-6 flex flex-wrap items-center gap-2 text-xs">
+                          <span className="text-[11px] font-bold text-slate-600 shrink-0">
+                            設定する日:
+                          </span>
+                          {renderDayChips(
+                            'blue',
+                            dailyDaysCount,
+                            dailyIsRepeat,
+                            item.targetDays || [],
+                            (day) => toggleDailyTaskDay(item.id, day),
+                            (days) => handleUpdateTaskItem(item.id, { targetDays: days }),
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1038,11 +1022,11 @@ export function TableTemplateWizardModal({
                 </div>
               </div>
 
-              {/* コア機能の説明（自動配分） */}
+              {/* コア機能の説明 */}
               <div className="flex items-center gap-2 rounded-xl bg-blue-50/60 p-2.5 text-xs text-blue-900 border border-blue-100">
                 <Sparkles className="h-4 w-4 text-blue-600 shrink-0" />
                 <div>
-                  <strong>回数は「自動配分」</strong>です。上記の活動時間帯内の空きコマを自動探索し、可能な限り詰め込みます。
+                  指定した活動時間帯の中で、空いているコマに自動配置されます。
                 </div>
               </div>
 
@@ -1055,7 +1039,7 @@ export function TableTemplateWizardModal({
                 >
                   <div className="flex items-center gap-2">
                     <SlidersHorizontal className="h-3.5 w-3.5 text-slate-500" />
-                    <span>詳細オプション</span>
+                    <span>詳細オプション（回数制限・サイクル日数）</span>
                   </div>
                   {isOpenDailyAdvanced ? (
                     <ChevronUp className="h-4 w-4 text-slate-400" />
@@ -1067,14 +1051,25 @@ export function TableTemplateWizardModal({
                 {isOpenDailyAdvanced && (
                   <div className="border-t border-slate-100 bg-slate-50/50 p-4 space-y-4 animate-in fade-in duration-150">
                     {/* 1日の実施回数 */}
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <div className="text-xs font-bold text-slate-800">1日に何回行いますか？</div>
                         <div className="text-[10px] text-slate-500">
-                          「自動配分」を選ぶと空いている時間に可能な限り配置します
+                          通常は1日1回。「自動配分」を選ぶと空きコマに可能な限り複数回配置します
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setDailyRepeatCount(1)}
+                          className={`rounded-lg px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
+                            dailyRepeatCount === 1
+                              ? 'bg-blue-600 text-white shadow-2xs'
+                              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          1日1回
+                        </button>
                         <button
                           type="button"
                           onClick={() => setDailyRepeatCount('auto')}
@@ -1086,17 +1081,40 @@ export function TableTemplateWizardModal({
                         >
                           自動配分
                         </button>
-                        <NumberStepper
-                          value={dailyRepeatCount === 'auto' ? 1 : dailyRepeatCount}
-                          onChange={(val) => setDailyRepeatCount(val)}
-                          min={1}
-                          max={12}
-                          step={1}
-                          unit="回"
-                          ariaLabel="1日の実施回数"
-                          disabled={dailyRepeatCount === 'auto'}
-                        />
+                        {dailyRepeatCount !== 1 && dailyRepeatCount !== 'auto' && (
+                          <NumberStepper
+                            value={dailyRepeatCount}
+                            onChange={(val) => setDailyRepeatCount(val)}
+                            min={1}
+                            max={12}
+                            step={1}
+                            unit="回"
+                            ariaLabel="1日の実施回数"
+                          />
+                        )}
                       </div>
+                    </div>
+
+                    {/* サイクル・日数設定（変更したい人のみ） */}
+                    <div className="pt-3 border-t border-slate-200/60">
+                      <div className="text-xs font-bold text-slate-700 mb-2">日数・サイクル設定（特殊なローテーション等）</div>
+                      {renderDaysAndRepeatSelector(
+                        'blue',
+                        dailyDaysCount,
+                        (val) => {
+                          setDailyDaysCount(val);
+                          setMultiTasks((prev) =>
+                            prev.map((t) => ({
+                              ...t,
+                              targetDays: (t.targetDays || []).filter((d) => d < val),
+                            })),
+                          );
+                        },
+                        dailyIsRepeat,
+                        setDailyIsRepeat,
+                        dailyRepeatStartDay,
+                        setDailyRepeatStartDay,
+                      )}
                     </div>
                   </div>
                 )}
@@ -1126,31 +1144,12 @@ export function TableTemplateWizardModal({
                 />
               </div>
 
-              {/* 【ステップ 2 & 3】何日分 ＆ くり返し設定 */}
-              {renderDaysAndRepeatSelector(
-                'emerald',
-                weeklyDaysCount,
-                (val) => {
-                  setWeeklyDaysCount(val);
-                  setWeeklyTasks((prev) =>
-                    prev.map((t) => ({
-                      ...t,
-                      targetDays: (t.targetDays || []).filter((d) => d < val),
-                    })),
-                  );
-                },
-                weeklyIsRepeat,
-                setWeeklyIsRepeat,
-                weeklyRepeatStartDay,
-                setWeeklyRepeatStartDay,
-              )}
-
-              {/* 【ステップ 4】タスクの登録 */}
+              {/* 【ステップ 2】タスクの登録 */}
               <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs space-y-0">
                 <div className="bg-slate-50 px-3.5 py-2.5 border-b border-slate-200 flex items-center justify-between">
                   <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-[11px] font-black text-white">
-                      4
+                      2
                     </span>
                     <span>タスク名と1回当たりの時間を登録してください</span>
                   </label>
@@ -1357,6 +1356,28 @@ export function TableTemplateWizardModal({
                         </div>
                       )}
                     </div>
+
+                    {/* 日数・周期設定（特殊な期間にしたい人のみ） */}
+                    <div className="pt-3 border-t border-slate-200/60">
+                      <div className="text-xs font-bold text-slate-700 mb-2">日数・サイクル設定（特殊な期間等）</div>
+                      {renderDaysAndRepeatSelector(
+                        'emerald',
+                        weeklyDaysCount,
+                        (val) => {
+                          setWeeklyDaysCount(val);
+                          setWeeklyTasks((prev) =>
+                            prev.map((t) => ({
+                              ...t,
+                              targetDays: (t.targetDays || []).filter((d) => d < val),
+                            })),
+                          );
+                        },
+                        weeklyIsRepeat,
+                        setWeeklyIsRepeat,
+                        weeklyRepeatStartDay,
+                        setWeeklyRepeatStartDay,
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1385,31 +1406,12 @@ export function TableTemplateWizardModal({
                 />
               </div>
 
-              {/* 【ステップ 2 & 3】何日分 ＆ くり返し設定 */}
-              {renderDaysAndRepeatSelector(
-                'purple',
-                fixedDaysCount,
-                (val) => {
-                  setFixedDaysCount(val);
-                  setFixedSlots((prev) =>
-                    prev.map((s) => ({
-                      ...s,
-                      targetDays: (s.targetDays || []).filter((d) => d < val),
-                    })),
-                  );
-                },
-                fixedIsRepeat,
-                setFixedIsRepeat,
-                fixedRepeatStartDay,
-                setFixedRepeatStartDay,
-              )}
-
-              {/* 【ステップ 4】予定と時間帯を登録してください */}
+              {/* 【ステップ 2】予定と時間帯を登録してください */}
               <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-2xs space-y-0">
                 <div className="bg-slate-50 px-3.5 py-2.5 border-b border-slate-200 flex items-center justify-between">
                   <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-purple-600 text-[11px] font-black text-white">
-                      4
+                      2
                     </span>
                     <span>予定と時間帯を登録してください</span>
                   </label>
@@ -1423,7 +1425,8 @@ export function TableTemplateWizardModal({
                     // 所要時間の計算
                     const startM = timeStringToMinutes(item.startTime || '00:00');
                     let endM = timeStringToMinutes(item.endTime || '08:00');
-                    if (endM <= startM) endM += 1440;
+                    const isNextDay = endM <= startM;
+                    if (isNextDay) endM += 1440;
                     const diffM = endM - startM;
                     const hours = Math.floor(diffM / 60);
                     const mins = diffM % 60;
@@ -1464,8 +1467,9 @@ export function TableTemplateWizardModal({
                               onChange={(e) => handleUpdateFixedSlot(item.id, { endTime: e.target.value })}
                               className="w-18 rounded-lg border border-slate-200 px-1 py-0.5 text-xs font-mono font-bold text-slate-700 text-center focus:border-purple-500 focus:outline-hidden"
                             />
-                            <span className="text-[10px] text-purple-700 font-mono font-bold bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
-                              {durationLabel}
+                            <span className="text-[10px] text-purple-700 font-mono font-bold bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 flex items-center gap-1 shrink-0">
+                              {isNextDay && <span className="bg-purple-200 text-purple-900 px-1 rounded text-[9px]">翌日</span>}
+                              <span>{durationLabel}</span>
                             </span>
                           </div>
 
@@ -1544,6 +1548,48 @@ export function TableTemplateWizardModal({
                 <div>
                   固定枠の時間帯はタイムライン上で保護されます。「課題・復習タスク」を付けた場合、枠終了直後の空きコマに自動配置されます。
                 </div>
+              </div>
+
+              {/* 詳細設定アコーディオン */}
+              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setIsOpenFixedAdvanced(!isOpenFixedAdvanced)}
+                  className="flex w-full items-center justify-between px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal className="h-3.5 w-3.5 text-slate-500" />
+                    <span>詳細オプション（交代勤務・日数サイクル設定）</span>
+                  </div>
+                  {isOpenFixedAdvanced ? (
+                    <ChevronUp className="h-4 w-4 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-slate-400" />
+                  )}
+                </button>
+
+                {isOpenFixedAdvanced && (
+                  <div className="border-t border-slate-100 bg-slate-50/50 p-4 space-y-3 animate-in fade-in duration-150">
+                    <div className="text-xs font-bold text-slate-700 mb-2">日数・サイクル設定（2〜14日の交代勤務等）</div>
+                    {renderDaysAndRepeatSelector(
+                      'purple',
+                      fixedDaysCount,
+                      (val) => {
+                        setFixedDaysCount(val);
+                        setFixedSlots((prev) =>
+                          prev.map((s) => ({
+                            ...s,
+                            targetDays: (s.targetDays || []).filter((d) => d < val),
+                          })),
+                        );
+                      },
+                      fixedIsRepeat,
+                      setFixedIsRepeat,
+                      fixedRepeatStartDay,
+                      setFixedRepeatStartDay,
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
