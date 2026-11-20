@@ -36,8 +36,11 @@ import {
   ExternalLink,
   Coffee,
   Pin,
+  Zap,
 } from 'lucide-react';
 import { TableTemplateWizardModal } from '@/components/TableTemplateWizardModal';
+import { TableQuickSettingsModal } from '@/components/TableQuickSettingsModal';
+import { NewTableWizardModal } from '@/components/NewTableWizardModal';
 import { TABLE_PALETTE_OPTIONS, getTableColorSchemeByIndex } from '@/components/Timeline24h';
 import {
   ImportedTableData,
@@ -145,6 +148,48 @@ export function ImportedTablesManager({
 
   // Plan22 テンプレートウィザードモーダル開閉
   const [isTemplateWizardOpen, setIsTemplateWizardOpen] = useState(false);
+  // Plan25 クイック設定モーダル開閉（既存表向け）
+  const [isQuickSettingsOpen, setIsQuickSettingsOpen] = useState(false);
+  // Plan25 対話型新規表作成ウィザードモーダル開閉（新規ユーザー向け）
+  const [isNewWizardOpen, setIsNewWizardOpen] = useState(false);
+
+  // 表の変更または新規表をタイムライン＆スケジュールに反映する共通関数
+  const handleApplyTableToSchedule = (appliedTable: ImportedTableData, isQuickUpdate = false) => {
+    const { slots: newSlots, tasks: newTasks, slotIds, taskIds } =
+      generateScheduleItemsForTable(appliedTable);
+    let finalTable = appliedTable;
+    if (newSlots.length > 0 || newTasks.length > 0) {
+      const nextSlots = fixedSlots
+        .filter((s) => s.sourceTableId !== appliedTable.id)
+        .concat(newSlots);
+      const nextTasks = tasks
+        .filter((t) => t.sourceTableId !== appliedTable.id)
+        .concat(newTasks);
+      onSlotsChange(nextSlots);
+      onTasksChange(nextTasks);
+      finalTable = {
+        ...appliedTable,
+        isApplied: true,
+        appliedSlotIds: slotIds,
+        appliedTaskIds: taskIds,
+      };
+    }
+    const exists = tables.some((t) => t.id === finalTable.id);
+    const nextTables = exists
+      ? tables.map((t) => (t.id === finalTable.id ? finalTable : t))
+      : [...tables, finalTable];
+
+    onTablesChange(nextTables);
+    setSelectedItemId(finalTable.id);
+    setApplySuccessMsg(
+      isQuickUpdate
+        ? `「${finalTable.name}」の設定を更新しました`
+        : exists
+        ? `「${finalTable.name}」に設定を適用しました`
+        : `「${finalTable.name}」を作成しました`,
+    );
+    setTimeout(() => setApplySuccessMsg(null), 3000);
+  };
 
   const isSystemFile = selectedItemId.startsWith('sys-');
 
@@ -1256,6 +1301,24 @@ export function ImportedTablesManager({
                   </div>
                 </div>
 
+                {/* ✨ 質問に答えて作成（対話型ウィザード） */}
+                <div
+                  onClick={() => setIsNewWizardOpen(true)}
+                  title="質問に答えて表を作成（初心者向け対話ウィザード）"
+                  className={`group relative flex items-center rounded-none border border-dashed border-indigo-300 bg-indigo-50/60 hover:bg-indigo-100/80 hover:border-indigo-500 cursor-pointer transition select-none ${
+                    isSidebarOpen
+                      ? 'px-2.5 py-2 text-xs font-bold text-indigo-700 shadow-2xs'
+                      : 'px-1.5 py-1.5 text-xs justify-center text-indigo-600 shadow-2xs'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-none bg-gradient-to-br from-indigo-500 to-sky-500 text-white shadow-2xs">
+                      <Sparkles className="h-3.5 w-3.5 stroke-[2]" />
+                    </div>
+                    {isSidebarOpen && <span className="truncate">質問に答えて作成</span>}
+                  </div>
+                </div>
+
                 {filteredTables.length === 0 ? (
                   <div className="p-2 text-center text-[10px] text-slate-400">
                     {isSidebarOpen ? '該当する表がありません' : 'なし'}
@@ -1856,15 +1919,15 @@ export function ImportedTablesManager({
 
                 {/* 右側: テンプレート ＆ 設定 ボタン */}
                 <div className="flex items-center gap-1.5 ml-auto">
-                  {/* テンプレートボタン（「テンプレート」と明確に表示） */}
+                  {/* テンプレートボタン（「質問から作成」対話型ウィザード） */}
                   <button
                     type="button"
-                    onClick={() => setIsTemplateWizardOpen(true)}
-                    title="テンプレート（日課・週次・固定枠）から作成・設定"
+                    onClick={() => setIsNewWizardOpen(true)}
+                    title="質問に答えて表を作成（対話型ウィザード）"
                     className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-300 px-2.5 py-1 text-xs font-bold text-indigo-700 shadow-2xs active:scale-95 transition cursor-pointer"
                   >
                     <Sparkles className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
-                    <span>テンプレート</span>
+                    <span>質問から作成</span>
                   </button>
 
                   {/* 設定ボタン (activeTable がある場合のみ表示) */}
@@ -2072,14 +2135,22 @@ export function ImportedTablesManager({
               <p className="mt-1 text-xs text-slate-400">
                 左サイドバーの「新しい表を追加」または「画像やcsvから読み取り」から表を追加してください。
               </p>
-              <div className="mt-4 flex items-center justify-center gap-2">
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsNewWizardOpen(true)}
+                  className="flex items-center gap-1.5 rounded-none border border-indigo-400 bg-gradient-to-r from-indigo-500 to-sky-500 px-3.5 py-1.5 text-xs font-bold text-white hover:from-indigo-600 hover:to-sky-600 shadow-2xs transition active:scale-95 cursor-pointer"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>質問に答えて表を作成</span>
+                </button>
                 <button
                   type="button"
                   onClick={handleAddNewTable}
                   className="flex items-center gap-1 rounded-none border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 shadow-2xs transition active:scale-95"
                 >
                   <Plus className="h-3.5 w-3.5 text-blue-600" />
-                  <span>新しい表を追加</span>
+                  <span>空の表を追加</span>
                 </button>
                 <button
                   type="button"
@@ -2103,15 +2174,26 @@ export function ImportedTablesManager({
               {/* 高優先度メインバー（常時表示） */}
               <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-none border border-slate-200/90 bg-slate-50/95 px-2.5 py-1.5 text-xs text-slate-700 shadow-2xs">
                 <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                  {/* 0. テンプレートから設定（各表データ設定項目の先頭） */}
+                  {/* 0. クイック設定（開いている表の設定を高速調整） */}
                   <button
                     type="button"
-                    onClick={() => setIsTemplateWizardOpen(true)}
-                    title="この表にテンプレート（日課・週次・固定枠）の設定を適用します"
-                    className="flex items-center gap-1 rounded-none border border-indigo-300 bg-indigo-50/80 hover:bg-indigo-100 hover:border-indigo-500 px-2 py-0.5 text-[11px] font-bold text-indigo-700 shadow-2xs transition active:scale-95 cursor-pointer"
+                    onClick={() => setIsQuickSettingsOpen(true)}
+                    title="この表の分類に応じた設定（時間帯・回数・期限など）をクイック調整します"
+                    className="flex items-center gap-1 rounded-none border border-indigo-300 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-500 px-2 py-0.5 text-[11px] font-bold text-indigo-700 shadow-2xs transition active:scale-95 cursor-pointer"
                   >
-                    <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
-                    <span className="whitespace-nowrap">テンプレートから設定</span>
+                    <Zap className="h-3.5 w-3.5 text-indigo-600 fill-indigo-100" />
+                    <span className="whitespace-nowrap">⚡ クイック設定</span>
+                  </button>
+
+                  {/* 質問から新規作成 */}
+                  <button
+                    type="button"
+                    onClick={() => setIsNewWizardOpen(true)}
+                    title="対話形式の質問に答えて新しい予定表を作成します"
+                    className="flex items-center gap-1 rounded-none border border-sky-300 bg-sky-50/80 hover:bg-sky-100 hover:border-sky-500 px-2 py-0.5 text-[11px] font-bold text-sky-700 shadow-2xs transition active:scale-95 cursor-pointer"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-sky-600" />
+                    <span className="whitespace-nowrap">質問から新規作成</span>
                   </button>
 
                   {/* 1. 配置方法の選択（固定配置 / 自動配置） */}
@@ -3951,18 +4033,29 @@ export function ImportedTablesManager({
 
             {/* ドロワーコンテンツ (スクロール可能: 上から順に設定していく最適化フロー) */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 divide-y divide-slate-100">
-              {/* セクション 0: ✨ テンプレートから設定（設定項目の先頭） */}
-              <div className="pt-1">
+              {/* セクション 0: ⚡ クイック設定（開いている表の設定を高速調整） */}
+              <div className="pt-1 space-y-2">
                 <button
                   type="button"
                   onClick={() => {
                     setIsMobileSettingsOpen(false);
-                    setIsTemplateWizardOpen(true);
+                    setIsQuickSettingsOpen(true);
                   }}
                   className="w-full flex items-center justify-center gap-2 rounded-xl border border-indigo-300 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-500 py-3 text-xs font-bold text-indigo-800 shadow-2xs transition active:scale-98 cursor-pointer"
                 >
-                  <Sparkles className="h-4 w-4 text-indigo-600" />
-                  <span>テンプレートから設定</span>
+                  <Zap className="h-4 w-4 text-indigo-600 fill-indigo-100" />
+                  <span>⚡ クイック設定</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileSettingsOpen(false);
+                    setIsNewWizardOpen(true);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-sky-300 bg-sky-50/80 hover:bg-sky-100 hover:border-sky-500 py-2.5 text-xs font-bold text-sky-800 shadow-2xs transition active:scale-98 cursor-pointer"
+                >
+                  <Sparkles className="h-4 w-4 text-sky-600" />
+                  <span>✨ 質問に答えて新しい表を作成</span>
                 </button>
               </div>
 
@@ -4845,46 +4938,27 @@ export function ImportedTablesManager({
         </div>
       )}
 
-      {/* Plan22 テンプレートウィザードモーダル */}
+      {/* Plan22 テンプレートウィザードモーダル（互換維持） */}
       <TableTemplateWizardModal
         isOpen={isTemplateWizardOpen}
         onClose={() => setIsTemplateWizardOpen(false)}
         targetTable={activeTable}
-        onApplyTable={(updatedTable) => {
-          // 即時反映ロジックを呼び出して計画表に同期
-          const { slots: newSlots, tasks: newTasks, slotIds, taskIds } =
-            generateScheduleItemsForTable(updatedTable);
-          let finalTable = updatedTable;
-          if (newSlots.length > 0 || newTasks.length > 0) {
-            const nextSlots = fixedSlots
-              .filter((s) => s.sourceTableId !== updatedTable.id)
-              .concat(newSlots);
-            const nextTasks = tasks
-              .filter((t) => t.sourceTableId !== updatedTable.id)
-              .concat(newTasks);
-            onSlotsChange(nextSlots);
-            onTasksChange(nextTasks);
-            finalTable = {
-              ...updatedTable,
-              isApplied: true,
-              appliedSlotIds: slotIds,
-              appliedTaskIds: taskIds,
-            };
-          }
-          const exists = tables.some((t) => t.id === finalTable.id);
-          const nextTables = exists
-            ? tables.map((t) => (t.id === finalTable.id ? finalTable : t))
-            : [...tables, finalTable];
+        onApplyTable={(updatedTable) => handleApplyTableToSchedule(updatedTable)}
+      />
 
-          onTablesChange(nextTables);
-          setSelectedItemId(finalTable.id);
-          setApplySuccessMsg(
-            exists
-              ? `「${finalTable.name}」にテンプレート設定を適用しました`
-              : `テンプレートから「${finalTable.name}」を作成しました`,
-          );
-          setTimeout(() => setApplySuccessMsg(null), 3000);
-        }}
+      {/* Plan25 クイック設定モーダル（既存表向け） */}
+      <TableQuickSettingsModal
+        isOpen={isQuickSettingsOpen}
+        onClose={() => setIsQuickSettingsOpen(false)}
+        table={activeTable}
+        onApplyTable={(updatedTable) => handleApplyTableToSchedule(updatedTable, true)}
+      />
+
+      {/* Plan25 質問に答えて表を作成（新規ユーザー向け対話型ウィザード） */}
+      <NewTableWizardModal
+        isOpen={isNewWizardOpen}
+        onClose={() => setIsNewWizardOpen(false)}
+        onApplyTable={(newTable) => handleApplyTableToSchedule(newTable)}
       />
     </div>
   );
