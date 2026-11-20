@@ -85,6 +85,7 @@ interface ImportedTablesManagerProps {
   isMobileSwitcherOpen?: boolean;
   onMobileSwitcherOpenChange?: (open: boolean) => void;
   onActiveDataNameChange?: (name: string) => void;
+  selectedTableId?: string | null;
 }
 
 const CYCLE_HEADER_OPTIONS = [
@@ -114,6 +115,7 @@ export function ImportedTablesManager({
   isMobileSwitcherOpen: externalIsMobileSwitcherOpen,
   onMobileSwitcherOpenChange,
   onActiveDataNameChange,
+  selectedTableId,
 }: ImportedTablesManagerProps) {
   // ファイル直接選択用インライン参照
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -144,7 +146,16 @@ export function ImportedTablesManager({
   };
 
   // 選択中のファイルアイテム (固定枠: sys-slots, 日課: sys-daily, 週次: sys-weekly, 表データ: table.id)
-  const [selectedItemId, setSelectedItemId] = useState<string>(tables[0]?.id || 'sys-slots');
+  const [selectedItemId, setSelectedItemId] = useState<string>(
+    selectedTableId || tables[0]?.id || 'sys-slots',
+  );
+
+  // 外部からの指定テーブル選択（タイムラインからの長押しジャンプ）
+  useEffect(() => {
+    if (selectedTableId) {
+      setSelectedItemId(selectedTableId);
+    }
+  }, [selectedTableId]);
 
   // Plan22 テンプレートウィザードモーダル開閉
   const [isTemplateWizardOpen, setIsTemplateWizardOpen] = useState(false);
