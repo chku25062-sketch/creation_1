@@ -1301,7 +1301,7 @@ export function ImportedTablesManager({
                   </div>
                 </div>
 
-                {/* ✨ 質問に答えて作成（対話型ウィザード） */}
+                {/* 質問に答えて作成（対話型ウィザード） */}
                 <div
                   onClick={() => setIsNewWizardOpen(true)}
                   title="質問に答えて表を作成（初心者向け対話ウィザード）"
@@ -2182,7 +2182,7 @@ export function ImportedTablesManager({
                     className="flex items-center gap-1 rounded-none border border-indigo-300 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-500 px-2 py-0.5 text-[11px] font-bold text-indigo-700 shadow-2xs transition active:scale-95 cursor-pointer"
                   >
                     <Zap className="h-3.5 w-3.5 text-indigo-600 fill-indigo-100" />
-                    <span className="whitespace-nowrap">⚡ クイック設定</span>
+                    <span className="whitespace-nowrap">クイック設定</span>
                   </button>
 
                   {/* 質問から新規作成 */}
@@ -4033,7 +4033,7 @@ export function ImportedTablesManager({
 
             {/* ドロワーコンテンツ (スクロール可能: 上から順に設定していく最適化フロー) */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 divide-y divide-slate-100">
-              {/* セクション 0: ⚡ クイック設定（開いている表の設定を高速調整） */}
+              {/* セクション 0: クイック設定（開いている表の設定を高速調整） */}
               <div className="pt-1 space-y-2">
                 <button
                   type="button"
@@ -4044,7 +4044,7 @@ export function ImportedTablesManager({
                   className="w-full flex items-center justify-center gap-2 rounded-xl border border-indigo-300 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-500 py-3 text-xs font-bold text-indigo-800 shadow-2xs transition active:scale-98 cursor-pointer"
                 >
                   <Zap className="h-4 w-4 text-indigo-600 fill-indigo-100" />
-                  <span>⚡ クイック設定</span>
+                  <span>クイック設定</span>
                 </button>
                 <button
                   type="button"
@@ -4055,7 +4055,7 @@ export function ImportedTablesManager({
                   className="w-full flex items-center justify-center gap-2 rounded-xl border border-sky-300 bg-sky-50/80 hover:bg-sky-100 hover:border-sky-500 py-2.5 text-xs font-bold text-sky-800 shadow-2xs transition active:scale-98 cursor-pointer"
                 >
                   <Sparkles className="h-4 w-4 text-sky-600" />
-                  <span>✨ 質問に答えて新しい表を作成</span>
+                  <span>質問に答えて新しい表を作成</span>
                 </button>
               </div>
 

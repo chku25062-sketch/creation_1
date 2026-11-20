@@ -318,19 +318,19 @@ export function TableQuickSettingsModal({
       case 'daily_task':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
-            🏃 日課ルーティン
+            日課ルーティン
           </span>
         );
       case 'weekly_task':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-300">
-            🎯 週次タスク
+            週次タスク
           </span>
         );
       case 'fixed_slot':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-            📌 固定枠の予定
+            固定枠の予定
           </span>
         );
     }
@@ -353,7 +353,7 @@ export function TableQuickSettingsModal({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-bold text-slate-900">⚡ クイック設定</h3>
+                <h3 className="text-sm sm:text-base font-bold text-slate-900">クイック設定</h3>
                 {classificationBadge()}
               </div>
               <p className="text-[11px] text-slate-500">開いている表の設定をすばやく調整・反映します</p>
