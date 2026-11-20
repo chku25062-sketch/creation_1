@@ -1311,6 +1311,58 @@ export function Timeline24h({
                     {(() => {
                       const activeBlocks = currentDayBlocks.filter((b) => !b.isEarlyCompleted);
                       const earlyBlocks = currentDayBlocks.filter((b) => b.isEarlyCompleted);
+
+                      // 代行タスク（isSubstitute）と早期完了ブロック（earlyBlocks）のグルーピング
+                      // 複数タスクにまたがる代行群に対して1つの統合された大きな戻すボタンを提供
+                      const substituteGroupsByEarlyId = new Map<
+                        string,
+                        {
+                          earlyBlock: TheoreticalBlock;
+                          substituteBlocks: TheoreticalBlock[];
+                          minStartMinutes: number;
+                          maxEndMinutes: number;
+                        }
+                      >();
+                      const earlyBlockBySubstituteId = new Map<string, TheoreticalBlock>();
+
+                      for (const ab of activeBlocks) {
+                        if (!ab.isSubstitute) continue;
+
+                        const directlySubstituted = earlyBlocks.find(
+                          (eb) =>
+                            (ab.substitutedForBlockId && eb.id === ab.substitutedForBlockId) ||
+                            (ab.substitutedForTitle && eb.title === ab.substitutedForTitle),
+                        );
+
+                        const overlappingEarly = earlyBlocks.find(
+                          (eb) => eb.startMinutes < ab.endMinutes && eb.endMinutes > ab.startMinutes,
+                        );
+
+                        const matchedEarly = directlySubstituted || overlappingEarly;
+                        if (matchedEarly) {
+                          earlyBlockBySubstituteId.set(ab.id, matchedEarly);
+                          const existingGroup = substituteGroupsByEarlyId.get(matchedEarly.id);
+                          if (existingGroup) {
+                            existingGroup.substituteBlocks.push(ab);
+                            existingGroup.minStartMinutes = Math.min(
+                              existingGroup.minStartMinutes,
+                              ab.startMinutes,
+                            );
+                            existingGroup.maxEndMinutes = Math.max(
+                              existingGroup.maxEndMinutes,
+                              ab.endMinutes,
+                            );
+                          } else {
+                            substituteGroupsByEarlyId.set(matchedEarly.id, {
+                              earlyBlock: matchedEarly,
+                              substituteBlocks: [ab],
+                              minStartMinutes: ab.startMinutes,
+                              maxEndMinutes: ab.endMinutes,
+                            });
+                          }
+                        }
+                      }
+
                       const coveredEarlyByActiveId = new Map<string, TheoreticalBlock[]>();
                       const renderItems: {
                         block: TheoreticalBlock;
@@ -1365,200 +1417,177 @@ export function Timeline24h({
                         });
                       }
 
-                      return renderItems.map(({ block, displayEndMinutes, coveredEarlyBlocks }) => {
-                        const top = Math.round((block.startMinutes / 60) * hourHeight) + 1;
-                        const duration = Math.max(15, displayEndMinutes - block.startMinutes);
-                        const rawHeight = (duration / 60) * hourHeight;
-                        const height = Math.max(22, Math.round(rawHeight) - 2);
-                        // ★ 文字消え防止: 高さが44px未満、または時間が35分未満の場合は短縮モード（タイトル行の表示を最優先）
-                        const isShort = duration < 35 || height < 44;
-                        const isAssignment = block.taskType === 'assignment';
-                        // ★ Plan16: 計画表の日タスク・固定タスクの未完了状態・ボタンを撤廃
-                        // 完了トグルボタンは、進捗管理・未完了リスケジュールが必要な週タスク（課題・再配置タスクを含む）のみに限定
-                        const isWeeklyTask =
-                          !block.isFixed &&
-                          !block.isBreak &&
-                          (block.isWeeklyTask === true ||
-                            block.isRescheduled === true ||
-                            block.taskType === 'assignment');
+                      return (
+                        <>
+                          {/* 各タスクカードの描画 */}
+                          {renderItems.map(({ block, displayEndMinutes }) => {
+                            const top = Math.round((block.startMinutes / 60) * hourHeight) + 1;
+                            const duration = Math.max(15, displayEndMinutes - block.startMinutes);
+                            const rawHeight = (duration / 60) * hourHeight;
+                            const height = Math.max(22, Math.round(rawHeight) - 2);
+                            const isShort = duration < 35 || height < 44;
+                            const isAssignment = block.taskType === 'assignment';
+                            const isWeeklyTask =
+                              !block.isFixed &&
+                              !block.isBreak &&
+                              (block.isWeeklyTask === true ||
+                                block.isRescheduled === true ||
+                                block.taskType === 'assignment');
 
-                        // ★ 固定タスクや日タスクの「完了状態にするボタン」は復活させ、「完了状態を戻すボタン」は消えたままにする
-                        // 1. 休憩ブロックにはボタンを置かない
-                        // 2. 完了状態 (block.isCompleted): 週タスクのみ「完了を戻すボタン（[✓]）」を表示、固定枠や日タスクは非表示
-                        // 3. 未完了状態 (!block.isCompleted): 週タスク・固定枠・日タスクのすべてに「完了にするボタン（[ ]）」を表示
-                        const isCompletableBlock =
-                          !block.isBreak &&
-                          (block.isCompleted ? isWeeklyTask : true);
+                            const isCompletableBlock =
+                              !block.isBreak &&
+                              (block.isCompleted ? isWeeklyTask : true);
 
-                        // ★ 代行タスク（isSubstitute）の場合は、代行元の早期完了ブロックを確実に特定して「戻す」ボタンを提供
-                        const substituteSourceBlock =
-                          block.isSubstitute
-                            ? currentDayBlocks.find(
-                                (b) =>
-                                  b.isEarlyCompleted &&
-                                  ((block.substitutedForBlockId &&
-                                    b.id === block.substitutedForBlockId) ||
-                                    (block.substitutedForTitle &&
-                                      b.title === block.substitutedForTitle)),
-                              ) ||
-                              earlyBlocks.find(
-                                (eb) =>
-                                  eb.startMinutes < block.endMinutes &&
-                                  eb.endMinutes > block.startMinutes,
-                              ) ||
-                              (coveredEarlyBlocks.length > 0
-                                ? coveredEarlyBlocks[coveredEarlyBlocks.length - 1]
-                                : undefined)
-                            : undefined;
+                            const hasTimeRow = !isShort;
+                            const availableHeightForTitle = hasTimeRow
+                              ? Math.max(16, height - 22)
+                              : Math.max(16, height - 6);
+                            const calculatedLines = Math.max(
+                              1,
+                              Math.min(6, Math.floor(availableHeightForTitle / 14)),
+                            );
 
-                        const latestCoveredEarly = substituteSourceBlock;
+                            const colorScheme = block.isCompleted
+                              ? COMPLETED_PALETTE
+                              : getBlockColorScheme(block, tableColorMap);
 
-                        // ★ 枠の高さ（所要時間）に応じて、タスク名を表示できる最大行数を動的に算出（最低1行は必ず確保）
-                        const hasTimeRow = !isShort;
-                        const availableHeightForTitle = hasTimeRow
-                          ? Math.max(16, height - 22)
-                          : Math.max(16, height - 6);
-                        const calculatedLines = Math.max(
-                          1,
-                          Math.min(6, Math.floor(availableHeightForTitle / 14)),
-                        );
+                            const isSubstitute = !!block.isSubstitute;
+                            const isEarlyCompleted = !!block.isEarlyCompleted;
+                            const isSubstituteGroupMember = earlyBlockBySubstituteId.has(block.id);
 
-                        // ★ 完了状態（早期完了の経過分を含む）の場合は洗練されたグレートーンパレットを適用
-                        const colorScheme = block.isCompleted
-                          ? COMPLETED_PALETTE
-                          : getBlockColorScheme(block, tableColorMap);
+                            const PLANNER_UNIFIED_BG = 'rgba(238, 233, 222, 0.52)';
+                            const PLANNER_COMPLETED_BG = 'rgba(224, 220, 212, 0.45)';
+                            const PLANNER_BORDER = 'rgba(205, 194, 176, 0.65)';
+                            const PLANNER_COMPLETED_BORDER = 'rgba(185, 177, 165, 0.5)';
 
-                        const isSubstitute = !!block.isSubstitute;
-                        const isEarlyCompleted = !!block.isEarlyCompleted;
+                            // 代行タスク群に属する場合は、右側に「1つの大きな戻すボタン（幅26〜32px）」のための余白を確保
+                            const cardPositioningClass = isSubstituteGroupMember
+                              ? 'left-0.5 right-[30px] sm:left-1 sm:right-[38px] z-20'
+                              : 'inset-x-0.5 sm:inset-x-1 z-10';
 
-                        // 手帳風: 全予定共通の半透明背景色（背後の時間対応方眼線が上品に透けて見える）
-                        const PLANNER_UNIFIED_BG = 'rgba(238, 233, 222, 0.52)'; // 統一された品のある半透明エクリュ
-                        const PLANNER_COMPLETED_BG = 'rgba(224, 220, 212, 0.45)'; // 完了時の半透明背景
+                            const cardStyle: React.CSSProperties = {
+                              top: `${top}px`,
+                              height: `${height}px`,
+                              overscrollBehavior: 'auto',
+                              backgroundColor: isPlanner
+                                ? block.isCompleted
+                                  ? PLANNER_COMPLETED_BG
+                                  : PLANNER_UNIFIED_BG
+                                : colorScheme.bg,
+                              borderColor: isPlanner
+                                ? block.isCompleted
+                                  ? PLANNER_COMPLETED_BORDER
+                                  : PLANNER_BORDER
+                                : colorScheme.border,
+                              color: colorScheme.text,
+                            };
 
-                        const PLANNER_BORDER = 'rgba(205, 194, 176, 0.65)'; // 繊細な半透明実線
-                        const PLANNER_COMPLETED_BORDER = 'rgba(185, 177, 165, 0.5)';
-
-                        const hasSubstituteRevert =
-                          isSubstitute && !!latestCoveredEarly && !!onToggleBlockComplete;
-
-                        const outerContainerStyle: React.CSSProperties = {
-                          top: `${top}px`,
-                          height: `${height}px`,
-                        };
-
-                        const cardStyle: React.CSSProperties = {
-                          overscrollBehavior: 'auto',
-                          backgroundColor: isPlanner
-                            ? block.isCompleted
-                              ? PLANNER_COMPLETED_BG
-                              : PLANNER_UNIFIED_BG
-                            : colorScheme.bg,
-                          borderColor: isPlanner
-                            ? block.isCompleted
-                              ? PLANNER_COMPLETED_BORDER
-                              : PLANNER_BORDER
-                            : colorScheme.border,
-                          color: colorScheme.text,
-                        };
-
-                        return (
-                          <div
-                            key={`block-${d.dayIndex}-${block.id}`}
-                            style={outerContainerStyle}
-                            className={`!absolute inset-x-0.5 sm:inset-x-1 flex flex-row items-stretch gap-1 [overscroll-behavior:auto] ${
-                              isSubstitute ? 'z-20' : 'z-10'
-                            }`}
-                          >
-                            {/* タスクカード本体 */}
-                            <div
-                              title={
-                                isSubstitute
-                                  ? `【代行タスク】${block.title} (元のタスク「${block.substitutedForTitle || ''}」の代わりに前倒し配置)`
-                                  : block.isEarlyCompleted
-                                    ? `【前倒し完了済み】${block.title}`
-                                    : block.sourceTableName
-                                      ? `${block.title} (参照元: ${block.sourceTableName})`
-                                      : block.title
-                              }
-                              style={cardStyle}
-                              className={`group flex-1 min-w-0 h-full overflow-hidden border [overscroll-behavior:auto] relative ${
-                                isPlanner
-                                  ? 'hover:brightness-[0.98] transition-all duration-100 rounded-none'
-                                  : 'sticky-note rounded-md border transition-all duration-150 shadow-2xs'
-                              } ${
-                                isSubstitute
-                                  ? isPlanner
-                                    ? 'ring-1 ring-blue-400/50'
-                                    : 'ring-1 ring-blue-400/40'
-                                  : ''
-                              } hover:z-30`}
-                            >
-                              {/* 付箋のり付けストリップ (左端: モダン・付箋モードのみ表示。手帳風では完全非表示) */}
-                              {!isPlanner && (
-                                <div
-                                  className="absolute inset-y-0 left-0 w-1.5 opacity-90 shadow-2xs z-10"
-                                  style={{
-                                    backgroundColor: isSubstitute
-                                      ? '#3b82f6'
-                                      : isEarlyCompleted
-                                        ? '#94a3b8'
-                                        : colorScheme.strip,
-                                  }}
-                                />
-                              )}
-
-                              {/* Block Content: 2分割スプリット（メインカード＋可変完了ドック） */}
-                              <TimelineTaskCardBlock
-                                block={block}
-                                colorScheme={colorScheme}
-                                isPlanner={isPlanner}
-                                height={height}
-                                duration={duration}
-                                isShort={isShort}
-                                isSubstitute={isSubstitute}
-                                isEarlyCompleted={isEarlyCompleted}
-                                isWeeklyTask={isWeeklyTask}
-                                isAssignment={isAssignment}
-                                isCompletableBlock={isCompletableBlock}
-                                displayEndMinutes={displayEndMinutes}
-                                calculatedLines={calculatedLines}
-                                onToggleBlockComplete={onToggleBlockComplete}
-                                onJumpToSourceTable={onJumpToSourceTable}
-                              />
-                            </div>
-
-                            {/* 代行タスクの場合の独立した大きな戻すボタン */}
-                            {hasSubstituteRevert && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onToggleBlockComplete(latestCoveredEarly);
-                                }}
-                                className={`shrink-0 h-full flex flex-col items-center justify-center transition-all cursor-pointer select-none active:scale-95 ${
-                                  height < 32 ? 'w-6 sm:w-7' : 'w-7 sm:w-8'
-                                } ${
+                            return (
+                              <div
+                                key={`block-${d.dayIndex}-${block.id}`}
+                                title={
+                                  isSubstitute
+                                    ? `【代行タスク】${block.title} (元のタスク「${block.substitutedForTitle || ''}」の代わりに前倒し配置)`
+                                    : block.isEarlyCompleted
+                                      ? `【前倒し完了済み】${block.title}`
+                                      : block.sourceTableName
+                                        ? `${block.title} (参照元: ${block.sourceTableName})`
+                                        : block.title
+                                }
+                                style={cardStyle}
+                                className={`!absolute overflow-hidden border [overscroll-behavior:auto] ${cardPositioningClass} ${
                                   isPlanner
-                                    ? 'border border-dashed border-emerald-500/60 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-800 rounded-none shadow-2xs'
-                                    : 'border border-emerald-300/90 bg-emerald-50/90 hover:bg-emerald-100 text-emerald-800 rounded-md shadow-2xs'
-                                }`}
-                                title={`前倒し完了した「${latestCoveredEarly.title}」を未完了に戻す（代行配置を解除）`}
+                                    ? 'hover:brightness-[0.98] transition-all duration-100 rounded-none'
+                                    : 'sticky-note rounded-md border transition-all duration-150 shadow-2xs'
+                                } ${
+                                  isSubstitute
+                                    ? isPlanner
+                                      ? 'ring-1 ring-blue-400/50'
+                                      : 'ring-1 ring-blue-400/40'
+                                    : ''
+                                } hover:z-30`}
                               >
-                                <RotateCcw
-                                  className={`${
-                                    height < 32 ? 'h-3 w-3' : 'h-3.5 w-3.5'
-                                  } text-emerald-700`}
-                                />
-                                {height >= 44 && (
-                                  <span className="text-[8px] sm:text-[9px] font-bold text-emerald-800 leading-none mt-1 tracking-tighter">
-                                    戻す
-                                  </span>
+                                {!isPlanner && (
+                                  <div
+                                    className="absolute inset-y-0 left-0 w-1.5 opacity-90 shadow-2xs z-10"
+                                    style={{
+                                      backgroundColor: isSubstitute
+                                        ? '#3b82f6'
+                                        : isEarlyCompleted
+                                          ? '#94a3b8'
+                                          : colorScheme.strip,
+                                    }}
+                                  />
                                 )}
-                              </button>
-                            )}
-                          </div>
-                        );
-                      });
+
+                                <TimelineTaskCardBlock
+                                  block={block}
+                                  colorScheme={colorScheme}
+                                  isPlanner={isPlanner}
+                                  height={height}
+                                  duration={duration}
+                                  isShort={isShort}
+                                  isSubstitute={isSubstitute}
+                                  isEarlyCompleted={isEarlyCompleted}
+                                  isWeeklyTask={isWeeklyTask}
+                                  isAssignment={isAssignment}
+                                  isCompletableBlock={isCompletableBlock}
+                                  displayEndMinutes={displayEndMinutes}
+                                  calculatedLines={calculatedLines}
+                                  onToggleBlockComplete={onToggleBlockComplete}
+                                  onJumpToSourceTable={onJumpToSourceTable}
+                                />
+                              </div>
+                            );
+                          })}
+
+                          {/* 代行タスク群にまたがる統合された1つの大きな戻すボタン */}
+                          {onToggleBlockComplete &&
+                            Array.from(substituteGroupsByEarlyId.values()).map((group) => {
+                              const groupTop = Math.round((group.minStartMinutes / 60) * hourHeight) + 1;
+                              const groupDuration = Math.max(15, group.maxEndMinutes - group.minStartMinutes);
+                              const groupRawHeight = (groupDuration / 60) * hourHeight;
+                              const groupHeight = Math.max(22, Math.round(groupRawHeight) - 2);
+                              const isMultiTask = group.substituteBlocks.length > 1;
+
+                              return (
+                                <button
+                                  key={`substitute-group-revert-${group.earlyBlock.id}`}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onToggleBlockComplete(group.earlyBlock);
+                                  }}
+                                  style={{
+                                    top: `${groupTop}px`,
+                                    height: `${groupHeight}px`,
+                                  }}
+                                  className={`!absolute right-0.5 sm:right-1 w-[26px] sm:w-[32px] z-20 flex flex-col items-center justify-center transition-all cursor-pointer select-none active:scale-95 ${
+                                    isPlanner
+                                      ? 'border border-dashed border-emerald-500/70 bg-emerald-50/80 hover:bg-emerald-100 text-emerald-800 rounded-none shadow-2xs'
+                                      : 'border border-emerald-300/90 bg-emerald-50/90 hover:bg-emerald-100 text-emerald-800 rounded-md shadow-2xs'
+                                  }`}
+                                  title={
+                                    isMultiTask
+                                      ? `【代行タスク群を一括解除】前倒し完了した「${group.earlyBlock.title}」を未完了に戻す（代行タスク ${group.substituteBlocks.length} 件を元に戻す）`
+                                      : `前倒し完了した「${group.earlyBlock.title}」を未完了に戻す（代行配置を解除）`
+                                  }
+                                >
+                                  <RotateCcw
+                                    className={`${
+                                      groupHeight < 32 ? 'h-3 w-3' : 'h-3.5 w-3.5'
+                                    } text-emerald-700`}
+                                  />
+                                  {groupHeight >= 44 && (
+                                    <span className="text-[8px] sm:text-[9px] font-bold text-emerald-800 leading-none mt-1 tracking-tighter">
+                                      戻す
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                        </>
+                      );
                     })()}
                   </div>
                 );
