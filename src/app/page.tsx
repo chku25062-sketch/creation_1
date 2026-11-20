@@ -43,11 +43,26 @@ export default function Home() {
     DEFAULT_INCLUSION_SETTINGS,
   );
   const [activeTab, setActiveTab] = useState<SheetTab>('timeline');
-  // Plan26: タイムラインから「表データ」への逆引きジャンプ用対象テーブルID
+  // Plan26: タイムラインから「表データ」への逆引きジャンプ用対象テーブルIDおよび対象コマ情報
   const [targetTableIdForDataTab, setTargetTableIdForDataTab] = useState<string | null>(null);
+  const [targetCellInfoForDataTab, setTargetCellInfoForDataTab] = useState<{
+    title?: string;
+    dayIndex?: number;
+    taskId?: string;
+    startMinutes?: number;
+  } | null>(null);
 
-  const handleJumpToSourceTable = (tableId: string) => {
+  const handleJumpToSourceTable = (
+    tableId: string,
+    cellInfo?: {
+      title?: string;
+      dayIndex?: number;
+      taskId?: string;
+      startMinutes?: number;
+    },
+  ) => {
     setTargetTableIdForDataTab(tableId);
+    setTargetCellInfoForDataTab(cellInfo || null);
     setActiveTab('data');
   };
   const [activeDataName, setActiveDataName] = useState<string>('表データ');
@@ -875,6 +890,8 @@ export default function Home() {
             onMobileSwitcherOpenChange={setIsMobileSwitcherOpen}
             onActiveDataNameChange={setActiveDataName}
             selectedTableId={targetTableIdForDataTab}
+            targetCellInfo={targetCellInfoForDataTab}
+            onClearTargetCellInfo={() => setTargetCellInfoForDataTab(null)}
           />
         </div>
       </main>

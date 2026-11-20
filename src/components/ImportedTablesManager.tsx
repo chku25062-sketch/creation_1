@@ -86,6 +86,13 @@ interface ImportedTablesManagerProps {
   onMobileSwitcherOpenChange?: (open: boolean) => void;
   onActiveDataNameChange?: (name: string) => void;
   selectedTableId?: string | null;
+  targetCellInfo?: {
+    title?: string;
+    dayIndex?: number;
+    taskId?: string;
+    startMinutes?: number;
+  } | null;
+  onClearTargetCellInfo?: () => void;
 }
 
 const CYCLE_HEADER_OPTIONS = [
@@ -116,6 +123,8 @@ export function ImportedTablesManager({
   onMobileSwitcherOpenChange,
   onActiveDataNameChange,
   selectedTableId,
+  targetCellInfo,
+  onClearTargetCellInfo,
 }: ImportedTablesManagerProps) {
   // ファイル直接選択用インライン参照
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -882,6 +891,58 @@ export function ImportedTablesManager({
       cell.attachedTask?.minSplitMinutes ?? activeTable.attachedTaskConfig?.minSplitMinutes ?? 15,
     );
   };
+
+  // タイムラインからの逆引き長押しジャンプ時に、対象セルのコマ編集ポップオーバーを自動起動
+  useEffect(() => {
+    if (!targetCellInfo || !activeTable || !activeTable.cells) return;
+
+    let targetCoord: { r: number; c: number } | null = null;
+
+    // 1. タイトル一致を優先検索
+    if (targetCellInfo.title) {
+      const searchTitle = targetCellInfo.title.trim();
+      for (let r = 0; r < activeTable.cells.length; r++) {
+        for (let c = 0; c < activeTable.cells[r].length; c++) {
+          const cell = activeTable.cells[r][c];
+          const cellText = (cell.text || cell.title || '').trim();
+          if (
+            cellText &&
+            (cellText === searchTitle ||
+              cellText.includes(searchTitle) ||
+              searchTitle.includes(cellText))
+          ) {
+            targetCoord = { r, c };
+            break;
+          }
+        }
+        if (targetCoord) break;
+      }
+    }
+
+    // 2. タイトルで見つからず、dayIndex と startMinutes があれば時刻で検索
+    if (!targetCoord && targetCellInfo.dayIndex !== undefined && targetCellInfo.startMinutes !== undefined) {
+      const c = targetCellInfo.dayIndex;
+      for (let r = 0; r < activeTable.cells.length; r++) {
+        if (c < (activeTable.cells[r]?.length || 0)) {
+          const { startTime } = getCellDefaultStartTime(activeTable, r, c, periodTimes);
+          if (startTime) {
+            const m = timeStringToMinutes(startTime);
+            if (m === targetCellInfo.startMinutes) {
+              targetCoord = { r, c };
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (targetCoord) {
+      handleStartEditCell(targetCoord.r, targetCoord.c);
+    }
+    if (onClearTargetCellInfo) {
+      onClearTargetCellInfo();
+    }
+  }, [targetCellInfo, activeTable]);
 
   // コマ設定のコピー（Plan23: アイコンで操作）
   const handleCopyCell = (e: React.MouseEvent) => {
