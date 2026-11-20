@@ -338,15 +338,15 @@ export function TableQuickSettingsModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2 sm:p-4 overflow-hidden animate-fadeIn"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-xl max-h-[92vh] flex flex-col rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden"
+        className="relative w-full max-w-xl max-h-[calc(100dvh-1rem)] sm:max-h-[88vh] flex flex-col rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* ヘッダー */}
-        <div className="flex items-center justify-between border-b border-slate-200/90 bg-gradient-to-r from-slate-50 via-indigo-50/30 to-slate-50 px-5 py-3.5">
+        <div className="shrink-0 flex items-center justify-between border-b border-slate-200/90 bg-gradient-to-r from-slate-50 via-indigo-50/30 to-slate-50 px-4 sm:px-5 py-3 sm:py-3.5">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs">
               <Zap className="h-4 w-4" />
@@ -356,20 +356,20 @@ export function TableQuickSettingsModal({
                 <h3 className="text-sm sm:text-base font-bold text-slate-900">クイック設定</h3>
                 {classificationBadge()}
               </div>
-              <p className="text-[11px] text-slate-500">開いている表の設定をすばやく調整・反映します</p>
+              <p className="text-[10px] sm:text-[11px] text-slate-500">開いている表の設定をすばやく調整・反映します</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* スクロール本体 */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-5 text-xs text-slate-700">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-5 text-xs text-slate-700">
           {/* 1. 表の名前 */}
           <div className="space-y-1.5">
             <label className="block text-xs font-bold text-slate-700">表の表示名</label>
@@ -840,8 +840,8 @@ export function TableQuickSettingsModal({
           </div>
         </div>
 
-        {/* フッター */}
-        <div className="flex items-center justify-end gap-2.5 border-t border-slate-200 bg-slate-50 px-5 py-3">
+        {/* フッター（常に画面最下部に固定表示） */}
+        <div className="shrink-0 flex items-center justify-end gap-2.5 border-t border-slate-200 bg-slate-50 px-4 sm:px-5 py-3">
           <button
             type="button"
             onClick={onClose}

@@ -430,24 +430,24 @@ export function NewTableWizardModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2 sm:p-4 overflow-hidden animate-fadeIn"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-2xl max-h-[92vh] flex flex-col rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden"
+        className="relative w-full max-w-2xl max-h-[calc(100dvh-1rem)] sm:max-h-[88vh] flex flex-col rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* ヘッダー */}
-        <div className="flex items-center justify-between border-b border-slate-200/90 bg-gradient-to-r from-indigo-50/70 via-sky-50/40 to-slate-50 px-5 py-4">
+        <div className="shrink-0 flex items-center justify-between border-b border-slate-200/90 bg-gradient-to-r from-indigo-50/70 via-sky-50/40 to-slate-50 px-4 sm:px-5 py-3 sm:py-3.5">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs">
-              <Sparkles className="h-5 w-5" />
+            <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs">
+              <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-bold text-slate-900">
                 質問に答えて予定表を作成
               </h3>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[10px] sm:text-[11px] text-slate-500">
                 ①表の基本ルールを決め、②タスクを流し込むだけでスケジュール表が完成します
               </p>
             </div>
@@ -462,7 +462,7 @@ export function NewTableWizardModal({
         </div>
 
         {/* スクロール本体 */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-6 text-xs text-slate-700">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-5 text-xs text-slate-700">
           {/* ========================================================
               Step 1: 表の設定（全体枠・基本ルールの決定）
               ======================================================== */}
@@ -909,8 +909,8 @@ export function NewTableWizardModal({
           </div>
         </div>
 
-        {/* フッター */}
-        <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-5 py-3.5">
+        {/* フッター（常に画面最下部に固定表示） */}
+        <div className="shrink-0 flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 sm:px-5 py-3">
           <button
             type="button"
             onClick={onClose}
@@ -922,7 +922,7 @@ export function NewTableWizardModal({
             type="button"
             onClick={handleBuildTable}
             disabled={draftTasks.length === 0}
-            className={`flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-xs font-bold transition shadow-md ${
+            className={`flex items-center gap-1.5 rounded-xl px-4 sm:px-5 py-2.5 text-xs font-bold transition shadow-md ${
               draftTasks.length > 0
                 ? 'bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-700 hover:to-sky-700 text-white cursor-pointer active:scale-98'
                 : 'bg-slate-200 text-slate-400 cursor-not-allowed'
