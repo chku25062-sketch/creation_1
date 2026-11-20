@@ -1156,36 +1156,48 @@ export function ImportedTablesManager({
     }
     const targetTable = tables.find((t) => t.id === id);
     if (confirm(`この読み込みデータ「${targetTable?.name}」を削除しますか？`)) {
-      if (targetTable) {
-        // 反映されていたスロットやタスクを解除
-        const slotIdsToRemove = new Set(targetTable.appliedSlotIds || []);
-        const taskIdsToRemove = new Set(targetTable.appliedTaskIds || []);
-        if (slotIdsToRemove.size > 0) {
-          onSlotsChange(fixedSlots.filter((s) => !slotIdsToRemove.has(s.id) && !s.id.includes(id)));
-        }
-        if (taskIdsToRemove.size > 0) {
-          onTasksChange(tasks.filter((t) => !taskIdsToRemove.has(t.id) && !t.id.includes(id)));
-        }
+      // 1. このテーブルに紐づくすべての固定枠スロットを確実に削除
+      const nextSlots = fixedSlots.filter(
+        (s) =>
+          s.sourceTableId !== id &&
+          !s.id.includes(id) &&
+          !s.id.startsWith(`slot-table-${id}-`) &&
+          !s.id.startsWith(`slot-lecture-${id}-`) &&
+          !(targetTable?.appliedSlotIds && targetTable.appliedSlotIds.includes(s.id)),
+      );
+      onSlotsChange(nextSlots);
 
-        // localStorageの完了/未完了IDをクリーンアップ
-        try {
-          const savedCompleted = localStorage.getItem('app_completed_block_ids');
-          if (savedCompleted) {
-            const ids: string[] = JSON.parse(savedCompleted);
-            const filtered = ids.filter((bId) => !bId.includes(id));
-            localStorage.setItem('app_completed_block_ids', JSON.stringify(filtered));
-          }
-          const savedUncompleted = localStorage.getItem('app_uncompleted_block_ids');
-          if (savedUncompleted) {
-            const ids: string[] = JSON.parse(savedUncompleted);
-            const filtered = ids.filter((bId) => !bId.includes(id));
-            localStorage.setItem('app_uncompleted_block_ids', JSON.stringify(filtered));
-          }
-        } catch {
-          // ignore
+      // 2. このテーブルに紐づくすべてのタスク（日課・週次・付随）を確実に削除
+      const nextTasks = tasks.filter(
+        (t) =>
+          t.sourceTableId !== id &&
+          !t.id.includes(id) &&
+          !t.id.startsWith(`task-table-${id}-`) &&
+          !t.id.startsWith(`task-attached-${id}-`) &&
+          !t.id.startsWith(`task-assignment-${id}-`) &&
+          !(targetTable?.appliedTaskIds && targetTable.appliedTaskIds.includes(t.id)),
+      );
+      onTasksChange(nextTasks);
+
+      // 3. localStorageの完了/未完了IDをクリーンアップ
+      try {
+        const savedCompleted = localStorage.getItem('app_completed_block_ids');
+        if (savedCompleted) {
+          const ids: string[] = JSON.parse(savedCompleted);
+          const filtered = ids.filter((bId) => !bId.includes(id));
+          localStorage.setItem('app_completed_block_ids', JSON.stringify(filtered));
         }
+        const savedUncompleted = localStorage.getItem('app_uncompleted_block_ids');
+        if (savedUncompleted) {
+          const ids: string[] = JSON.parse(savedUncompleted);
+          const filtered = ids.filter((bId) => !bId.includes(id));
+          localStorage.setItem('app_uncompleted_block_ids', JSON.stringify(filtered));
+        }
+      } catch {
+        // ignore
       }
 
+      // 4. テーブル一覧から除外
       const filtered = tables.filter((t) => t.id !== id);
       onTablesChange(filtered);
       if (selectedItemId === id) {
