@@ -82,6 +82,7 @@ interface ThemeDefinition {
   description: string;
   recommendedType: TableTypeMode;
   recommendedTimeSlot: TimeSlotOption;
+  defaultDuration?: number; // 表の標準コマ時間・目安時間（分）
   defaultTargetDays?: number[];
   suggestions: SuggestionPreset[];
 }
@@ -94,6 +95,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     description: '読書、学習、ストレッチなど毎日続けたいこと',
     recommendedType: 'daily',
     recommendedTimeSlot: 'all',
+    defaultDuration: 20,
     suggestions: [
       { label: '読書', defaultDuration: 20 },
       { label: '英語・学習', defaultDuration: 30 },
@@ -110,6 +112,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     description: '朝食、読書、ストレッチなど朝の習慣',
     recommendedType: 'daily',
     recommendedTimeSlot: 'morning',
+    defaultDuration: 15,
     suggestions: [
       { label: '朝食', defaultDuration: 20 },
       { label: '読書', defaultDuration: 20 },
@@ -126,6 +129,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     description: '夕食、入浴、明日の準備、就寝前ケア',
     recommendedType: 'daily',
     recommendedTimeSlot: 'evening',
+    defaultDuration: 20,
     suggestions: [
       { label: '夕食', defaultDuration: 45 },
       { label: '入浴', defaultDuration: 30 },
@@ -146,6 +150,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     description: '大学や学校の曜日ごとの講義・コマ',
     recommendedType: 'fixed',
     recommendedTimeSlot: 'custom_fixed',
+    defaultDuration: 90, // 大学の講義コマは90分
     defaultTargetDays: [0], // 曜日ごとの時間割のため初期値は月曜のみ
     suggestions: [
       {
@@ -176,6 +181,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     description: '会社勤務、アルバイト、シフト予定',
     recommendedType: 'fixed',
     recommendedTimeSlot: 'custom_fixed',
+    defaultDuration: 240, // 4時間シフト等
     defaultTargetDays: [0, 1, 2, 3, 4], // 平日
     suggestions: [
       {
@@ -205,6 +211,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     description: 'ジム、筋トレ、ランニング、健康管理',
     recommendedType: 'weekly',
     recommendedTimeSlot: 'all',
+    defaultDuration: 60,
     suggestions: [
       { label: 'ジム・筋トレ', defaultDuration: 60, weeklyCount: 2 },
       { label: 'ジョギング・ランニング', defaultDuration: 45, weeklyCount: 2 },
@@ -219,6 +226,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     description: 'レポート、掃除、買い出し、資格勉強',
     recommendedType: 'weekly',
     recommendedTimeSlot: 'all',
+    defaultDuration: 60,
     suggestions: [
       { label: 'レポート課題', defaultDuration: 90, weeklyCount: 1 },
       { label: '部屋の掃除', defaultDuration: 45, weeklyCount: 1 },
@@ -233,6 +241,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     description: '睡眠、食事、休憩などの基本フレーム',
     recommendedType: 'fixed',
     recommendedTimeSlot: 'custom_fixed',
+    defaultDuration: 60,
     defaultTargetDays: [0, 1, 2, 3, 4, 5, 6],
     suggestions: [
       {
@@ -254,6 +263,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     description: '表の名前やルールを自分で自由に決めて作成',
     recommendedType: 'daily',
     recommendedTimeSlot: 'all',
+    defaultDuration: 30,
     suggestions: [
       { label: '読書', defaultDuration: 20 },
       { label: 'ストレッチ', defaultDuration: 15 },
@@ -292,6 +302,9 @@ export function NewTableWizardModal({
   const [fixedStartTime, setFixedStartTime] = useState('09:00');
   const [fixedEndTime, setFixedEndTime] = useState('10:30');
 
+  // Plan30: 表全体のデフォルト所要時間（コマ時間 / 目安時間）
+  const [defaultDuration, setDefaultDuration] = useState<number>(20);
+
   // ==========================================
   // Step 2: 具体タスクの入力ステート
   // ==========================================
@@ -300,10 +313,16 @@ export function NewTableWizardModal({
   const [taskWeeklyCount, setTaskWeeklyCount] = useState(2);
   // 固定枠個別タスク用
   const [taskStartTime, setTaskStartTime] = useState('09:00');
-  const [taskEndTime, setTaskEndTime] = useState('10:30');
   const [taskTargetDays, setTaskTargetDays] = useState<number[]>([0]);
   // サイクル日課用: 現在追加対象のDay (0: Day 1, 1: Day 2...)
   const [taskCycleDay, setTaskCycleDay] = useState<number>(0);
+
+  // 固定枠における終了時刻の自動計算（開始時刻 ＋ デフォルトコマ時間）
+  const calculatedFixedEndTime = useMemo(() => {
+    const startMin = timeStringToMinutes(taskStartTime || fixedStartTime || '09:00');
+    const endMin = (startMin + defaultDuration) % (24 * 60);
+    return `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+  }, [taskStartTime, fixedStartTime, defaultDuration]);
 
   // 登録済みタスクリスト
   const [draftTasks, setDraftTasks] = useState<AddedTaskDraft[]>([]);
@@ -363,6 +382,10 @@ export function NewTableWizardModal({
         setFixedEndTime(eTime || '10:30');
       }
 
+      const initialDur = targetTable.axisConfig.periodMinutes || (mappedType === 'fixed' ? 90 : 20);
+      setDefaultDuration(initialDur);
+      setTaskDuration(initialDur);
+
       // 既存セルのタスクを抽出して draftTasks に復元
       const taskMap = new Map<string, AddedTaskDraft>();
 
@@ -417,6 +440,8 @@ export function NewTableWizardModal({
       setDailyCycleStartDay(0);
       setFixedStartTime('09:00');
       setFixedEndTime('10:30');
+      setDefaultDuration(20);
+      setTaskDuration(20);
       setDraftTasks([]);
     }
   }, [isOpen, targetTable]);
@@ -441,10 +466,8 @@ export function NewTableWizardModal({
       setFixedStartTime(defaults.start);
       setFixedEndTime(defaults.end);
       setTaskStartTime(defaults.start);
-      setTaskEndTime(defaults.end);
     } else {
       setTaskStartTime(fixedStartTime);
-      setTaskEndTime(fixedEndTime);
     }
   };
 
@@ -465,10 +488,12 @@ export function NewTableWizardModal({
     setFixedStartTime(sTime);
     setFixedEndTime(eTime);
     setTaskStartTime(sTime);
-    setTaskEndTime(eTime);
+
+    const themeDuration = theme.defaultDuration || theme.suggestions[0]?.defaultDuration || 20;
+    setDefaultDuration(themeDuration);
+    setTaskDuration(themeDuration);
 
     if (theme.suggestions[0]) {
-      setTaskDuration(theme.suggestions[0].defaultDuration);
       if (theme.suggestions[0].weeklyCount) {
         setTaskWeeklyCount(theme.suggestions[0].weeklyCount);
       }
@@ -485,15 +510,6 @@ export function NewTableWizardModal({
 
     const baseStart = s.fixedStartTime || taskStartTime || fixedStartTime || SLOT_TIME_DEFAULTS[timeSlot]?.start || '09:00';
     setTaskStartTime(baseStart);
-
-    if (s.fixedEndTime) {
-      setTaskEndTime(s.fixedEndTime);
-    } else {
-      const startMin = timeStringToMinutes(baseStart);
-      const endMin = (startMin + s.defaultDuration) % (24 * 60);
-      const endStr = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
-      setTaskEndTime(endStr);
-    }
   };
 
   // タスクをリストに追加
@@ -504,9 +520,9 @@ export function NewTableWizardModal({
     const newTask: AddedTaskDraft = {
       id: Date.now().toString() + Math.random().toString(36).substring(2, 6),
       title: trimmed,
-      durationMinutes: tableType === 'fixed' ? 60 : taskDuration,
+      durationMinutes: tableType === 'fixed' ? defaultDuration : taskDuration,
       startTime: tableType === 'fixed' ? taskStartTime : undefined,
-      endTime: tableType === 'fixed' ? taskEndTime : undefined,
+      endTime: tableType === 'fixed' ? calculatedFixedEndTime : undefined,
       targetDays:
         tableType === 'fixed'
           ? taskTargetDays
@@ -522,24 +538,8 @@ export function NewTableWizardModal({
     setTaskTitle('');
 
     // 固定枠の場合、次のタスクの開始時刻を前のタスクの終了時刻に自動進行
-    if (tableType === 'fixed' && taskStartTime && taskEndTime) {
-      const startMin = timeStringToMinutes(taskStartTime);
-      const endMin = timeStringToMinutes(taskEndTime);
-      let diff = endMin - startMin;
-      if (diff <= 0) diff += 24 * 60;
-      const nextStartMin = endMin % (24 * 60);
-      const nextEndMin = (nextStartMin + diff) % (24 * 60);
-
-      const nextStartStr = `${String(Math.floor(nextStartMin / 60)).padStart(2, '0')}:${String(nextStartMin % 60).padStart(2, '0')}`;
-      const nextEndStr = `${String(Math.floor(nextEndMin / 60)).padStart(2, '0')}:${String(nextEndMin % 60).padStart(2, '0')}`;
-
-      setTaskStartTime(nextStartStr);
-      setTaskEndTime(nextEndStr);
-    }
-
-    // サイクル日課の場合、タスクを追加したら自動的に次のDayへ進める（Day 1 ➔ Day 2 ➔ Day 3...）
-    if (tableType === 'daily' && dailyRepeatPattern === 'cycle') {
-      setTaskCycleDay(prev => (prev + 1) % dailyCycleLength);
+    if (tableType === 'fixed') {
+      setTaskStartTime(calculatedFixedEndTime);
     }
   };
 
@@ -550,9 +550,9 @@ export function NewTableWizardModal({
 
   // 日またぎ判定
   const isOvernight = useMemo(() => {
-    if (tableType !== 'fixed' || !taskStartTime || !taskEndTime) return false;
-    return timeStringToMinutes(taskEndTime) < timeStringToMinutes(taskStartTime);
-  }, [tableType, taskStartTime, taskEndTime]);
+    if (tableType !== 'fixed' || !taskStartTime) return false;
+    return timeStringToMinutes(calculatedFixedEndTime) < timeStringToMinutes(taskStartTime);
+  }, [tableType, taskStartTime, calculatedFixedEndTime]);
 
   // 表の構築＆反映（asNewTable: true なら新しい表として別名保存）
   const handleBuildTable = (asNewTable = false) => {
@@ -563,11 +563,24 @@ export function NewTableWizardModal({
     let generatedTable: ImportedTableData;
 
     if (tableType === 'fixed') {
+      // 登録された全タスクの中から最大の終了時刻を自動計算（Auto-Expansion）
+      let maxEndMin = 0;
+      draftTasks.forEach(t => {
+        if (t.endTime) {
+          const eMin = timeStringToMinutes(t.endTime);
+          if (eMin > maxEndMin) maxEndMin = eMin;
+        }
+      });
+      if (maxEndMin === 0) {
+        maxEndMin = timeStringToMinutes(fixedStartTime || '09:00') + defaultDuration;
+      }
+      const autoCalculatedEndTime = `${String(Math.floor(maxEndMin / 60)).padStart(2, '0')}:${String(maxEndMin % 60).padStart(2, '0')}`;
+
       // 固定枠表の生成
       const items: FixedSlotItemInput[] = draftTasks.map(t => ({
         title: t.title,
         startTime: t.startTime || fixedStartTime || '09:00',
-        endTime: t.endTime || fixedEndTime || '10:30',
+        endTime: t.endTime || autoCalculatedEndTime,
         targetDays: t.targetDays || [0],
       }));
 
@@ -576,7 +589,10 @@ export function NewTableWizardModal({
         multiSlots: { items },
         daysCount: 7,
         repeatStartDay: 0,
+        startTime: fixedStartTime || '09:00',
+        endTime: autoCalculatedEndTime,
       });
+      generatedTable.axisConfig.periodMinutes = defaultDuration;
     } else {
       // 活動時間帯（日課・週次タスク共通）
       let slotStartTime: string | null = null;
@@ -672,6 +688,7 @@ export function NewTableWizardModal({
           timeRange: { startTime: slotStartTime, endTime: slotEndTime },
         });
       }
+      generatedTable.axisConfig.periodMinutes = defaultDuration;
     }
   }
 
@@ -889,9 +906,11 @@ export function NewTableWizardModal({
 
               {/* 活動時間帯 */}
               <div className="space-y-1">
-                <span className="block text-[11px] font-bold text-slate-700">活動する時間帯</span>
+                <span className="block text-[11px] font-bold text-slate-700">
+                  {tableType === 'fixed' ? '始業時刻（基準開始時間）' : '活動する時間帯'}
+                </span>
                 {tableType === 'fixed' ? (
-                  <div className="flex items-center gap-1.5 pt-0.5">
+                  <div className="flex items-center gap-2 pt-0.5">
                     <input
                       type="time"
                       value={fixedStartTime}
@@ -899,18 +918,11 @@ export function NewTableWizardModal({
                         setFixedStartTime(e.target.value);
                         setTaskStartTime(e.target.value);
                       }}
-                      className="rounded border border-slate-300 bg-white px-2 py-1 text-xs"
+                      className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 shadow-2xs"
                     />
-                    <span className="text-slate-400">〜</span>
-                    <input
-                      type="time"
-                      value={fixedEndTime}
-                      onChange={e => {
-                        setFixedEndTime(e.target.value);
-                        setTaskEndTime(e.target.value);
-                      }}
-                      className="rounded border border-slate-300 bg-white px-2 py-1 text-xs"
-                    />
+                    <span className="text-[10px] text-slate-400">
+                      ※表の終了時間はタスク登録に合わせて自動拡張されます
+                    </span>
                   </div>
                 ) : (
                   <div className="space-y-1.5">
@@ -990,7 +1002,6 @@ export function NewTableWizardModal({
                           value={fixedEndTime}
                           onChange={e => {
                             setFixedEndTime(e.target.value);
-                            setTaskEndTime(e.target.value);
                           }}
                           className="rounded border border-slate-300 bg-white px-2 py-1 text-xs"
                         />
@@ -1161,6 +1172,61 @@ export function NewTableWizardModal({
                   )}
                 </div>
               )}
+
+              {/* D. タスクの標準所要時間（コマ時間 / 目安時間） */}
+              <div className="pt-2.5 border-t border-indigo-100/60 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-700">
+                    {tableType === 'fixed'
+                      ? '1コマの標準時間（コマ割の長さ）'
+                      : tableType === 'weekly'
+                        ? '1回の標準作業時間'
+                        : '1つの習慣の目安時間'}
+                  </span>
+                  <span className="text-[10px] text-slate-400">
+                    タスク追加時の基準時間として自動連動
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {(tableType === 'fixed'
+                    ? [50, 60, 90, 100]
+                    : tableType === 'weekly'
+                      ? [30, 45, 60, 90]
+                      : [10, 15, 20, 30]
+                  ).map(dur => (
+                    <button
+                      key={dur}
+                      type="button"
+                      onClick={() => {
+                        setDefaultDuration(dur);
+                        setTaskDuration(dur);
+                      }}
+                      className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
+                        defaultDuration === dur
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {dur}分{tableType === 'fixed' && dur === 90 ? ' (大学)' : ''}{tableType === 'fixed' && dur === 50 ? ' (高校)' : ''}
+                    </button>
+                  ))}
+                  <div className="flex items-center gap-1 ml-auto">
+                    <span className="text-[10px] text-slate-400">カスタム:</span>
+                    <NumberStepper
+                      value={defaultDuration}
+                      onChange={val => {
+                        setDefaultDuration(val);
+                        setTaskDuration(val);
+                      }}
+                      min={5}
+                      max={480}
+                      step={5}
+                      unit="分"
+                      size="sm"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1219,22 +1285,19 @@ export function NewTableWizardModal({
                   className="flex-1 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 shadow-2xs"
                 />
 
-                {/* 固定枠の場合の時間指定 */}
+                {/* 固定枠の場合の時間指定（開始時刻のみ入力＋終了時刻は標準コマ時間から自動計算） */}
                 {tableType === 'fixed' ? (
                   <div className="flex items-center gap-1.5 shrink-0">
                     <input
                       type="time"
                       value={taskStartTime}
                       onChange={e => setTaskStartTime(e.target.value)}
-                      className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs"
+                      className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-bold text-slate-800 shadow-2xs"
                     />
                     <span className="text-slate-400">〜</span>
-                    <input
-                      type="time"
-                      value={taskEndTime}
-                      onChange={e => setTaskEndTime(e.target.value)}
-                      className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs"
-                    />
+                    <span className="px-2.5 py-1.5 rounded-lg bg-indigo-50/90 border border-indigo-200 text-xs font-bold text-indigo-700 shadow-2xs">
+                      {calculatedFixedEndTime} ({defaultDuration}分)
+                    </span>
                     {isOvernight && (
                       <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded">
                         翌日
