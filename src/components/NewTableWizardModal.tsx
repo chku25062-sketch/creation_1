@@ -7,6 +7,11 @@ import {
   Check,
   Plus,
   Settings,
+  ChevronRight,
+  ChevronLeft,
+  Calendar,
+  Sliders,
+  Layout,
 } from 'lucide-react';
 import { ImportedTableData } from '@/types';
 import {
@@ -510,10 +515,10 @@ export function NewTableWizardModal({
         generatedTable.classificationOverride = 'fixed_slot';
         generatedTable.attachedTaskConfig = enableAttachedTask
           ? {
-              enabled: true,
-              durationMinutes: attachedTaskDuration,
-              titleTemplate: attachedTaskTitleTemplate || '{title} のタスク',
-            }
+            enabled: true,
+            durationMinutes: attachedTaskDuration,
+            titleTemplate: attachedTaskTitleTemplate || '{title} のタスク',
+          }
           : undefined;
       } else if (tableType === 'weekly') {
         generatedTable.placementMode = 'auto';
@@ -751,6 +756,41 @@ export function NewTableWizardModal({
           </div>
         </div>
 
+        {/* 対話形式ステップインジケーター（プログレスバー） */}
+        <div className="shrink-0 flex items-center justify-between px-3 sm:px-6 py-2 bg-slate-50 border-b border-slate-200/80 overflow-x-auto gap-2">
+          {stepLabels.map((s, idx) => {
+            const isCurrent = currentStep === s.step;
+            const isCompleted = currentStep > s.step;
+            const Icon = s.icon;
+            return (
+              <React.Fragment key={s.step}>
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(s.step)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 ${
+                    isCurrent
+                      ? 'bg-indigo-600 text-white shadow-2xs'
+                      : isCompleted
+                        ? 'bg-indigo-100/80 text-indigo-700 hover:bg-indigo-200/80'
+                        : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold ${
+                    isCurrent ? 'bg-white text-indigo-600' : isCompleted ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {isCompleted ? '✓' : s.step}
+                  </span>
+                  <Icon className="h-3.5 w-3.5 shrink-0 hidden sm:inline" />
+                  <span className="hidden sm:inline">{s.title}</span>
+                </button>
+                {idx < stepLabels.length - 1 && (
+                  <ChevronRight className="h-3.5 w-3.5 text-slate-300 shrink-0 hidden sm:block" />
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+
         {/* スクロール本体 */}
         <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-5 text-xs text-slate-700">
           {/* ========================================================
@@ -802,11 +842,10 @@ export function NewTableWizardModal({
                       key={theme.id}
                       type="button"
                       onClick={() => handleSelectTheme(theme)}
-                      className={`flex flex-col items-start p-2 rounded-xl border text-left transition cursor-pointer ${
-                        isSelected
-                          ? 'border-indigo-600 bg-indigo-50/80 shadow-xs ring-2 ring-indigo-500/20'
-                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80'
-                      }`}
+                      className={`flex flex-col items-start p-2 rounded-xl border text-left transition cursor-pointer ${isSelected
+                        ? 'border-indigo-600 bg-indigo-50/80 shadow-xs ring-2 ring-indigo-500/20'
+                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80'
+                        }`}
                     >
                       <div className="flex items-center justify-between w-full mb-0.5">
                         <span className="font-bold text-xs text-slate-800">{theme.label}</span>
@@ -847,11 +886,10 @@ export function NewTableWizardModal({
                       setTableType('daily');
                       if (timeSlot === 'custom_fixed') setTimeSlot('custom');
                     }}
-                    className={`rounded-lg py-1.5 text-[11px] font-bold transition cursor-pointer ${
-                      tableType === 'daily'
-                        ? 'bg-amber-500 text-white shadow-2xs'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                    }`}
+                    className={`rounded-lg py-1.5 text-[11px] font-bold transition cursor-pointer ${tableType === 'daily'
+                      ? 'bg-amber-500 text-white shadow-2xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                      }`}
                   >
                     毎日 (日課)
                   </button>
@@ -861,11 +899,10 @@ export function NewTableWizardModal({
                       setTableType('weekly');
                       if (timeSlot === 'custom_fixed') setTimeSlot('custom');
                     }}
-                    className={`rounded-lg py-1.5 text-[11px] font-bold transition cursor-pointer ${
-                      tableType === 'weekly'
-                        ? 'bg-blue-600 text-white shadow-2xs'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                    }`}
+                    className={`rounded-lg py-1.5 text-[11px] font-bold transition cursor-pointer ${tableType === 'weekly'
+                      ? 'bg-blue-600 text-white shadow-2xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                      }`}
                   >
                     週◯回
                   </button>
@@ -874,11 +911,10 @@ export function NewTableWizardModal({
                     onClick={() => {
                       setTableType('fixed');
                     }}
-                    className={`rounded-lg py-1.5 text-[11px] font-bold transition cursor-pointer ${
-                      tableType === 'fixed'
-                        ? 'bg-emerald-600 text-white shadow-2xs'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                    }`}
+                    className={`rounded-lg py-1.5 text-[11px] font-bold transition cursor-pointer ${tableType === 'fixed'
+                      ? 'bg-emerald-600 text-white shadow-2xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                      }`}
                   >
                     時間固定
                   </button>
@@ -910,55 +946,50 @@ export function NewTableWizardModal({
                       <button
                         type="button"
                         onClick={() => handleSelectTimeSlot('morning')}
-                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${
-                          timeSlot === 'morning'
-                            ? 'bg-indigo-600 text-white shadow-2xs'
-                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                        }`}
+                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${timeSlot === 'morning'
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                          }`}
                       >
                         朝 (6-12)
                       </button>
                       <button
                         type="button"
                         onClick={() => handleSelectTimeSlot('afternoon')}
-                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${
-                          timeSlot === 'afternoon'
-                            ? 'bg-indigo-600 text-white shadow-2xs'
-                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                        }`}
+                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${timeSlot === 'afternoon'
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                          }`}
                       >
                         昼 (12-18)
                       </button>
                       <button
                         type="button"
                         onClick={() => handleSelectTimeSlot('evening')}
-                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${
-                          timeSlot === 'evening'
-                            ? 'bg-indigo-600 text-white shadow-2xs'
-                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                        }`}
+                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${timeSlot === 'evening'
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                          }`}
                       >
                         夜 (18-23)
                       </button>
                       <button
                         type="button"
                         onClick={() => handleSelectTimeSlot('all')}
-                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${
-                          timeSlot === 'all'
-                            ? 'bg-indigo-600 text-white shadow-2xs'
-                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                        }`}
+                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${timeSlot === 'all'
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                          }`}
                       >
                         終日
                       </button>
                       <button
                         type="button"
                         onClick={() => handleSelectTimeSlot('custom')}
-                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${
-                          timeSlot === 'custom' || timeSlot === 'custom_fixed'
-                            ? 'bg-indigo-600 text-white shadow-2xs'
-                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                        }`}
+                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${timeSlot === 'custom' || timeSlot === 'custom_fixed'
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                          }`}
                       >
                         指定
                       </button>
@@ -1001,11 +1032,10 @@ export function NewTableWizardModal({
                     <button
                       type="button"
                       onClick={() => setDailyRepeatPattern('everyday')}
-                      className={`rounded-lg py-1.5 px-1.5 text-[10px] font-bold transition cursor-pointer flex flex-col items-center gap-0.5 ${
-                        dailyRepeatPattern === 'everyday'
-                          ? 'bg-amber-500 text-white shadow-2xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                      }`}
+                      className={`rounded-lg py-1.5 px-1.5 text-[10px] font-bold transition cursor-pointer flex flex-col items-center gap-0.5 ${dailyRepeatPattern === 'everyday'
+                        ? 'bg-amber-500 text-white shadow-2xs'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                        }`}
                     >
                       <span>毎日同じ</span>
                       <span className="text-[9px] opacity-80 font-normal">全曜日で実施</span>
@@ -1013,11 +1043,10 @@ export function NewTableWizardModal({
                     <button
                       type="button"
                       onClick={() => setDailyRepeatPattern('weekdays')}
-                      className={`rounded-lg py-1.5 px-1.5 text-[10px] font-bold transition cursor-pointer flex flex-col items-center gap-0.5 ${
-                        dailyRepeatPattern === 'weekdays'
-                          ? 'bg-amber-500 text-white shadow-2xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                      }`}
+                      className={`rounded-lg py-1.5 px-1.5 text-[10px] font-bold transition cursor-pointer flex flex-col items-center gap-0.5 ${dailyRepeatPattern === 'weekdays'
+                        ? 'bg-amber-500 text-white shadow-2xs'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                        }`}
                     >
                       <span>曜日を指定</span>
                       <span className="text-[9px] opacity-80 font-normal">平日・月水金など</span>
@@ -1025,11 +1054,10 @@ export function NewTableWizardModal({
                     <button
                       type="button"
                       onClick={() => setDailyRepeatPattern('cycle')}
-                      className={`rounded-lg py-1.5 px-1.5 text-[10px] font-bold transition cursor-pointer flex flex-col items-center gap-0.5 ${
-                        dailyRepeatPattern === 'cycle'
-                          ? 'bg-amber-500 text-white shadow-2xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                      }`}
+                      className={`rounded-lg py-1.5 px-1.5 text-[10px] font-bold transition cursor-pointer flex flex-col items-center gap-0.5 ${dailyRepeatPattern === 'cycle'
+                        ? 'bg-amber-500 text-white shadow-2xs'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                        }`}
                     >
                       <span>○日周期で交代</span>
                       <span className="text-[9px] opacity-80 font-normal">筋トレ分割・ローテ</span>
@@ -1090,11 +1118,10 @@ export function NewTableWizardModal({
                                 }
                                 setDailyTargetDays(next);
                               }}
-                              className={`rounded py-1 text-xs font-bold transition cursor-pointer ${
-                                isSelected
-                                  ? 'bg-amber-600 text-white shadow-2xs'
-                                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                              }`}
+                              className={`rounded py-1 text-xs font-bold transition cursor-pointer ${isSelected
+                                ? 'bg-amber-600 text-white shadow-2xs'
+                                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                                }`}
                             >
                               {w.label}
                             </button>
@@ -1118,11 +1145,10 @@ export function NewTableWizardModal({
                               key={len}
                               type="button"
                               onClick={() => setDailyCycleLength(len)}
-                              className={`h-7 w-7 rounded-lg text-xs font-bold transition cursor-pointer ${
-                                dailyCycleLength === len
-                                  ? 'bg-amber-600 text-white shadow-2xs'
-                                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                              }`}
+                              className={`h-7 w-7 rounded-lg text-xs font-bold transition cursor-pointer ${dailyCycleLength === len
+                                ? 'bg-amber-600 text-white shadow-2xs'
+                                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                                }`}
                             >
                               {len}日
                             </button>
@@ -1173,11 +1199,10 @@ export function NewTableWizardModal({
                       key={dur}
                       type="button"
                       onClick={() => setDefaultDuration(dur)}
-                      className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
-                        defaultDuration === dur
-                          ? 'bg-indigo-600 text-white shadow-2xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                      }`}
+                      className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${defaultDuration === dur
+                        ? 'bg-indigo-600 text-white shadow-2xs'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                        }`}
                     >
                       {dur}分{tableType === 'fixed' && dur === 90 ? ' (大学)' : ''}{tableType === 'fixed' && dur === 50 ? ' (高校)' : ''}
                     </button>
@@ -1211,11 +1236,11 @@ export function NewTableWizardModal({
                     <span className="text-[10px] text-slate-400">
                       {tableType === 'fixed'
                         ? `${fixedStartTime || '09:00'} 〜 ${(() => {
-                            const sMin = timeStringToMinutes(fixedStartTime || '09:00');
-                            const total = (defaultDuration + fixedIntervalMinutes) * tableTaskCount - fixedIntervalMinutes;
-                            const eMin = (sMin + total) % (24 * 60);
-                            return minutesToTimeString(eMin);
-                          })()} (${tableTaskCount}コマ)`
+                          const sMin = timeStringToMinutes(fixedStartTime || '09:00');
+                          const total = (defaultDuration + fixedIntervalMinutes) * tableTaskCount - fixedIntervalMinutes;
+                          const eMin = (sMin + total) % (24 * 60);
+                          return minutesToTimeString(eMin);
+                        })()} (${tableTaskCount}コマ)`
                         : `${tableTaskCount}枠`}
                     </span>
                   </div>
@@ -1230,11 +1255,10 @@ export function NewTableWizardModal({
                         key={cnt}
                         type="button"
                         onClick={() => setTableTaskCount(cnt)}
-                        className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
-                          tableTaskCount === cnt
-                            ? 'bg-indigo-600 text-white shadow-2xs'
-                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                        }`}
+                        className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${tableTaskCount === cnt
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                          }`}
                       >
                         {tableType === 'fixed' ? `${cnt}コマ` : `${cnt}個`}
                         {tableType === 'fixed' && cnt === 5 ? ' (標準)' : ''}
@@ -1271,11 +1295,10 @@ export function NewTableWizardModal({
                           key={m}
                           type="button"
                           onClick={() => setFixedIntervalMinutes(m)}
-                          className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
-                            fixedIntervalMinutes === m
-                              ? 'bg-emerald-600 text-white shadow-2xs'
-                              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                          }`}
+                          className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${fixedIntervalMinutes === m
+                            ? 'bg-emerald-600 text-white shadow-2xs'
+                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                            }`}
                         >
                           {m === 0 ? 'なし (0分)' : `${m}分${m === 10 ? ' (標準)' : ''}`}
                         </button>
@@ -1307,11 +1330,10 @@ export function NewTableWizardModal({
                                 key={dur}
                                 type="button"
                                 onClick={() => setAttachedTaskDuration(dur)}
-                                className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition cursor-pointer ${
-                                  attachedTaskDuration === dur
-                                    ? 'bg-indigo-600 text-white shadow-2xs'
-                                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                                }`}
+                                className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition cursor-pointer ${attachedTaskDuration === dur
+                                  ? 'bg-indigo-600 text-white shadow-2xs'
+                                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                                  }`}
                               >
                                 {dur}分
                               </button>
@@ -1350,11 +1372,10 @@ export function NewTableWizardModal({
                         key={cnt}
                         type="button"
                         onClick={() => setWeeklyTargetCount(cnt)}
-                        className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
-                          weeklyTargetCount === cnt
-                            ? 'bg-blue-600 text-white shadow-2xs'
-                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                        }`}
+                        className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${weeklyTargetCount === cnt
+                          ? 'bg-blue-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                          }`}
                       >
                         {cnt === 7 ? '毎日 (週7回)' : `週${cnt}回${cnt === 2 ? ' (標準)' : ''}`}
                       </button>
