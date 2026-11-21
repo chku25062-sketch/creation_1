@@ -54,13 +54,14 @@ const WEEKDAYS = [
 ];
 
 export type TableTypeMode = 'daily' | 'weekly' | 'fixed';
-export type TimeSlotOption = 'morning' | 'afternoon' | 'evening' | 'all' | 'custom_fixed';
+export type TimeSlotOption = 'morning' | 'afternoon' | 'evening' | 'all' | 'custom' | 'custom_fixed';
 
 export const SLOT_TIME_DEFAULTS: Record<TimeSlotOption, { start: string; end: string }> = {
   morning: { start: '07:00', end: '08:00' },
   afternoon: { start: '13:00', end: '14:00' },
   evening: { start: '19:00', end: '20:00' },
   all: { start: '09:00', end: '10:00' },
+  custom: { start: '09:00', end: '10:30' },
   custom_fixed: { start: '09:00', end: '10:30' },
 };
 
@@ -335,9 +336,14 @@ export function NewTableWizardModal({
         setTimeSlot('afternoon');
       } else if (sTime === '18:00' && eTime === '23:00') {
         setTimeSlot('evening');
+      } else if (sTime && eTime) {
+        setTimeSlot('custom');
       } else {
         setTimeSlot('all');
       }
+
+      if (sTime) setFixedStartTime(sTime);
+      if (eTime) setFixedEndTime(eTime);
 
       // 日課のペース判定
       if (mappedType === 'daily') {
@@ -431,10 +437,15 @@ export function NewTableWizardModal({
   const handleSelectTimeSlot = (slot: TimeSlotOption) => {
     setTimeSlot(slot);
     const defaults = SLOT_TIME_DEFAULTS[slot] || SLOT_TIME_DEFAULTS.all;
-    setFixedStartTime(defaults.start);
-    setFixedEndTime(defaults.end);
-    setTaskStartTime(defaults.start);
-    setTaskEndTime(defaults.end);
+    if (slot !== 'custom' && slot !== 'custom_fixed') {
+      setFixedStartTime(defaults.start);
+      setFixedEndTime(defaults.end);
+      setTaskStartTime(defaults.start);
+      setTaskEndTime(defaults.end);
+    } else {
+      setTaskStartTime(fixedStartTime);
+      setTaskEndTime(fixedEndTime);
+    }
   };
 
   // テーマ切り替えハンドラ（表名・タイプ・時間帯・初期曜日・開始時刻を連動初期化）
@@ -566,23 +577,8 @@ export function NewTableWizardModal({
         daysCount: 7,
         repeatStartDay: 0,
       });
-    } else if (tableType === 'weekly') {
-      // 週次タスク表の生成
-      const items: TemplateTaskItemInput[] = draftTasks.map(t => ({
-        title: t.title,
-        durationMinutes: t.durationMinutes,
-        weeklyCount: t.weeklyCount || 1,
-      }));
-
-      generatedTable = createWeeklyTaskTable({
-        name: finalTableName,
-        daysCount: 7,
-        isRepeat: false,
-        multiTasks: { items },
-      });
     } else {
-      // 日課表の生成
-      // 活動時間帯
+      // 活動時間帯（日課・週次タスク共通）
       let slotStartTime: string | null = null;
       let slotEndTime: string | null = null;
       if (timeSlot === 'morning') {
@@ -594,7 +590,28 @@ export function NewTableWizardModal({
       } else if (timeSlot === 'evening') {
         slotStartTime = '18:00';
         slotEndTime = '23:00';
+      } else if (timeSlot === 'custom' || timeSlot === 'custom_fixed') {
+        slotStartTime = fixedStartTime;
+        slotEndTime = fixedEndTime;
       }
+
+      if (tableType === 'weekly') {
+        // 週次タスク表の生成
+        const items: TemplateTaskItemInput[] = draftTasks.map(t => ({
+          title: t.title,
+          durationMinutes: t.durationMinutes,
+          weeklyCount: t.weeklyCount || 1,
+        }));
+
+        generatedTable = createWeeklyTaskTable({
+          name: finalTableName,
+          daysCount: 7,
+          isRepeat: false,
+          multiTasks: { items },
+          timeRange: { startTime: slotStartTime, endTime: slotEndTime },
+        });
+      } else {
+        // 日課表の生成
 
       if (dailyRepeatPattern === 'cycle') {
         // N日サイクルローテーション日課表（Day 1, Day 2, ..., Day N）
@@ -656,6 +673,7 @@ export function NewTableWizardModal({
         });
       }
     }
+  }
 
     // 既存表の上書き保存か、新規/別名保存かの判定
     const isOverwritingExisting = effectiveIsEdit && !asNewTable;
@@ -829,7 +847,7 @@ export function NewTableWizardModal({
                     type="button"
                     onClick={() => {
                       setTableType('daily');
-                      if (timeSlot === 'custom_fixed') setTimeSlot('all');
+                      if (timeSlot === 'custom_fixed') setTimeSlot('custom');
                     }}
                     className={`rounded-lg py-1.5 text-[11px] font-bold transition cursor-pointer ${
                       tableType === 'daily'
@@ -843,7 +861,7 @@ export function NewTableWizardModal({
                     type="button"
                     onClick={() => {
                       setTableType('weekly');
-                      if (timeSlot === 'custom_fixed') setTimeSlot('all');
+                      if (timeSlot === 'custom_fixed') setTimeSlot('custom');
                     }}
                     className={`rounded-lg py-1.5 text-[11px] font-bold transition cursor-pointer ${
                       tableType === 'weekly'
@@ -857,7 +875,6 @@ export function NewTableWizardModal({
                     type="button"
                     onClick={() => {
                       setTableType('fixed');
-                      setTimeSlot('custom_fixed');
                     }}
                     className={`rounded-lg py-1.5 text-[11px] font-bold transition cursor-pointer ${
                       tableType === 'fixed'
@@ -896,51 +913,89 @@ export function NewTableWizardModal({
                     />
                   </div>
                 ) : (
-                  <div className="grid grid-cols-4 gap-1">
-                    <button
-                      type="button"
-                      onClick={() => handleSelectTimeSlot('morning')}
-                      className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${
-                        timeSlot === 'morning'
-                          ? 'bg-indigo-600 text-white shadow-2xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      朝 (6-12)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSelectTimeSlot('afternoon')}
-                      className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${
-                        timeSlot === 'afternoon'
-                          ? 'bg-indigo-600 text-white shadow-2xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      昼 (12-18)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSelectTimeSlot('evening')}
-                      className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${
-                        timeSlot === 'evening'
-                          ? 'bg-indigo-600 text-white shadow-2xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      夜 (18-23)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSelectTimeSlot('all')}
-                      className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${
-                        timeSlot === 'all'
-                          ? 'bg-indigo-600 text-white shadow-2xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      終日
-                    </button>
+                  <div className="space-y-1.5">
+                    <div className="grid grid-cols-5 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectTimeSlot('morning')}
+                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${
+                          timeSlot === 'morning'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        朝 (6-12)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectTimeSlot('afternoon')}
+                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${
+                          timeSlot === 'afternoon'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        昼 (12-18)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectTimeSlot('evening')}
+                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${
+                          timeSlot === 'evening'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        夜 (18-23)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectTimeSlot('all')}
+                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${
+                          timeSlot === 'all'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        終日
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectTimeSlot('custom')}
+                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${
+                          timeSlot === 'custom' || timeSlot === 'custom_fixed'
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        指定
+                      </button>
+                    </div>
+
+                    {(timeSlot === 'custom' || timeSlot === 'custom_fixed') && (
+                      <div className="flex items-center gap-1.5 pt-0.5">
+                        <span className="text-[10px] text-slate-500 font-medium">時間指定:</span>
+                        <input
+                          type="time"
+                          value={fixedStartTime}
+                          onChange={e => {
+                            setFixedStartTime(e.target.value);
+                            setTaskStartTime(e.target.value);
+                          }}
+                          className="rounded border border-slate-300 bg-white px-2 py-1 text-xs"
+                        />
+                        <span className="text-slate-400">〜</span>
+                        <input
+                          type="time"
+                          value={fixedEndTime}
+                          onChange={e => {
+                            setFixedEndTime(e.target.value);
+                            setTaskEndTime(e.target.value);
+                          }}
+                          className="rounded border border-slate-300 bg-white px-2 py-1 text-xs"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
