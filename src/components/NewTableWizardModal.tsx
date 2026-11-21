@@ -270,8 +270,6 @@ export function NewTableWizardModal({
 }: NewTableWizardModalProps) {
   // 編集モードから「白紙から新しく作る」への切り替えフラグ
   const [isResetToNew, setIsResetToNew] = useState(false);
-  // おすすめテーマ雛形アコーディオンの開閉
-  const [showThemePresets, setShowThemePresets] = useState(false);
 
   const effectiveIsEdit = Boolean(targetTable) && !isResetToNew;
 
@@ -314,7 +312,6 @@ export function NewTableWizardModal({
     if (!isOpen) return;
 
     setIsResetToNew(false);
-    setShowThemePresets(false);
 
     if (targetTable) {
       // 既存表からの復元（編集モード）
@@ -758,87 +755,56 @@ export function NewTableWizardModal({
               </div>
             </div>
 
-            {/* A. 表のスケジュール分類（常時選択可能） */}
+            {/* A. 表のテーマを選ぶ（常時選択可能） */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="block text-[11px] font-bold text-slate-700">
-                  表のスケジュール分類
+                  表のテーマを選ぶ
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setShowThemePresets(prev => !prev)}
-                  className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 cursor-pointer"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  <span>{showThemePresets ? 'テーマ候補を閉じる' : 'おすすめテーマから入力'}</span>
-                </button>
+                <span className="text-[10px] text-slate-400">
+                  タップで設定と候補タスクを自動反映
+                </span>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setTableType('daily')}
-                  className={`py-2 px-2.5 rounded-xl border text-center transition cursor-pointer text-xs ${
-                    tableType === 'daily'
-                      ? 'border-amber-500 bg-amber-50/90 text-amber-900 font-bold shadow-2xs ring-2 ring-amber-500/20'
-                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  日課（ルーティン）
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTableType('weekly')}
-                  className={`py-2 px-2.5 rounded-xl border text-center transition cursor-pointer text-xs ${
-                    tableType === 'weekly'
-                      ? 'border-blue-500 bg-blue-50/90 text-blue-900 font-bold shadow-2xs ring-2 ring-blue-500/20'
-                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  週次タスク
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTableType('fixed')}
-                  className={`py-2 px-2.5 rounded-xl border text-center transition cursor-pointer text-xs ${
-                    tableType === 'fixed'
-                      ? 'border-emerald-500 bg-emerald-50/90 text-emerald-900 font-bold shadow-2xs ring-2 ring-emerald-500/20'
-                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  固定枠（時間割）
-                </button>
-              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {THEME_DEFINITIONS.map(theme => {
+                  const isSelected = selectedThemeId === theme.id;
+                  const typeLabel =
+                    theme.recommendedType === 'daily'
+                      ? '日課'
+                      : theme.recommendedType === 'weekly'
+                        ? '週次'
+                        : '固定枠';
+                  const typeBadgeClass =
+                    theme.recommendedType === 'daily'
+                      ? 'bg-amber-100 text-amber-800'
+                      : theme.recommendedType === 'weekly'
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-emerald-100 text-emerald-800';
 
-              {/* テーマ候補チップ（開閉式） */}
-              {showThemePresets && (
-                <div className="pt-2 pb-1">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2 bg-indigo-50/50 rounded-xl border border-indigo-100">
-                    {THEME_DEFINITIONS.map(theme => {
-                      const isSelected = selectedThemeId === theme.id;
-                      return (
-                        <button
-                          key={theme.id}
-                          type="button"
-                          onClick={() => {
-                            handleSelectTheme(theme);
-                            setShowThemePresets(false);
-                          }}
-                          className={`flex flex-col items-start p-2 rounded-lg border text-left transition cursor-pointer ${
-                            isSelected
-                              ? 'border-indigo-600 bg-white shadow-xs ring-1 ring-indigo-500/20'
-                              : 'border-slate-200 bg-white/80 hover:bg-white hover:border-slate-300'
-                          }`}
-                        >
-                          <span className="font-bold text-xs text-slate-800">{theme.label}</span>
-                          <span className="text-[10px] text-slate-400 line-clamp-1">
-                            {theme.description}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+                  return (
+                    <button
+                      key={theme.id}
+                      type="button"
+                      onClick={() => handleSelectTheme(theme)}
+                      className={`flex flex-col items-start p-2 rounded-xl border text-left transition cursor-pointer ${
+                        isSelected
+                          ? 'border-indigo-600 bg-indigo-50/80 shadow-xs ring-2 ring-indigo-500/20'
+                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full mb-0.5">
+                        <span className="font-bold text-xs text-slate-800">{theme.label}</span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${typeBadgeClass}`}>
+                          {typeLabel}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-500 line-clamp-1">
+                        {theme.description}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* B. 表の表示名 */}
