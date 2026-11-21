@@ -82,8 +82,13 @@ export function CellEditModal({
     periodTimes,
   );
 
+  const tableIntervalMinutes = activeTable.axisConfig.intervalMinutes ?? 0;
   const [cellEditText, setCellEditText] = useState(initialCell.text || initialCell.title || '');
-  const [cellBreakMinutes, setCellBreakMinutes] = useState<number>(initialCell.breakMinutes || 0);
+  const [cellBreakMinutes, setCellBreakMinutes] = useState<number>(
+    initialCell.breakMinutes !== undefined && initialCell.breakMinutes !== null
+      ? initialCell.breakMinutes
+      : tableIntervalMinutes,
+  );
   const [cellCustomDuration, setCellCustomDuration] = useState<number>(
     initialCell.customDurationMinutes || cellDefaultPeriod,
   );
@@ -412,6 +417,16 @@ export function CellEditModal({
                 >
                   +
                 </button>
+                {cellBreakMinutes !== tableIntervalMinutes && (
+                  <button
+                    type="button"
+                    onClick={() => setCellBreakMinutes(tableIntervalMinutes)}
+                    className="text-[10px] text-slate-400 hover:text-slate-600 underline ml-1 cursor-pointer"
+                    title="表の規定休憩時間に戻す"
+                  >
+                    リセット
+                  </button>
+                )}
               </div>
             </div>
 
@@ -737,6 +752,16 @@ export function CellEditModal({
               className="w-16 rounded border border-slate-300 bg-white px-2 py-1 font-mono text-xs text-center text-slate-800 focus:border-emerald-500 focus:outline-hidden"
             />
             <span className="text-xs text-slate-500 font-medium">分</span>
+            {cellBreakMinutes !== tableIntervalMinutes && (
+              <button
+                type="button"
+                onClick={() => setCellBreakMinutes(tableIntervalMinutes)}
+                className="text-[10px] text-slate-400 hover:text-slate-600 underline ml-1 cursor-pointer"
+                title="表の規定休憩時間に戻す"
+              >
+                規定({tableIntervalMinutes}分)
+              </button>
+            )}
           </div>
         </div>
 

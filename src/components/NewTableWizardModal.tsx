@@ -6,7 +6,6 @@ import {
   Sparkles,
   Check,
   Plus,
-  Trash2,
   Settings,
 } from 'lucide-react';
 import { ImportedTableData } from '@/types';
@@ -305,27 +304,8 @@ export function NewTableWizardModal({
   // Plan30: 表全体のデフォルト所要時間（コマ時間 / 目安時間）
   const [defaultDuration, setDefaultDuration] = useState<number>(20);
 
-  // ==========================================
-  // Step 2: 具体タスクの入力ステート
-  // ==========================================
-  const [taskTitle, setTaskTitle] = useState('');
-  const [taskDuration, setTaskDuration] = useState(20);
-  const [taskWeeklyCount, setTaskWeeklyCount] = useState(2);
-  // 固定枠個別タスク用
-  const [taskStartTime, setTaskStartTime] = useState('09:00');
-  const [taskTargetDays, setTaskTargetDays] = useState<number[]>([0]);
-  // サイクル日課用: 現在追加対象のDay (0: Day 1, 1: Day 2...)
-  const [taskCycleDay, setTaskCycleDay] = useState<number>(0);
-
-  // 固定枠における終了時刻の自動計算（開始時刻 ＋ デフォルトコマ時間）
-  const calculatedFixedEndTime = useMemo(() => {
-    const startMin = timeStringToMinutes(taskStartTime || fixedStartTime || '09:00');
-    const endMin = (startMin + defaultDuration) % (24 * 60);
-    return `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
-  }, [taskStartTime, fixedStartTime, defaultDuration]);
-
-  // 登録済みタスクリスト
-  const [draftTasks, setDraftTasks] = useState<AddedTaskDraft[]>([]);
+  // テーマのおすすめ予定（サンプルタスク）を自動配置するか（デフォルトON）
+  const [includeSampleTasks, setIncludeSampleTasks] = useState(true);
 
   // Plan30: targetTable または isOpen の変化時にフォーム初期値を設定（Pre-fill）
   useEffect(() => {
@@ -384,50 +364,6 @@ export function NewTableWizardModal({
 
       const initialDur = targetTable.axisConfig.periodMinutes || (mappedType === 'fixed' ? 90 : 20);
       setDefaultDuration(initialDur);
-      setTaskDuration(initialDur);
-
-      // 既存セルのタスクを抽出して draftTasks に復元
-      const taskMap = new Map<string, AddedTaskDraft>();
-
-      if (targetTable.cells) {
-        targetTable.cells.forEach((row, rIdx) => {
-          row?.forEach((cell, cIdx) => {
-            if (!cell) return;
-            const title = (cell.title || cell.text || '').trim();
-            if (!title) return;
-
-            const dur = cell.customDurationMinutes || targetTable.axisConfig.periodMinutes || 20;
-            const key =
-              mappedType === 'daily' && targetTable.columnMode === 'cycle' && (targetTable.numCols || 1) > 1
-                ? `${title}__day_${cIdx}`
-                : title;
-
-            if (taskMap.has(key)) {
-              const existing = taskMap.get(key)!;
-              if (existing.targetDays && !existing.targetDays.includes(cIdx)) {
-                existing.targetDays.push(cIdx);
-                existing.targetDays.sort((a, b) => a - b);
-              }
-            } else {
-              const draft: AddedTaskDraft = {
-                id: `edit-${rIdx}-${cIdx}-${title}`,
-                title,
-                durationMinutes: dur,
-                startTime: cell.customStartTime || sTime || '09:00',
-                endTime: cell.endMinutes
-                  ? `${String(Math.floor(cell.endMinutes / 60)).padStart(2, '0')}:${String(cell.endMinutes % 60).padStart(2, '0')}`
-                  : eTime || '10:30',
-                targetDays: [cIdx],
-                weeklyCount: cell.targetWeeklyCount || (typeof targetTable.weeklyRepeatCount === 'number' ? targetTable.weeklyRepeatCount : 1),
-                cycleDayIndex: cIdx,
-              };
-              taskMap.set(key, draft);
-            }
-          });
-        });
-      }
-
-      setDraftTasks(Array.from(taskMap.values()));
     } else {
       // 新規作成モード
       setSelectedThemeId('daily_routine');
@@ -441,33 +377,22 @@ export function NewTableWizardModal({
       setFixedStartTime('09:00');
       setFixedEndTime('10:30');
       setDefaultDuration(20);
-      setTaskDuration(20);
-      setDraftTasks([]);
+      setIncludeSampleTasks(true);
     }
   }, [isOpen, targetTable]);
-
-  // タスク所要時間のクイック更新（Plan30）
-  const handleUpdateTaskDuration = (taskId: string, newDuration: number) => {
-    setDraftTasks(prev =>
-      prev.map(t => (t.id === taskId ? { ...t, durationMinutes: Math.max(5, newDuration) } : t))
-    );
-  };
 
   // 現在選択中のテーマオブジェクト
   const currentTheme = useMemo(() => {
     return THEME_DEFINITIONS.find(t => t.id === selectedThemeId) || THEME_DEFINITIONS[0];
   }, [selectedThemeId]);
 
-  // 活動時間帯（timeSlot）の選択ハンドラ（タスク開始時刻も活動時間をもとに連動）
+  // 活動時間帯（timeSlot）の選択ハンドラ
   const handleSelectTimeSlot = (slot: TimeSlotOption) => {
     setTimeSlot(slot);
     const defaults = SLOT_TIME_DEFAULTS[slot] || SLOT_TIME_DEFAULTS.all;
     if (slot !== 'custom' && slot !== 'custom_fixed') {
       setFixedStartTime(defaults.start);
       setFixedEndTime(defaults.end);
-      setTaskStartTime(defaults.start);
-    } else {
-      setTaskStartTime(fixedStartTime);
     }
   };
 
@@ -478,111 +403,115 @@ export function NewTableWizardModal({
     setTableType(theme.recommendedType);
     setTimeSlot(theme.recommendedTimeSlot);
 
-    const initialDays = theme.defaultTargetDays || [0];
-    setTaskTargetDays(initialDays);
-
     const timeDefaults = SLOT_TIME_DEFAULTS[theme.recommendedTimeSlot] || SLOT_TIME_DEFAULTS.all;
     const sTime = theme.suggestions[0]?.fixedStartTime || timeDefaults.start;
     const eTime = theme.suggestions[0]?.fixedEndTime || timeDefaults.end;
 
     setFixedStartTime(sTime);
     setFixedEndTime(eTime);
-    setTaskStartTime(sTime);
 
     const themeDuration = theme.defaultDuration || theme.suggestions[0]?.defaultDuration || 20;
     setDefaultDuration(themeDuration);
-    setTaskDuration(themeDuration);
-
-    if (theme.suggestions[0]) {
-      if (theme.suggestions[0].weeklyCount) {
-        setTaskWeeklyCount(theme.suggestions[0].weeklyCount);
-      }
-    }
   };
-
-  // サジェストチップのタップ時（活動時間をもとに開始時刻も自動設定）
-  const handleApplySuggestion = (s: SuggestionPreset) => {
-    setTaskTitle(s.label);
-    setTaskDuration(s.defaultDuration);
-    if (s.weeklyCount) {
-      setTaskWeeklyCount(s.weeklyCount);
-    }
-
-    const baseStart = s.fixedStartTime || taskStartTime || fixedStartTime || SLOT_TIME_DEFAULTS[timeSlot]?.start || '09:00';
-    setTaskStartTime(baseStart);
-  };
-
-  // タスクをリストに追加
-  const handleAddTask = () => {
-    const trimmed = taskTitle.trim();
-    if (!trimmed) return;
-
-    const newTask: AddedTaskDraft = {
-      id: Date.now().toString() + Math.random().toString(36).substring(2, 6),
-      title: trimmed,
-      durationMinutes: tableType === 'fixed' ? defaultDuration : taskDuration,
-      startTime: tableType === 'fixed' ? taskStartTime : undefined,
-      endTime: tableType === 'fixed' ? calculatedFixedEndTime : undefined,
-      targetDays:
-        tableType === 'fixed'
-          ? taskTargetDays
-          : tableType === 'daily' && dailyRepeatPattern === 'weekdays'
-            ? taskTargetDays
-            : undefined,
-      weeklyCount: tableType === 'weekly' ? taskWeeklyCount : undefined,
-      cycleDayIndex:
-        tableType === 'daily' && dailyRepeatPattern === 'cycle' ? taskCycleDay : undefined,
-    };
-
-    setDraftTasks(prev => [...prev, newTask]);
-    setTaskTitle('');
-
-    // 固定枠の場合、次のタスクの開始時刻を前のタスクの終了時刻に自動進行
-    if (tableType === 'fixed') {
-      setTaskStartTime(calculatedFixedEndTime);
-    }
-  };
-
-  // タスク削除
-  const handleDeleteDraftTask = (id: string) => {
-    setDraftTasks(prev => prev.filter(t => t.id !== id));
-  };
-
-  // 日またぎ判定
-  const isOvernight = useMemo(() => {
-    if (tableType !== 'fixed' || !taskStartTime) return false;
-    return timeStringToMinutes(calculatedFixedEndTime) < timeStringToMinutes(taskStartTime);
-  }, [tableType, taskStartTime, calculatedFixedEndTime]);
 
   // 表の構築＆反映（asNewTable: true なら新しい表として別名保存）
   const handleBuildTable = (asNewTable = false) => {
-    if (draftTasks.length === 0) return;
-
     const finalTableName = tableName.trim() || currentTheme.defaultTableName || '新しいスケジュール表';
+
+    // 活動時間帯（日課・週次タスク共通）
+    let slotStartTime: string | null = null;
+    let slotEndTime: string | null = null;
+    if (timeSlot === 'morning') {
+      slotStartTime = '06:00';
+      slotEndTime = '12:00';
+    } else if (timeSlot === 'afternoon') {
+      slotStartTime = '12:00';
+      slotEndTime = '18:00';
+    } else if (timeSlot === 'evening') {
+      slotStartTime = '18:00';
+      slotEndTime = '23:00';
+    } else if (timeSlot === 'custom' || timeSlot === 'custom_fixed') {
+      slotStartTime = fixedStartTime;
+      slotEndTime = fixedEndTime;
+    }
 
     let generatedTable: ImportedTableData;
 
-    if (tableType === 'fixed') {
-      // 登録された全タスクの中から最大の終了時刻を自動計算（Auto-Expansion）
-      let maxEndMin = 0;
-      draftTasks.forEach(t => {
-        if (t.endTime) {
-          const eMin = timeStringToMinutes(t.endTime);
-          if (eMin > maxEndMin) maxEndMin = eMin;
+    // 編集モードかつ上書き保存の場合: 既存セルのタスクを保持したまま表ルールのみ更新
+    if (effectiveIsEdit && !asNewTable && targetTable) {
+      generatedTable = {
+        ...targetTable,
+        name: finalTableName,
+        axisConfig: {
+          ...targetTable.axisConfig,
+          periodMinutes: defaultDuration,
+          startTime: tableType === 'fixed' ? (fixedStartTime || '09:00') : slotStartTime,
+          endTime: tableType === 'fixed' ? targetTable.axisConfig.endTime : slotEndTime,
+        },
+      };
+
+      if (tableType === 'fixed') {
+        generatedTable.placementMode = 'fixed';
+        generatedTable.classificationOverride = 'fixed_slot';
+      } else if (tableType === 'weekly') {
+        generatedTable.placementMode = 'auto';
+        generatedTable.classificationOverride = 'weekly_task';
+      } else {
+        generatedTable.placementMode = 'auto';
+        generatedTable.classificationOverride = 'daily_task';
+        if (dailyRepeatPattern === 'weekdays') {
+          generatedTable.columnMode = 'weekday';
+        } else if (dailyRepeatPattern === 'cycle') {
+          generatedTable.columnMode = 'cycle';
+          generatedTable.numCols = dailyCycleLength;
+          generatedTable.cycleStartDay = dailyCycleStartDay;
+        } else {
+          generatedTable.columnMode = 'weekday';
         }
+      }
+
+      onApplyTable(generatedTable, true);
+      onClose();
+      return;
+    }
+
+    // 新規作成（または別名保存）の場合:
+    // アプローチA: includeSampleTasks が true の場合、テーマの suggestions をベースに初期タスクを展開
+    const suggestions = includeSampleTasks ? currentTheme.suggestions : [];
+
+    if (tableType === 'fixed') {
+      // 固定枠表の生成
+      let curStartMin = timeStringToMinutes(fixedStartTime || '09:00');
+      const targetDays = currentTheme.defaultTargetDays || [0];
+      const items: FixedSlotItemInput[] = [];
+
+      suggestions.forEach(s => {
+        const dur = s.defaultDuration || defaultDuration;
+        const sTime = s.fixedStartTime || `${String(Math.floor(curStartMin / 60)).padStart(2, '0')}:${String(curStartMin % 60).padStart(2, '0')}`;
+        const endMin = (timeStringToMinutes(sTime) + dur) % (24 * 60);
+        const eTime = s.fixedEndTime || `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+
+        items.push({
+          title: s.label,
+          startTime: sTime,
+          endTime: eTime,
+          targetDays,
+        });
+
+        // 次のタスク開始時刻（休憩時間 10分を考慮）
+        curStartMin = (endMin + 10) % (24 * 60);
+      });
+
+      // 最大終了時刻の算出
+      let maxEndMin = 0;
+      items.forEach(t => {
+        const eMin = timeStringToMinutes(t.endTime);
+        if (eMin > maxEndMin) maxEndMin = eMin;
       });
       if (maxEndMin === 0) {
-        maxEndMin = timeStringToMinutes(fixedStartTime || '09:00') + defaultDuration;
+        maxEndMin = timeStringToMinutes(fixedStartTime || '09:00') + defaultDuration * 4;
       }
-      const autoCalculatedEndTime = `${String(Math.floor(maxEndMin / 60)).padStart(2, '0')}:${String(maxEndMin % 60).padStart(2, '0')}`;
-
-      // 固定枠表の生成
-      const items: FixedSlotItemInput[] = draftTasks.map(t => ({
-        title: t.title,
-        startTime: t.startTime || fixedStartTime || '09:00',
-        endTime: t.endTime || autoCalculatedEndTime,
-        targetDays: t.targetDays || [0],
-      }));
+      const autoEndTime = `${String(Math.floor(maxEndMin / 60)).padStart(2, '0')}:${String(maxEndMin % 60).padStart(2, '0')}`;
 
       generatedTable = createFixedSlotTable({
         name: finalTableName,
@@ -590,54 +519,33 @@ export function NewTableWizardModal({
         daysCount: 7,
         repeatStartDay: 0,
         startTime: fixedStartTime || '09:00',
-        endTime: autoCalculatedEndTime,
+        endTime: autoEndTime,
+      });
+      generatedTable.axisConfig.periodMinutes = defaultDuration;
+    } else if (tableType === 'weekly') {
+      // 週次タスク表の生成
+      const items: TemplateTaskItemInput[] = suggestions.map(s => ({
+        title: s.label,
+        durationMinutes: s.defaultDuration || defaultDuration,
+        weeklyCount: s.weeklyCount || 2,
+      }));
+
+      generatedTable = createWeeklyTaskTable({
+        name: finalTableName,
+        daysCount: 7,
+        isRepeat: false,
+        multiTasks: { items },
+        timeRange: { startTime: slotStartTime, endTime: slotEndTime },
       });
       generatedTable.axisConfig.periodMinutes = defaultDuration;
     } else {
-      // 活動時間帯（日課・週次タスク共通）
-      let slotStartTime: string | null = null;
-      let slotEndTime: string | null = null;
-      if (timeSlot === 'morning') {
-        slotStartTime = '06:00';
-        slotEndTime = '12:00';
-      } else if (timeSlot === 'afternoon') {
-        slotStartTime = '12:00';
-        slotEndTime = '18:00';
-      } else if (timeSlot === 'evening') {
-        slotStartTime = '18:00';
-        slotEndTime = '23:00';
-      } else if (timeSlot === 'custom' || timeSlot === 'custom_fixed') {
-        slotStartTime = fixedStartTime;
-        slotEndTime = fixedEndTime;
-      }
-
-      if (tableType === 'weekly') {
-        // 週次タスク表の生成
-        const items: TemplateTaskItemInput[] = draftTasks.map(t => ({
-          title: t.title,
-          durationMinutes: t.durationMinutes,
-          weeklyCount: t.weeklyCount || 1,
-        }));
-
-        generatedTable = createWeeklyTaskTable({
-          name: finalTableName,
-          daysCount: 7,
-          isRepeat: false,
-          multiTasks: { items },
-          timeRange: { startTime: slotStartTime, endTime: slotEndTime },
-        });
-      } else {
-        // 日課表の生成
-
+      // 日課表の生成
       if (dailyRepeatPattern === 'cycle') {
-        // N日サイクルローテーション日課表（Day 1, Day 2, ..., Day N）
         const cycleItems: (DailyMenuItem | null)[] = Array.from(
           { length: dailyCycleLength },
           (_, c) => {
-            const matchedTask = draftTasks.find(t => t.cycleDayIndex === c);
-            return matchedTask
-              ? { title: matchedTask.title, durationMinutes: matchedTask.durationMinutes }
-              : null;
+            const s = suggestions[c];
+            return s ? { title: s.label, durationMinutes: s.defaultDuration || defaultDuration } : null;
           },
         );
 
@@ -648,17 +556,16 @@ export function NewTableWizardModal({
             cycleLength: dailyCycleLength,
             cycleStartDay: dailyCycleStartDay,
             items: cycleItems,
-            defaultDurationMinutes: 30,
+            defaultDurationMinutes: defaultDuration,
           },
           dailyRepeatCount: 1,
           timeRange: { startTime: slotStartTime, endTime: slotEndTime },
         });
       } else if (dailyRepeatPattern === 'weekdays') {
-        // 曜日固定日課表（月曜〜日曜、指定曜日のみ配置）
-        const items: TemplateTaskItemInput[] = draftTasks.map(t => ({
-          title: t.title,
-          durationMinutes: t.durationMinutes,
-          targetDays: t.targetDays && t.targetDays.length > 0 ? t.targetDays : dailyTargetDays,
+        const items: TemplateTaskItemInput[] = suggestions.map(s => ({
+          title: s.label,
+          durationMinutes: s.defaultDuration || defaultDuration,
+          targetDays: dailyTargetDays,
         }));
 
         generatedTable = createDailyRoutineTable({
@@ -673,10 +580,10 @@ export function NewTableWizardModal({
           timeRange: { startTime: slotStartTime, endTime: slotEndTime },
         });
       } else {
-        // 毎日同じ（シンプル日課表）
-        const items: TemplateTaskItemInput[] = draftTasks.map(t => ({
-          title: t.title,
-          durationMinutes: t.durationMinutes,
+        // 毎日同じ
+        const items: TemplateTaskItemInput[] = suggestions.map(s => ({
+          title: s.label,
+          durationMinutes: s.defaultDuration || defaultDuration,
         }));
 
         generatedTable = createDailyRoutineTable({
@@ -690,19 +597,8 @@ export function NewTableWizardModal({
       }
       generatedTable.axisConfig.periodMinutes = defaultDuration;
     }
-  }
 
-    // 既存表の上書き保存か、新規/別名保存かの判定
-    const isOverwritingExisting = effectiveIsEdit && !asNewTable;
-
-    if (isOverwritingExisting && targetTable) {
-      generatedTable.id = targetTable.id;
-      onApplyTable(generatedTable, true);
-    } else {
-      // 新しい表として保存（新しいID発行）
-      onApplyTable(generatedTable, false);
-    }
-
+    onApplyTable(generatedTable, false);
     onClose();
   };
 
@@ -750,7 +646,6 @@ export function NewTableWizardModal({
                   setDailyCycleStartDay(0);
                   setFixedStartTime('09:00');
                   setFixedEndTime('10:30');
-                  setDraftTasks([]);
                 }}
                 className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 sm:px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition active:scale-95 cursor-pointer shadow-2xs"
                 title="現在の表の内容をクリアし、白紙から新しい予定表を作成します"
@@ -778,7 +673,7 @@ export function NewTableWizardModal({
           <div className="space-y-4 rounded-2xl border border-indigo-100 bg-indigo-50/30 p-4">
             <div className="flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-bold text-white shadow-2xs">
-                1
+                <Sparkles className="h-3.5 w-3.5 text-white" />
               </span>
               <div>
                 <h4 className="text-xs font-bold text-slate-900">
@@ -916,7 +811,6 @@ export function NewTableWizardModal({
                       value={fixedStartTime}
                       onChange={e => {
                         setFixedStartTime(e.target.value);
-                        setTaskStartTime(e.target.value);
                       }}
                       className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 shadow-2xs"
                     />
@@ -992,7 +886,6 @@ export function NewTableWizardModal({
                           value={fixedStartTime}
                           onChange={e => {
                             setFixedStartTime(e.target.value);
-                            setTaskStartTime(e.target.value);
                           }}
                           className="rounded border border-slate-300 bg-white px-2 py-1 text-xs"
                         />
@@ -1068,7 +961,6 @@ export function NewTableWizardModal({
                             onClick={() => {
                               const days = [0, 1, 2, 3, 4];
                               setDailyTargetDays(days);
-                              setTaskTargetDays(days);
                             }}
                             className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
                           >
@@ -1079,7 +971,6 @@ export function NewTableWizardModal({
                             onClick={() => {
                               const days = [5, 6];
                               setDailyTargetDays(days);
-                              setTaskTargetDays(days);
                             }}
                             className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
                           >
@@ -1090,7 +981,6 @@ export function NewTableWizardModal({
                             onClick={() => {
                               const days = [0, 2, 4];
                               setDailyTargetDays(days);
-                              setTaskTargetDays(days);
                             }}
                             className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
                           >
@@ -1113,7 +1003,6 @@ export function NewTableWizardModal({
                                   next = [...dailyTargetDays, w.dayIndex].sort();
                                 }
                                 setDailyTargetDays(next);
-                                setTaskTargetDays(next);
                               }}
                               className={`rounded py-1 text-xs font-bold transition cursor-pointer ${
                                 isSelected
@@ -1197,10 +1086,7 @@ export function NewTableWizardModal({
                     <button
                       key={dur}
                       type="button"
-                      onClick={() => {
-                        setDefaultDuration(dur);
-                        setTaskDuration(dur);
-                      }}
+                      onClick={() => setDefaultDuration(dur)}
                       className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
                         defaultDuration === dur
                           ? 'bg-indigo-600 text-white shadow-2xs'
@@ -1214,10 +1100,7 @@ export function NewTableWizardModal({
                     <span className="text-[10px] text-slate-400">カスタム:</span>
                     <NumberStepper
                       value={defaultDuration}
-                      onChange={val => {
-                        setDefaultDuration(val);
-                        setTaskDuration(val);
-                      }}
+                      onChange={val => setDefaultDuration(val)}
                       min={5}
                       max={480}
                       step={5}
@@ -1227,365 +1110,31 @@ export function NewTableWizardModal({
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* ========================================================
-              Step 2: 具体タスクの追加（爆速入力）
-              ======================================================== */}
-          <div className="space-y-3.5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-            <div className="flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-bold text-white shadow-2xs">
-                2
-              </span>
-              <div>
-                <h4 className="text-xs font-bold text-slate-900">
-                  「{tableName || 'この表'}」に入れるタスクを追加
-                </h4>
-                <p className="text-[10px] text-slate-500">
-                  候補をタップするか入力して「追加」を押してください（連続で複数追加できます）
-                </p>
-              </div>
-            </div>
-
-            {/* おすすめ候補チップ */}
-            <div className="space-y-1">
-              <span className="block text-[10px] font-bold text-slate-500">
-                おすすめの予定（タップしてワンタップ入力）:
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {currentTheme.suggestions.map(s => (
-                  <button
-                    key={s.label}
-                    type="button"
-                    onClick={() => handleApplySuggestion(s)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white hover:bg-indigo-50 hover:border-indigo-300 px-2.5 py-1 text-[11px] font-medium text-slate-700 transition cursor-pointer shadow-2xs active:scale-95"
-                  >
-                    <span>{s.label}</span>
-                    <span className="text-[10px] text-slate-400">({s.defaultDuration}分)</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 入力フォーム本体 */}
-            <div className="space-y-2.5 pt-2 border-t border-slate-200/80">
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                <input
-                  type="text"
-                  value={taskTitle}
-                  onChange={e => setTaskTitle(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleAddTask();
-                    }
-                  }}
-                  placeholder="タスク名を入力（例: 英語、読書、レポート作成）"
-                  className="flex-1 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 shadow-2xs"
-                />
-
-                {/* 固定枠の場合の時間指定（開始時刻のみ入力＋終了時刻は標準コマ時間から自動計算） */}
-                {tableType === 'fixed' ? (
-                  <div className="flex items-center gap-1.5 shrink-0">
+              {/* E. 表の作成オプション（新規作成時のみ） */}
+              {!effectiveIsEdit && (
+                <div className="pt-2.5 border-t border-indigo-100/60">
+                  <label className="flex items-center gap-2.5 p-2 rounded-xl bg-indigo-50/60 border border-indigo-100 cursor-pointer select-none">
                     <input
-                      type="time"
-                      value={taskStartTime}
-                      onChange={e => setTaskStartTime(e.target.value)}
-                      className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-bold text-slate-800 shadow-2xs"
+                      type="checkbox"
+                      checked={includeSampleTasks}
+                      onChange={e => setIncludeSampleTasks(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                     />
-                    <span className="text-slate-400">〜</span>
-                    <span className="px-2.5 py-1.5 rounded-lg bg-indigo-50/90 border border-indigo-200 text-xs font-bold text-indigo-700 shadow-2xs">
-                      {calculatedFixedEndTime} ({defaultDuration}分)
-                    </span>
-                    {isOvernight && (
-                      <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded">
-                        翌日
+                    <div className="text-xs">
+                      <span className="font-bold text-slate-800">
+                        「{currentTheme.label}」の代表予定（サンプル）を自動配置する
                       </span>
-                    )}
-                  </div>
-                ) : (
-                  /* 空きコマ配置の場合の所要時間 */
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="text-[11px] text-slate-500">時間:</span>
-                    <NumberStepper
-                      value={taskDuration}
-                      onChange={val => setTaskDuration(val)}
-                      min={5}
-                      max={360}
-                      step={5}
-                      unit="分"
-                      size="sm"
-                    />
-                  </div>
-                )}
-
-                {/* 週次の場合の週目標回数 */}
-                {tableType === 'weekly' && (
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="text-[11px] text-slate-500">週:</span>
-                    <NumberStepper
-                      value={taskWeeklyCount}
-                      onChange={val => setTaskWeeklyCount(val)}
-                      min={1}
-                      max={7}
-                      step={1}
-                      unit="回"
-                      size="sm"
-                    />
-                  </div>
-                )}
-
-                {/* 追加ボタン */}
-                <button
-                  type="button"
-                  onClick={handleAddTask}
-                  disabled={!taskTitle.trim()}
-                  className={`flex items-center justify-center gap-1 rounded-xl px-4 py-2 text-xs font-bold transition shadow-xs shrink-0 cursor-pointer ${
-                    taskTitle.trim()
-                      ? 'bg-indigo-600 text-white hover:bg-indigo-700 active:scale-98'
-                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                  }`}
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>追加</span>
-                </button>
-              </div>
-
-              {/* 固定枠の場合の曜日指定（時間割向けに1曜日選択しやすいUI） */}
-              {tableType === 'fixed' && (
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-bold text-slate-600 shrink-0">曜日:</span>
-                    <div className="flex items-center gap-1">
-                      {WEEKDAYS.map(w => {
-                        const isSelected = taskTargetDays.includes(w.dayIndex);
-                        return (
-                          <button
-                            key={w.dayIndex}
-                            type="button"
-                            onClick={() => {
-                              // 単一曜日の切り替え、または複数トグル
-                              if (isSelected) {
-                                if (taskTargetDays.length > 1) {
-                                  setTaskTargetDays(taskTargetDays.filter(d => d !== w.dayIndex));
-                                }
-                              } else {
-                                setTaskTargetDays([...taskTargetDays, w.dayIndex].sort());
-                              }
-                            }}
-                            className={`rounded px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
-                              isSelected
-                                ? 'bg-emerald-600 text-white shadow-2xs'
-                                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            {w.label}
-                          </button>
-                        );
-                      })}
+                      <p className="text-[10px] text-slate-500">
+                        {includeSampleTasks
+                          ? '作成後、メイン画面のセルで直接文字を書き換えたりコマを調整できます'
+                          : '枠組み（時間帯・コマ時間・曜日）だけが設定された空の表を作成します'}
+                      </p>
                     </div>
-                  </div>
-
-                  <div className="flex items-center gap-1 text-[11px] text-indigo-600 ml-auto">
-                    <button
-                      type="button"
-                      onClick={() => setTaskTargetDays([0, 1, 2, 3, 4])}
-                      className="px-1.5 py-0.5 rounded hover:bg-indigo-50 transition cursor-pointer"
-                    >
-                      平日 (月〜金)
-                    </button>
-                    <span>|</span>
-                    <button
-                      type="button"
-                      onClick={() => setTaskTargetDays([0, 1, 2, 3, 4, 5, 6])}
-                      className="px-1.5 py-0.5 rounded hover:bg-indigo-50 transition cursor-pointer"
-                    >
-                      全日
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Plan29: 日課（曜日指定）の場合の曜日指定 */}
-              {tableType === 'daily' && dailyRepeatPattern === 'weekdays' && (
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-200/60">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-bold text-slate-600 shrink-0">このタスクの曜日:</span>
-                    <div className="flex items-center gap-1">
-                      {WEEKDAYS.map(w => {
-                        const isSelected = taskTargetDays.includes(w.dayIndex);
-                        return (
-                          <button
-                            key={w.dayIndex}
-                            type="button"
-                            onClick={() => {
-                              if (isSelected) {
-                                if (taskTargetDays.length > 1) {
-                                  setTaskTargetDays(taskTargetDays.filter(d => d !== w.dayIndex));
-                                }
-                              } else {
-                                setTaskTargetDays([...taskTargetDays, w.dayIndex].sort());
-                              }
-                            }}
-                            className={`rounded px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
-                              isSelected
-                                ? 'bg-amber-600 text-white shadow-2xs'
-                                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            {w.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <span className="text-[10px] text-slate-400">
-                    デフォルト: {dailyTargetDays.map(d => WEEKDAYS[d]?.label).join('')}
-                  </span>
-                </div>
-              )}
-
-              {/* Plan29: 日課（○日周期ローテーション）の場合の担当Day指定 */}
-              {tableType === 'daily' && dailyRepeatPattern === 'cycle' && (
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-200/60">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-bold text-slate-600 shrink-0">担当する日:</span>
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: dailyCycleLength }, (_, i) => {
-                        const isSelected = taskCycleDay === i;
-                        return (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => setTaskCycleDay(i)}
-                            className={`rounded px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
-                              isSelected
-                                ? 'bg-amber-600 text-white shadow-2xs'
-                                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                            }`}
-                          >
-                            Day {i + 1}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <span className="text-[10px] text-slate-400">
-                    追加すると自動で次のDayへ進みます
-                  </span>
+                  </label>
                 </div>
               )}
             </div>
-          </div>
-
-          {/* ========================================================
-              Step 3: 登録済みタスク一覧（プレビュー）
-              ======================================================== */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-bold text-slate-900">
-                登録されたタスク（{draftTasks.length}件）
-              </label>
-              {draftTasks.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setDraftTasks([])}
-                  className="text-[11px] text-slate-400 hover:text-rose-600 transition cursor-pointer"
-                >
-                  すべてクリア
-                </button>
-              )}
-            </div>
-
-            {draftTasks.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 p-6 text-center text-slate-400">
-                <p className="text-xs">まだタスクが追加されていません</p>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  上のフォームまたはおすすめ候補からタスクを追加してください（複数追加できます）
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-1.5 max-h-56 overflow-y-auto">
-                {draftTasks.map((t, idx) => (
-                  <div
-                    key={t.id}
-                    className="flex items-center justify-between gap-2 rounded-xl bg-white p-3 border border-slate-200 shadow-2xs"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-600 shrink-0">
-                        {idx + 1}
-                      </span>
-                      <span className="font-bold text-xs text-slate-800 truncate">{t.title}</span>
-                      {tableType === 'fixed' && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                          {t.startTime}〜{t.endTime} ({t.targetDays?.map(d => WEEKDAYS[d]?.label).join('')})
-                        </span>
-                      )}
-                      {tableType === 'daily' && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
-                          {dailyRepeatPattern === 'cycle'
-                            ? `Day ${(t.cycleDayIndex ?? 0) + 1} (${t.durationMinutes}分)`
-                            : dailyRepeatPattern === 'weekdays'
-                              ? `${(t.targetDays || dailyTargetDays).map(d => WEEKDAYS[d]?.label).join('')} (${t.durationMinutes}分)`
-                              : `毎日 ${t.durationMinutes}分`}{' '}
-                          ({timeSlot === 'morning' ? '朝' : timeSlot === 'evening' ? '夜' : timeSlot === 'afternoon' ? '昼' : '終日'})
-                        </span>
-                      )}
-                      {tableType === 'weekly' && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
-                          週{t.weeklyCount}回 ({t.durationMinutes}分)
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {tableType !== 'fixed' && (
-                        <div className="flex items-center gap-0.5 bg-slate-50 rounded-lg p-0.5 border border-slate-200">
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateTaskDuration(t.id, t.durationMinutes - 5)}
-                            className="px-1.5 py-0.5 text-[10px] font-bold text-slate-500 hover:text-slate-800 hover:bg-white rounded transition active:scale-95 cursor-pointer"
-                            title="所要時間を5分減らす"
-                          >
-                            -5
-                          </button>
-                          <span className="text-[10px] font-bold text-slate-700 min-w-[32px] text-center">
-                            {t.durationMinutes}分
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateTaskDuration(t.id, t.durationMinutes + 5)}
-                            className="px-1.5 py-0.5 text-[10px] font-bold text-slate-500 hover:text-slate-800 hover:bg-white rounded transition active:scale-95 cursor-pointer"
-                            title="所要時間を5分増やす"
-                          >
-                            +5
-                          </button>
-                        </div>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteDraftTask(t.id)}
-                        className="p-1 text-slate-400 hover:text-rose-600 transition cursor-pointer"
-                        title="タスクを削除"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {draftTasks.length > 0 && (
-              <p className="text-[11px] text-indigo-600 flex items-center gap-1 pt-1">
-                <Sparkles className="h-3.5 w-3.5 shrink-0" />
-                <span>
-                  {effectiveIsEdit
-                    ? '所要時間の変更やタスクの追加・削除が完了したら、右下の保存ボタンを押してください。'
-                    : '続けて別のタスクも追加できます。準備ができたら右下の「表を作成する」を押してください。'}
-                </span>
-              </p>
-            )}
           </div>
         </div>
 
@@ -1603,7 +1152,6 @@ export function NewTableWizardModal({
               <button
                 type="button"
                 onClick={() => handleBuildTable(true)}
-                disabled={draftTasks.length === 0}
                 className="hidden sm:flex items-center gap-1 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-700 transition active:scale-95 cursor-pointer shrink-0 shadow-2xs"
                 title="現在の表はそのまま残し、別の新しい予定表として別名保存します"
               >
@@ -1614,16 +1162,15 @@ export function NewTableWizardModal({
             <button
               type="button"
               onClick={() => handleBuildTable(false)}
-              disabled={draftTasks.length === 0}
-              className={`flex items-center justify-center gap-1.5 rounded-xl px-3 sm:px-5 py-2.5 text-xs font-bold transition shadow-md min-w-0 ${
-                draftTasks.length > 0
-                  ? 'bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-700 hover:to-sky-700 text-white cursor-pointer active:scale-98'
-                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-              }`}
+              className="flex items-center justify-center gap-1.5 rounded-xl px-3 sm:px-5 py-2.5 text-xs font-bold transition shadow-md min-w-0 bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-700 hover:to-sky-700 text-white cursor-pointer active:scale-98"
             >
               <Check className="h-4 w-4 shrink-0" />
               <span className="truncate">
-                {effectiveIsEdit ? 'この表を上書き保存' : `「${tableName || 'この表'}」を作成（${draftTasks.length}件）`}
+                {effectiveIsEdit
+                  ? 'この表の設定を更新'
+                  : includeSampleTasks
+                    ? `「${tableName || 'この表'}」を作成（代表予定入り）`
+                    : `「${tableName || 'この表'}」を作成（空の表）`}
               </span>
             </button>
           </div>
