@@ -15,6 +15,7 @@ import {
   createFixedSlotTable,
   TemplateTaskItemInput,
   FixedSlotItemInput,
+  DailyMenuItem,
 } from '@/lib/templates/tableTemplates';
 import { NumberStepper } from './NumberStepper';
 import { timeStringToMinutes } from '@/lib/timeUtils';
@@ -25,6 +26,8 @@ interface NewTableWizardModalProps {
   onApplyTable: (table: ImportedTableData) => void;
 }
 
+export type DailyRepeatPattern = 'everyday' | 'weekdays' | 'cycle';
+
 // 登録タスクモデル
 export interface AddedTaskDraft {
   id: string;
@@ -34,6 +37,7 @@ export interface AddedTaskDraft {
   endTime?: string;
   targetDays?: number[];
   weeklyCount?: number;
+  cycleDayIndex?: number;
 }
 
 const WEEKDAYS = [
@@ -262,6 +266,12 @@ export function NewTableWizardModal({
   const [tableType, setTableType] = useState<TableTypeMode>('daily');
   const [timeSlot, setTimeSlot] = useState<TimeSlotOption>('all');
 
+  // Plan29: 日課（daily）の繰り返しペース（毎日 / 曜日固定 / ○日周期）
+  const [dailyRepeatPattern, setDailyRepeatPattern] = useState<DailyRepeatPattern>('everyday');
+  const [dailyTargetDays, setDailyTargetDays] = useState<number[]>([0, 1, 2, 3, 4]); // 曜日固定時の初期値（平日）
+  const [dailyCycleLength, setDailyCycleLength] = useState<number>(3); // 3日周期など
+  const [dailyCycleStartDay, setDailyCycleStartDay] = useState<number>(0); // 開始曜日 (0:月〜6:日)
+
   // 固定枠の場合の時間帯
   const [fixedStartTime, setFixedStartTime] = useState('09:00');
   const [fixedEndTime, setFixedEndTime] = useState('10:30');
@@ -276,6 +286,8 @@ export function NewTableWizardModal({
   const [taskStartTime, setTaskStartTime] = useState('09:00');
   const [taskEndTime, setTaskEndTime] = useState('10:30');
   const [taskTargetDays, setTaskTargetDays] = useState<number[]>([0]);
+  // サイクル日課用: 現在追加対象のDay (0: Day 1, 1: Day 2...)
+  const [taskCycleDay, setTaskCycleDay] = useState<number>(0);
 
   // 登録済みタスクリスト
   const [draftTasks, setDraftTasks] = useState<AddedTaskDraft[]>([]);
@@ -337,12 +349,24 @@ export function NewTableWizardModal({
       durationMinutes: tableType === 'fixed' ? 60 : taskDuration,
       startTime: tableType === 'fixed' ? taskStartTime : undefined,
       endTime: tableType === 'fixed' ? taskEndTime : undefined,
-      targetDays: tableType === 'fixed' ? taskTargetDays : undefined,
+      targetDays:
+        tableType === 'fixed'
+          ? taskTargetDays
+          : tableType === 'daily' && dailyRepeatPattern === 'weekdays'
+            ? taskTargetDays
+            : undefined,
       weeklyCount: tableType === 'weekly' ? taskWeeklyCount : undefined,
+      cycleDayIndex:
+        tableType === 'daily' && dailyRepeatPattern === 'cycle' ? taskCycleDay : undefined,
     };
 
     setDraftTasks(prev => [...prev, newTask]);
     setTaskTitle('');
+
+    // サイクル日課の場合、タスクを追加したら自動的に次のDayへ進める（Day 1 ➔ Day 2 ➔ Day 3...）
+    if (tableType === 'daily' && dailyRepeatPattern === 'cycle') {
+      setTaskCycleDay(prev => (prev + 1) % dailyCycleLength);
+    }
   };
 
   // タスク削除
@@ -395,11 +419,6 @@ export function NewTableWizardModal({
       });
     } else {
       // 日課表の生成
-      const items: TemplateTaskItemInput[] = draftTasks.map(t => ({
-        title: t.title,
-        durationMinutes: t.durationMinutes,
-      }));
-
       // 活動時間帯
       let slotStartTime: string | null = null;
       let slotEndTime: string | null = null;
@@ -414,14 +433,65 @@ export function NewTableWizardModal({
         slotEndTime = '23:00';
       }
 
-      generatedTable = createDailyRoutineTable({
-        name: finalTableName,
-        daysCount: 1,
-        isRepeat: true,
-        multiTasks: { items },
-        dailyRepeatCount: 1,
-        timeRange: { startTime: slotStartTime, endTime: slotEndTime },
-      });
+      if (dailyRepeatPattern === 'cycle') {
+        // N日サイクルローテーション日課表（Day 1, Day 2, ..., Day N）
+        const cycleItems: (DailyMenuItem | null)[] = Array.from(
+          { length: dailyCycleLength },
+          (_, c) => {
+            const matchedTask = draftTasks.find(t => t.cycleDayIndex === c);
+            return matchedTask
+              ? { title: matchedTask.title, durationMinutes: matchedTask.durationMinutes }
+              : null;
+          },
+        );
+
+        generatedTable = createDailyRoutineTable({
+          name: finalTableName,
+          mode: 'cycle_rotation',
+          cycleRotation: {
+            cycleLength: dailyCycleLength,
+            cycleStartDay: dailyCycleStartDay,
+            items: cycleItems,
+            defaultDurationMinutes: 30,
+          },
+          dailyRepeatCount: 1,
+          timeRange: { startTime: slotStartTime, endTime: slotEndTime },
+        });
+      } else if (dailyRepeatPattern === 'weekdays') {
+        // 曜日固定日課表（月曜〜日曜、指定曜日のみ配置）
+        const items: TemplateTaskItemInput[] = draftTasks.map(t => ({
+          title: t.title,
+          durationMinutes: t.durationMinutes,
+          targetDays: t.targetDays && t.targetDays.length > 0 ? t.targetDays : dailyTargetDays,
+        }));
+
+        generatedTable = createDailyRoutineTable({
+          name: finalTableName,
+          daysCount: 7,
+          isRepeat: false,
+          multiTasks: {
+            items,
+            targetDays: dailyTargetDays,
+          },
+          dailyRepeatCount: 1,
+          timeRange: { startTime: slotStartTime, endTime: slotEndTime },
+        });
+      } else {
+        // 毎日同じ（シンプル日課表）
+        const items: TemplateTaskItemInput[] = draftTasks.map(t => ({
+          title: t.title,
+          durationMinutes: t.durationMinutes,
+        }));
+
+        generatedTable = createDailyRoutineTable({
+          name: finalTableName,
+          daysCount: 1,
+          isRepeat: true,
+          multiTasks: { items },
+          dailyRepeatCount: 1,
+          timeRange: { startTime: slotStartTime, endTime: slotEndTime },
+        });
+      }
     }
 
     onApplyTable(generatedTable);
@@ -647,6 +717,168 @@ export function NewTableWizardModal({
                   </div>
                 )}
               </div>
+
+              {/* Plan29: 日課（ルーティン）の場合のペース・サイクル質問 */}
+              {tableType === 'daily' && (
+                <div className="space-y-2 pt-2 border-t border-indigo-100/60">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-700">繰り返すペース</span>
+                    <span className="text-[10px] text-slate-400">生活リズムに合わせて選択</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setDailyRepeatPattern('everyday')}
+                      className={`rounded-lg py-1.5 px-1.5 text-[10px] font-bold transition cursor-pointer flex flex-col items-center gap-0.5 ${
+                        dailyRepeatPattern === 'everyday'
+                          ? 'bg-amber-500 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>毎日同じ</span>
+                      <span className="text-[9px] opacity-80 font-normal">全曜日で実施</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDailyRepeatPattern('weekdays')}
+                      className={`rounded-lg py-1.5 px-1.5 text-[10px] font-bold transition cursor-pointer flex flex-col items-center gap-0.5 ${
+                        dailyRepeatPattern === 'weekdays'
+                          ? 'bg-amber-500 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>曜日を指定</span>
+                      <span className="text-[9px] opacity-80 font-normal">平日・月水金など</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDailyRepeatPattern('cycle')}
+                      className={`rounded-lg py-1.5 px-1.5 text-[10px] font-bold transition cursor-pointer flex flex-col items-center gap-0.5 ${
+                        dailyRepeatPattern === 'cycle'
+                          ? 'bg-amber-500 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>○日周期で交代</span>
+                      <span className="text-[9px] opacity-80 font-normal">筋トレ分割・ローテ</span>
+                    </button>
+                  </div>
+
+                  {/* 曜日を指定する場合の曜日チップ ＆ プリセット */}
+                  {dailyRepeatPattern === 'weekdays' && (
+                    <div className="space-y-1.5 pt-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-600">実施する曜日</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const days = [0, 1, 2, 3, 4];
+                              setDailyTargetDays(days);
+                              setTaskTargetDays(days);
+                            }}
+                            className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
+                          >
+                            平日のみ
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const days = [5, 6];
+                              setDailyTargetDays(days);
+                              setTaskTargetDays(days);
+                            }}
+                            className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
+                          >
+                            週末のみ
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const days = [0, 2, 4];
+                              setDailyTargetDays(days);
+                              setTaskTargetDays(days);
+                            }}
+                            className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
+                          >
+                            月水金
+                          </button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-7 gap-1">
+                        {WEEKDAYS.map(w => {
+                          const isSelected = dailyTargetDays.includes(w.dayIndex);
+                          return (
+                            <button
+                              key={w.dayIndex}
+                              type="button"
+                              onClick={() => {
+                                let next: number[];
+                                if (isSelected) {
+                                  next = dailyTargetDays.length > 1 ? dailyTargetDays.filter(d => d !== w.dayIndex) : dailyTargetDays;
+                                } else {
+                                  next = [...dailyTargetDays, w.dayIndex].sort();
+                                }
+                                setDailyTargetDays(next);
+                                setTaskTargetDays(next);
+                              }}
+                              className={`rounded py-1 text-xs font-bold transition cursor-pointer ${
+                                isSelected
+                                  ? 'bg-amber-600 text-white shadow-2xs'
+                                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              {w.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ○日周期で交代する場合のサイクル設定 */}
+                  {dailyRepeatPattern === 'cycle' && (
+                    <div className="space-y-2 pt-1.5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-600">周期の長さ（サイクル日数）</span>
+                          <p className="text-[9px] text-slate-400">何日ごとにループするか（例: 3分割筋トレなら3日）</p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {[2, 3, 4, 5, 6, 7].map(len => (
+                            <button
+                              key={len}
+                              type="button"
+                              onClick={() => setDailyCycleLength(len)}
+                              className={`h-7 w-7 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                dailyCycleLength === len
+                                  ? 'bg-amber-600 text-white shadow-2xs'
+                                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              {len}日
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-600">Day 1 を開始する曜日</span>
+                        <select
+                          value={dailyCycleStartDay}
+                          onChange={e => setDailyCycleStartDay(Number(e.target.value))}
+                          className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 cursor-pointer"
+                        >
+                          {WEEKDAYS.map(w => (
+                            <option key={w.dayIndex} value={w.dayIndex}>
+                              {w.label}曜日から開始
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -829,6 +1061,76 @@ export function NewTableWizardModal({
                   </div>
                 </div>
               )}
+
+              {/* Plan29: 日課（曜日指定）の場合の曜日指定 */}
+              {tableType === 'daily' && dailyRepeatPattern === 'weekdays' && (
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-200/60">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold text-slate-600 shrink-0">このタスクの曜日:</span>
+                    <div className="flex items-center gap-1">
+                      {WEEKDAYS.map(w => {
+                        const isSelected = taskTargetDays.includes(w.dayIndex);
+                        return (
+                          <button
+                            key={w.dayIndex}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                if (taskTargetDays.length > 1) {
+                                  setTaskTargetDays(taskTargetDays.filter(d => d !== w.dayIndex));
+                                }
+                              } else {
+                                setTaskTargetDays([...taskTargetDays, w.dayIndex].sort());
+                              }
+                            }}
+                            className={`rounded px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
+                              isSelected
+                                ? 'bg-amber-600 text-white shadow-2xs'
+                                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            {w.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-slate-400">
+                    デフォルト: {dailyTargetDays.map(d => WEEKDAYS[d]?.label).join('')}
+                  </span>
+                </div>
+              )}
+
+              {/* Plan29: 日課（○日周期ローテーション）の場合の担当Day指定 */}
+              {tableType === 'daily' && dailyRepeatPattern === 'cycle' && (
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-200/60">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold text-slate-600 shrink-0">担当する日:</span>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: dailyCycleLength }, (_, i) => {
+                        const isSelected = taskCycleDay === i;
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setTaskCycleDay(i)}
+                            className={`rounded px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
+                              isSelected
+                                ? 'bg-amber-600 text-white shadow-2xs'
+                                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            Day {i + 1}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-slate-400">
+                    追加すると自動で次のDayへ進みます
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -877,7 +1179,12 @@ export function NewTableWizardModal({
                       )}
                       {tableType === 'daily' && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
-                          毎日 {t.durationMinutes}分 ({timeSlot === 'morning' ? '朝' : timeSlot === 'evening' ? '夜' : timeSlot === 'afternoon' ? '昼' : '終日'})
+                          {dailyRepeatPattern === 'cycle'
+                            ? `Day ${(t.cycleDayIndex ?? 0) + 1} (${t.durationMinutes}分)`
+                            : dailyRepeatPattern === 'weekdays'
+                              ? `${(t.targetDays || dailyTargetDays).map(d => WEEKDAYS[d]?.label).join('')} (${t.durationMinutes}分)`
+                              : `毎日 ${t.durationMinutes}分`}{' '}
+                          ({timeSlot === 'morning' ? '朝' : timeSlot === 'evening' ? '夜' : timeSlot === 'afternoon' ? '昼' : '終日'})
                         </span>
                       )}
                       {tableType === 'weekly' && (

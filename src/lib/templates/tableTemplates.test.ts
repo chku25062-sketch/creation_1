@@ -620,4 +620,101 @@ describe('Table Templates Generator (Plan22 仮実装検証)', () => {
       expect(cleanTask?.frequencyCount).toBe(1); // 週1回！
     });
   });
+
+  describe('Plan29: 質問から表作成ウィザードの日課タスク3大パターン検証', () => {
+    it('パターンA（毎日同じ）: daysCount: 1, isRepeat: true で Day 1 の最小表が生成され、全曜日に展開されること', () => {
+      const table = createDailyRoutineTable({
+        name: '毎日の基礎習慣',
+        mode: 'single',
+        daysCount: 1,
+        isRepeat: true,
+        multiTasks: {
+          items: [
+            { title: '朝の読書', durationMinutes: 15 },
+            { title: '夜のストレッチ', durationMinutes: 20 },
+          ],
+          isEveryday: true,
+        },
+      });
+
+      expect(table.columnMode).toBe('cycle');
+      expect(table.numCols).toBe(1);
+      expect(table.colHeaders).toEqual(['Day 1']);
+      expect(table.numRows).toBe(2);
+
+      const { tasks } = generateScheduleItemsForTable(table);
+      expect(tasks).toHaveLength(2);
+      expect(tasks[0].title).toBe('朝の読書');
+      expect(tasks[0].durationMinutes).toBe(15);
+      expect(tasks[0].cycleDays).toEqual([0]);
+      expect(tasks[1].title).toBe('夜のストレッチ');
+      expect(tasks[1].durationMinutes).toBe(20);
+    });
+
+    it('パターンB（曜日固定）: daysCount: 7, isRepeat: false で指定曜日のみにセルが配置され抽出されること', () => {
+      const table = createDailyRoutineTable({
+        name: '平日ルーティン',
+        mode: 'single',
+        daysCount: 7,
+        isRepeat: false,
+        multiTasks: {
+          items: [
+            { title: '筋トレ（月水金）', durationMinutes: 30, targetDays: [0, 2, 4] },
+            { title: '週末英語（土日）', durationMinutes: 60, targetDays: [5, 6] },
+          ],
+          isEveryday: false,
+        },
+      });
+
+      expect(table.columnMode).toBe('weekday');
+      expect(table.numCols).toBe(7);
+      expect(table.colHeaders).toEqual(['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜']);
+
+      const { tasks } = generateScheduleItemsForTable(table);
+      expect(tasks).toHaveLength(2);
+
+      const muscleTask = tasks.find((t) => t.title === '筋トレ（月水金）');
+      expect(muscleTask).toBeDefined();
+      expect(muscleTask?.targetDays).toEqual([0, 2, 4]);
+
+      const engTask = tasks.find((t) => t.title === '週末英語（土日）');
+      expect(engTask).toBeDefined();
+      expect(engTask?.targetDays).toEqual([5, 6]);
+    });
+
+    it('パターンC（○日周期交代ローテーション）: mode: cycle_rotation で N日サイクルの表が生成されること', () => {
+      const table = createDailyRoutineTable({
+        name: '3日サイクルルーティン',
+        mode: 'cycle_rotation',
+        cycleRotation: {
+          cycleLength: 3,
+          cycleStartDay: 0,
+          defaultDurationMinutes: 30,
+          items: [
+            { title: '上半身筋トレ', durationMinutes: 40 },
+            { title: '下半身筋トレ', durationMinutes: 40 },
+            { title: '休養・ストレッチ', durationMinutes: 15 },
+          ],
+        },
+      });
+
+      expect(table.columnMode).toBe('cycle');
+      expect(table.numCols).toBe(3);
+      expect(table.colHeaders).toEqual(['Day 1', 'Day 2', 'Day 3']);
+      expect(table.cycleStartDay).toBe(0);
+
+      const { tasks } = generateScheduleItemsForTable(table);
+      expect(tasks).toHaveLength(3);
+
+      const day1Task = tasks.find((t) => t.title === '上半身筋トレ');
+      expect(day1Task?.cycleDays).toEqual([0]);
+      expect(day1Task?.cycleCount).toBe(3);
+
+      const day2Task = tasks.find((t) => t.title === '下半身筋トレ');
+      expect(day2Task?.cycleDays).toEqual([1]);
+
+      const day3Task = tasks.find((t) => t.title === '休養・ストレッチ');
+      expect(day3Task?.cycleDays).toEqual([2]);
+    });
+  });
 });
