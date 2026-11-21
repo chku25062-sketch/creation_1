@@ -298,6 +298,14 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
   },
 ];
 
+
+const stepLabels = [
+  { step: 1 as const, title: '基本情報', icon: Sparkles },
+  { step: 2 as const, title: '予定タイプと活動帯', icon: Calendar },
+  { step: 3 as const, title: '詳細設定', icon: Sliders },
+  { step: 4 as const, title: 'サマリー確認', icon: Layout },
+];
+
 export function NewTableWizardModal({
   isOpen,
   onClose,
@@ -308,6 +316,9 @@ export function NewTableWizardModal({
   const [isResetToNew, setIsResetToNew] = useState(false);
 
   const effectiveIsEdit = Boolean(targetTable) && !isResetToNew;
+  // 対話形式の現在ステップ (1〜4)
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
+
 
   // ==========================================
   // Step 1: 表の設定ステート
@@ -352,6 +363,7 @@ export function NewTableWizardModal({
     if (!isOpen) return;
 
     setIsResetToNew(false);
+    setCurrentStep(1);
 
     if (targetTable) {
       // 既存表からの復元（編集モード）
@@ -515,10 +527,10 @@ export function NewTableWizardModal({
         generatedTable.classificationOverride = 'fixed_slot';
         generatedTable.attachedTaskConfig = enableAttachedTask
           ? {
-            enabled: true,
-            durationMinutes: attachedTaskDuration,
-            titleTemplate: attachedTaskTitleTemplate || '{title} のタスク',
-          }
+              enabled: true,
+              durationMinutes: attachedTaskDuration,
+              titleTemplate: attachedTaskTitleTemplate || '{title} のタスク',
+            }
           : undefined;
       } else if (tableType === 'weekly') {
         generatedTable.placementMode = 'auto';
@@ -693,6 +705,21 @@ export function NewTableWizardModal({
     onClose();
   };
 
+
+  // 固定枠の場合の終了時刻の動的プレビュー計算
+  const calculatedFixedEndTime = useMemo(() => {
+    if (tableType !== 'fixed') return fixedEndTime;
+    const startM = timeStringToMinutes(fixedStartTime || '09:00');
+    const count = Math.max(1, tableTaskCount);
+    const totalSlotM = count * defaultDuration;
+    const totalBreakM = Math.max(0, count - 1) * fixedIntervalMinutes;
+    const endM = Math.min(24 * 60, startM + totalSlotM + totalBreakM);
+    return minutesToTimeString(endM);
+  }, [tableType, fixedStartTime, tableTaskCount, defaultDuration, fixedIntervalMinutes, fixedEndTime]);
+
+  const handleApply = () => {
+    handleBuildTable(false);
+  };
   if (!isOpen) return null;
 
   return (
@@ -715,9 +742,10 @@ export function NewTableWizardModal({
                 {effectiveIsEdit ? `簡単設定: ${tableName}` : '簡単設定（予定表の作成）'}
               </h3>
               <p className="text-[10px] sm:text-[11px] text-slate-500">
-                {effectiveIsEdit
-                  ? '表全体のルールや活動時間帯、登録タスクの所要時間を調整できます'
-                  : '表の基本ルールを決め、タスクを流し込むだけでスケジュール表が完成します'}
+                {currentStep === 1 && 'Step 1/4: 予定表のテーマと名前を決めます'}
+                {currentStep === 2 && 'Step 2/4: 予定の分類と活動時間帯・ペースを設定します'}
+                {currentStep === 3 && 'Step 3/4: コマの時間・個数・休憩などのルールを自由に調整します'}
+                {currentStep === 4 && 'Step 4/4: 設定内容を確認して予定表を作成します'}
               </p>
             </div>
           </div>
@@ -737,6 +765,7 @@ export function NewTableWizardModal({
                   setDailyCycleStartDay(0);
                   setFixedStartTime('09:00');
                   setFixedEndTime('10:30');
+                  setCurrentStep(1);
                 }}
                 className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 sm:px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition active:scale-95 cursor-pointer shadow-2xs"
                 title="現在の表の内容をクリアし、白紙から新しい予定表を作成します"
@@ -791,661 +820,734 @@ export function NewTableWizardModal({
           })}
         </div>
 
-        {/* スクロール本体 */}
+        {/* スクロール本体（対話ステップ内容） */}
         <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-5 text-xs text-slate-700">
           {/* ========================================================
-              Step 1: 表の設定（全体枠・基本ルールの決定）
+              Step 1: テーマと表の名前
               ======================================================== */}
-          <div className="space-y-4 rounded-2xl border border-indigo-100 bg-indigo-50/30 p-4">
-            <div className="flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-bold text-white shadow-2xs">
-                <Sparkles className="h-3.5 w-3.5 text-white" />
-              </span>
-              <div>
-                <h4 className="text-xs font-bold text-slate-900">
-                  表の設定（スケジューリング枠組の調整）
+          {currentStep === 1 && (
+            <div className="space-y-4 animate-fadeIn">
+              <div className="rounded-xl bg-indigo-50/60 border border-indigo-100 p-3">
+                <h4 className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                  予定表のテーマを選びましょう
                 </h4>
-                <p className="text-[10px] text-slate-500">
-                  表の分類や活動時間帯、繰り返しペースを設定できます
+                <p className="text-[11px] text-indigo-700 mt-0.5">
+                  目的に合ったテーマを選択すると、おすすめの初期設定が自動で反映されます。
                 </p>
               </div>
-            </div>
 
-            {/* A. 表のテーマを選ぶ（常時選択可能） */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
+              {/* テーマ選択グリッド */}
+              <div className="space-y-1.5">
                 <label className="block text-[11px] font-bold text-slate-700">
                   表のテーマを選ぶ
                 </label>
-                <span className="text-[10px] text-slate-400">
-                  タップで設定と候補タスクを自動反映
-                </span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {THEME_DEFINITIONS.map(theme => {
-                  const isSelected = selectedThemeId === theme.id;
-                  const typeLabel =
-                    theme.recommendedType === 'daily'
-                      ? '日課'
-                      : theme.recommendedType === 'weekly'
-                        ? '週次'
-                        : '固定枠';
-                  const typeBadgeClass =
-                    theme.recommendedType === 'daily'
-                      ? 'bg-amber-100 text-amber-800'
-                      : theme.recommendedType === 'weekly'
-                        ? 'bg-blue-100 text-blue-800'
-                        : 'bg-emerald-100 text-emerald-800';
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {THEME_DEFINITIONS.map(theme => {
+                    const isSelected = selectedThemeId === theme.id;
+                    const typeLabel =
+                      theme.recommendedType === 'daily'
+                        ? '日課'
+                        : theme.recommendedType === 'weekly'
+                          ? '週次'
+                          : '固定枠';
+                    const typeBadgeClass =
+                      theme.recommendedType === 'daily'
+                        ? 'bg-amber-100 text-amber-800'
+                        : theme.recommendedType === 'weekly'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-emerald-100 text-emerald-800';
 
-                  return (
-                    <button
-                      key={theme.id}
-                      type="button"
-                      onClick={() => handleSelectTheme(theme)}
-                      className={`flex flex-col items-start p-2 rounded-xl border text-left transition cursor-pointer ${isSelected
-                        ? 'border-indigo-600 bg-indigo-50/80 shadow-xs ring-2 ring-indigo-500/20'
-                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80'
+                    return (
+                      <button
+                        key={theme.id}
+                        type="button"
+                        onClick={() => handleSelectTheme(theme)}
+                        className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                          isSelected
+                            ? 'border-indigo-600 bg-indigo-50/80 shadow-xs ring-2 ring-indigo-500/20'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80'
                         }`}
-                    >
-                      <div className="flex items-center justify-between w-full mb-0.5">
-                        <span className="font-bold text-xs text-slate-800">{theme.label}</span>
-                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${typeBadgeClass}`}>
-                          {typeLabel}
+                      >
+                        <div className="flex items-center justify-between w-full mb-1">
+                          <span className="font-bold text-xs text-slate-800">{theme.label}</span>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${typeBadgeClass}`}>
+                            {typeLabel}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 line-clamp-2 leading-relaxed">
+                          {theme.description}
                         </span>
-                      </div>
-                      <span className="text-[10px] text-slate-500 line-clamp-1">
-                        {theme.description}
-                      </span>
-                    </button>
-                  );
-                })}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 予定表の名前入力 */}
+              <div className="space-y-1.5 pt-2 border-t border-slate-200">
+                <label className="block text-[11px] font-bold text-slate-700">
+                  予定表の名前（自由に設定できます）
+                </label>
+                <input
+                  type="text"
+                  value={tableName}
+                  onChange={e => setTableName(e.target.value)}
+                  placeholder="例: 朝のルーティン、週次ジム予定、大学時間割など"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 transition"
+                />
               </div>
             </div>
+          )}
 
-            {/* B. 表の表示名 */}
-            <div className="flex items-center gap-2 pt-1 border-t border-indigo-100/60">
-              <span className="text-[11px] font-bold text-slate-700 shrink-0">表の表示名:</span>
-              <input
-                type="text"
-                value={tableName}
-                onChange={e => setTableName(e.target.value)}
-                placeholder="例: 毎日の習慣、朝のルーティン、授業の時間割"
-                className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:border-indigo-500 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 shadow-2xs"
-              />
-            </div>
+          {/* ========================================================
+              Step 2: 予定タイプと活動時間帯・ペース
+              ======================================================== */}
+          {currentStep === 2 && (
+            <div className="space-y-4 animate-fadeIn">
+              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-indigo-600" />
+                  予定のタイプと活動時間帯・ペース
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  この予定表が日課か、週次タスクか、固定の時間割かを設定します。
+                </p>
+              </div>
 
-            {/* C. 表の基本ルール（タイプ ＆ 時間帯） */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-indigo-100/60">
-              {/* スタイル・頻度 */}
-              <div className="space-y-1">
-                <span className="block text-[11px] font-bold text-slate-700">予定のタイプ</span>
-                <div className="grid grid-cols-3 gap-1">
+              {/* 予定の分類（タイプ） */}
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-700">
+                  予定の分類（予定の性質）
+                </label>
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setTableType('daily');
-                      if (timeSlot === 'custom_fixed') setTimeSlot('custom');
-                    }}
-                    className={`rounded-lg py-1.5 text-[11px] font-bold transition cursor-pointer ${tableType === 'daily'
-                      ? 'bg-amber-500 text-white shadow-2xs'
-                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                      }`}
+                    onClick={() => setTableType('daily')}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition cursor-pointer ${
+                      tableType === 'daily'
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-bold ring-2 ring-indigo-500/20 shadow-xs'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
                   >
-                    毎日 (日課)
+                    <span className="text-xs font-bold">毎日（日課）</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">習慣・毎日の日課</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setTableType('weekly');
-                      if (timeSlot === 'custom_fixed') setTimeSlot('custom');
-                    }}
-                    className={`rounded-lg py-1.5 text-[11px] font-bold transition cursor-pointer ${tableType === 'weekly'
-                      ? 'bg-blue-600 text-white shadow-2xs'
-                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                      }`}
+                    onClick={() => setTableType('weekly')}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition cursor-pointer ${
+                      tableType === 'weekly'
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-bold ring-2 ring-indigo-500/20 shadow-xs'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
                   >
-                    週◯回
+                    <span className="text-xs font-bold">週○回（週次）</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">週目標・ジム・習い事</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setTableType('fixed');
-                    }}
-                    className={`rounded-lg py-1.5 text-[11px] font-bold transition cursor-pointer ${tableType === 'fixed'
-                      ? 'bg-emerald-600 text-white shadow-2xs'
-                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                      }`}
+                    onClick={() => setTableType('fixed')}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition cursor-pointer ${
+                      tableType === 'fixed'
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-bold ring-2 ring-indigo-500/20 shadow-xs'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
                   >
-                    時間固定
+                    <span className="text-xs font-bold">固定枠（時間割）</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">大学講義・決まった枠</span>
                   </button>
                 </div>
               </div>
 
-              {/* 活動時間帯 */}
-              <div className="space-y-1">
-                <span className="block text-[11px] font-bold text-slate-700">
-                  {tableType === 'fixed' ? '始業時刻（基準開始時間）' : '活動する時間帯'}
-                </span>
-                {tableType === 'fixed' ? (
-                  <div className="flex items-center gap-2 pt-0.5">
+              {/* 活動時間帯の自由入力 */}
+              <div className="space-y-2 pt-2 border-t border-slate-200">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[11px] font-bold text-slate-700">
+                    活動時間帯（タスクを配置する時間）
+                  </label>
+                  <span className="text-[10px] text-slate-500">
+                    直接指定、またはクイック選択
+                  </span>
+                </div>
+
+                {/* クイック選択チップ */}
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectTimeSlot('morning')}
+                    className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition cursor-pointer ${
+                      timeSlot === 'morning'
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    朝（06:00〜12:00）
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectTimeSlot('afternoon')}
+                    className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition cursor-pointer ${
+                      timeSlot === 'afternoon'
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    昼（12:00〜18:00）
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectTimeSlot('evening')}
+                    className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition cursor-pointer ${
+                      timeSlot === 'evening'
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    夜（18:00〜23:00）
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectTimeSlot('all')}
+                    className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition cursor-pointer ${
+                      timeSlot === 'all'
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    終日（00:00〜24:00）
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectTimeSlot('custom')}
+                    className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition cursor-pointer ${
+                      timeSlot === 'custom'
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    カスタム指定
+                  </button>
+                </div>
+
+                {/* 開始・終了時刻の直接入力 */}
+                <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                  <div className="flex items-center gap-1.5 flex-1">
+                    <span className="text-[11px] font-bold text-slate-600 shrink-0">開始</span>
                     <input
                       type="time"
                       value={fixedStartTime}
                       onChange={e => {
                         setFixedStartTime(e.target.value);
+                        setTimeSlot('custom');
                       }}
-                      className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 shadow-2xs"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-900 focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
                     />
-                    <span className="text-[10px] text-slate-400">
-                      ※表の終了時間はタスク登録に合わせて自動拡張されます
-                    </span>
                   </div>
-                ) : (
-                  <div className="space-y-1.5">
-                    <div className="grid grid-cols-5 gap-1">
-                      <button
-                        type="button"
-                        onClick={() => handleSelectTimeSlot('morning')}
-                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${timeSlot === 'morning'
-                          ? 'bg-indigo-600 text-white shadow-2xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                          }`}
-                      >
-                        朝 (6-12)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSelectTimeSlot('afternoon')}
-                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${timeSlot === 'afternoon'
-                          ? 'bg-indigo-600 text-white shadow-2xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                          }`}
-                      >
-                        昼 (12-18)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSelectTimeSlot('evening')}
-                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${timeSlot === 'evening'
-                          ? 'bg-indigo-600 text-white shadow-2xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                          }`}
-                      >
-                        夜 (18-23)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSelectTimeSlot('all')}
-                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${timeSlot === 'all'
-                          ? 'bg-indigo-600 text-white shadow-2xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                          }`}
-                      >
-                        終日
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSelectTimeSlot('custom')}
-                        className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${timeSlot === 'custom' || timeSlot === 'custom_fixed'
-                          ? 'bg-indigo-600 text-white shadow-2xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                          }`}
-                      >
-                        指定
-                      </button>
-                    </div>
-
-                    {(timeSlot === 'custom' || timeSlot === 'custom_fixed') && (
-                      <div className="flex items-center gap-1.5 pt-0.5">
-                        <span className="text-[10px] text-slate-500 font-medium">時間指定:</span>
-                        <input
-                          type="time"
-                          value={fixedStartTime}
-                          onChange={e => {
-                            setFixedStartTime(e.target.value);
-                          }}
-                          className="rounded border border-slate-300 bg-white px-2 py-1 text-xs"
-                        />
-                        <span className="text-slate-400">〜</span>
-                        <input
-                          type="time"
-                          value={fixedEndTime}
-                          onChange={e => {
-                            setFixedEndTime(e.target.value);
-                          }}
-                          className="rounded border border-slate-300 bg-white px-2 py-1 text-xs"
-                        />
-                      </div>
-                    )}
+                  <span className="text-slate-400 font-bold">〜</span>
+                  <div className="flex items-center gap-1.5 flex-1">
+                    <span className="text-[11px] font-bold text-slate-600 shrink-0">終了</span>
+                    <input
+                      type="time"
+                      value={tableType === 'fixed' ? calculatedFixedEndTime : fixedEndTime}
+                      disabled={tableType === 'fixed'}
+                      onChange={e => {
+                        setFixedEndTime(e.target.value);
+                        setTimeSlot('custom');
+                      }}
+                      className={`w-full rounded-lg border border-slate-300 px-2 py-1 text-xs font-bold focus:outline-hidden focus:ring-1 focus:ring-indigo-500 ${
+                        tableType === 'fixed' ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white text-slate-900'
+                      }`}
+                    />
                   </div>
+                </div>
+                {tableType === 'fixed' && (
+                  <p className="text-[10px] text-indigo-600">
+                    ※ 固定枠の終了時刻は、開始時刻・コマ時間・休憩時間・コマ数から自動計算されます（Step 3で調整可能）。
+                  </p>
                 )}
               </div>
 
-              {/* Plan29: 日課（ルーティン）の場合のペース・サイクル質問 */}
+              {/* 日課ペースの選択（日課の場合のみ） */}
               {tableType === 'daily' && (
-                <div className="space-y-2 pt-2 border-t border-indigo-100/60">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-700">繰り返すペース</span>
-                    <span className="text-[10px] text-slate-400">生活リズムに合わせて選択</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1">
+                <div className="space-y-2 pt-2 border-t border-slate-200">
+                  <label className="block text-[11px] font-bold text-slate-700">
+                    日課の繰り返しペース
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
                     <button
                       type="button"
                       onClick={() => setDailyRepeatPattern('everyday')}
-                      className={`rounded-lg py-1.5 px-1.5 text-[10px] font-bold transition cursor-pointer flex flex-col items-center gap-0.5 ${dailyRepeatPattern === 'everyday'
-                        ? 'bg-amber-500 text-white shadow-2xs'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                        }`}
+                      className={`p-2 rounded-xl border text-center transition cursor-pointer ${
+                        dailyRepeatPattern === 'everyday'
+                          ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-bold'
+                          : 'border-slate-200 bg-white text-slate-600'
+                      }`}
                     >
-                      <span>毎日同じ</span>
-                      <span className="text-[9px] opacity-80 font-normal">全曜日で実施</span>
+                      <span className="text-xs">毎日同じ</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setDailyRepeatPattern('weekdays')}
-                      className={`rounded-lg py-1.5 px-1.5 text-[10px] font-bold transition cursor-pointer flex flex-col items-center gap-0.5 ${dailyRepeatPattern === 'weekdays'
-                        ? 'bg-amber-500 text-white shadow-2xs'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                        }`}
+                      className={`p-2 rounded-xl border text-center transition cursor-pointer ${
+                        dailyRepeatPattern === 'weekdays'
+                          ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-bold'
+                          : 'border-slate-200 bg-white text-slate-600'
+                      }`}
                     >
-                      <span>曜日を指定</span>
-                      <span className="text-[9px] opacity-80 font-normal">平日・月水金など</span>
+                      <span className="text-xs">曜日指定</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setDailyRepeatPattern('cycle')}
-                      className={`rounded-lg py-1.5 px-1.5 text-[10px] font-bold transition cursor-pointer flex flex-col items-center gap-0.5 ${dailyRepeatPattern === 'cycle'
-                        ? 'bg-amber-500 text-white shadow-2xs'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                        }`}
+                      className={`p-2 rounded-xl border text-center transition cursor-pointer ${
+                        dailyRepeatPattern === 'cycle'
+                          ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-bold'
+                          : 'border-slate-200 bg-white text-slate-600'
+                      }`}
                     >
-                      <span>○日周期で交代</span>
-                      <span className="text-[9px] opacity-80 font-normal">筋トレ分割・ローテ</span>
+                      <span className="text-xs">ローテーション</span>
                     </button>
                   </div>
 
-                  {/* 曜日を指定する場合の曜日チップ ＆ プリセット */}
                   {dailyRepeatPattern === 'weekdays' && (
-                    <div className="space-y-1.5 pt-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-slate-600">実施する曜日</span>
-                        <div className="flex items-center gap-1">
+                    <div className="flex gap-1 pt-1">
+                      {WEEKDAYS.map(w => {
+                        const active = dailyTargetDays.includes(w.dayIndex);
+                        return (
                           <button
+                            key={w.dayIndex}
                             type="button"
                             onClick={() => {
-                              const days = [0, 1, 2, 3, 4];
-                              setDailyTargetDays(days);
-                            }}
-                            className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
-                          >
-                            平日のみ
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const days = [5, 6];
-                              setDailyTargetDays(days);
-                            }}
-                            className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
-                          >
-                            週末のみ
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const days = [0, 2, 4];
-                              setDailyTargetDays(days);
-                            }}
-                            className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
-                          >
-                            月水金
-                          </button>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-7 gap-1">
-                        {WEEKDAYS.map(w => {
-                          const isSelected = dailyTargetDays.includes(w.dayIndex);
-                          return (
-                            <button
-                              key={w.dayIndex}
-                              type="button"
-                              onClick={() => {
-                                let next: number[];
-                                if (isSelected) {
-                                  next = dailyTargetDays.length > 1 ? dailyTargetDays.filter(d => d !== w.dayIndex) : dailyTargetDays;
-                                } else {
-                                  next = [...dailyTargetDays, w.dayIndex].sort();
+                              if (active) {
+                                if (dailyTargetDays.length > 1) {
+                                  setDailyTargetDays(dailyTargetDays.filter(d => d !== w.dayIndex));
                                 }
-                                setDailyTargetDays(next);
-                              }}
-                              className={`rounded py-1 text-xs font-bold transition cursor-pointer ${isSelected
-                                ? 'bg-amber-600 text-white shadow-2xs'
-                                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                                }`}
-                            >
-                              {w.label}
-                            </button>
-                          );
-                        })}
-                      </div>
+                              } else {
+                                setDailyTargetDays([...dailyTargetDays, w.dayIndex].sort());
+                              }
+                            }}
+                            className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                              active
+                                ? 'bg-indigo-600 text-white border-indigo-600'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            {w.label}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
 
-                  {/* ○日周期で交代する場合のサイクル設定 */}
                   {dailyRepeatPattern === 'cycle' && (
-                    <div className="space-y-2 pt-1.5">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-[10px] font-bold text-slate-600">周期の長さ（サイクル日数）</span>
-                          <p className="text-[9px] text-slate-400">何日ごとにループするか（例: 3分割筋トレなら3日）</p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {[2, 3, 4, 5, 6, 7].map(len => (
-                            <button
-                              key={len}
-                              type="button"
-                              onClick={() => setDailyCycleLength(len)}
-                              className={`h-7 w-7 rounded-lg text-xs font-bold transition cursor-pointer ${dailyCycleLength === len
-                                ? 'bg-amber-600 text-white shadow-2xs'
-                                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                                }`}
-                            >
-                              {len}日
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold text-slate-600">Day 1 を開始する曜日</span>
-                        <select
-                          value={dailyCycleStartDay}
-                          onChange={e => setDailyCycleStartDay(Number(e.target.value))}
-                          className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 cursor-pointer"
-                        >
-                          {WEEKDAYS.map(w => (
-                            <option key={w.dayIndex} value={w.dayIndex}>
-                              {w.label}曜日から開始
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                    <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                      <span className="text-[11px] font-bold text-slate-700">周期の長さ:</span>
+                      <NumberStepper
+                        value={dailyCycleLength}
+                        min={2}
+                        max={14}
+                        step={1}
+                        unit="日周期"
+                        onChange={setDailyCycleLength}
+                      />
                     </div>
                   )}
                 </div>
               )}
+            </div>
+          )}
 
-              {/* D. タスクの標準所要時間（コマ時間 / 目安時間） */}
-              <div className="pt-2.5 border-t border-indigo-100/60 space-y-1.5">
+          {/* ========================================================
+              Step 3: 詳細設定（時間・枠数・休憩・回数）
+              ======================================================== */}
+          {currentStep === 3 && (
+            <div className="space-y-4 animate-fadeIn">
+              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <Sliders className="h-3.5 w-3.5 text-indigo-600" />
+                  表のルールと大きさ（自由に入力・変更できます）
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  各コマの基準時間や枠数、休憩時間などを自由に設定できます。
+                </p>
+              </div>
+
+              {/* 1コマの所要時間 */}
+              <div className="space-y-2 p-3 bg-white rounded-xl border border-slate-200">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-700">
-                    {tableType === 'fixed'
-                      ? '1コマの標準時間（コマ割の長さ）'
-                      : tableType === 'weekly'
-                        ? '1回の標準作業時間'
-                        : '1つの習慣の目安時間'}
-                  </span>
-                  <span className="text-[10px] text-slate-400">
-                    タスク追加時の基準時間として自動連動
-                  </span>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-900">
+                      1コマの所要時間（基準時間）
+                    </label>
+                    <p className="text-[10px] text-slate-500">
+                      タスクを登録する際の目安となる時間です
+                    </p>
+                  </div>
+                  <NumberStepper
+                    value={defaultDuration}
+                    min={5}
+                    max={240}
+                    step={5}
+                    unit="分"
+                    onChange={setDefaultDuration}
+                  />
                 </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {(tableType === 'fixed'
-                    ? [50, 60, 90, 100]
-                    : tableType === 'weekly'
-                      ? [30, 45, 60, 90]
-                      : [10, 15, 20, 30]
-                  ).map(dur => (
+                {/* クイックチップ */}
+                <div className="flex items-center gap-1.5 pt-1">
+                  <span className="text-[10px] text-slate-400 font-bold shrink-0">目安:</span>
+                  {[15, 30, 45, 60, 90].map(m => (
                     <button
-                      key={dur}
+                      key={m}
                       type="button"
-                      onClick={() => setDefaultDuration(dur)}
-                      className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${defaultDuration === dur
-                        ? 'bg-indigo-600 text-white shadow-2xs'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                        }`}
+                      onClick={() => setDefaultDuration(m)}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition cursor-pointer ${
+                        defaultDuration === m
+                          ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
                     >
-                      {dur}分{tableType === 'fixed' && dur === 90 ? ' (大学)' : ''}{tableType === 'fixed' && dur === 50 ? ' (高校)' : ''}
+                      {m}分
                     </button>
                   ))}
-                  <div className="flex items-center gap-1 ml-auto">
-                    <span className="text-[10px] text-slate-400">カスタム:</span>
-                    <NumberStepper
-                      value={defaultDuration}
-                      onChange={val => setDefaultDuration(val)}
-                      min={5}
-                      max={480}
-                      step={5}
-                      unit="分"
-                      size="sm"
-                    />
-                  </div>
                 </div>
               </div>
 
-              {/* 表の大きさ（コマ数 / タスク個数）: サイクル日課以外で表示 */}
-              {!(tableType === 'daily' && dailyRepeatPattern === 'cycle') && (
-                <div className="pt-2.5 border-t border-indigo-100/60 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-700">
+              {/* 表の大きさ（コマ数 / 枠数） */}
+              <div className="space-y-2 p-3 bg-white rounded-xl border border-slate-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-900">
+                      {tableType === 'fixed' ? 'コマ数（時間割の枠数）' : '表の大きさ（枠数 / 行数）'}
+                    </label>
+                    <p className="text-[10px] text-slate-500">
                       {tableType === 'fixed'
-                        ? '1日のコマ数（表の大きさ）'
-                        : tableType === 'weekly'
-                          ? '登録するタスク枠の個数'
-                          : '登録する習慣・タスク枠の個数'}
-                    </span>
-                    <span className="text-[10px] text-slate-400">
-                      {tableType === 'fixed'
-                        ? `${fixedStartTime || '09:00'} 〜 ${(() => {
-                          const sMin = timeStringToMinutes(fixedStartTime || '09:00');
-                          const total = (defaultDuration + fixedIntervalMinutes) * tableTaskCount - fixedIntervalMinutes;
-                          const eMin = (sMin + total) % (24 * 60);
-                          return minutesToTimeString(eMin);
-                        })()} (${tableTaskCount}コマ)`
-                        : `${tableTaskCount}枠`}
+                        ? '何コマ分の枠を作成するか設定します'
+                        : 'スケジュール表の初期枠数を決定します'}
+                    </p>
+                  </div>
+                  <NumberStepper
+                    value={tableTaskCount}
+                    min={1}
+                    max={12}
+                    step={1}
+                    unit={tableType === 'fixed' ? 'コマ' : '枠'}
+                    onChange={setTableTaskCount}
+                  />
+                </div>
+                {/* クイックチップ */}
+                <div className="flex items-center gap-1.5 pt-1">
+                  <span className="text-[10px] text-slate-400 font-bold shrink-0">目安:</span>
+                  {[3, 4, 5, 6].map(c => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setTableTaskCount(c)}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition cursor-pointer ${
+                        tableTaskCount === c
+                          ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {c}{tableType === 'fixed' ? 'コマ' : '枠'}
+                    </button>
+                  ))}
+                </div>
+
+                {tableType === 'fixed' && (
+                  <div className="mt-2 p-2 bg-indigo-50/60 rounded-lg text-[11px] text-indigo-900 flex items-center justify-between">
+                    <span>時間割全体の想定時間:</span>
+                    <span className="font-bold">
+                      {fixedStartTime} 〜 {calculatedFixedEndTime}
                     </span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {(tableType === 'fixed'
-                      ? [3, 4, 5, 6, 7]
-                      : tableType === 'weekly'
-                        ? [2, 3, 4, 5, 6]
-                        : [2, 3, 4, 5, 6, 8]
-                    ).map(cnt => (
+                )}
+              </div>
+
+              {/* 固定枠の場合: 休憩時間と付随タスク */}
+              {tableType === 'fixed' && (
+                <div className="space-y-3 p-3 bg-slate-50/80 rounded-xl border border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-900">
+                        コマ間の休憩時間（休み時間）
+                      </label>
+                      <p className="text-[10px] text-slate-500">
+                        各コマの間に自動で確保する間隔です
+                      </p>
+                    </div>
+                    <NumberStepper
+                      value={fixedIntervalMinutes}
+                      min={0}
+                      max={60}
+                      step={5}
+                      unit="分"
+                      onChange={setFixedIntervalMinutes}
+                    />
+                  </div>
+                  {/* クイックチップ */}
+                  <div className="flex items-center gap-1.5 pt-0.5">
+                    <span className="text-[10px] text-slate-400 font-bold shrink-0">目安:</span>
+                    {[0, 5, 10, 15, 20].map(m => (
                       <button
-                        key={cnt}
+                        key={m}
                         type="button"
-                        onClick={() => setTableTaskCount(cnt)}
-                        className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${tableTaskCount === cnt
-                          ? 'bg-indigo-600 text-white shadow-2xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                          }`}
+                        onClick={() => setFixedIntervalMinutes(m)}
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition cursor-pointer ${
+                          fixedIntervalMinutes === m
+                            ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                        }`}
                       >
-                        {tableType === 'fixed' ? `${cnt}コマ` : `${cnt}個`}
-                        {tableType === 'fixed' && cnt === 5 ? ' (標準)' : ''}
-                        {tableType !== 'fixed' && cnt === 4 ? ' (標準)' : ''}
+                        {m === 0 ? '休憩なし' : `${m}分`}
                       </button>
                     ))}
-                    <div className="flex items-center gap-1 ml-auto">
-                      <span className="text-[10px] text-slate-400">カスタム:</span>
-                      <NumberStepper
-                        value={tableTaskCount}
-                        onChange={val => setTableTaskCount(val)}
-                        min={1}
-                        max={tableType === 'fixed' ? 12 : 20}
-                        step={1}
-                        unit={tableType === 'fixed' ? 'コマ' : '個'}
-                        size="sm"
+                  </div>
+
+                  {/* 付随タスク設定 */}
+                  <div className="pt-2 border-t border-slate-200 space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={enableAttachedTask}
+                        onChange={e => setEnableAttachedTask(e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                       />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* 固定枠の場合のコマ間休憩時間 ＆ 付随タスク連動設定 */}
-              {tableType === 'fixed' && (
-                <>
-                  <div className="pt-2.5 border-t border-indigo-100/60 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-slate-700">コマ間の休憩時間</span>
-                      <span className="text-[10px] text-slate-400">コマ終了後に自動挿入される休憩</span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {[0, 5, 10, 15, 20].map(m => (
-                        <button
-                          key={m}
-                          type="button"
-                          onClick={() => setFixedIntervalMinutes(m)}
-                          className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${fixedIntervalMinutes === m
-                            ? 'bg-emerald-600 text-white shadow-2xs'
-                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                            }`}
-                        >
-                          {m === 0 ? 'なし (0分)' : `${m}分${m === 10 ? ' (標準)' : ''}`}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="pt-2.5 border-t border-indigo-100/60 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={enableAttachedTask}
-                          onChange={e => setEnableAttachedTask(e.target.checked)}
-                          className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                        />
-                        <span className="text-[11px] font-bold text-slate-800">
-                          講義・予定の後に付随タスク（復習・課題レポート・移動等）を連動生成する
-                        </span>
-                      </label>
-                    </div>
+                      <span className="text-xs font-bold text-slate-800">
+                        コマに関連する付随タスク（準備・復習など）を設ける
+                      </span>
+                    </label>
                     {enableAttachedTask && (
-                      <div className="rounded-xl bg-indigo-50/60 p-2.5 border border-indigo-100 space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-bold text-slate-600">付随タスクの所要時間:</span>
-                          <div className="flex items-center gap-1">
-                            {[15, 30, 45, 60].map(dur => (
-                              <button
-                                key={dur}
-                                type="button"
-                                onClick={() => setAttachedTaskDuration(dur)}
-                                className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition cursor-pointer ${attachedTaskDuration === dur
-                                  ? 'bg-indigo-600 text-white shadow-2xs'
-                                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                                  }`}
-                              >
-                                {dur}分
-                              </button>
-                            ))}
-                          </div>
+                      <div className="pl-6 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-slate-600 font-medium">付随タスクの所要時間:</span>
+                          <NumberStepper
+                            value={attachedTaskDuration}
+                            min={10}
+                            max={120}
+                            step={5}
+                            unit="分"
+                            onChange={setAttachedTaskDuration}
+                          />
                         </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-bold text-slate-600">タスク名テンプレート:</span>
+                        <div>
                           <input
                             type="text"
                             value={attachedTaskTitleTemplate}
                             onChange={e => setAttachedTaskTitleTemplate(e.target.value)}
-                            placeholder="{title} のタスク"
-                            className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-800 w-44 outline-none focus:border-indigo-500"
+                            placeholder="例: {title} の復習・課題"
+                            className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs"
                           />
                         </div>
-                        <p className="text-[9px] text-slate-500">
-                          ※ 「{`{title}`}」部分が各講義・予定の名前に自動で置き換わります（例: 英語 のタスク）
-                        </p>
                       </div>
                     )}
                   </div>
-                </>
+                </div>
               )}
 
-              {/* 週次タスクの場合の1週間の目標回数 */}
+              {/* 週次タスクの場合: 1週間の目標回数 */}
               {tableType === 'weekly' && (
-                <div className="pt-2.5 border-t border-indigo-100/60 space-y-1.5">
+                <div className="space-y-2 p-3 bg-white rounded-xl border border-slate-200">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-700">1週間の目標回数（目安）</span>
-                    <span className="text-[10px] text-slate-400">週に何回行うか</span>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-900">
+                        1週間あたりの目標回数
+                      </label>
+                      <p className="text-[10px] text-slate-500">
+                        週に何回実行するかを設定します
+                      </p>
+                    </div>
+                    <NumberStepper
+                      value={weeklyTargetCount}
+                      min={1}
+                      max={7}
+                      step={1}
+                      unit="回/週"
+                      onChange={setWeeklyTargetCount}
+                    />
                   </div>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {[1, 2, 3, 4, 5, 7].map(cnt => (
+                  {/* クイックチップ */}
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <span className="text-[10px] text-slate-400 font-bold shrink-0">目安:</span>
+                    {[1, 2, 3, 4, 5].map(c => (
                       <button
-                        key={cnt}
+                        key={c}
                         type="button"
-                        onClick={() => setWeeklyTargetCount(cnt)}
-                        className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${weeklyTargetCount === cnt
-                          ? 'bg-blue-600 text-white shadow-2xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                          }`}
+                        onClick={() => setWeeklyTargetCount(c)}
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition cursor-pointer ${
+                          weeklyTargetCount === c
+                            ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                        }`}
                       >
-                        {cnt === 7 ? '毎日 (週7回)' : `週${cnt}回${cnt === 2 ? ' (標準)' : ''}`}
+                        週{c}回
                       </button>
                     ))}
                   </div>
                 </div>
               )}
-
-              {/* E. 表の作成オプション（新規作成時のみ） */}
-              {!effectiveIsEdit && (
-                <div className="pt-2.5 border-t border-indigo-100/60">
-                  <label className="flex items-center gap-2.5 p-2 rounded-xl bg-indigo-50/60 border border-indigo-100 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={includeSampleTasks}
-                      onChange={e => setIncludeSampleTasks(e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                    />
-                    <div className="text-xs">
-                      <span className="font-bold text-slate-800">
-                        「{currentTheme.label}」の代表予定（サンプル）を自動配置する
-                      </span>
-                      <p className="text-[10px] text-slate-500">
-                        {includeSampleTasks
-                          ? '作成後、メイン画面のセルで直接文字を書き換えたりコマを調整できます'
-                          : '枠組み（時間帯・コマ時間・曜日）だけが設定された空の表を作成します'}
-                      </p>
-                    </div>
-                  </label>
-                </div>
-              )}
             </div>
-          </div>
+          )}
+
+          {/* ========================================================
+              Step 4: サマリー確認と作成
+              ======================================================== */}
+          {currentStep === 4 && (
+            <div className="space-y-4 animate-fadeIn">
+              <div className="rounded-xl bg-indigo-50/60 border border-indigo-100 p-3">
+                <h4 className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                  <Layout className="h-3.5 w-3.5 text-indigo-600" />
+                  設定内容の確認
+                </h4>
+                <p className="text-[11px] text-indigo-700 mt-0.5">
+                  以下の設定で予定表を作成します。内容を確認してください。
+                </p>
+              </div>
+
+              {/* サマリーカード */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                  <span className="text-xs font-bold text-slate-500">予定表の名前</span>
+                  <span className="text-sm font-bold text-slate-900">{tableName || '無題の予定表'}</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block">予定タイプ</span>
+                    <span className="font-bold text-slate-800">
+                      {tableType === 'daily' ? '毎日（日課）' : tableType === 'weekly' ? '週○回（週次）' : '固定枠（時間割）'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block">活動時間帯</span>
+                    <span className="font-bold text-slate-800">
+                      {tableType === 'fixed'
+                        ? `${fixedStartTime} 〜 ${calculatedFixedEndTime}`
+                        : `${fixedStartTime} 〜 ${fixedEndTime}`}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block">1コマの基準時間</span>
+                    <span className="font-bold text-slate-800">{defaultDuration}分</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 block">
+                      {tableType === 'fixed' ? 'コマ数' : '初期枠数'}
+                    </span>
+                    <span className="font-bold text-slate-800">
+                      {tableTaskCount}{tableType === 'fixed' ? 'コマ' : '枠'}
+                    </span>
+                  </div>
+
+                  {tableType === 'fixed' && (
+                    <>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block">休憩時間</span>
+                        <span className="font-bold text-slate-800">
+                          {fixedIntervalMinutes === 0 ? '休憩なし' : `${fixedIntervalMinutes}分`}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 block">付随タスク</span>
+                        <span className="font-bold text-slate-800">
+                          {enableAttachedTask ? `あり（${attachedTaskDuration}分）` : 'なし'}
+                        </span>
+                      </div>
+                    </>
+                  )}
+
+                  {tableType === 'weekly' && (
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 block">目標回数</span>
+                      <span className="font-bold text-slate-800">週{weeklyTargetCount}回</span>
+                    </div>
+                  )}
+
+                  {tableType === 'daily' && (
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 block">ペース</span>
+                      <span className="font-bold text-slate-800">
+                        {dailyRepeatPattern === 'everyday'
+                          ? '毎日同じ'
+                          : dailyRepeatPattern === 'weekdays'
+                            ? `曜日指定 (${dailyTargetDays.length}日)`
+                            : `${dailyCycleLength}日ローテーション`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* サンプルタスク配置オプション */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeSampleTasks}
+                    onChange={e => setIncludeSampleTasks(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 block">
+                      テーマに応じた代表的な予定（サンプル）を自動で配置する
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">
+                      チェックを外すと、枠組み（コマや行）だけが整った空の予定表を作成します
+                    </span>
+                  </div>
+                </label>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* フッター（常に画面最下部に固定表示、セーフエリア対応） */}
-        <div className="shrink-0 flex items-center justify-between gap-2 border-t border-slate-200 bg-slate-50/95 px-4 sm:px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-slate-300 bg-white px-3 sm:px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition active:scale-95 cursor-pointer shrink-0"
-          >
-            キャンセル
-          </button>
-          <div className="flex items-center gap-2 min-w-0">
-            {effectiveIsEdit && (
+        {/* フッターナビゲーション */}
+        <div className="shrink-0 flex items-center justify-between border-t border-slate-200/90 bg-slate-50 px-4 sm:px-5 py-3">
+          <div>
+            {currentStep === 1 ? (
               <button
                 type="button"
-                onClick={() => handleBuildTable(true)}
-                className="hidden sm:flex items-center gap-1 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-700 transition active:scale-95 cursor-pointer shrink-0 shadow-2xs"
-                title="現在の表はそのまま残し、別の新しい予定表として別名保存します"
+                onClick={onClose}
+                className="rounded-xl border border-slate-300 bg-white px-3 sm:px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 transition active:scale-95 cursor-pointer shadow-2xs"
               >
-                <Plus className="h-3.5 w-3.5 text-slate-500" />
-                <span>別名で新しく保存</span>
+                キャンセル
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setCurrentStep((currentStep - 1) as 1 | 2 | 3 | 4)}
+                className="flex items-center gap-1 rounded-xl border border-slate-300 bg-white px-3 sm:px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition active:scale-95 cursor-pointer shadow-2xs"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span>戻る</span>
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => handleBuildTable(false)}
-              className="flex items-center justify-center gap-1.5 rounded-xl px-3 sm:px-5 py-2.5 text-xs font-bold transition shadow-md min-w-0 bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-700 hover:to-sky-700 text-white cursor-pointer active:scale-98"
-            >
-              <Check className="h-4 w-4 shrink-0" />
-              <span className="truncate">
-                {effectiveIsEdit
-                  ? 'この表の設定を更新'
-                  : includeSampleTasks
+          </div>
+
+          <div className="flex items-center gap-2">
+            {currentStep < 4 ? (
+              <button
+                type="button"
+                onClick={() => setCurrentStep((currentStep + 1) as 1 | 2 | 3 | 4)}
+                className="flex items-center gap-1 rounded-xl bg-indigo-600 px-4 sm:px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-indigo-700 transition active:scale-95 cursor-pointer"
+              >
+                <span>次へ進む</span>
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleApply}
+                className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 sm:px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition active:scale-95 cursor-pointer"
+              >
+                <Check className="h-4 w-4 stroke-[2.5]" />
+                <span>
+                  {includeSampleTasks
                     ? `「${tableName || 'この表'}」を作成（${tableTaskCount}${tableType === 'fixed' ? 'コマ' : '枠'}・代表予定入り）`
                     : `「${tableName || 'この表'}」を作成（${tableTaskCount}${tableType === 'fixed' ? 'コマ' : '枠'}の空表）`}
-              </span>
-            </button>
+                </span>
+              </button>
+            )}
           </div>
         </div>
       </div>
