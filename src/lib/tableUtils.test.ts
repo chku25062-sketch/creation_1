@@ -1016,6 +1016,59 @@ describe('tableUtils', () => {
         expect(startTime).toBe('08:30');
         expect(hasExplicitTime).toBe(true);
       });
+
+      it('昼休み設定（hasLunch: true, lunchAfterPeriod: 2, lunchMinutes: 50）がある場合、昼休み直前コマの休憩時間が50分になること', () => {
+        const tableWithLunch: ImportedTableData = {
+          ...createBaseTable('09:00'),
+          axisConfig: {
+            startTime: '09:00',
+            periodMinutes: 90,
+            intervalMinutes: 10,
+            hasLunch: true,
+            lunchAfterPeriod: 2,
+            lunchMinutes: 50,
+          },
+          cells: [
+            [
+              {
+                periodIndex: 1,
+                dayIndex: 0,
+                text: '1限',
+                title: '1限',
+                roomOrNote: '',
+                fullText: '1限',
+                rawLines: ['1限'],
+                startMinutes: 540,
+                endMinutes: 630,
+              },
+            ],
+            [
+              {
+                periodIndex: 2,
+                dayIndex: 0,
+                text: '2限',
+                title: '2限',
+                roomOrNote: '',
+                fullText: '2限',
+                rawLines: ['2限'],
+                startMinutes: 640,
+                endMinutes: 730,
+              },
+            ],
+          ],
+        };
+
+        const { slots } = generateScheduleItemsForTable(tableWithLunch);
+        expect(slots).toHaveLength(2);
+
+        // 1限の直後は通常の休憩時間（10分）
+        const slot1 = slots.find((s) => s.title === '1限')!;
+        expect(slot1.breakMinutes).toBe(10);
+
+        // 2限の直後は設定された昼休み（50分）
+        const slot2 = slots.find((s) => s.title === '2限')!;
+        expect(slot2.breakMinutes).toBe(50);
+      });
     });
   });
 });

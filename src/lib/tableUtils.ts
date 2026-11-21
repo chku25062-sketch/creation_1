@@ -529,14 +529,22 @@ export function generateScheduleItemsForTable(
       const cycleIdx = colInfo.cycleIndex !== undefined ? colInfo.cycleIndex : c;
 
       // ★ このセルまたは表全体の有効な休憩時間（分）
-      // セル個別の breakMinutes があれば優先、なければ表全体の axisConfig.intervalMinutes を採用
+      // セル個別の breakMinutes があれば優先、なければ表全体の規定（昼休みコマなら昼休み、それ以外は intervalMinutes）を採用
+      const isLunchAfterPeriod =
+        Boolean(table.axisConfig.hasLunch) &&
+        table.axisConfig.lunchAfterPeriod === (r + 1);
+
+      const tableBreakFallback = isLunchAfterPeriod
+        ? (table.axisConfig.lunchMinutes ?? 50)
+        : table.axisConfig.intervalMinutes;
+
       const effectiveBreakMinutes =
         cell.breakMinutes !== undefined && cell.breakMinutes > 0
           ? cell.breakMinutes
-          : table.axisConfig.intervalMinutes !== null &&
-              table.axisConfig.intervalMinutes !== undefined &&
-              table.axisConfig.intervalMinutes > 0
-            ? table.axisConfig.intervalMinutes
+          : tableBreakFallback !== null &&
+              tableBreakFallback !== undefined &&
+              tableBreakFallback > 0
+            ? tableBreakFallback
             : undefined;
 
       if (classification === 'fixed_slot') {

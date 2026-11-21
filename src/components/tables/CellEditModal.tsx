@@ -82,7 +82,14 @@ export function CellEditModal({
     periodTimes,
   );
 
-  const tableIntervalMinutes = activeTable.axisConfig.intervalMinutes ?? 0;
+  const periodIndex = editingCell.r + 1;
+  const isLunchAfterThisPeriod =
+    Boolean(activeTable.axisConfig.hasLunch) &&
+    activeTable.axisConfig.lunchAfterPeriod === periodIndex;
+
+  const tableIntervalMinutes = isLunchAfterThisPeriod
+    ? (activeTable.axisConfig.lunchMinutes ?? 50)
+    : (activeTable.axisConfig.intervalMinutes ?? 0);
   const [cellEditText, setCellEditText] = useState(initialCell.text || initialCell.title || '');
   const [cellBreakMinutes, setCellBreakMinutes] = useState<number>(
     initialCell.breakMinutes !== undefined && initialCell.breakMinutes !== null
@@ -395,8 +402,12 @@ export function CellEditModal({
               <div className="flex items-center gap-2">
                 <Coffee className="h-5 w-5 text-amber-600 shrink-0" />
                 <div>
-                  <div className="text-xs font-bold text-slate-800">タスク後の休憩時間</div>
-                  <div className="text-[10px] text-slate-500">コマ直後に確保する休憩</div>
+                  <div className="text-xs font-bold text-slate-800">
+                    タスク後の休憩時間{isLunchAfterThisPeriod ? ' (昼休み)' : ''}
+                  </div>
+                  <div className="text-[10px] text-slate-500">
+                    {isLunchAfterThisPeriod ? '※このコマの後は設定された昼休みです' : 'コマ直後に確保する休憩'}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
@@ -422,9 +433,9 @@ export function CellEditModal({
                     type="button"
                     onClick={() => setCellBreakMinutes(tableIntervalMinutes)}
                     className="text-[10px] text-slate-400 hover:text-slate-600 underline ml-1 cursor-pointer"
-                    title="表の規定休憩時間に戻す"
+                    title={`表の規定${isLunchAfterThisPeriod ? '昼休み' : '休憩'}時間に戻す`}
                   >
-                    リセット
+                    規定({isLunchAfterThisPeriod ? '昼休み' : ''}{tableIntervalMinutes}分)
                   </button>
                 )}
               </div>
@@ -735,8 +746,12 @@ export function CellEditModal({
           <div className="flex items-center gap-1.5">
             <Coffee className="h-4 w-4 text-amber-600 shrink-0" />
             <div>
-              <div className="text-xs font-bold text-slate-800">タスク後の休憩時間</div>
-              <div className="text-[10px] text-slate-500">直後に確保する休憩</div>
+              <div className="text-xs font-bold text-slate-800">
+                タスク後の休憩時間{isLunchAfterThisPeriod ? ' (昼休み)' : ''}
+              </div>
+              <div className="text-[10px] text-slate-500">
+                {isLunchAfterThisPeriod ? '※このコマの後は設定された昼休みです' : '直後に確保する休憩'}
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -757,9 +772,9 @@ export function CellEditModal({
                 type="button"
                 onClick={() => setCellBreakMinutes(tableIntervalMinutes)}
                 className="text-[10px] text-slate-400 hover:text-slate-600 underline ml-1 cursor-pointer"
-                title="表の規定休憩時間に戻す"
+                title={`表の規定${isLunchAfterThisPeriod ? '昼休み' : '休憩'}時間に戻す`}
               >
-                規定({tableIntervalMinutes}分)
+                規定({isLunchAfterThisPeriod ? '昼休み' : ''}{tableIntervalMinutes}分)
               </button>
             )}
           </div>
