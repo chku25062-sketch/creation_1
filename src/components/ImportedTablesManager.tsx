@@ -34,7 +34,7 @@ import {
   RotateCw,
   Sparkles,
   ExternalLink,
-  Zap,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { TableTemplateWizardModal } from '@/components/TableTemplateWizardModal';
 import { NewTableWizardModal } from '@/components/NewTableWizardModal';
@@ -2271,32 +2271,18 @@ export function ImportedTablesManager({
               {/* 高優先度メインバー（常時表示） */}
               <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-none border border-slate-200/90 bg-slate-50/95 px-2.5 py-1.5 text-xs text-slate-700 shadow-2xs">
                 <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                  {/* 0. 表のルール・タスク設定（Plan30: 統合ウィザードの編集モード） */}
+                  {/* 0. 表のルール・タスク設定（単一統合エディタ） */}
                   <button
                     type="button"
                     onClick={() => {
                       setWizardTargetTable(activeTable);
                       setIsNewWizardOpen(true);
                     }}
-                    title="この表の分類、時間帯、ペース、タスク所要時間を調整します"
-                    className="flex items-center gap-1 rounded-none border border-indigo-300 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-500 px-2 py-0.5 text-[11px] font-bold text-indigo-700 shadow-2xs transition active:scale-95 cursor-pointer"
+                    title="この表の分類、時間帯、ペース、タスク所要時間の変更や、新しい表の追加を行います"
+                    className="flex items-center gap-1.5 rounded-none border border-indigo-300 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-500 px-2.5 py-0.5 text-[11px] font-bold text-indigo-700 shadow-2xs transition active:scale-95 cursor-pointer"
                   >
-                    <Zap className="h-3.5 w-3.5 text-indigo-600 fill-indigo-100" />
-                    <span className="whitespace-nowrap">表のルール設定</span>
-                  </button>
-
-                  {/* 質問から新規作成 */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setWizardTargetTable(null);
-                      setIsNewWizardOpen(true);
-                    }}
-                    title="対話形式の質問に答えて新しい予定表を作成します"
-                    className="flex items-center gap-1 rounded-none border border-sky-300 bg-sky-50/80 hover:bg-sky-100 hover:border-sky-500 px-2 py-0.5 text-[11px] font-bold text-sky-700 shadow-2xs transition active:scale-95 cursor-pointer"
-                  >
-                    <Sparkles className="h-3.5 w-3.5 text-sky-600" />
-                    <span className="whitespace-nowrap">質問から新規作成</span>
+                    <SlidersHorizontal className="h-3.5 w-3.5 text-indigo-600" />
+                    <span className="whitespace-nowrap">表のルール・タスク設定</span>
                   </button>
 
                   {/* 1. 配置方法の選択（固定配置 / 自動配置） */}
@@ -3470,8 +3456,8 @@ export function ImportedTablesManager({
 
             {/* ドロワーコンテンツ (スクロール可能: 上から順に設定していく最適化フロー) */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 divide-y divide-slate-100">
-              {/* セクション 0: 表のルール・タスク設定（Plan30: 統合ウィザード） */}
-              <div className="pt-1 space-y-2">
+              {/* セクション 0: 表のルール・タスク設定（単一統合エディタ） */}
+              <div className="pt-1">
                 <button
                   type="button"
                   onClick={() => {
@@ -3481,20 +3467,8 @@ export function ImportedTablesManager({
                   }}
                   className="w-full flex items-center justify-center gap-2 rounded-xl border border-indigo-300 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-500 py-3 text-xs font-bold text-indigo-800 shadow-2xs transition active:scale-98 cursor-pointer"
                 >
-                  <Zap className="h-4 w-4 text-indigo-600 fill-indigo-100" />
+                  <SlidersHorizontal className="h-4 w-4 text-indigo-600" />
                   <span>表のルール・タスク設定</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMobileSettingsOpen(false);
-                    setWizardTargetTable(null);
-                    setIsNewWizardOpen(true);
-                  }}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-sky-300 bg-sky-50/80 hover:bg-sky-100 hover:border-sky-500 py-2.5 text-xs font-bold text-sky-800 shadow-2xs transition active:scale-98 cursor-pointer"
-                >
-                  <Sparkles className="h-4 w-4 text-sky-600" />
-                  <span>質問に答えて新しい表を作成</span>
                 </button>
               </div>
 

@@ -260,7 +260,12 @@ export function NewTableWizardModal({
   onApplyTable,
   targetTable,
 }: NewTableWizardModalProps) {
-  const isEditMode = Boolean(targetTable);
+  // 編集モードから「白紙から新しく作る」への切り替えフラグ
+  const [isResetToNew, setIsResetToNew] = useState(false);
+  // おすすめテーマ雛形アコーディオンの開閉
+  const [showThemePresets, setShowThemePresets] = useState(false);
+
+  const effectiveIsEdit = Boolean(targetTable) && !isResetToNew;
 
   // ==========================================
   // Step 1: 表の設定ステート
@@ -299,6 +304,9 @@ export function NewTableWizardModal({
   // Plan30: targetTable または isOpen の変化時にフォーム初期値を設定（Pre-fill）
   useEffect(() => {
     if (!isOpen) return;
+
+    setIsResetToNew(false);
+    setShowThemePresets(false);
 
     if (targetTable) {
       // 既存表からの復元（編集モード）
@@ -497,8 +505,8 @@ export function NewTableWizardModal({
     return timeStringToMinutes(taskEndTime) < timeStringToMinutes(taskStartTime);
   }, [tableType, taskStartTime, taskEndTime]);
 
-  // 表の構築＆作成反映
-  const handleBuildTable = () => {
+  // 表の構築＆反映（asNewTable: true なら新しい表として別名保存）
+  const handleBuildTable = (asNewTable = false) => {
     if (draftTasks.length === 0) return;
 
     const finalTableName = tableName.trim() || currentTheme.defaultTableName || '新しいスケジュール表';
@@ -611,12 +619,17 @@ export function NewTableWizardModal({
       }
     }
 
-    // Plan30: 既存表の編集時はIDを維持
-    if (targetTable) {
+    // 既存表の上書き保存か、新規/別名保存かの判定
+    const isOverwritingExisting = effectiveIsEdit && !asNewTable;
+
+    if (isOverwritingExisting && targetTable) {
       generatedTable.id = targetTable.id;
+      onApplyTable(generatedTable, true);
+    } else {
+      // 新しい表として保存（新しいID発行）
+      onApplyTable(generatedTable, false);
     }
 
-    onApplyTable(generatedTable, Boolean(targetTable));
     onClose();
   };
 
@@ -635,30 +648,53 @@ export function NewTableWizardModal({
         <div className="shrink-0 flex items-center justify-between border-b border-slate-200/90 bg-gradient-to-r from-indigo-50/70 via-sky-50/40 to-slate-50 px-4 sm:px-5 py-3 sm:py-3.5">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs">
-              {isEditMode ? (
-                <Settings className="h-4 w-4 sm:h-5 sm:w-5" />
-              ) : (
-                <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
-              )}
+              <Settings className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-bold text-slate-900">
-                {isEditMode ? `表のルール・タスク設定: ${tableName}` : '質問に答えて予定表を作成'}
+                {effectiveIsEdit ? `表のルール・タスク設定: ${tableName}` : '予定表のルール・タスク作成'}
               </h3>
               <p className="text-[10px] sm:text-[11px] text-slate-500">
-                {isEditMode
+                {effectiveIsEdit
                   ? '表全体のルールや活動時間帯、登録タスクの所要時間を調整できます'
-                  : '①表の基本ルールを決め、②タスクを流し込むだけでスケジュール表が完成します'}
+                  : '表の基本ルールを決め、タスクを流し込むだけでスケジュール表が完成します'}
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {effectiveIsEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsResetToNew(true);
+                  setSelectedThemeId('daily_routine');
+                  setTableName('新しい予定表');
+                  setTableType('daily');
+                  setTimeSlot('all');
+                  setDailyRepeatPattern('everyday');
+                  setDailyTargetDays([0, 1, 2, 3, 4]);
+                  setDailyCycleLength(3);
+                  setDailyCycleStartDay(0);
+                  setFixedStartTime('09:00');
+                  setFixedEndTime('10:30');
+                  setDraftTasks([]);
+                }}
+                className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 sm:px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition active:scale-95 cursor-pointer shadow-2xs"
+                title="現在の表の内容をクリアし、白紙から新しい予定表を作成します"
+              >
+                <Plus className="h-3.5 w-3.5 text-slate-500" />
+                <span className="hidden sm:inline">白紙から新しく作る</span>
+                <span className="sm:hidden">白紙</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {/* スクロール本体 */}
@@ -673,87 +709,96 @@ export function NewTableWizardModal({
               </span>
               <div>
                 <h4 className="text-xs font-bold text-slate-900">
-                  表の設定（{isEditMode ? 'スケジューリング枠組の調整' : 'テーマと全体の配置ルール'}）
+                  表の設定（スケジューリング枠組の調整）
                 </h4>
                 <p className="text-[10px] text-slate-500">
-                  {isEditMode
-                    ? '表の分類や活動時間帯、繰り返しペースを変更できます'
-                    : '表全体のルールを1回決めることで、タスクをスムーズに追加できます'}
+                  表の分類や活動時間帯、繰り返しペースを設定できます
                 </p>
               </div>
             </div>
 
-            {/* A. テーマ選択（新規時） または 分類切り替え（編集時） */}
-            {!isEditMode ? (
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-700">
-                  どんなテーマの予定表を作りますか？
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {THEME_DEFINITIONS.map(theme => {
-                    const isSelected = selectedThemeId === theme.id;
-                    return (
-                      <button
-                        key={theme.id}
-                        type="button"
-                        onClick={() => handleSelectTheme(theme)}
-                        className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition cursor-pointer ${
-                          isSelected
-                            ? 'border-indigo-600 bg-white shadow-xs ring-2 ring-indigo-500/20'
-                            : 'border-slate-200 bg-white/70 hover:bg-white hover:border-slate-300'
-                        }`}
-                      >
-                        <span className="font-bold text-xs text-slate-800">{theme.label}</span>
-                        <span className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">
-                          {theme.description}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
+            {/* A. 表のスケジュール分類（常時選択可能） */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
                 <label className="block text-[11px] font-bold text-slate-700">
                   表のスケジュール分類
                 </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setTableType('daily')}
-                    className={`py-2 px-2.5 rounded-xl border text-center transition cursor-pointer text-xs ${
-                      tableType === 'daily'
-                        ? 'border-amber-500 bg-amber-50/90 text-amber-900 font-bold shadow-2xs ring-2 ring-amber-500/20'
-                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    日課（ルーティン）
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTableType('weekly')}
-                    className={`py-2 px-2.5 rounded-xl border text-center transition cursor-pointer text-xs ${
-                      tableType === 'weekly'
-                        ? 'border-blue-500 bg-blue-50/90 text-blue-900 font-bold shadow-2xs ring-2 ring-blue-500/20'
-                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    週次タスク
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTableType('fixed')}
-                    className={`py-2 px-2.5 rounded-xl border text-center transition cursor-pointer text-xs ${
-                      tableType === 'fixed'
-                        ? 'border-emerald-500 bg-emerald-50/90 text-emerald-900 font-bold shadow-2xs ring-2 ring-emerald-500/20'
-                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    固定枠（時間割）
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowThemePresets(prev => !prev)}
+                  className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  <span>{showThemePresets ? 'テーマ候補を閉じる' : 'おすすめテーマから入力'}</span>
+                </button>
               </div>
-            )}
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTableType('daily')}
+                  className={`py-2 px-2.5 rounded-xl border text-center transition cursor-pointer text-xs ${
+                    tableType === 'daily'
+                      ? 'border-amber-500 bg-amber-50/90 text-amber-900 font-bold shadow-2xs ring-2 ring-amber-500/20'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  日課（ルーティン）
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTableType('weekly')}
+                  className={`py-2 px-2.5 rounded-xl border text-center transition cursor-pointer text-xs ${
+                    tableType === 'weekly'
+                      ? 'border-blue-500 bg-blue-50/90 text-blue-900 font-bold shadow-2xs ring-2 ring-blue-500/20'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  週次タスク
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTableType('fixed')}
+                  className={`py-2 px-2.5 rounded-xl border text-center transition cursor-pointer text-xs ${
+                    tableType === 'fixed'
+                      ? 'border-emerald-500 bg-emerald-50/90 text-emerald-900 font-bold shadow-2xs ring-2 ring-emerald-500/20'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  固定枠（時間割）
+                </button>
+              </div>
+
+              {/* テーマ候補チップ（開閉式） */}
+              {showThemePresets && (
+                <div className="pt-2 pb-1">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2 bg-indigo-50/50 rounded-xl border border-indigo-100">
+                    {THEME_DEFINITIONS.map(theme => {
+                      const isSelected = selectedThemeId === theme.id;
+                      return (
+                        <button
+                          key={theme.id}
+                          type="button"
+                          onClick={() => {
+                            handleSelectTheme(theme);
+                            setShowThemePresets(false);
+                          }}
+                          className={`flex flex-col items-start p-2 rounded-lg border text-left transition cursor-pointer ${
+                            isSelected
+                              ? 'border-indigo-600 bg-white shadow-xs ring-1 ring-indigo-500/20'
+                              : 'border-slate-200 bg-white/80 hover:bg-white hover:border-slate-300'
+                          }`}
+                        >
+                          <span className="font-bold text-xs text-slate-800">{theme.label}</span>
+                          <span className="text-[10px] text-slate-400 line-clamp-1">
+                            {theme.description}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* B. 表の表示名 */}
             <div className="flex items-center gap-2 pt-1 border-t border-indigo-100/60">
@@ -1410,8 +1455,8 @@ export function NewTableWizardModal({
               <p className="text-[11px] text-indigo-600 flex items-center gap-1 pt-1">
                 <Sparkles className="h-3.5 w-3.5 shrink-0" />
                 <span>
-                  {isEditMode
-                    ? '所要時間の変更やタスクの追加・削除が完了したら、右下の「変更を保存して適用」を押してください。'
+                  {effectiveIsEdit
+                    ? '所要時間の変更やタスクの追加・削除が完了したら、右下の保存ボタンを押してください。'
                     : '続けて別のタスクも追加できます。準備ができたら右下の「表を作成する」を押してください。'}
                 </span>
               </p>
@@ -1428,21 +1473,35 @@ export function NewTableWizardModal({
           >
             キャンセル
           </button>
-          <button
-            type="button"
-            onClick={handleBuildTable}
-            disabled={draftTasks.length === 0}
-            className={`flex items-center justify-center gap-1.5 rounded-xl px-3 sm:px-5 py-2.5 text-xs font-bold transition shadow-md min-w-0 ${
-              draftTasks.length > 0
-                ? 'bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-700 hover:to-sky-700 text-white cursor-pointer active:scale-98'
-                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-            }`}
-          >
-            <Check className="h-4 w-4 shrink-0" />
-            <span className="truncate">
-              {isEditMode ? '変更を保存して適用' : `「${tableName || 'この表'}」を作成（${draftTasks.length}件）`}
-            </span>
-          </button>
+          <div className="flex items-center gap-2 min-w-0">
+            {effectiveIsEdit && (
+              <button
+                type="button"
+                onClick={() => handleBuildTable(true)}
+                disabled={draftTasks.length === 0}
+                className="hidden sm:flex items-center gap-1 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-700 transition active:scale-95 cursor-pointer shrink-0 shadow-2xs"
+                title="現在の表はそのまま残し、別の新しい予定表として別名保存します"
+              >
+                <Plus className="h-3.5 w-3.5 text-slate-500" />
+                <span>別名で新しく保存</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => handleBuildTable(false)}
+              disabled={draftTasks.length === 0}
+              className={`flex items-center justify-center gap-1.5 rounded-xl px-3 sm:px-5 py-2.5 text-xs font-bold transition shadow-md min-w-0 ${
+                draftTasks.length > 0
+                  ? 'bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-700 hover:to-sky-700 text-white cursor-pointer active:scale-98'
+                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              <Check className="h-4 w-4 shrink-0" />
+              <span className="truncate">
+                {effectiveIsEdit ? 'この表を上書き保存' : `「${tableName || 'この表'}」を作成（${draftTasks.length}件）`}
+              </span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
