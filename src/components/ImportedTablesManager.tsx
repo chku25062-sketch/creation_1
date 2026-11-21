@@ -2014,8 +2014,9 @@ export function ImportedTablesManager({
                   <div />
                 )}
 
-                {/* 右側: 簡単設定ボタン（単一統合ボタン） */}
+                {/* 右側: 簡単設定 ＆ 設定 ボタン */}
                 <div className="flex items-center gap-1.5 ml-auto">
+                  {/* 簡単設定ボタン（表のルール・タスク調整・新規作成） */}
                   <button
                     type="button"
                     onClick={() => {
@@ -2023,11 +2024,24 @@ export function ImportedTablesManager({
                       setIsNewWizardOpen(true);
                     }}
                     title="表のルールやタスク所要時間の簡単設定・新規作成を開く"
-                    className="flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-400 px-3 py-1 text-xs font-bold text-indigo-700 shadow-2xs active:scale-95 transition cursor-pointer"
+                    className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-300 px-2.5 py-1 text-xs font-bold text-indigo-700 shadow-2xs active:scale-95 transition cursor-pointer"
                   >
                     <SlidersHorizontal className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
                     <span>簡単設定</span>
                   </button>
+
+                  {/* 設定ボタン (activeTable がある場合のみ表示: マス目調整・インポートなどの詳細設定) */}
+                  {activeTable && !isSystemFile && (
+                    <button
+                      type="button"
+                      onClick={() => setIsMobileSettingsOpen(true)}
+                      title="表のマス目や取り込みなどの詳細設定を開く"
+                      className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700 shadow-2xs active:scale-95 transition cursor-pointer"
+                    >
+                      <Settings className="h-3.5 w-3.5 text-slate-600 shrink-0" />
+                      <span>設定</span>
+                    </button>
+                  )}
                 </div>
               </div>
             )}
