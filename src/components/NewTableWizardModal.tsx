@@ -83,6 +83,10 @@ interface ThemeDefinition {
   recommendedTimeSlot: TimeSlotOption;
   defaultDuration?: number; // 表の標準コマ時間・目安時間（分）
   defaultTargetDays?: number[];
+  defaultIntervalMinutes?: number; // 固定枠のコマ間休憩時間（分）
+  defaultEnableAttachedTask?: boolean; // 付随タスクの初期ON
+  defaultAttachedTaskDuration?: number; // 付随タスクの所要時間（分）
+  defaultWeeklyTargetCount?: number; // 週次タスクの目標回数
   suggestions: SuggestionPreset[];
 }
 
@@ -151,6 +155,9 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     recommendedTimeSlot: 'custom_fixed',
     defaultDuration: 90, // 大学の講義コマは90分
     defaultTargetDays: [0], // 曜日ごとの時間割のため初期値は月曜のみ
+    defaultIntervalMinutes: 10,
+    defaultEnableAttachedTask: true,
+    defaultAttachedTaskDuration: 30,
     suggestions: [
       {
         label: '講義・授業',
@@ -182,6 +189,8 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     recommendedTimeSlot: 'custom_fixed',
     defaultDuration: 240, // 4時間シフト等
     defaultTargetDays: [0, 1, 2, 3, 4], // 平日
+    defaultIntervalMinutes: 0,
+    defaultEnableAttachedTask: false,
     suggestions: [
       {
         label: '会社勤務',
@@ -211,6 +220,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     recommendedType: 'weekly',
     recommendedTimeSlot: 'all',
     defaultDuration: 60,
+    defaultWeeklyTargetCount: 2,
     suggestions: [
       { label: 'ジム・筋トレ', defaultDuration: 60, weeklyCount: 2 },
       { label: 'ジョギング・ランニング', defaultDuration: 45, weeklyCount: 2 },
@@ -226,6 +236,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     recommendedType: 'weekly',
     recommendedTimeSlot: 'all',
     defaultDuration: 60,
+    defaultWeeklyTargetCount: 2,
     suggestions: [
       { label: 'レポート課題', defaultDuration: 90, weeklyCount: 1 },
       { label: '部屋の掃除', defaultDuration: 45, weeklyCount: 1 },
@@ -304,6 +315,17 @@ export function NewTableWizardModal({
   // Plan30: 表全体のデフォルト所要時間（コマ時間 / 目安時間）
   const [defaultDuration, setDefaultDuration] = useState<number>(20);
 
+  // 固定枠のコマ間休憩時間（分。0, 5, 10, 15, 20 等。デフォルト 10分）
+  const [fixedIntervalMinutes, setFixedIntervalMinutes] = useState<number>(10);
+
+  // 固定枠の付随タスク（連動タスク）設定
+  const [enableAttachedTask, setEnableAttachedTask] = useState<boolean>(false);
+  const [attachedTaskDuration, setAttachedTaskDuration] = useState<number>(30);
+  const [attachedTaskTitleTemplate, setAttachedTaskTitleTemplate] = useState<string>('{title} のタスク');
+
+  // 週次タスクの1週間あたりの目標回数（デフォルト回数。1, 2, 3, 4, 5 等。デフォルト 2回）
+  const [weeklyTargetCount, setWeeklyTargetCount] = useState<number>(2);
+
   // テーマのおすすめ予定（サンプルタスク）を自動配置するか（デフォルトON）
   const [includeSampleTasks, setIncludeSampleTasks] = useState(true);
 
@@ -364,6 +386,13 @@ export function NewTableWizardModal({
 
       const initialDur = targetTable.axisConfig.periodMinutes || (mappedType === 'fixed' ? 90 : 20);
       setDefaultDuration(initialDur);
+
+      setFixedIntervalMinutes(targetTable.axisConfig.intervalMinutes ?? 10);
+      setEnableAttachedTask(Boolean(targetTable.attachedTaskConfig?.enabled));
+      setAttachedTaskDuration(targetTable.attachedTaskConfig?.durationMinutes || 30);
+      setAttachedTaskTitleTemplate(targetTable.attachedTaskConfig?.titleTemplate || '{title} のタスク');
+      const firstWeeklyCell = targetTable.cells?.flat().find(c => (c.targetWeeklyCount ?? 0) > 0);
+      setWeeklyTargetCount(firstWeeklyCell?.targetWeeklyCount || 2);
     } else {
       // 新規作成モード
       setSelectedThemeId('daily_routine');
@@ -377,6 +406,11 @@ export function NewTableWizardModal({
       setFixedStartTime('09:00');
       setFixedEndTime('10:30');
       setDefaultDuration(20);
+      setFixedIntervalMinutes(10);
+      setEnableAttachedTask(false);
+      setAttachedTaskDuration(30);
+      setAttachedTaskTitleTemplate('{title} のタスク');
+      setWeeklyTargetCount(2);
       setIncludeSampleTasks(true);
     }
   }, [isOpen, targetTable]);
@@ -412,6 +446,10 @@ export function NewTableWizardModal({
 
     const themeDuration = theme.defaultDuration || theme.suggestions[0]?.defaultDuration || 20;
     setDefaultDuration(themeDuration);
+    setFixedIntervalMinutes(theme.defaultIntervalMinutes ?? 10);
+    setEnableAttachedTask(Boolean(theme.defaultEnableAttachedTask));
+    setAttachedTaskDuration(theme.defaultAttachedTaskDuration || 30);
+    setWeeklyTargetCount(theme.defaultWeeklyTargetCount || 2);
   };
 
   // 表の構築＆反映（asNewTable: true なら新しい表として別名保存）
@@ -445,6 +483,7 @@ export function NewTableWizardModal({
         axisConfig: {
           ...targetTable.axisConfig,
           periodMinutes: defaultDuration,
+          intervalMinutes: tableType === 'fixed' ? fixedIntervalMinutes : targetTable.axisConfig.intervalMinutes,
           startTime: tableType === 'fixed' ? (fixedStartTime || '09:00') : slotStartTime,
           endTime: tableType === 'fixed' ? targetTable.axisConfig.endTime : slotEndTime,
         },
@@ -453,6 +492,13 @@ export function NewTableWizardModal({
       if (tableType === 'fixed') {
         generatedTable.placementMode = 'fixed';
         generatedTable.classificationOverride = 'fixed_slot';
+        generatedTable.attachedTaskConfig = enableAttachedTask
+          ? {
+              enabled: true,
+              durationMinutes: attachedTaskDuration,
+              titleTemplate: attachedTaskTitleTemplate || '{title} のタスク',
+            }
+          : undefined;
       } else if (tableType === 'weekly') {
         generatedTable.placementMode = 'auto';
         generatedTable.classificationOverride = 'weekly_task';
@@ -498,8 +544,8 @@ export function NewTableWizardModal({
           targetDays,
         });
 
-        // 次のタスク開始時刻（休憩時間 10分を考慮）
-        curStartMin = (endMin + 10) % (24 * 60);
+        // 次のタスク開始時刻（設定された休憩時間 fixedIntervalMinutes を考慮）
+        curStartMin = (endMin + fixedIntervalMinutes) % (24 * 60);
       });
 
       // 最大終了時刻の算出
@@ -522,12 +568,20 @@ export function NewTableWizardModal({
         endTime: autoEndTime,
       });
       generatedTable.axisConfig.periodMinutes = defaultDuration;
+      generatedTable.axisConfig.intervalMinutes = fixedIntervalMinutes;
+      if (enableAttachedTask) {
+        generatedTable.attachedTaskConfig = {
+          enabled: true,
+          durationMinutes: attachedTaskDuration,
+          titleTemplate: attachedTaskTitleTemplate || '{title} のタスク',
+        };
+      }
     } else if (tableType === 'weekly') {
       // 週次タスク表の生成
       const items: TemplateTaskItemInput[] = suggestions.map(s => ({
         title: s.label,
         durationMinutes: s.defaultDuration || defaultDuration,
-        weeklyCount: s.weeklyCount || 2,
+        weeklyCount: weeklyTargetCount,
       }));
 
       generatedTable = createWeeklyTaskTable({
@@ -1110,6 +1164,112 @@ export function NewTableWizardModal({
                   </div>
                 </div>
               </div>
+
+              {/* 固定枠の場合のコマ間休憩時間 ＆ 付随タスク連動設定 */}
+              {tableType === 'fixed' && (
+                <>
+                  <div className="pt-2.5 border-t border-indigo-100/60 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-700">コマ間の休憩時間</span>
+                      <span className="text-[10px] text-slate-400">コマ終了後に自動挿入される休憩</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {[0, 5, 10, 15, 20].map(m => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setFixedIntervalMinutes(m)}
+                          className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
+                            fixedIntervalMinutes === m
+                              ? 'bg-emerald-600 text-white shadow-2xs'
+                              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          {m === 0 ? 'なし (0分)' : `${m}分${m === 10 ? ' (標準)' : ''}`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-2.5 border-t border-indigo-100/60 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={enableAttachedTask}
+                          onChange={e => setEnableAttachedTask(e.target.checked)}
+                          className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        />
+                        <span className="text-[11px] font-bold text-slate-800">
+                          講義・予定の後に付随タスク（復習・課題レポート・移動等）を連動生成する
+                        </span>
+                      </label>
+                    </div>
+                    {enableAttachedTask && (
+                      <div className="rounded-xl bg-indigo-50/60 p-2.5 border border-indigo-100 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold text-slate-600">付随タスクの所要時間:</span>
+                          <div className="flex items-center gap-1">
+                            {[15, 30, 45, 60].map(dur => (
+                              <button
+                                key={dur}
+                                type="button"
+                                onClick={() => setAttachedTaskDuration(dur)}
+                                className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition cursor-pointer ${
+                                  attachedTaskDuration === dur
+                                    ? 'bg-indigo-600 text-white shadow-2xs'
+                                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                                }`}
+                              >
+                                {dur}分
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold text-slate-600">タスク名テンプレート:</span>
+                          <input
+                            type="text"
+                            value={attachedTaskTitleTemplate}
+                            onChange={e => setAttachedTaskTitleTemplate(e.target.value)}
+                            placeholder="{title} のタスク"
+                            className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-800 w-44 outline-none focus:border-indigo-500"
+                          />
+                        </div>
+                        <p className="text-[9px] text-slate-500">
+                          ※ 「{`{title}`}」部分が各講義・予定の名前に自動で置き換わります（例: 英語 のタスク）
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* 週次タスクの場合の1週間の目標回数 */}
+              {tableType === 'weekly' && (
+                <div className="pt-2.5 border-t border-indigo-100/60 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-700">1週間の目標回数（目安）</span>
+                    <span className="text-[10px] text-slate-400">週に何回行うか</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {[1, 2, 3, 4, 5, 7].map(cnt => (
+                      <button
+                        key={cnt}
+                        type="button"
+                        onClick={() => setWeeklyTargetCount(cnt)}
+                        className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
+                          weeklyTargetCount === cnt
+                            ? 'bg-blue-600 text-white shadow-2xs'
+                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        {cnt === 7 ? '毎日 (週7回)' : `週${cnt}回${cnt === 2 ? ' (標準)' : ''}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* E. 表の作成オプション（新規作成時のみ） */}
               {!effectiveIsEdit && (

@@ -717,4 +717,77 @@ describe('Table Templates Generator (Plan22 仮実装検証)', () => {
       expect(day3Task?.cycleDays).toEqual([2]);
     });
   });
+
+  describe('Plan30: 簡単設定における固定枠休憩時間・付随タスク設定、週次目標回数の検証', () => {
+    it('固定枠表に休憩時間(intervalMinutes)と付随タスク設定(attachedTaskConfig)が正しく反映され、連動タスクが生成されること', () => {
+      const table = createFixedSlotTable({
+        name: '大学講義時間割',
+        multiSlots: {
+          items: [
+            { title: '線形代数', startTime: '09:00', endTime: '10:30', targetDays: [0] },
+            { title: '物理学', startTime: '10:40', endTime: '12:10', targetDays: [0] },
+          ],
+        },
+        daysCount: 7,
+        isRepeat: false,
+        repeatStartDay: 0,
+        startTime: '09:00',
+        endTime: '12:10',
+      });
+
+      // 簡単設定で設定される intervalMinutes と attachedTaskConfig を付与
+      table.axisConfig.intervalMinutes = 10;
+      table.attachedTaskConfig = {
+        enabled: true,
+        durationMinutes: 30,
+        titleTemplate: '{title} の課題レポート',
+      };
+
+      expect(table.axisConfig.intervalMinutes).toBe(10);
+      expect(table.attachedTaskConfig.enabled).toBe(true);
+
+      const { tasks, slots } = generateScheduleItemsForTable(table);
+      expect(slots).toHaveLength(2);
+
+      // 付随タスクが各講義に対して連動生成されること（2講義分＝2タスク、名称は「〜のタスク」）
+      expect(tasks).toHaveLength(2);
+      const mathAttached = tasks.find((t) => t.title === '線形代数 のタスク');
+      expect(mathAttached).toBeDefined();
+      expect(mathAttached?.durationMinutes).toBe(30);
+      expect(mathAttached?.isAttachedTask).toBe(true);
+      expect(mathAttached?.parentTitle).toBe('線形代数');
+    });
+
+    it('週次タスク表で指定された週目標回数(weeklyCount: 3)がセルとタスクに正しく引き継がれること', () => {
+      const table = createWeeklyTaskTable({
+        name: 'フィットネス習慣',
+        daysCount: 7,
+        isRepeat: false,
+        multiTasks: {
+          items: [
+            { title: 'ジム・筋トレ', durationMinutes: 60, weeklyCount: 3 },
+            { title: 'ジョギング', durationMinutes: 45, weeklyCount: 2 },
+          ],
+        },
+        timeRange: { startTime: '06:00', endTime: '22:00' },
+      });
+
+      // セルに targetWeeklyCount が反映されていること
+      const gymCell = table.cells.flat().find((c) => c.title === 'ジム・筋トレ');
+      expect(gymCell?.targetWeeklyCount).toBe(3);
+
+      const jogCell = table.cells.flat().find((c) => c.title === 'ジョギング');
+      expect(jogCell?.targetWeeklyCount).toBe(2);
+
+      // タスク生成時にも frequencyCount (週目標回数) が反映されていること
+      const { tasks } = generateScheduleItemsForTable(table);
+      const gymTask = tasks.find((t) => t.title === 'ジム・筋トレ');
+      expect(gymTask?.period).toBe('week');
+      expect(gymTask?.frequencyCount).toBe(3);
+
+      const jogTask = tasks.find((t) => t.title === 'ジョギング');
+      expect(jogTask?.period).toBe('week');
+      expect(jogTask?.frequencyCount).toBe(2);
+    });
+  });
 });

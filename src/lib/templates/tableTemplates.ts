@@ -121,6 +121,9 @@ export interface FixedSlotTemplateInput {
   daysCount?: number; // 何日分の予定を設定するか（1〜14日）
   isRepeat?: boolean; // この予定をくり返すか
   repeatStartDay?: number; // 何曜日から始まるか（0:月〜6:日）
+
+  periodMinutes?: number;
+  intervalMinutes?: number;
 }
 
 const WEEKDAY_HEADERS = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'];
@@ -706,6 +709,22 @@ export function createFixedSlotTable(input: FixedSlotTemplateInput): ImportedTab
   }
   const firstDuration = firstEndMin - firstStartMin;
 
+  let maxSlotEndMinutes = 0;
+  slotItems.forEach((item) => {
+    const sMin = timeStringToMinutes(item.startTime);
+    let eMin = timeStringToMinutes(item.endTime);
+    if (eMin <= sMin) {
+      eMin += 1440;
+    }
+    if (eMin > maxSlotEndMinutes) {
+      maxSlotEndMinutes = eMin;
+    }
+  });
+  const fallbackEndTime =
+    maxSlotEndMinutes >= 1440
+      ? '24:00'
+      : `${String(Math.floor(maxSlotEndMinutes / 60)).padStart(2, '0')}:${String(maxSlotEndMinutes % 60).padStart(2, '0')}`;
+
   const table: ImportedTableData = {
     id,
     name: tableName,
@@ -723,10 +742,10 @@ export function createFixedSlotTable(input: FixedSlotTemplateInput): ImportedTab
     colHeaders,
     rowHeaders,
     axisConfig: {
-      startTime: slotItems[0]?.startTime || '00:00',
-      endTime: slotItems[0]?.endTime || '08:00',
-      periodMinutes: firstDuration,
-      intervalMinutes: 0,
+      startTime: input.startTime || slotItems[0]?.startTime || '00:00',
+      endTime: input.endTime || fallbackEndTime,
+      periodMinutes: input.periodMinutes || firstDuration,
+      intervalMinutes: input.intervalMinutes ?? 0,
       hasLunch: false,
       lunchAfterPeriod: 1,
       lunchMinutes: 50,
