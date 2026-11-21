@@ -19,7 +19,7 @@ import {
 } from '@/lib/templates/tableTemplates';
 import { getTableClassification } from '@/lib/tableUtils';
 import { NumberStepper } from './NumberStepper';
-import { timeStringToMinutes } from '@/lib/timeUtils';
+import { timeStringToMinutes, minutesToTimeString } from '@/lib/timeUtils';
 
 interface NewTableWizardModalProps {
   isOpen: boolean;
@@ -87,6 +87,7 @@ interface ThemeDefinition {
   defaultEnableAttachedTask?: boolean; // 付随タスクの初期ON
   defaultAttachedTaskDuration?: number; // 付随タスクの所要時間（分）
   defaultWeeklyTargetCount?: number; // 週次タスクの目標回数
+  defaultTaskCount?: number; // 表の標準枠数・コマ数（行数）
   suggestions: SuggestionPreset[];
 }
 
@@ -99,6 +100,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     recommendedType: 'daily',
     recommendedTimeSlot: 'all',
     defaultDuration: 20,
+    defaultTaskCount: 4,
     suggestions: [
       { label: '読書', defaultDuration: 20 },
       { label: '英語・学習', defaultDuration: 30 },
@@ -116,6 +118,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     recommendedType: 'daily',
     recommendedTimeSlot: 'morning',
     defaultDuration: 15,
+    defaultTaskCount: 4,
     suggestions: [
       { label: '朝食', defaultDuration: 20 },
       { label: '読書', defaultDuration: 20 },
@@ -133,6 +136,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     recommendedType: 'daily',
     recommendedTimeSlot: 'evening',
     defaultDuration: 20,
+    defaultTaskCount: 4,
     suggestions: [
       { label: '夕食', defaultDuration: 45 },
       { label: '入浴', defaultDuration: 30 },
@@ -158,6 +162,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     defaultIntervalMinutes: 10,
     defaultEnableAttachedTask: true,
     defaultAttachedTaskDuration: 30,
+    defaultTaskCount: 5,
     suggestions: [
       {
         label: '講義・授業',
@@ -191,6 +196,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     defaultTargetDays: [0, 1, 2, 3, 4], // 平日
     defaultIntervalMinutes: 0,
     defaultEnableAttachedTask: false,
+    defaultTaskCount: 3,
     suggestions: [
       {
         label: '会社勤務',
@@ -221,6 +227,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     recommendedTimeSlot: 'all',
     defaultDuration: 60,
     defaultWeeklyTargetCount: 2,
+    defaultTaskCount: 4,
     suggestions: [
       { label: 'ジム・筋トレ', defaultDuration: 60, weeklyCount: 2 },
       { label: 'ジョギング・ランニング', defaultDuration: 45, weeklyCount: 2 },
@@ -237,6 +244,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     recommendedTimeSlot: 'all',
     defaultDuration: 60,
     defaultWeeklyTargetCount: 2,
+    defaultTaskCount: 4,
     suggestions: [
       { label: 'レポート課題', defaultDuration: 90, weeklyCount: 1 },
       { label: '部屋の掃除', defaultDuration: 45, weeklyCount: 1 },
@@ -253,6 +261,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     recommendedTimeSlot: 'custom_fixed',
     defaultDuration: 60,
     defaultTargetDays: [0, 1, 2, 3, 4, 5, 6],
+    defaultTaskCount: 5,
     suggestions: [
       {
         label: '睡眠',
@@ -274,6 +283,7 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
     recommendedType: 'daily',
     recommendedTimeSlot: 'all',
     defaultDuration: 30,
+    defaultTaskCount: 4,
     suggestions: [
       { label: '読書', defaultDuration: 20 },
       { label: 'ストレッチ', defaultDuration: 15 },
@@ -325,6 +335,9 @@ export function NewTableWizardModal({
 
   // 週次タスクの1週間あたりの目標回数（デフォルト回数。1, 2, 3, 4, 5 等。デフォルト 2回）
   const [weeklyTargetCount, setWeeklyTargetCount] = useState<number>(2);
+
+  // 表の大きさ（コマ数 / タスク枠数 / 行数）
+  const [tableTaskCount, setTableTaskCount] = useState<number>(4);
 
   // テーマのおすすめ予定（サンプルタスク）を自動配置するか（デフォルトON）
   const [includeSampleTasks, setIncludeSampleTasks] = useState(true);
@@ -393,6 +406,7 @@ export function NewTableWizardModal({
       setAttachedTaskTitleTemplate(targetTable.attachedTaskConfig?.titleTemplate || '{title} のタスク');
       const firstWeeklyCell = targetTable.cells?.flat().find(c => (c.targetWeeklyCount ?? 0) > 0);
       setWeeklyTargetCount(firstWeeklyCell?.targetWeeklyCount || 2);
+      setTableTaskCount(targetTable.numRows || 4);
     } else {
       // 新規作成モード
       setSelectedThemeId('daily_routine');
@@ -411,6 +425,7 @@ export function NewTableWizardModal({
       setAttachedTaskDuration(30);
       setAttachedTaskTitleTemplate('{title} のタスク');
       setWeeklyTargetCount(2);
+      setTableTaskCount(4);
       setIncludeSampleTasks(true);
     }
   }, [isOpen, targetTable]);
@@ -450,6 +465,7 @@ export function NewTableWizardModal({
     setEnableAttachedTask(Boolean(theme.defaultEnableAttachedTask));
     setAttachedTaskDuration(theme.defaultAttachedTaskDuration || 30);
     setWeeklyTargetCount(theme.defaultWeeklyTargetCount || 2);
+    setTableTaskCount(theme.defaultTaskCount || theme.suggestions.length || 4);
   };
 
   // 表の構築＆反映（asNewTable: true なら新しい表として別名保存）
@@ -524,6 +540,7 @@ export function NewTableWizardModal({
     // 新規作成（または別名保存）の場合:
     // アプローチA: includeSampleTasks が true の場合、テーマの suggestions をベースに初期タスクを展開
     const suggestions = includeSampleTasks ? currentTheme.suggestions : [];
+    const count = Math.max(1, tableTaskCount);
 
     if (tableType === 'fixed') {
       // 固定枠表の生成
@@ -531,14 +548,17 @@ export function NewTableWizardModal({
       const targetDays = currentTheme.defaultTargetDays || [0];
       const items: FixedSlotItemInput[] = [];
 
-      suggestions.forEach(s => {
-        const dur = s.defaultDuration || defaultDuration;
-        const sTime = s.fixedStartTime || `${String(Math.floor(curStartMin / 60)).padStart(2, '0')}:${String(curStartMin % 60).padStart(2, '0')}`;
-        const endMin = (timeStringToMinutes(sTime) + dur) % (24 * 60);
-        const eTime = s.fixedEndTime || `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+      for (let i = 0; i < count; i++) {
+        const s = includeSampleTasks ? suggestions[i] : null;
+        const dur = s?.defaultDuration || defaultDuration;
+        const sTime = s?.fixedStartTime || minutesToTimeString(curStartMin);
+        const sStartMin = timeStringToMinutes(sTime);
+        const endMin = (sStartMin + dur) % (24 * 60);
+        const eTime = s?.fixedEndTime || minutesToTimeString(endMin);
+        const title = s?.label || (includeSampleTasks ? `${i + 1}限` : '');
 
         items.push({
-          title: s.label,
+          title,
           startTime: sTime,
           endTime: eTime,
           targetDays,
@@ -546,7 +566,7 @@ export function NewTableWizardModal({
 
         // 次のタスク開始時刻（設定された休憩時間 fixedIntervalMinutes を考慮）
         curStartMin = (endMin + fixedIntervalMinutes) % (24 * 60);
-      });
+      }
 
       // 最大終了時刻の算出
       let maxEndMin = 0;
@@ -555,9 +575,9 @@ export function NewTableWizardModal({
         if (eMin > maxEndMin) maxEndMin = eMin;
       });
       if (maxEndMin === 0) {
-        maxEndMin = timeStringToMinutes(fixedStartTime || '09:00') + defaultDuration * 4;
+        maxEndMin = timeStringToMinutes(fixedStartTime || '09:00') + defaultDuration * count;
       }
-      const autoEndTime = `${String(Math.floor(maxEndMin / 60)).padStart(2, '0')}:${String(maxEndMin % 60).padStart(2, '0')}`;
+      const autoEndTime = minutesToTimeString(maxEndMin);
 
       generatedTable = createFixedSlotTable({
         name: finalTableName,
@@ -578,11 +598,15 @@ export function NewTableWizardModal({
       }
     } else if (tableType === 'weekly') {
       // 週次タスク表の生成
-      const items: TemplateTaskItemInput[] = suggestions.map(s => ({
-        title: s.label,
-        durationMinutes: s.defaultDuration || defaultDuration,
-        weeklyCount: weeklyTargetCount,
-      }));
+      const items: TemplateTaskItemInput[] = [];
+      for (let i = 0; i < count; i++) {
+        const s = includeSampleTasks ? suggestions[i] : null;
+        items.push({
+          title: s?.label || (includeSampleTasks ? `タスク ${i + 1}` : ''),
+          durationMinutes: s?.defaultDuration || defaultDuration,
+          weeklyCount: s?.weeklyCount || weeklyTargetCount,
+        });
+      }
 
       generatedTable = createWeeklyTaskTable({
         name: finalTableName,
@@ -616,11 +640,15 @@ export function NewTableWizardModal({
           timeRange: { startTime: slotStartTime, endTime: slotEndTime },
         });
       } else if (dailyRepeatPattern === 'weekdays') {
-        const items: TemplateTaskItemInput[] = suggestions.map(s => ({
-          title: s.label,
-          durationMinutes: s.defaultDuration || defaultDuration,
-          targetDays: dailyTargetDays,
-        }));
+        const items: TemplateTaskItemInput[] = [];
+        for (let i = 0; i < count; i++) {
+          const s = includeSampleTasks ? suggestions[i] : null;
+          items.push({
+            title: s?.label || (includeSampleTasks ? `習慣 ${i + 1}` : ''),
+            durationMinutes: s?.defaultDuration || defaultDuration,
+            targetDays: dailyTargetDays,
+          });
+        }
 
         generatedTable = createDailyRoutineTable({
           name: finalTableName,
@@ -635,10 +663,14 @@ export function NewTableWizardModal({
         });
       } else {
         // 毎日同じ
-        const items: TemplateTaskItemInput[] = suggestions.map(s => ({
-          title: s.label,
-          durationMinutes: s.defaultDuration || defaultDuration,
-        }));
+        const items: TemplateTaskItemInput[] = [];
+        for (let i = 0; i < count; i++) {
+          const s = includeSampleTasks ? suggestions[i] : null;
+          items.push({
+            title: s?.label || (includeSampleTasks ? `習慣 ${i + 1}` : ''),
+            durationMinutes: s?.defaultDuration || defaultDuration,
+          });
+        }
 
         generatedTable = createDailyRoutineTable({
           name: finalTableName,
@@ -1165,6 +1197,66 @@ export function NewTableWizardModal({
                 </div>
               </div>
 
+              {/* 表の大きさ（コマ数 / タスク個数）: サイクル日課以外で表示 */}
+              {!(tableType === 'daily' && dailyRepeatPattern === 'cycle') && (
+                <div className="pt-2.5 border-t border-indigo-100/60 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-700">
+                      {tableType === 'fixed'
+                        ? '1日のコマ数（表の大きさ）'
+                        : tableType === 'weekly'
+                          ? '登録するタスク枠の個数'
+                          : '登録する習慣・タスク枠の個数'}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {tableType === 'fixed'
+                        ? `${fixedStartTime || '09:00'} 〜 ${(() => {
+                            const sMin = timeStringToMinutes(fixedStartTime || '09:00');
+                            const total = (defaultDuration + fixedIntervalMinutes) * tableTaskCount - fixedIntervalMinutes;
+                            const eMin = (sMin + total) % (24 * 60);
+                            return minutesToTimeString(eMin);
+                          })()} (${tableTaskCount}コマ)`
+                        : `${tableTaskCount}枠`}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {(tableType === 'fixed'
+                      ? [3, 4, 5, 6, 7]
+                      : tableType === 'weekly'
+                        ? [2, 3, 4, 5, 6]
+                        : [2, 3, 4, 5, 6, 8]
+                    ).map(cnt => (
+                      <button
+                        key={cnt}
+                        type="button"
+                        onClick={() => setTableTaskCount(cnt)}
+                        className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
+                          tableTaskCount === cnt
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        {tableType === 'fixed' ? `${cnt}コマ` : `${cnt}個`}
+                        {tableType === 'fixed' && cnt === 5 ? ' (標準)' : ''}
+                        {tableType !== 'fixed' && cnt === 4 ? ' (標準)' : ''}
+                      </button>
+                    ))}
+                    <div className="flex items-center gap-1 ml-auto">
+                      <span className="text-[10px] text-slate-400">カスタム:</span>
+                      <NumberStepper
+                        value={tableTaskCount}
+                        onChange={val => setTableTaskCount(val)}
+                        min={1}
+                        max={tableType === 'fixed' ? 12 : 20}
+                        step={1}
+                        unit={tableType === 'fixed' ? 'コマ' : '個'}
+                        size="sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* 固定枠の場合のコマ間休憩時間 ＆ 付随タスク連動設定 */}
               {tableType === 'fixed' && (
                 <>
@@ -1329,8 +1421,8 @@ export function NewTableWizardModal({
                 {effectiveIsEdit
                   ? 'この表の設定を更新'
                   : includeSampleTasks
-                    ? `「${tableName || 'この表'}」を作成（代表予定入り）`
-                    : `「${tableName || 'この表'}」を作成（空の表）`}
+                    ? `「${tableName || 'この表'}」を作成（${tableTaskCount}${tableType === 'fixed' ? 'コマ' : '枠'}・代表予定入り）`
+                    : `「${tableName || 'この表'}」を作成（${tableTaskCount}${tableType === 'fixed' ? 'コマ' : '枠'}の空表）`}
               </span>
             </button>
           </div>

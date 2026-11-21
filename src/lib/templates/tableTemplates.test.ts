@@ -789,5 +789,47 @@ describe('Table Templates Generator (Plan22 仮実装検証)', () => {
       expect(jogTask?.period).toBe('week');
       expect(jogTask?.frequencyCount).toBe(2);
     });
+
+    it('タスク個数（コマ数・枠数）の指定によって表の大きさ(numRows)が正確に決定されること', () => {
+      // 5コマ指定の固定枠
+      const fixedItems = [
+        { title: '1限', startTime: '09:00', endTime: '10:30', targetDays: [0] },
+        { title: '2限', startTime: '10:40', endTime: '12:10', targetDays: [0] },
+        { title: '3限', startTime: '13:00', endTime: '14:30', targetDays: [0] },
+        { title: '4限', startTime: '14:40', endTime: '16:10', targetDays: [0] },
+        { title: '5限', startTime: '16:20', endTime: '17:50', targetDays: [0] },
+      ];
+      const fixedTable = createFixedSlotTable({
+        name: '大学5コマ時間割',
+        multiSlots: { items: fixedItems },
+        daysCount: 7,
+        isRepeat: false,
+        startTime: '09:00',
+        endTime: '17:50',
+      });
+      expect(fixedTable.numRows).toBe(5);
+      expect(fixedTable.cells).toHaveLength(5);
+
+      const { slots } = generateScheduleItemsForTable(fixedTable);
+      expect(slots).toHaveLength(5);
+      expect(slots[0].title).toBe('1限');
+      expect(slots[4].title).toBe('5限');
+
+      // 3枠指定の週次タスク
+      const weeklyItems = [
+        { title: '課題A', durationMinutes: 60, weeklyCount: 2 },
+        { title: '課題B', durationMinutes: 45, weeklyCount: 1 },
+        { title: '課題C', durationMinutes: 30, weeklyCount: 3 },
+      ];
+      const weeklyTable = createWeeklyTaskTable({
+        name: '週次3タスク表',
+        daysCount: 7,
+        isRepeat: false,
+        multiTasks: { items: weeklyItems },
+        timeRange: { startTime: '09:00', endTime: '21:00' },
+      });
+      expect(weeklyTable.numRows).toBe(3);
+      expect(weeklyTable.cells).toHaveLength(3);
+    });
   });
 });
