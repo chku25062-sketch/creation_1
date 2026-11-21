@@ -56,6 +56,14 @@ const WEEKDAYS = [
 export type TableTypeMode = 'daily' | 'weekly' | 'fixed';
 export type TimeSlotOption = 'morning' | 'afternoon' | 'evening' | 'all' | 'custom_fixed';
 
+export const SLOT_TIME_DEFAULTS: Record<TimeSlotOption, { start: string; end: string }> = {
+  morning: { start: '07:00', end: '08:00' },
+  afternoon: { start: '13:00', end: '14:00' },
+  evening: { start: '19:00', end: '20:00' },
+  all: { start: '09:00', end: '10:00' },
+  custom_fixed: { start: '09:00', end: '10:30' },
+};
+
 // サジェスト候補チップデータ
 interface SuggestionPreset {
   label: string;
@@ -422,7 +430,17 @@ export function NewTableWizardModal({
     return THEME_DEFINITIONS.find(t => t.id === selectedThemeId) || THEME_DEFINITIONS[0];
   }, [selectedThemeId]);
 
-  // テーマ切り替えハンドラ（表名・タイプ・時間帯・初期曜日を連動初期化）
+  // 活動時間帯（timeSlot）の選択ハンドラ（タスク開始時刻も活動時間をもとに連動）
+  const handleSelectTimeSlot = (slot: TimeSlotOption) => {
+    setTimeSlot(slot);
+    const defaults = SLOT_TIME_DEFAULTS[slot] || SLOT_TIME_DEFAULTS.all;
+    setFixedStartTime(defaults.start);
+    setFixedEndTime(defaults.end);
+    setTaskStartTime(defaults.start);
+    setTaskEndTime(defaults.end);
+  };
+
+  // テーマ切り替えハンドラ（表名・タイプ・時間帯・初期曜日・開始時刻を連動初期化）
   const handleSelectTheme = (theme: ThemeDefinition) => {
     setSelectedThemeId(theme.id);
     setTableName(theme.defaultTableName);
@@ -432,34 +450,41 @@ export function NewTableWizardModal({
     const initialDays = theme.defaultTargetDays || [0];
     setTaskTargetDays(initialDays);
 
+    const timeDefaults = SLOT_TIME_DEFAULTS[theme.recommendedTimeSlot] || SLOT_TIME_DEFAULTS.all;
+    const sTime = theme.suggestions[0]?.fixedStartTime || timeDefaults.start;
+    const eTime = theme.suggestions[0]?.fixedEndTime || timeDefaults.end;
+
+    setFixedStartTime(sTime);
+    setFixedEndTime(eTime);
+    setTaskStartTime(sTime);
+    setTaskEndTime(eTime);
+
     if (theme.suggestions[0]) {
       setTaskDuration(theme.suggestions[0].defaultDuration);
       if (theme.suggestions[0].weeklyCount) {
         setTaskWeeklyCount(theme.suggestions[0].weeklyCount);
       }
-      if (theme.suggestions[0].fixedStartTime) {
-        setTaskStartTime(theme.suggestions[0].fixedStartTime);
-        setFixedStartTime(theme.suggestions[0].fixedStartTime);
-      }
-      if (theme.suggestions[0].fixedEndTime) {
-        setTaskEndTime(theme.suggestions[0].fixedEndTime);
-        setFixedEndTime(theme.suggestions[0].fixedEndTime);
-      }
     }
   };
 
-  // サジェストチップのタップ時（ワンタップ入力）
+  // サジェストチップのタップ時（活動時間をもとに開始時刻も自動設定）
   const handleApplySuggestion = (s: SuggestionPreset) => {
     setTaskTitle(s.label);
     setTaskDuration(s.defaultDuration);
     if (s.weeklyCount) {
       setTaskWeeklyCount(s.weeklyCount);
     }
-    if (s.fixedStartTime) {
-      setTaskStartTime(s.fixedStartTime);
-    }
+
+    const baseStart = s.fixedStartTime || taskStartTime || fixedStartTime || SLOT_TIME_DEFAULTS[timeSlot]?.start || '09:00';
+    setTaskStartTime(baseStart);
+
     if (s.fixedEndTime) {
       setTaskEndTime(s.fixedEndTime);
+    } else {
+      const startMin = timeStringToMinutes(baseStart);
+      const endMin = (startMin + s.defaultDuration) % (24 * 60);
+      const endStr = `${String(Math.floor(endMin / 60)).padStart(2, '0')}:${String(endMin % 60).padStart(2, '0')}`;
+      setTaskEndTime(endStr);
     }
   };
 
@@ -487,6 +512,22 @@ export function NewTableWizardModal({
 
     setDraftTasks(prev => [...prev, newTask]);
     setTaskTitle('');
+
+    // 固定枠の場合、次のタスクの開始時刻を前のタスクの終了時刻に自動進行
+    if (tableType === 'fixed' && taskStartTime && taskEndTime) {
+      const startMin = timeStringToMinutes(taskStartTime);
+      const endMin = timeStringToMinutes(taskEndTime);
+      let diff = endMin - startMin;
+      if (diff <= 0) diff += 24 * 60;
+      const nextStartMin = endMin % (24 * 60);
+      const nextEndMin = (nextStartMin + diff) % (24 * 60);
+
+      const nextStartStr = `${String(Math.floor(nextStartMin / 60)).padStart(2, '0')}:${String(nextStartMin % 60).padStart(2, '0')}`;
+      const nextEndStr = `${String(Math.floor(nextEndMin / 60)).padStart(2, '0')}:${String(nextEndMin % 60).padStart(2, '0')}`;
+
+      setTaskStartTime(nextStartStr);
+      setTaskEndTime(nextEndStr);
+    }
 
     // サイクル日課の場合、タスクを追加したら自動的に次のDayへ進める（Day 1 ➔ Day 2 ➔ Day 3...）
     if (tableType === 'daily' && dailyRepeatPattern === 'cycle') {
@@ -892,7 +933,7 @@ export function NewTableWizardModal({
                   <div className="grid grid-cols-4 gap-1">
                     <button
                       type="button"
-                      onClick={() => setTimeSlot('morning')}
+                      onClick={() => handleSelectTimeSlot('morning')}
                       className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${
                         timeSlot === 'morning'
                           ? 'bg-indigo-600 text-white shadow-2xs'
@@ -903,7 +944,7 @@ export function NewTableWizardModal({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setTimeSlot('afternoon')}
+                      onClick={() => handleSelectTimeSlot('afternoon')}
                       className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${
                         timeSlot === 'afternoon'
                           ? 'bg-indigo-600 text-white shadow-2xs'
@@ -914,7 +955,7 @@ export function NewTableWizardModal({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setTimeSlot('evening')}
+                      onClick={() => handleSelectTimeSlot('evening')}
                       className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${
                         timeSlot === 'evening'
                           ? 'bg-indigo-600 text-white shadow-2xs'
@@ -925,7 +966,7 @@ export function NewTableWizardModal({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setTimeSlot('all')}
+                      onClick={() => handleSelectTimeSlot('all')}
                       className={`rounded-lg py-1.5 text-[10px] font-bold transition cursor-pointer ${
                         timeSlot === 'all'
                           ? 'bg-indigo-600 text-white shadow-2xs'
