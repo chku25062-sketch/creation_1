@@ -835,8 +835,12 @@ export default function Home() {
       }`}
     >
       <main className="flex w-full flex-1 min-h-0 flex-col p-0 max-w-full">
-        {/* Sheet 1: 計画表 (メインタイムライン) */}
-        <div className={`flex flex-1 min-h-0 flex-col ${activeTab === 'timeline' ? '' : 'hidden'}`}>
+        {/* Sheet 1: 計画表 (メインタイムライン: オーバースクロール/バウンスを完全抑止) */}
+        <div
+          className={`flex flex-1 min-h-0 flex-col overscroll-none [overscroll-behavior:none] ${
+            activeTab === 'timeline' ? '' : 'hidden'
+          }`}
+        >
           <Timeline24h
             blocks={schedulingResult.blocks}
             dayBlocks={schedulingResult.dayBlocks}

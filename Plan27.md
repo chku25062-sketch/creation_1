@@ -224,3 +224,23 @@ flowchart TD
 - **Vitest ユニットテスト**: 全208件すべてパス（付随タスクメタ情報伝搬テストを追加）
 - **TypeScript 型検査**: エラー0件（`tsc --noEmit` 合格）
 - **ESLint 静的解析**: エラー・警告0件クリア
+
+---
+
+## 11. 実施記録: モバイルコマ編集ボトムシートの上部余白確保と計画表オーバースクロール抑止
+
+### 11.1. モバイル版コマ編集ボトムシートのフル画面化防止
+- **課題**: スマホ実機でコマをタップした際、ボトムシートが画面高さいっぱいに伸長（`max-h-[88vh]`）してしまい、背後の時間割が見えなくなることで「全画面モーダル」のように感じられ圧迫感があった。
+- **改修**:
+  - `src/components/tables/CellEditModal.tsx` のボトムシートコンテナに `max-h-[75dvh] max-h-[calc(100dvh-5.5rem)]` を適用。
+  - 上部に最低 25% 以上（または 88px 以上）の広々とした余白を常に確保し、背後の時間割テーブルが見える状態を維持。
+  - シート外の上部余白タップによる直感的な閉じる操作性を保証。
+
+### 11.2. 計画表タブのオーバースクロール（バウンス）無効化
+- **調査結果**:
+  - `ImportedTablesManager.tsx`（表データ）側では `overscroll-none [overscroll-behavior:none]` が設定されていた一方、**`Timeline24h.tsx`（計画表）のスクロールコンテナにはオーバースクロール抑止指定がなく、ブラウザ標準のバウンスがオンになっていた**。
+  - さらに、タスクカードコンテナに `overscrollBehavior: 'auto'` および `[overscroll-behavior:auto]` が明示的に付与されていた。
+- **改修**:
+  - `src/components/Timeline24h.tsx` の24時間スクロールコンテナに `overscroll-none [overscroll-behavior:none]` を設定。
+  - タスクカード内の不要な `overscrollBehavior: 'auto'` / `[overscroll-behavior:auto]` を完全除去。
+  - `src/app/page.tsx` のメインタイムラインラッパーにも `overscroll-none [overscroll-behavior:none]` を付与し、スマホ操作時における画面端の引っ張りバウンス現象を徹底抑止。

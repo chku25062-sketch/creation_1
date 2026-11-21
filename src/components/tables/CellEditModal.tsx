@@ -188,8 +188,8 @@ export function CellEditModal({
           onClick={onClose}
           className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity duration-200 animate-in fade-in cursor-pointer"
         />
-        {/* ボトムシートコンテナ */}
-        <div className="relative z-10 flex w-full max-h-[88vh] flex-col rounded-t-3xl bg-white shadow-2xl animate-in slide-in-from-bottom duration-250 overflow-hidden">
+        {/* ボトムシートコンテナ: 上部に十分な余白を確保しフル画面化を防止 */}
+        <div className="relative z-10 flex w-full max-h-[75dvh] max-h-[calc(100dvh-5.5rem)] flex-col rounded-t-3xl bg-white shadow-2xl animate-in slide-in-from-bottom duration-250 overflow-hidden">
           {/* 上部ハンドル ＆ ヘッダー */}
           <div className="flex flex-col items-center pt-2.5 pb-2.5 px-4 border-b border-slate-100 shrink-0">
             <div className="h-1 w-10 rounded-full bg-slate-300 mb-2" />

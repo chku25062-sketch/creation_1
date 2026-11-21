@@ -1117,11 +1117,11 @@ export function Timeline24h({
           </div>
         </div>
 
-        {/* Scrollable 24-Hour Grid Area (縦スクロール領域) */}
+        {/* Scrollable 24-Hour Grid Area (縦スクロール領域: 端の不要なバウンス・オーバースクロールを防止) */}
         <div
           ref={scrollContainerRef}
           onScroll={handleGridScroll}
-          className={`relative flex flex-1 min-h-0 overflow-y-auto overflow-x-auto scroll-instant ${
+          className={`relative flex flex-1 min-h-0 overflow-y-auto overflow-x-auto overscroll-none [overscroll-behavior:none] scroll-instant ${
             isPlanner ? 'planner-paper-bg' : 'bg-[#fdfcf9]'
           }`}
         >
@@ -1480,7 +1480,6 @@ export function Timeline24h({
                             const cardStyle: React.CSSProperties = {
                               top: `${top}px`,
                               height: `${height}px`,
-                              overscrollBehavior: 'auto',
                               backgroundColor: isPlanner
                                 ? block.isCompleted
                                   ? PLANNER_COMPLETED_BG
@@ -1507,7 +1506,7 @@ export function Timeline24h({
                                         : block.title
                                 }
                                 style={cardStyle}
-                                className={`!absolute overflow-hidden border [overscroll-behavior:auto] ${cardPositioningClass} ${
+                                className={`!absolute overflow-hidden border ${cardPositioningClass} ${
                                   isPlanner
                                     ? 'hover:brightness-[0.98] transition-all duration-100 rounded-none'
                                     : 'sticky-note rounded-md border transition-all duration-150 shadow-2xs'
