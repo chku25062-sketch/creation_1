@@ -105,6 +105,59 @@ export function SheetFooter({
   const footerRef = useRef<HTMLElement>(null);
   const [footerHeight, setFooterHeight] = useState(44);
 
+  // Plan28: データ管理タブとデータ切り替え機能の融合用ハンドラ（長押し/タップ/右クリック）
+  const dataTabPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isDataTabLongPressRef = useRef(false);
+
+  const handleDataTabPointerDown = () => {
+    isDataTabLongPressRef.current = false;
+    if (dataTabPressTimerRef.current) clearTimeout(dataTabPressTimerRef.current);
+
+    if (activeTab !== 'data' && onOpenMobileSwitcher) {
+      dataTabPressTimerRef.current = setTimeout(() => {
+        isDataTabLongPressRef.current = true;
+        if (typeof window !== 'undefined' && window.navigator && 'vibrate' in window.navigator) {
+          try {
+            window.navigator.vibrate(40);
+          } catch {
+            // ignore
+          }
+        }
+        onTabChange('data');
+        onOpenMobileSwitcher();
+      }, 500);
+    }
+  };
+
+  const handleDataTabPointerUp = () => {
+    if (dataTabPressTimerRef.current) {
+      clearTimeout(dataTabPressTimerRef.current);
+      dataTabPressTimerRef.current = null;
+    }
+  };
+
+  const handleDataTabClick = () => {
+    if (isDataTabLongPressRef.current) {
+      isDataTabLongPressRef.current = false;
+      return;
+    }
+    if (activeTab !== 'data') {
+      onTabChange('data');
+    } else if (onOpenMobileSwitcher) {
+      onOpenMobileSwitcher();
+    }
+  };
+
+  const handleDataTabContextMenu = (e: React.MouseEvent) => {
+    if (onOpenMobileSwitcher) {
+      e.preventDefault();
+      if (activeTab !== 'data') {
+        onTabChange('data');
+      }
+      onOpenMobileSwitcher();
+    }
+  };
+
   useEffect(() => {
     if (!footerRef.current) return;
     const updateHeight = () => {
@@ -330,48 +383,47 @@ export function SheetFooter({
             )}
           </button>
 
-          {/* Sheet 2: データ管理 (日・週・固定枠・取り込み表) */}
+          {/* Sheet 2: データ管理 ＆ データ切り替えの統合融合ボタン（Plan28） */}
           <button
-            onClick={() => onTabChange('data')}
-            className={`group shrink-0 flex items-center gap-1.5 rounded-none px-2.5 sm:px-3 py-1.5 text-xs transition border-b-0 ${
+            type="button"
+            onClick={handleDataTabClick}
+            onPointerDown={handleDataTabPointerDown}
+            onPointerUp={handleDataTabPointerUp}
+            onPointerLeave={handleDataTabPointerUp}
+            onContextMenu={handleDataTabContextMenu}
+            title={
+              activeTab === 'data'
+                ? 'タップして時間割・予定表を切り替え'
+                : 'データ管理（時間割・予定表）を表示（長押しで直接切り替え）'
+            }
+            className={`group shrink-0 flex items-center gap-1.5 rounded-none px-2.5 sm:px-3 py-1.5 text-xs transition border-b-0 min-w-0 max-w-[150px] xs:max-w-[180px] sm:max-w-[220px] select-none cursor-pointer active:scale-98 ${
               activeTab === 'data'
                 ? 'bg-white font-bold text-emerald-900 shadow-2xs border-t-2 border-t-emerald-600 border-x border-slate-300'
                 : 'bg-[#e2ddd0] hover:bg-[#ebe6d9] text-slate-600 border-t border-x border-transparent hover:border-slate-300'
             }`}
           >
-            <FileSpreadsheet
-              className={`h-3.5 w-3.5 ${
-                activeTab === 'data' ? 'text-emerald-600' : 'text-slate-500'
-              }`}
-            />
-            <span>データ管理</span>
-            {tablesCount > 0 && (
-              <span className="hidden rounded-full bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-800 sm:inline">
-                {tablesCount}
-              </span>
+            {activeTab === 'data' ? (
+              <Layers className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+            ) : (
+              <FileSpreadsheet className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+            )}
+
+            <span className="truncate">
+              {activeTab === 'data' ? activeDataName || 'データ管理' : 'データ管理'}
+            </span>
+
+            {activeTab === 'data' ? (
+              onOpenMobileSwitcher && (
+                <ChevronDown className="h-3 w-3 text-emerald-600/70 group-hover:text-emerald-700 shrink-0" />
+              )
+            ) : (
+              tablesCount > 0 && (
+                <span className="hidden rounded-full bg-emerald-100 px-1 py-0.2 text-[9px] font-bold text-emerald-800 sm:inline shrink-0">
+                  {tablesCount}
+                </span>
+              )
             )}
           </button>
-
-          {/* Sheet 3 / Mobile: データ切り替えタブ (現在開いているデータ名を表示し、タップで切り替え画面を開く) */}
-          {onOpenMobileSwitcher && (
-            <button
-              type="button"
-              onClick={() => {
-                if (activeTab !== 'data') {
-                  onTabChange('data');
-                }
-                onOpenMobileSwitcher();
-              }}
-              title="タップして時間割やタスクを切り替え"
-              className="group flex items-center gap-1 rounded-none px-2 sm:px-2.5 py-1.5 text-xs transition border-b-0 bg-[#ebe6d9] hover:bg-white text-slate-700 hover:text-blue-900 border-t border-x border-transparent hover:border-slate-300 shadow-2xs active:scale-95 cursor-pointer min-w-0 max-w-[100px] xs:max-w-[120px] sm:max-w-[170px]"
-            >
-              <Layers className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-              <span className="font-bold truncate text-[11px] sm:text-xs text-blue-950">
-                {activeDataName || 'データ選択'}
-              </span>
-              <ChevronDown className="h-3 w-3 text-slate-400 group-hover:text-blue-600 shrink-0" />
-            </button>
-          )}
         </div>
 
         {/* Center / Row 2: App Title in available space (スマホでは2行目・PCでは中央) */}
