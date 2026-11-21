@@ -338,11 +338,11 @@ export function TableQuickSettingsModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-2 sm:p-4 overflow-hidden animate-fadeIn"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-xs p-2 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] overflow-hidden animate-fadeIn"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-xl max-h-[calc(100dvh-1rem)] sm:max-h-[88vh] flex flex-col rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden"
+        className="relative w-full max-w-xl max-h-[calc(100dvh-2.5rem)] sm:max-h-[85vh] flex flex-col rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* ヘッダー */}
@@ -840,19 +840,19 @@ export function TableQuickSettingsModal({
           </div>
         </div>
 
-        {/* フッター（常に画面最下部に固定表示） */}
-        <div className="shrink-0 flex items-center justify-end gap-2.5 border-t border-slate-200 bg-slate-50 px-4 sm:px-5 py-3">
+        {/* フッター（常に画面最下部に固定表示、セーフエリア対応） */}
+        <div className="shrink-0 flex items-center justify-end gap-2.5 border-t border-slate-200 bg-slate-50/95 px-4 sm:px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+            className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition active:scale-95 cursor-pointer"
           >
             キャンセル
           </button>
           <button
             type="button"
             onClick={handleApply}
-            className="flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2 text-xs font-bold text-white shadow-md active:scale-98 transition cursor-pointer"
+            className="flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 text-xs font-bold text-white shadow-md active:scale-98 transition cursor-pointer"
           >
             <Check className="h-4 w-4" />
             <span>変更を適用</span>

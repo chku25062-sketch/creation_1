@@ -62,7 +62,7 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-xs">
       <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
         <button
           onClick={onClose}

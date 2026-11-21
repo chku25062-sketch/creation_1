@@ -294,7 +294,7 @@ export function FileImportModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-0 sm:p-2 backdrop-blur-xs">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/40 p-0 sm:p-2 pb-[max(0rem,env(safe-area-inset-bottom))] backdrop-blur-xs">
       <div className="relative flex h-[100dvh] sm:h-auto sm:max-h-[94vh] sm:min-h-[580px] w-full sm:max-w-5xl flex-col rounded-none sm:rounded-2xl border-0 sm:border border-slate-300 bg-[#fbfaf5] shadow-2xl overflow-hidden">
         {/* Header (固定・ノート調ホワイト) */}
         <div className="shrink-0 flex items-center justify-between border-b border-slate-200 bg-white/90 px-3 py-2 sm:px-4 sm:py-2">

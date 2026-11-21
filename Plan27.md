@@ -244,3 +244,34 @@ flowchart TD
   - `src/components/Timeline24h.tsx` の24時間スクロールコンテナに `overscroll-none [overscroll-behavior:none]` を設定。
   - タスクカード内の不要な `overscrollBehavior: 'auto'` / `[overscroll-behavior:auto]` を完全除去。
   - `src/app/page.tsx` のメインタイムラインラッパーにも `overscroll-none [overscroll-behavior:none]` を付与し、スマホ操作時における画面端の引っ張りバウンス現象を徹底抑止。
+
+---
+
+## 12. 実施記録: 質問作成・クイック設定モーダルの下部ボタン埋もれ不具合解消と全モーダルz-index最適化
+
+### 12.1. 不具合の事象と根本原因
+- **事象**: 「質問から表を作成する画面（`NewTableWizardModal`）」や「クイック設定画面（`TableQuickSettingsModal`）」を開いた際、最下部の操作ボタン（キャンセル・作成・適用）が埋もれて押せない問題が発生していた。
+- **根本原因**:
+  1. **【決定打: z-indexの衝突】**: アプリ全体の最下部に常駐するフッターバー（`SheetFooter.tsx`）が `z-50` を保持していた。モーダル側も `z-50` であったため、DOM構造上で後から描画される `SheetFooter` がモーダルの下部に覆い被さり、ボタンが物理的に覆い隠されていた。
+  2. **スマホのセーフエリア（`env(safe-area-inset-bottom)`）未対応**: モーダルフッターにセーフエリアパディングがなく、iPhoneのホームバー等の下部システム領域と重なっていた。
+  3. **モーダル高さ制限（max-h）の過大**: `max-h-[calc(100dvh-1rem)]` で画面いっぱいに広がり、上下マージンが不足していた。
+
+### 12.2. 実施した改修内容
+1. **全モーダルの z-index を `z-[70]` に統一引き上げ**:
+   - `NewTableWizardModal.tsx`（質問から表作成）: `z-50` ➔ `z-[70]`
+   - `TableQuickSettingsModal.tsx`（クイック設定）: `z-50` ➔ `z-[70]`
+   - `TableTemplateWizardModal.tsx`（テンプレート作成）: `z-50` ➔ `z-[70]`
+   - `FileImportModal.tsx`（ファイルインポート）: `z-50` ➔ `z-[70]`
+   - `AuthModal.tsx`（ログイン/同期）: `z-50` ➔ `z-[70]`
+   - これにより、`SheetFooter`（`z-50`）やサイドバーの上に確実に全画面オーバーレイされるレイヤー構造を確立。
+2. **モーダル下部セーフエリアパディングの追加**:
+   - 各モーダルのフッターに `pb-[max(0.75rem,env(safe-area-inset-bottom))]` を追加。
+   - オーバーレイ外枠にも `pb-[max(0.75rem,env(safe-area-inset-bottom))]` を付与し、スマホのホームバーに絶対に被らない安全領域を確保。
+3. **高さ制限の適正化**:
+   - `max-h-[calc(100dvh-2.5rem)] sm:max-h-[85vh]` に設定し、上下に確実なマージンを確保。
+   - ボタンのタップ領域（高さ・マージン）をスマホ向けに最適化。
+
+### 12.3. 検証結果
+- **Vitest ユニットテスト**: 全208件すべてパス
+- **TypeScript 型検査**: エラー0件クリア
+- **ESLint 静的解析**: エラー・警告0件クリア

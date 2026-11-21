@@ -759,8 +759,8 @@ export function TableTemplateWizardModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl overflow-hidden border border-slate-200">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-2 sm:p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="flex max-h-[calc(100dvh-2.5rem)] sm:max-h-[88vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl overflow-hidden border border-slate-200">
         {/* モーダルヘッダー */}
         <div className="flex items-center justify-between border-b border-slate-200 bg-linear-to-r from-blue-50 to-indigo-50 px-6 py-4">
           <div className="flex items-center gap-2.5">
@@ -1583,18 +1583,18 @@ export function TableTemplateWizardModal({
         </div>
 
         {/* モーダルフッター */}
-        <div className="shrink-0 flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
+        <div className="shrink-0 flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-4 sm:px-6 py-3 sm:py-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+            className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition active:scale-95"
           >
             キャンセル
           </button>
           <button
             type="button"
             onClick={handleGenerate}
-            className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2 text-xs font-bold text-white hover:bg-blue-700 shadow-sm transition active:scale-95"
+            className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-blue-700 shadow-sm transition active:scale-95"
           >
             <Sparkles className="h-4 w-4" />
             <span>{targetTable ? 'この表に設定を適用' : 'この内容で表を作成'}</span>
