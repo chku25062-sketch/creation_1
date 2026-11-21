@@ -109,6 +109,8 @@ export interface TheoreticalBlock {
   sourceTableId?: string; // 参照元テーブルID
   sourceTableName?: string; // 参照元テーブル名
   url?: string; // 関連URL（Zoom / LMS / 外部リンク等）
+  isAttachedTask?: boolean; // 付随タスクかどうか
+  parentTitle?: string; // 付随先の本タスク名
   // Plan11: リアルタイム完了状態・動的再配置・代行タスク用プロパティ
   isWeeklyTask?: boolean; // 週タスクかどうか（日課・固定枠と区別し、トグル可能にするフラグ）
   isCompleted?: boolean; // 完了状態（過去タスクまたは早期完了）

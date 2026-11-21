@@ -34,6 +34,7 @@ import {
 import { generateScheduleItemsForTable } from '@/lib/tableUtils';
 import { getMondayKey } from '@/lib/timeUtils';
 import { supabase } from '@/lib/supabase';
+import { CellJumpTargetInfo } from '@/components/Timeline24h';
 
 export default function Home() {
   const [fixedSlots, setFixedSlots] = useState<FixedSlot[]>([]);
@@ -45,21 +46,11 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<SheetTab>('timeline');
   // Plan26: タイムラインから「表データ」への逆引きジャンプ用対象テーブルIDおよび対象コマ情報
   const [targetTableIdForDataTab, setTargetTableIdForDataTab] = useState<string | null>(null);
-  const [targetCellInfoForDataTab, setTargetCellInfoForDataTab] = useState<{
-    title?: string;
-    dayIndex?: number;
-    taskId?: string;
-    startMinutes?: number;
-  } | null>(null);
+  const [targetCellInfoForDataTab, setTargetCellInfoForDataTab] = useState<CellJumpTargetInfo | null>(null);
 
   const handleJumpToSourceTable = (
     tableId: string,
-    cellInfo?: {
-      title?: string;
-      dayIndex?: number;
-      taskId?: string;
-      startMinutes?: number;
-    },
+    cellInfo?: CellJumpTargetInfo,
   ) => {
     setTargetTableIdForDataTab(tableId);
     setTargetCellInfoForDataTab(cellInfo || null);

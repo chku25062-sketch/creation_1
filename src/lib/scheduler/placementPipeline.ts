@@ -192,6 +192,8 @@ export function createPlaceContextHelper(ctx: SchedulingExecutionContext) {
         taskOriginWeek: taskCtx.task.taskOriginWeek,
         isFromLastWeek: taskCtx.task.isFromLastWeek,
         isYesterdayTask: isYesterday,
+        isAttachedTask: taskCtx.task.isAttachedTask,
+        parentTitle: taskCtx.task.parentTitle,
       });
 
       // スロット消費 & 分割

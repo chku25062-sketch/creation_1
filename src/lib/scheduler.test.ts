@@ -2050,6 +2050,32 @@ describe('Theoretical Scheduler Engine', () => {
         expect(result.dayBlocks[3].some((b) => b.title === '周期別筋トレ')).toBe(true);
       });
 
+      it('付随タスク（isAttachedTask / parentTitle）が配置後のTheoreticalBlockに正しく引き継がれ、長押し逆引きジャンプのメタ情報として保持されること', () => {
+        const attachedTask: TaskItem = {
+          id: 'task-attached-table1-1-1',
+          title: '数学演習 のタスク',
+          category: '課題',
+          priority: 'high',
+          durationMinutes: 45,
+          period: 'week',
+          frequency: 'custom',
+          frequencyCount: 1,
+          isAttachedTask: true,
+          parentTitle: '数学演習',
+          sourceTableId: 'table-test-1',
+          sourceTableName: '時間割表',
+        };
+
+        const result = generateTheoreticalSchedule([], [attachedTask]);
+        const block = result.allBlocks.find((b) => b.title === '数学演習 のタスク');
+
+        expect(block).toBeDefined();
+        expect(block?.isAttachedTask).toBe(true);
+        expect(block?.parentTitle).toBe('数学演習');
+        expect(block?.sourceTableId).toBe('table-test-1');
+        expect(block?.sourceTableName).toBe('時間割表');
+      });
+
       it('回数指定 (dailyCount: 1, dailyRepeatMode: custom) の日課タスクが空き枠に敷き詰められず1日1回のみ配置されること', () => {
         const fixedSlot: FixedSlot = {
           id: 'sleep',

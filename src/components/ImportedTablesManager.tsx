@@ -68,6 +68,7 @@ import {
   getCellDefaultStartTime,
 } from '@/lib/tableUtils';
 import { TaskManager } from '@/components/TaskManager';
+import { CellJumpTargetInfo } from '@/components/Timeline24h';
 
 interface ImportedTablesManagerProps {
   tables: ImportedTableData[];
@@ -85,12 +86,7 @@ interface ImportedTablesManagerProps {
   onMobileSwitcherOpenChange?: (open: boolean) => void;
   onActiveDataNameChange?: (name: string) => void;
   selectedTableId?: string | null;
-  targetCellInfo?: {
-    title?: string;
-    dayIndex?: number;
-    taskId?: string;
-    startMinutes?: number;
-  } | null;
+  targetCellInfo?: CellJumpTargetInfo | null;
   onClearTargetCellInfo?: () => void;
 }
 
@@ -899,44 +895,157 @@ export function ImportedTablesManager({
 
   // タイムラインからの逆引き長押しジャンプ時に、対象セルのコマ編集ポップオーバーを自動起動
   useEffect(() => {
-    if (!targetCellInfo || !activeTable || !activeTable.cells) return;
+    if (!targetCellInfo) return;
+
+    // 1. 対象となるテーブルの特定（selectedTableId が指定されていれば優先、なければ activeTable）
+    const targetTable =
+      (selectedTableId ? tables.find((t) => t.id === selectedTableId) : null) || activeTable;
+    if (!targetTable || !targetTable.cells) return;
+
+    // レースコンディション対策: 内部ステート selectedItemId が目的のテーブルと異なる場合、
+    // まずテーブルを切り替え、activeTable が同期する次のレンダーターンまで待機
+    if (selectedItemId !== targetTable.id) {
+      setSelectedItemId(targetTable.id);
+      return;
+    }
+
+    // 2. 検索キーワード候補群の抽出
+    const searchKeywords: string[] = [];
+    if (targetCellInfo.parentTitle?.trim()) {
+      searchKeywords.push(targetCellInfo.parentTitle.trim());
+    }
+    if (targetCellInfo.substitutedForTitle?.trim()) {
+      searchKeywords.push(targetCellInfo.substitutedForTitle.trim());
+    }
+    if (targetCellInfo.title?.trim()) {
+      const originalTitle = targetCellInfo.title.trim();
+      if (!searchKeywords.includes(originalTitle)) {
+        searchKeywords.push(originalTitle);
+      }
+      // 「〜の復習」「〜のタスク」「〜の予習」「〜の課題」「〜の準備」などの連動接尾辞や括弧を除去した正規化版
+      const cleaned = originalTitle
+        .replace(/\s*(の復習|の予習|の課題|のタスク|の準備|の確認|レポート|課題)$/i, '')
+        .replace(/\s*\([^)]*\)$/, '')
+        .trim();
+      if (cleaned && !searchKeywords.includes(cleaned)) {
+        searchKeywords.push(cleaned);
+      }
+    }
+
+    // 3. 曜日列のインデックス特定（ヘッダー走査）
+    const weekdayNames = ['月', '火', '水', '木', '金', '土', '日'];
+    let targetColIdx: number | undefined = undefined;
+    if (
+      targetCellInfo.dayIndex !== undefined &&
+      targetCellInfo.dayIndex >= 0 &&
+      targetCellInfo.dayIndex < 7
+    ) {
+      const targetDayName = weekdayNames[targetCellInfo.dayIndex];
+      if (targetTable.colHeaders && targetTable.colHeaders.length > 0) {
+        const foundIdx = targetTable.colHeaders.findIndex((h) => h.includes(targetDayName));
+        if (foundIdx >= 0) {
+          targetColIdx = foundIdx;
+        }
+      }
+      if (targetColIdx === undefined) {
+        targetColIdx = targetCellInfo.dayIndex;
+      }
+    }
 
     let targetCoord: { r: number; c: number } | null = null;
+    const targetPeriodTimes = calculatePeriodTimes(targetTable.numRows, targetTable.axisConfig);
 
-    // 1. タイトル一致を優先検索
-    if (targetCellInfo.title) {
-      const searchTitle = targetCellInfo.title.trim();
-      for (let r = 0; r < activeTable.cells.length; r++) {
-        for (let c = 0; c < activeTable.cells[r].length; c++) {
-          const cell = activeTable.cells[r][c];
+    // ステップA: キーワード完全一致（曜日列優先 ➔ 全列）
+    for (const kw of searchKeywords) {
+      if (targetColIdx !== undefined && targetColIdx < targetTable.numCols) {
+        for (let r = 0; r < targetTable.cells.length; r++) {
+          const cell = targetTable.cells[r]?.[targetColIdx];
+          if (cell) {
+            const cellText = (cell.text || cell.title || '').trim();
+            if (cellText === kw) {
+              targetCoord = { r, c: targetColIdx };
+              break;
+            }
+          }
+        }
+      }
+      if (targetCoord) break;
+
+      for (let r = 0; r < targetTable.cells.length; r++) {
+        for (let c = 0; c < (targetTable.cells[r]?.length || 0); c++) {
+          const cell = targetTable.cells[r][c];
           const cellText = (cell.text || cell.title || '').trim();
-          if (
-            cellText &&
-            (cellText === searchTitle ||
-              cellText.includes(searchTitle) ||
-              searchTitle.includes(cellText))
-          ) {
+          if (cellText === kw) {
             targetCoord = { r, c };
             break;
           }
         }
         if (targetCoord) break;
       }
+      if (targetCoord) break;
     }
 
-    // 2. タイトルで見つからず、dayIndex と startMinutes があれば時刻で検索
-    if (!targetCoord && targetCellInfo.dayIndex !== undefined && targetCellInfo.startMinutes !== undefined) {
-      const c = targetCellInfo.dayIndex;
-      for (let r = 0; r < activeTable.cells.length; r++) {
-        if (c < (activeTable.cells[r]?.length || 0)) {
-          const { startTime } = getCellDefaultStartTime(activeTable, r, c, periodTimes);
-          if (startTime) {
-            const m = timeStringToMinutes(startTime);
-            if (m === targetCellInfo.startMinutes) {
+    // ステップB: キーワード部分一致（曜日列優先 ➔ 全列）
+    if (!targetCoord) {
+      for (const kw of searchKeywords) {
+        if (kw.length < 2) continue;
+        if (targetColIdx !== undefined && targetColIdx < targetTable.numCols) {
+          for (let r = 0; r < targetTable.cells.length; r++) {
+            const cell = targetTable.cells[r]?.[targetColIdx];
+            if (cell) {
+              const cellText = (cell.text || cell.title || '').trim();
+              if (cellText && (cellText.includes(kw) || kw.includes(cellText))) {
+                targetCoord = { r, c: targetColIdx };
+                break;
+              }
+            }
+          }
+        }
+        if (targetCoord) break;
+
+        for (let r = 0; r < targetTable.cells.length; r++) {
+          for (let c = 0; c < (targetTable.cells[r]?.length || 0); c++) {
+            const cell = targetTable.cells[r][c];
+            const cellText = (cell.text || cell.title || '').trim();
+            if (cellText && (cellText.includes(kw) || kw.includes(cellText))) {
               targetCoord = { r, c };
               break;
             }
           }
+          if (targetCoord) break;
+        }
+        if (targetCoord) break;
+      }
+    }
+
+    // ステップC: 時刻によるフォールバック（開始時刻の近傍 ±15分）
+    if (!targetCoord && targetCellInfo.startMinutes !== undefined) {
+      const searchMinutes = targetCellInfo.startMinutes;
+      const colToCheck = targetColIdx !== undefined ? targetColIdx : targetCellInfo.dayIndex;
+
+      if (colToCheck !== undefined) {
+        let bestMatch: { r: number; c: number; diff: number } | null = null;
+        for (let r = 0; r < targetTable.cells.length; r++) {
+          if (colToCheck < (targetTable.cells[r]?.length || 0)) {
+            const { startTime } = getCellDefaultStartTime(
+              targetTable,
+              r,
+              colToCheck,
+              targetPeriodTimes,
+            );
+            if (startTime) {
+              const m = timeStringToMinutes(startTime);
+              const diff = Math.abs(m - searchMinutes);
+              if (diff <= 15) {
+                if (!bestMatch || diff < bestMatch.diff) {
+                  bestMatch = { r, c: colToCheck, diff };
+                }
+              }
+            }
+          }
+        }
+        if (bestMatch) {
+          targetCoord = { r: bestMatch.r, c: bestMatch.c };
         }
       }
     }
@@ -947,7 +1056,7 @@ export function ImportedTablesManager({
     if (onClearTargetCellInfo) {
       onClearTargetCellInfo();
     }
-  }, [targetCellInfo, activeTable]);
+  }, [targetCellInfo, selectedTableId, tables, selectedItemId, activeTable, onClearTargetCellInfo]);
 
   // コマ上から直接コピー（編集画面を開かずにワンタップでコピー）
   const handleCopyDirectCell = (r: number, c: number, e: React.MouseEvent) => {

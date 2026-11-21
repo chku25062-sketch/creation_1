@@ -21,6 +21,10 @@ export interface CellJumpTargetInfo {
   dayIndex?: number;
   taskId?: string;
   startMinutes?: number;
+  parentTitle?: string;
+  substitutedForTitle?: string;
+  isAttachedTask?: boolean;
+  taskType?: string;
 }
 
 interface Timeline24hProps {
@@ -404,6 +408,10 @@ function TimelineTaskCardBlock({
           dayIndex: block.dayIndex,
           taskId: block.id,
           startMinutes: block.startMinutes,
+          parentTitle: block.parentTitle,
+          substitutedForTitle: block.substitutedForTitle,
+          isAttachedTask: block.isAttachedTask,
+          taskType: block.taskType,
         });
       }
     }, 500);
@@ -440,6 +448,10 @@ function TimelineTaskCardBlock({
         dayIndex: block.dayIndex,
         taskId: block.id,
         startMinutes: block.startMinutes,
+        parentTitle: block.parentTitle,
+        substitutedForTitle: block.substitutedForTitle,
+        isAttachedTask: block.isAttachedTask,
+        taskType: block.taskType,
       });
     }
   };

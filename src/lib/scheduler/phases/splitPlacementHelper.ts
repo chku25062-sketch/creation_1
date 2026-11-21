@@ -103,6 +103,8 @@ export function tryPlaceSplitAttachedTask(
       sourceTableId: task.sourceTableId,
       sourceTableName: task.sourceTableName,
       url: task.url,
+      isAttachedTask: task.isAttachedTask,
+      parentTitle: task.parentTitle,
       isWeeklyTask: true,
       isSplitBlock: true,
       splitIndex,
