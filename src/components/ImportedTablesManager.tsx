@@ -2014,31 +2014,20 @@ export function ImportedTablesManager({
                   <div />
                 )}
 
-                {/* 右側: テンプレート ＆ 設定 ボタン */}
+                {/* 右側: 簡単設定ボタン（単一統合ボタン） */}
                 <div className="flex items-center gap-1.5 ml-auto">
-                  {/* テンプレートボタン（「質問から作成」対話型ウィザード） */}
                   <button
                     type="button"
-                    onClick={() => setIsNewWizardOpen(true)}
-                    title="質問に答えて表を作成（対話型ウィザード）"
-                    className="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-300 px-2.5 py-1 text-xs font-bold text-indigo-700 shadow-2xs active:scale-95 transition cursor-pointer"
+                    onClick={() => {
+                      setWizardTargetTable(activeTable);
+                      setIsNewWizardOpen(true);
+                    }}
+                    title="表のルールやタスク所要時間の簡単設定・新規作成を開く"
+                    className="flex items-center gap-1.5 rounded-lg border border-indigo-300 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-400 px-3 py-1 text-xs font-bold text-indigo-700 shadow-2xs active:scale-95 transition cursor-pointer"
                   >
-                    <Sparkles className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
-                    <span>質問から作成</span>
+                    <SlidersHorizontal className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                    <span>簡単設定</span>
                   </button>
-
-                  {/* 設定ボタン (activeTable がある場合のみ表示) */}
-                  {activeTable && !isSystemFile && (
-                    <button
-                      type="button"
-                      onClick={() => setIsMobileSettingsOpen(true)}
-                      title="時間割の詳細設定を開く"
-                      className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700 shadow-2xs active:scale-95 transition cursor-pointer"
-                    >
-                      <Settings className="h-3.5 w-3.5 text-slate-600 shrink-0" />
-                      <span>設定</span>
-                    </button>
-                  )}
                 </div>
               </div>
             )}
@@ -2271,7 +2260,7 @@ export function ImportedTablesManager({
               {/* 高優先度メインバー（常時表示） */}
               <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-none border border-slate-200/90 bg-slate-50/95 px-2.5 py-1.5 text-xs text-slate-700 shadow-2xs">
                 <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                  {/* 0. 表のルール・タスク設定（単一統合エディタ） */}
+                  {/* 0. 簡単設定（単一統合エディタ） */}
                   <button
                     type="button"
                     onClick={() => {
@@ -2282,7 +2271,7 @@ export function ImportedTablesManager({
                     className="flex items-center gap-1.5 rounded-none border border-indigo-300 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-500 px-2.5 py-0.5 text-[11px] font-bold text-indigo-700 shadow-2xs transition active:scale-95 cursor-pointer"
                   >
                     <SlidersHorizontal className="h-3.5 w-3.5 text-indigo-600" />
-                    <span className="whitespace-nowrap">表のルール・タスク設定</span>
+                    <span className="whitespace-nowrap">簡単設定</span>
                   </button>
 
                   {/* 1. 配置方法の選択（固定配置 / 自動配置） */}
@@ -3456,7 +3445,7 @@ export function ImportedTablesManager({
 
             {/* ドロワーコンテンツ (スクロール可能: 上から順に設定していく最適化フロー) */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 divide-y divide-slate-100">
-              {/* セクション 0: 表のルール・タスク設定（単一統合エディタ） */}
+              {/* セクション 0: 簡単設定（単一統合エディタ） */}
               <div className="pt-1">
                 <button
                   type="button"
@@ -3468,7 +3457,7 @@ export function ImportedTablesManager({
                   className="w-full flex items-center justify-center gap-2 rounded-xl border border-indigo-300 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-500 py-3 text-xs font-bold text-indigo-800 shadow-2xs transition active:scale-98 cursor-pointer"
                 >
                   <SlidersHorizontal className="h-4 w-4 text-indigo-600" />
-                  <span>表のルール・タスク設定</span>
+                  <span>簡単設定</span>
                 </button>
               </div>
 

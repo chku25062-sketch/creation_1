@@ -652,7 +652,7 @@ export function NewTableWizardModal({
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-bold text-slate-900">
-                {effectiveIsEdit ? `表のルール・タスク設定: ${tableName}` : '予定表のルール・タスク作成'}
+                {effectiveIsEdit ? `簡単設定: ${tableName}` : '簡単設定（予定表の作成）'}
               </h3>
               <p className="text-[10px] sm:text-[11px] text-slate-500">
                 {effectiveIsEdit
