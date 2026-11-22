@@ -109,3 +109,48 @@ export function calculatePeriodTimes(
 
   return result;
 }
+
+/**
+ * 対象日のカレンダー日付（targetDateStr: "YYYY-MM-DD"）におけるサイクルインデックスを算出する
+ * タイムゾーンや夏時間に影響されない安全なUTC絶対ミリ秒差分を用いて連続日数を算出する
+ */
+export function getCycleIndexForDate(
+  targetDateStr: string,
+  cycleStartDateStr: string,
+  cycleLength: number,
+): number {
+  if (cycleLength <= 0) return 0;
+  const [y1, m1, d1] = targetDateStr.split('-').map(Number);
+  const [y2, m2, d2] = cycleStartDateStr.split('-').map(Number);
+
+  const utc1 = Date.UTC(y1, m1 - 1, d1);
+  const utc2 = Date.UTC(y2, m2 - 1, d2);
+  const diffDays = Math.round((utc1 - utc2) / 86400000);
+
+  // 負の数（開始日より前の日付）にも対応した安全なモジュロ演算
+  return ((diffDays % cycleLength) + cycleLength) % cycleLength;
+}
+
+/**
+ * 基準日（baseDateStr: "YYYY-MM-DD"）と基準曜日（baseTodayIndex: 0..6）から、
+ * 対象曜日 d (0:月..6:日) のカレンダー日付文字列 "YYYY-MM-DD" を算出する
+ */
+export function getDateStrForDayIndex(
+  baseDateStr: string,
+  baseTodayIndex: number,
+  targetDayIndex: number,
+): string {
+  const [y, m, d] = baseDateStr.split('-').map(Number);
+  const baseUtc = Date.UTC(y, m - 1, d);
+
+  // 基準日との曜日インデックス差分日数
+  const diffFromToday = targetDayIndex - baseTodayIndex;
+  const targetUtc = baseUtc + diffFromToday * 86400000;
+
+  const targetDate = new Date(targetUtc);
+  const resY = targetDate.getUTCFullYear();
+  const resM = String(targetDate.getUTCMonth() + 1).padStart(2, '0');
+  const resD = String(targetDate.getUTCDate()).padStart(2, '0');
+
+  return `${resY}-${resM}-${resD}`;
+}

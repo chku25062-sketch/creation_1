@@ -3,6 +3,7 @@ import { TaskPlacementPlan, SchedulingRealtimeContext } from './types';
 import { getTargetPlacementDays, isWeeklyTaskItem } from './constants';
 import { SlotManager } from './slotManager';
 import { classifyWeeklyTask } from './taskClassifier';
+import { getCycleIndexForDate, getDateStrForDayIndex } from '@/lib/timeUtils';
 
 export interface PlanGenerationResult {
   schedulableTasks: TaskItem[];
@@ -142,6 +143,31 @@ export function generatePlacementPlans(
         ? ((task.cycleStartDay % 7) + 7) % 7
         : 0;
 
+    // サイクル判定ヘルパー（日付ベース連続計算 ＆ レガシーフォールバック）
+    const isDayMatchingCycle = (d: number): boolean => {
+      const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
+      if (task.cycleStartDate) {
+        const baseDateStr = realtimeContext.currentDateStr || new Date().toISOString().slice(0, 10);
+        const targetDateStr = getDateStrForDayIndex(baseDateStr, todayIdx, d);
+        const cycleIdxForDay = getCycleIndexForDate(targetDateStr, task.cycleStartDate, cycleLength);
+        if (task.cycleDays && task.cycleDays.length > 0) {
+          return task.cycleDays.includes(cycleIdxForDay);
+        }
+        if (task.cycleIndex !== undefined) {
+          return (task.cycleIndex % cycleLength) === cycleIdxForDay;
+        }
+        return false;
+      }
+      const legacyIdx = ((d - cycleStartDay + 7) % 7) % cycleLength;
+      if (task.cycleDays && task.cycleDays.length > 0) {
+        return task.cycleDays.includes(legacyIdx);
+      }
+      if (task.cycleIndex !== undefined) {
+        return (task.cycleIndex % cycleLength) === legacyIdx;
+      }
+      return false;
+    };
+
     // ③ 日課タスク（日タスク: period === 'day'、または period未指定かつ frequency === 'high'）
     // （※ period === 'week' や課題・付随タスクは絶対に日課タスクにしない！）
     const isDaily =
@@ -152,18 +178,10 @@ export function generatePlacementPlans(
 
       if (task.targetDays && task.targetDays.length > 0) {
         candidateDays = [...task.targetDays];
-      } else if (task.cycleDays && task.cycleDays.length > 0) {
-        const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
-        candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) =>
-          task.cycleDays!.includes(((d - cycleStartDay + 7) % 7) % cycleLength),
-        );
+      } else if ((task.cycleDays && task.cycleDays.length > 0) || task.cycleIndex !== undefined) {
+        candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => isDayMatchingCycle(d));
       } else if (task.startDay !== undefined) {
         candidateDays = [task.startDay];
-      } else if (task.cycleIndex !== undefined) {
-        const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
-        candidateDays = [0, 1, 2, 3, 4, 5, 6].filter(
-          (d) => ((d - cycleStartDay + 7) % 7) % cycleLength === task.cycleIndex! % cycleLength,
-        );
       }
 
       return {
@@ -182,10 +200,7 @@ export function generatePlacementPlans(
     // ④ 週次タスク: 周期明示指定 (cycleDays)
     // 周期指定タスク（例: 3日周期の特定日）は、指定された周期日のみに配置し、オフ日には配置しない
     if (task.cycleDays && task.cycleDays.length > 0) {
-      const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
-      const candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) =>
-        task.cycleDays!.includes(((d - cycleStartDay + 7) % 7) % cycleLength),
-      );
+      const candidateDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => isDayMatchingCycle(d));
       return {
         task,
         kind: 'weekly_specific',
@@ -221,11 +236,7 @@ export function generatePlacementPlans(
     } else if (task.startDay !== undefined) {
       candidateDays = [task.startDay, ...allDaysByFree.filter((d) => d !== task.startDay)];
     } else if (task.cycleIndex !== undefined) {
-      const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
-      const cyclePrimary = task.cycleIndex % cycleLength;
-      const cycleDays = [0, 1, 2, 3, 4, 5, 6].filter(
-        (d) => ((d - cycleStartDay + 7) % 7) % cycleLength === cyclePrimary,
-      );
+      const cycleDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => isDayMatchingCycle(d));
       const others = allDaysByFree.filter((d) => !cycleDays.includes(d));
       candidateDays = [...cycleDays, ...others];
     } else {

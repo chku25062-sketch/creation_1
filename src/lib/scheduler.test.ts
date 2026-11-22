@@ -4907,4 +4907,75 @@ describe('Theoretical Scheduler Engine', () => {
       });
     });
   });
+
+  describe('Plan32: Absolute date-based continuous cycle scheduling', () => {
+    it('maintains continuous 3-day cycle across week boundary without resetting to Day 1 on Monday', () => {
+      // 2026-11-16 (月) を起点とした3日サイクル日課
+      // Day 0: 胸トレ, Day 1: 背中トレ, Day 2: 脚トレ
+      const cycleTasks: TaskItem[] = [
+        {
+          id: 'task-chest',
+          title: '胸トレ',
+          durationMinutes: 60,
+          period: 'day',
+          priority: 'high',
+          category: 'workout',
+          cycleDays: [0], // Day 0
+          cycleCount: 3,
+          cycleStartDate: '2026-11-16',
+        },
+        {
+          id: 'task-back',
+          title: '背中トレ',
+          durationMinutes: 60,
+          period: 'day',
+          priority: 'high',
+          category: 'workout',
+          cycleDays: [1], // Day 1
+          cycleCount: 3,
+          cycleStartDate: '2026-11-16',
+        },
+        {
+          id: 'task-legs',
+          title: '脚トレ',
+          durationMinutes: 60,
+          period: 'day',
+          priority: 'high',
+          category: 'workout',
+          cycleDays: [2], // Day 2
+          cycleCount: 3,
+          cycleStartDate: '2026-11-16',
+        },
+      ];
+
+      // 1週目: 2026-11-22 (日曜, todayIndex: 6) の週
+      // 11/16(月)=0(胸), 11/17(火)=1(背中), 11/18(水)=2(脚), 11/19(木)=0(胸), 11/20(金)=1(背中), 11/21(土)=2(脚), 11/22(日)=0(胸)
+      const week1Result = generateTheoreticalSchedule([], cycleTasks, {
+        todayIndex: 6,
+        currentMinutes: 540,
+        currentDateStr: '2026-11-22',
+      });
+
+      // 1週目の日曜(dayIndex: 6) には「胸トレ」(Day 0) が配置されている
+      const sundayBlocks = week1Result.dayBlocks[6] || [];
+      expect(sundayBlocks.some((b) => b.title === '胸トレ')).toBe(true);
+
+      // ★ 2週目: 翌週月曜日 2026-11-23 (todayIndex: 0)
+      // 経過7日目: 7 % 3 = 1 -> Day 1 (背中トレ) が配置されるべき！（胸トレにリセットされてはならない！）
+      const week2Result = generateTheoreticalSchedule([], cycleTasks, {
+        todayIndex: 0,
+        currentMinutes: 540,
+        currentDateStr: '2026-11-23',
+      });
+
+      const mondayWeek2Blocks = week2Result.dayBlocks[0] || [];
+      // 翌週月曜日は「背中トレ」が配置され、「胸トレ」ではない！
+      expect(mondayWeek2Blocks.some((b) => b.title === '背中トレ')).toBe(true);
+      expect(mondayWeek2Blocks.some((b) => b.title === '胸トレ')).toBe(false);
+
+      // 翌週火曜日 (dayIndex: 1, 11/24, 経過8日目: 8 % 3 = 2 -> 脚トレ)
+      const tuesdayWeek2Blocks = week2Result.dayBlocks[1] || [];
+      expect(tuesdayWeek2Blocks.some((b) => b.title === '脚トレ')).toBe(true);
+    });
+  });
 });

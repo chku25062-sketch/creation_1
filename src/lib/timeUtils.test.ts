@@ -4,6 +4,8 @@ import {
   timeStringToMinutes,
   formatDuration,
   calculatePeriodTimes,
+  getCycleIndexForDate,
+  getDateStrForDayIndex,
 } from './timeUtils';
 
 describe('timeUtils', () => {
@@ -78,3 +80,46 @@ describe('timeUtils', () => {
     });
   });
 });
+
+  describe('getCycleIndexForDate', () => {
+    it('calculates continuous cycle index without resetting across weeks', () => {
+      // 2026-11-16 (月曜) を Day 0 (Day 1) とした3日サイクル
+      const startDate = '2026-11-16';
+      const cycleLength = 3;
+
+      expect(getCycleIndexForDate('2026-11-16', startDate, cycleLength)).toBe(0); // 月
+      expect(getCycleIndexForDate('2026-11-17', startDate, cycleLength)).toBe(1); // 火
+      expect(getCycleIndexForDate('2026-11-18', startDate, cycleLength)).toBe(2); // 水
+      expect(getCycleIndexForDate('2026-11-19', startDate, cycleLength)).toBe(0); // 木
+      expect(getCycleIndexForDate('2026-11-20', startDate, cycleLength)).toBe(1); // 金
+      expect(getCycleIndexForDate('2026-11-21', startDate, cycleLength)).toBe(2); // 土
+      expect(getCycleIndexForDate('2026-11-22', startDate, cycleLength)).toBe(0); // 日
+
+      // ★ 最重要: 翌週の月曜日 (2026-11-23) は 0 に戻らず 1 (Day 2) になること！
+      expect(getCycleIndexForDate('2026-11-23', startDate, cycleLength)).toBe(1); // 翌週月
+      expect(getCycleIndexForDate('2026-11-24', startDate, cycleLength)).toBe(2); // 翌週火
+      expect(getCycleIndexForDate('2026-11-25', startDate, cycleLength)).toBe(0); // 翌週水
+    });
+
+    it('handles negative diff days (dates before cycle start date) safely', () => {
+      const startDate = '2026-11-20';
+      const cycleLength = 3;
+      // 1日前は ( ( -1 % 3 ) + 3 ) % 3 = 2
+      expect(getCycleIndexForDate('2026-11-19', startDate, cycleLength)).toBe(2);
+      // 2日前は 1
+      expect(getCycleIndexForDate('2026-11-18', startDate, cycleLength)).toBe(1);
+    });
+  });
+
+  describe('getDateStrForDayIndex', () => {
+    it('calculates correct YYYY-MM-DD for each dayIndex in the week', () => {
+      // 2026-11-22 (日曜日: todayIndex = 6)
+      const baseDate = '2026-11-22';
+      const baseTodayIndex = 6;
+
+      expect(getDateStrForDayIndex(baseDate, baseTodayIndex, 0)).toBe('2026-11-16'); // 月曜
+      expect(getDateStrForDayIndex(baseDate, baseTodayIndex, 1)).toBe('2026-11-17'); // 火曜
+      expect(getDateStrForDayIndex(baseDate, baseTodayIndex, 4)).toBe('2026-11-20'); // 金曜
+      expect(getDateStrForDayIndex(baseDate, baseTodayIndex, 6)).toBe('2026-11-22'); // 日曜
+    });
+  });

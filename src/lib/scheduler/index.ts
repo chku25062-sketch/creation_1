@@ -63,6 +63,7 @@ export function generateTheoreticalSchedule(
     {
       todayIndex: todayIdx,
       currentMinutes: currMinutes,
+      currentDateStr: realtimeContext?.currentDateStr,
       completedBlockIds: userCompletedIds,
       uncompletedBlockIds: userUncompletedIds,
       placementStrategy,

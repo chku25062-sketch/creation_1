@@ -11,7 +11,6 @@ import { ImportedTableData } from '@/types';
 import {
   createDailyRoutineTable,
   createWeeklyTaskTable,
-  createFixedSlotTable,
   TemplateTaskItemInput,
   FixedSlotItemInput,
   DailyMenuItem,
@@ -292,6 +291,25 @@ const THEME_DEFINITIONS: ThemeDefinition[] = [
   },
 ];
 
+const getTodayStr = (): string => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const getTomorrowStr = (): string => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const getNextMondayStr = (): string => {
+  const d = new Date();
+  const currentDay = d.getDay(); // 0: 日曜, 1: 月曜, ...
+  const daysUntilMonday = ((1 - currentDay + 7) % 7) || 7;
+  d.setDate(d.getDate() + daysUntilMonday);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 export function NewTableWizardModal({
   isOpen,
   onClose,
@@ -315,6 +333,13 @@ export function NewTableWizardModal({
   const [dailyTargetDays, setDailyTargetDays] = useState<number[]>([0, 1, 2, 3, 4]); // 曜日固定時の初期値（平日）
   const [dailyCycleLength, setDailyCycleLength] = useState<number>(3); // 何日分か（日数直接入力）
   const [dailyCycleStartDay, setDailyCycleStartDay] = useState<number>(0); // 開始曜日 (0:月〜6:日)
+  const [cycleStartDate, setCycleStartDate] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
+
+  // Plan32: 固定枠（fixed）の対象曜日選択（自由選択、初期値は平日月〜金）
+  const [fixedTargetDays, setFixedTargetDays] = useState<number[]>([0, 1, 2, 3, 4]);
 
   // Plan31: 開始時刻・終了リミットの個別設定 ＆ 「指定しない」
   const [enableStartTime, setEnableStartTime] = useState<boolean>(true);
@@ -387,6 +412,11 @@ export function NewTableWizardModal({
           setDailyRepeatPattern('cycle');
           setDailyCycleLength(targetTable.numCols || 3);
           setDailyCycleStartDay(targetTable.cycleStartDay ?? 0);
+          const restoredStartDate =
+            targetTable.cycleStartDate ||
+            (targetTable.createdAt ? targetTable.createdAt.slice(0, 10) : '') ||
+            new Date().toISOString().slice(0, 10);
+          setCycleStartDate(restoredStartDate);
         } else {
           setDailyRepeatPattern('everyday');
         }
@@ -399,6 +429,19 @@ export function NewTableWizardModal({
           setEnableDailyTargetCount(false);
           setDailyTargetCount(1);
         }
+      }
+
+      // 固定枠の曜日構成の復元
+      if (mappedType === 'fixed') {
+        const extractedDays = Array.from(
+          new Set(
+            targetTable.cells
+              ?.flat()
+              .map(c => c.dayIndex)
+              .filter((d): d is number => typeof d === 'number' && d >= 0 && d <= 6) || []
+          )
+        ).sort((a, b) => a - b);
+        setFixedTargetDays(extractedDays.length > 0 ? extractedDays : [0, 1, 2, 3, 4]);
       }
 
       const initialDur = targetTable.axisConfig.periodMinutes || (mappedType === 'fixed' ? 90 : 20);
@@ -416,6 +459,7 @@ export function NewTableWizardModal({
       setTableTaskCount(targetTable.numRows || 4);
     } else {
       // 新規作成モード
+      const todayStr = new Date().toISOString().slice(0, 10);
       setSelectedThemeId('daily_routine');
       setTableName('毎日の習慣');
       setTableType('daily');
@@ -423,6 +467,8 @@ export function NewTableWizardModal({
       setDailyTargetDays([0, 1, 2, 3, 4]);
       setDailyCycleLength(3);
       setDailyCycleStartDay(0);
+      setCycleStartDate(todayStr);
+      setFixedTargetDays([0, 1, 2, 3, 4]);
       setEnableStartTime(true);
       setFixedStartTime('09:00');
       setEnableEndTime(false);
@@ -460,6 +506,12 @@ export function NewTableWizardModal({
     if (theme.defaultEndTime !== undefined) {
       setEnableEndTime(Boolean(theme.defaultEndTime));
       if (theme.defaultEndTime) setFixedEndTime(theme.defaultEndTime);
+    }
+
+    if (theme.defaultTargetDays && theme.defaultTargetDays.length > 0) {
+      setFixedTargetDays(theme.defaultTargetDays);
+    } else if (theme.recommendedType === 'fixed') {
+      setFixedTargetDays([0, 1, 2, 3, 4]);
     }
 
     const themeDuration = theme.defaultDuration || theme.suggestions[0]?.defaultDuration || 20;
@@ -510,6 +562,39 @@ export function NewTableWizardModal({
               titleTemplate: '{title} の課題・復習',
             }
           : undefined;
+
+        // Plan32: 選択された曜日に基づいて列ヘッダーとセルを再構築
+        const numCols = fixedTargetDays.length;
+        const colHeaders = fixedTargetDays.map(d => `${WEEKDAYS.find(w => w.dayIndex === d)?.label || d}曜`);
+        generatedTable.numCols = numCols;
+        generatedTable.colHeaders = colHeaders;
+
+        generatedTable.cells = targetTable.cells.map((rowCells, r) => {
+          const sampleCell = rowCells[0];
+          return fixedTargetDays.map(d => {
+            const existingCell = rowCells.find(c => c.dayIndex === d);
+            if (existingCell) {
+              return {
+                ...existingCell,
+                periodIndex: r + 1,
+              };
+            }
+            return {
+              dayIndex: d,
+              periodIndex: r + 1,
+              text: sampleCell?.text ?? null,
+              title: sampleCell?.title ?? '',
+              roomOrNote: sampleCell?.roomOrNote ?? '',
+              rawLines: sampleCell?.rawLines ?? [],
+              fullText: sampleCell?.fullText ?? '',
+              startMinutes: sampleCell?.startMinutes ?? 0,
+              endMinutes: sampleCell?.endMinutes ?? 0,
+              customDurationMinutes: sampleCell?.customDurationMinutes ?? defaultDuration,
+              customStartTime: sampleCell?.customStartTime,
+              hasCustomTime: sampleCell?.hasCustomTime,
+            };
+          });
+        });
       } else if (tableType === 'weekly') {
         generatedTable.placementMode = 'auto';
         generatedTable.classificationOverride = 'weekly_task';
@@ -523,6 +608,7 @@ export function NewTableWizardModal({
           generatedTable.columnMode = 'cycle';
           generatedTable.numCols = dailyCycleLength;
           generatedTable.cycleStartDay = dailyCycleStartDay;
+          generatedTable.cycleStartDate = cycleStartDate;
         } else {
           generatedTable.columnMode = 'weekday';
         }
@@ -538,9 +624,11 @@ export function NewTableWizardModal({
     const count = Math.max(1, tableTaskCount);
 
     if (tableType === 'fixed') {
-      // 固定枠表の生成
+      // Plan32: 選択された曜日に基づく固定枠（時間割）表の生成（可変列数対応）
       let curStartMin = timeStringToMinutes(slotStartTime || '09:00');
-      const targetDays = currentTheme.defaultTargetDays || [0];
+      const numCols = fixedTargetDays.length;
+      const colHeaders = fixedTargetDays.map(d => `${WEEKDAYS.find(w => w.dayIndex === d)?.label || d}曜`);
+      const rowHeaders = Array.from({ length: count }, (_, r) => String(r + 1));
       const items: FixedSlotItemInput[] = [];
 
       for (let i = 0; i < count; i++) {
@@ -556,7 +644,7 @@ export function NewTableWizardModal({
           title,
           startTime: sTime,
           endTime: eTime,
-          targetDays,
+          targetDays: fixedTargetDays,
         });
 
         // 昼休みの判定
@@ -576,31 +664,71 @@ export function NewTableWizardModal({
       }
       const autoEndTime = minutesToTimeString(maxEndMin);
 
-      generatedTable = createFixedSlotTable({
-        name: finalTableName,
-        multiSlots: { items },
-        daysCount: 7,
-        repeatStartDay: 0,
-        startTime: slotStartTime || '09:00',
-        endTime: slotEndTime || autoEndTime,
-      });
-      generatedTable.axisConfig.periodMinutes = defaultDuration;
-      generatedTable.axisConfig.intervalMinutes = fixedIntervalMinutes;
-      generatedTable.axisConfig.hasLunch = hasLunch;
-      generatedTable.axisConfig.lunchAfterPeriod = lunchAfterPeriod;
-      generatedTable.axisConfig.lunchMinutes = lunchMinutes;
+      const now = new Date().toISOString();
+      const cells = items.map((item, r) => {
+        const startMin = timeStringToMinutes(item.startTime);
+        let endMin = timeStringToMinutes(item.endTime);
+        if (endMin <= startMin) endMin += 1440;
+        const dur = endMin - startMin;
 
-      if (!enableEndTime) {
-        // ユーザーが終了時刻を「指定しない」場合は axisConfig.endTime を null に
-        generatedTable.axisConfig.endTime = null;
-      }
-      if (enableAttachedTask) {
-        generatedTable.attachedTaskConfig = {
-          enabled: true,
-          durationMinutes: attachedTaskDuration,
-          titleTemplate: '{title} の課題・復習',
-        };
-      }
+        return fixedTargetDays.map(d => ({
+          dayIndex: d,
+          periodIndex: r + 1,
+          text: item.title,
+          title: item.title,
+          roomOrNote: '',
+          rawLines: item.title ? [item.title] : [],
+          fullText: item.title,
+          startMinutes: startMin,
+          endMinutes: endMin,
+          customDurationMinutes: dur,
+          customStartTime: item.startTime,
+          hasCustomTime: true,
+          attachedTask: enableAttachedTask
+            ? {
+                enabled: true,
+                title: `${item.title} の課題・復習`,
+                durationMinutes: attachedTaskDuration,
+              }
+            : undefined,
+        }));
+      });
+
+      generatedTable = {
+        id: `table-fixed-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        name: finalTableName,
+        createdAt: now,
+        updatedAt: now,
+        placementMode: 'fixed',
+        columnMode: 'weekday',
+        cycleStartDay: 0,
+        dailyRepeatCount: 'auto',
+        weeklyRepeatCount: 'auto',
+        weeklyTaskExpiryWeeks: 1,
+        isApplied: true,
+        numRows: count,
+        numCols,
+        colHeaders,
+        rowHeaders,
+        axisConfig: {
+          startTime: slotStartTime || '09:00',
+          endTime: enableEndTime ? (slotEndTime || autoEndTime) : null,
+          periodMinutes: defaultDuration,
+          intervalMinutes: fixedIntervalMinutes,
+          hasLunch,
+          lunchAfterPeriod,
+          lunchMinutes,
+          weeklyTaskExpiryWeeks: 1,
+        },
+        cells,
+        attachedTaskConfig: enableAttachedTask
+          ? {
+              enabled: true,
+              durationMinutes: attachedTaskDuration,
+              titleTemplate: '{title} の課題・復習',
+            }
+          : undefined,
+      };
     } else if (tableType === 'weekly') {
       // 週次タスク表の生成
       const items: TemplateTaskItemInput[] = [];
@@ -646,6 +774,7 @@ export function NewTableWizardModal({
           dailyRepeatCount: targetDailyRepeat,
           timeRange: { startTime: slotStartTime, endTime: slotEndTime },
         });
+        generatedTable.cycleStartDate = cycleStartDate;
       } else if (dailyRepeatPattern === 'weekdays') {
         const items: TemplateTaskItemInput[] = [];
         for (let i = 0; i < count; i++) {
@@ -755,6 +884,9 @@ export function NewTableWizardModal({
                   setDailyTargetDays([0, 1, 2, 3, 4]);
                   setDailyCycleLength(3);
                   setDailyCycleStartDay(0);
+                  const todayStr = new Date().toISOString().slice(0, 10);
+                  setCycleStartDate(todayStr);
+                  setFixedTargetDays([0, 1, 2, 3, 4]);
                   setEnableStartTime(true);
                   setFixedStartTime('09:00');
                   setEnableEndTime(false);
@@ -900,6 +1032,76 @@ export function NewTableWizardModal({
             </div>
           </div>
 
+          {/* 4. 固定枠の曜日選択（固定枠・時間割のみ表示） */}
+          {tableType === 'fixed' && (
+            <div className="space-y-2 pt-3 border-t border-slate-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="block text-xs font-bold text-slate-900">
+                    4. どの曜日の時間割（枠）を作成しますか？
+                  </label>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    選択した曜日の列のみで構成される時間割表（現在: {fixedTargetDays.length}列）が作成されます
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setFixedTargetDays([0, 1, 2, 3, 4])}
+                    className="px-2 py-0.5 rounded text-[10px] font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  >
+                    平日のみ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFixedTargetDays([5, 6])}
+                    className="px-2 py-0.5 rounded text-[10px] font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  >
+                    週末のみ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFixedTargetDays([0, 1, 2, 3, 4, 5, 6])}
+                    className="px-2 py-0.5 rounded text-[10px] font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  >
+                    全曜日
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {WEEKDAYS.map(w => {
+                  const isSelected = fixedTargetDays.includes(w.dayIndex);
+                  const isLastOne = isSelected && fixedTargetDays.length <= 1;
+                  return (
+                    <button
+                      key={w.dayIndex}
+                      type="button"
+                      disabled={isLastOne}
+                      onClick={() => {
+                        let next: number[];
+                        if (isSelected) {
+                          if (fixedTargetDays.length <= 1) return;
+                          next = fixedTargetDays.filter(d => d !== w.dayIndex);
+                        } else {
+                          next = [...fixedTargetDays, w.dayIndex].sort((a, b) => a - b);
+                        }
+                        setFixedTargetDays(next);
+                      }}
+                      className={`rounded-lg py-1.5 text-xs font-bold transition cursor-pointer ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                      } ${isLastOne ? 'opacity-80 cursor-not-allowed' : ''}`}
+                      title={isLastOne ? '最低1つの曜日の選択が必要です' : undefined}
+                    >
+                      {w.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* 4. ペース設定（日課・ルーティンのみ表示） */}
           {tableType === 'daily' && (
             <div className="space-y-2 pt-3 border-t border-slate-200">
@@ -1004,9 +1206,9 @@ export function NewTableWizardModal({
                 </div>
               )}
 
-              {/* 何日分かを個別に設定する場合（日数直接入力） */}
+              {/* 何日分かを個別に設定する場合（日数直接入力 ＆ 起点日設定） */}
               {dailyRepeatPattern === 'cycle' && (
-                <div className="space-y-2 pt-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="space-y-3 pt-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-xs font-bold text-slate-800">何日分の予定を作成しますか？</span>
@@ -1022,6 +1224,54 @@ export function NewTableWizardModal({
                       step={1}
                       unit="日分"
                     />
+                  </div>
+
+                  {/* Plan32: 起点日（いつから開始するか）の設定 */}
+                  <div className="pt-2 border-t border-slate-200/80 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold text-slate-800">いつから開始しますか？（起点日）</span>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          週をまたいでもリセットされず、起点日から連続して Day 1 → Day 2 … と配置されます
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setCycleStartDate(getTodayStr())}
+                          className="px-2 py-0.5 rounded text-[10px] font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
+                        >
+                          今日から
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCycleStartDate(getTomorrowStr())}
+                          className="px-2 py-0.5 rounded text-[10px] font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
+                        >
+                          明日から
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCycleStartDate(getNextMondayStr())}
+                          className="px-2 py-0.5 rounded text-[10px] font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 cursor-pointer"
+                        >
+                          来週月曜から
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="date"
+                        value={cycleStartDate}
+                        onChange={e => {
+                          if (e.target.value) setCycleStartDate(e.target.value);
+                        }}
+                        className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-900 shadow-2xs"
+                      />
+                      <span className="text-[11px] text-slate-500">
+                        開始日: {cycleStartDate}（Day 1）
+                      </span>
+                    </div>
                   </div>
                 </div>
               )}

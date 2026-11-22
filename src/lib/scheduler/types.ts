@@ -39,6 +39,7 @@ export interface DayTaskContext {
 export interface SchedulingRealtimeContext {
   todayIndex?: number; // 0:月〜6:日 (未指定時は実行時のシステム曜日)
   currentMinutes?: number; // 0〜1440 (未指定時は実行時のシステム時刻)
+  currentDateStr?: string; // "YYYY-MM-DD" (表示対象週/本日のカレンダー日付)
   completedBlockIds?: Set<string>; // ユーザーが手動で完了にしたブロックID（早期完了含む）
   uncompletedBlockIds?: Set<string>; // ユーザーが手動で未完了にしたブロックID（過去自動完了の解除含む）
   placementStrategy?: TaskPlacementStrategy; // 'balanced' (分散) | 'concentrated' (集中)
