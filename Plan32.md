@@ -82,12 +82,13 @@ export function getCycleIndexForDate(
   cycleStartDateStr: string,
   cycleLength: number,
 ): number {
-  const targetDate = new Date(targetDateStr + 'T00:00:00');
-  const startDate = new Date(cycleStartDateStr + 'T00:00:00');
+  const [y1, m1, d1] = targetDateStr.split('-').map(Number);
+  const [y2, m2, d2] = cycleStartDateStr.split('-').map(Number);
   
-  // ミリ秒差から経過日数を算出
-  const diffTime = targetDate.getTime() - startDate.getTime();
-  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+  // タイムゾーンや夏時間に影響されない安全なUTC絶対ミリ秒差分
+  const utc1 = Date.UTC(y1, m1 - 1, d1);
+  const utc2 = Date.UTC(y2, m2 - 1, d2);
+  const diffDays = Math.round((utc1 - utc2) / 86400000);
   
   // 負の数（開始日より前の日付）にも対応した安全なモジュロ演算
   return ((diffDays % cycleLength) + cycleLength) % cycleLength;
@@ -227,10 +228,68 @@ export function getCycleIndexForDate(
 
 ---
 
-## 7. 実装ステップと検証計画
+## 7. 実装詳細定義とエッジケース・バリデーション設計
 
-### ステップ 1: 日付ベースサイクル計算関数の整備とテスト
-- `src/lib/timeUtils.ts` に `getCycleIndexForDate(targetDateStr, cycleStartDateStr, cycleLength)` を実装。
+実装時の曖昧さやエッジケースでの不具合を完全に防ぐため、以下の4つの重要仕様を厳密に定義します。
+
+### 7.1. スケジューラー内における「各曜日（0〜6）のカレンダー日付」の導出式
+スケジューラーが月曜〜日曜の各曜日 `d (0..6)` をループする際、各曜日のカレンダー日付 `targetDateStr` を以下の安全な変換式で一意に決定します：
+
+```typescript
+/**
+ * 基準日（baseDateStr: "YYYY-MM-DD"）と基準曜日（baseTodayIndex: 0..6）から、
+ * 対象曜日 d (0:月..6:日) のカレンダー日付文字列 "YYYY-MM-DD" を算出する
+ */
+export function getDateStrForDayIndex(
+  baseDateStr: string,
+  baseTodayIndex: number,
+  targetDayIndex: number,
+): string {
+  const [y, m, d] = baseDateStr.split('-').map(Number);
+  const baseUtc = Date.UTC(y, m - 1, d);
+  
+  // 今週の月曜日（dayIndex = 0）との日数差
+  const diffFromToday = targetDayIndex - baseTodayIndex;
+  const targetUtc = baseUtc + diffFromToday * 86400000;
+  
+  const targetDate = new Date(targetUtc);
+  const resY = targetDate.getUTCFullYear();
+  const resM = String(targetDate.getUTCMonth() + 1).padStart(2, '0');
+  const resD = String(targetDate.getUTCDate()).padStart(2, '0');
+  
+  return `${resY}-${resM}-${resD}`;
+}
+```
+
+### 7.2. 固定枠の可変列数におけるセル（GridCell）と曜日（dayIndex）のマッピング
+ユーザーが選んだ曜日（昇順配列 `selectedDays: number[]`、例: `[1, 3, 5]` = 火・木・土）に対して、表の列データ構造を以下のように厳密に対応させます：
+
+- **表の列数**: `table.numCols = selectedDays.length`（例: 3列）
+- **列ヘッダー**: `table.colHeaders[c] = WEEKDAY_NAMES[selectedDays[c]]`（例: `["火曜", "木曜", "土曜"]`）
+- **各行各セルのデータ**:
+  - `cell.dayIndex = selectedDays[c]`（0列目セルの `dayIndex` は `1`、1列目は `3`、2列目は `5`）
+- **`FixedSlot` への変換**:
+  - 各行から生成される `FixedSlot` の `daysOfWeek` は `selectedDays` そのもの（例: `[1, 3, 5]`）となる。
+  - メインタイムラインでは、火曜・木曜・土曜にのみ当該固定枠が配置され、それ以外の曜日は空きコマとして正しく機能する。
+
+### 7.3. 曜日選択の最小選択バリデーション（ガード設計）
+固定枠（時間割）および日課（曜日指定）における曜日トグルチップにおいて：
+- **最小選択数**: **1個以上**の選択を必須とする。
+- **UIガード**:
+  - 現在選択中の曜日が1個のみのとき、その選択を解除しようとするタップを無効化する（最後の1個はトグルOFFにできない）。
+  - 万が一未選択（0個）になった場合は「表を作成 / 更新」ボタンを非活性（disabled）にし、「実施する曜日を1つ以上選択してください」と案内を表示する。
+
+### 7.4. タイムゾーン・夏時間（DST）安全化
+日付の差分計算はローカル時間の `new Date()` ではなく、必ず `Date.UTC` による協定世界時のミリ秒で計算し、`Math.round(diff / 86400000)` を行うことで、夏時間の切り替えや時差に起因する23時間・25時間問題を完全に排除する。
+
+---
+
+## 8. 実装ステップと検証計画
+
+### ステップ 1: 日付計算・サイクル判定関数の整備とテスト
+- `src/lib/timeUtils.ts` に以下を実装：
+  - `getCycleIndexForDate(targetDateStr, cycleStartDateStr, cycleLength): number`
+  - `getDateStrForDayIndex(baseDateStr, baseTodayIndex, targetDayIndex): string`
 - ユニットテストを作成し、週替わりの月曜日に Day 1 にリセットされず連続して正しくインクリメントされることを検証。
 
 ### ステップ 2: スケジューラーのサイクル判定ロジック修正（フォールバック付き）
