@@ -1257,5 +1257,47 @@ describe('tableUtils', () => {
         }
       });
     });
+
+    describe('Plan35/BugFix: 「毎日同じ」を選択した際の1列（Day 1）化とスケジュール生成', () => {
+      it('2日周期の日課表から「毎日同じ」に設定変更（1列・Day 1サイクル化）された場合、1列の表として全曜日に毎日タスクが配分されること', () => {
+        // 2日周期の日課表（Day 1, Day 2）
+        const twoDayTable = INITIAL_IMPORTED_TABLES.find((t) => t.name === '日課')!;
+        expect(twoDayTable.numCols).toBe(2);
+
+        // 「毎日同じ」への変換（ウィザードの handleBuildTable と同等の変換処理）
+        const everydayTable: ImportedTableData = {
+          ...twoDayTable,
+          columnMode: 'cycle',
+          numCols: 1,
+          colHeaders: ['Day 1'],
+          cycleStartDay: 0,
+          cycleStartDate: undefined,
+          cells: twoDayTable.cells.map((rowCells, r) => {
+            const meaningfulCell = rowCells.find((c) => Boolean(c.text || c.title)) || rowCells[0];
+            return [
+              {
+                ...meaningfulCell,
+                dayIndex: 0,
+                periodIndex: r + 1,
+              },
+            ];
+          }),
+        };
+
+        expect(everydayTable.numCols).toBe(1);
+        expect(everydayTable.colHeaders).toEqual(['Day 1']);
+        expect(everydayTable.columnMode).toBe('cycle');
+        expect(everydayTable.cells[0].length).toBe(1);
+
+        const { tasks } = generateScheduleItemsForTable(everydayTable);
+        // 3行なので3タスク
+        expect(tasks.length).toBe(3);
+        for (const t of tasks) {
+          expect(t.cycleCount).toBe(1);
+          expect(t.cycleIndex).toBe(0);
+          expect(t.period).toBe('day');
+        }
+      });
+    });
   });
 });

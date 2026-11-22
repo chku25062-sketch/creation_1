@@ -408,9 +408,9 @@ export function NewTableWizardModal({
 
       // 日課のペース判定
       if (mappedType === 'daily') {
-        if (targetTable.columnMode === 'weekday') {
-          setDailyRepeatPattern('weekdays');
-        } else if (targetTable.columnMode === 'cycle' && (targetTable.numCols || 1) > 1) {
+        if ((targetTable.numCols || 1) === 1) {
+          setDailyRepeatPattern('everyday');
+        } else if (targetTable.columnMode === 'cycle') {
           setDailyRepeatPattern('cycle');
           setDailyCycleLength(targetTable.numCols || 3);
           setDailyCycleStartDay(targetTable.cycleStartDay ?? 0);
@@ -420,7 +420,16 @@ export function NewTableWizardModal({
             new Date().toISOString().slice(0, 10);
           setCycleStartDate(restoredStartDate);
         } else {
-          setDailyRepeatPattern('everyday');
+          setDailyRepeatPattern('weekdays');
+          const extractedDays = Array.from(
+            new Set(
+              targetTable.cells
+                ?.flat()
+                .map(c => c.dayIndex)
+                .filter((d): d is number => typeof d === 'number' && d >= 0 && d <= 6) || []
+            )
+          ).sort((a, b) => a - b);
+          setDailyTargetDays(extractedDays.length > 0 ? extractedDays : [0, 1, 2, 3, 4]);
         }
 
         // 1日あたりの目標回数の復元
@@ -435,18 +444,16 @@ export function NewTableWizardModal({
 
       // 固定枠のペース・曜日構成の復元
       if (mappedType === 'fixed') {
-        if (targetTable.columnMode === 'cycle') {
-          if ((targetTable.numCols || 1) === 1) {
-            setFixedRepeatPattern('everyday');
-          } else {
-            setFixedRepeatPattern('cycle');
-            setFixedCycleLength(targetTable.numCols || 4);
-            const restoredStartDate =
-              targetTable.cycleStartDate ||
-              (targetTable.createdAt ? targetTable.createdAt.slice(0, 10) : '') ||
-              new Date().toISOString().slice(0, 10);
-            setCycleStartDate(restoredStartDate);
-          }
+        if ((targetTable.numCols || 1) === 1) {
+          setFixedRepeatPattern('everyday');
+        } else if (targetTable.columnMode === 'cycle') {
+          setFixedRepeatPattern('cycle');
+          setFixedCycleLength(targetTable.numCols || 4);
+          const restoredStartDate =
+            targetTable.cycleStartDate ||
+            (targetTable.createdAt ? targetTable.createdAt.slice(0, 10) : '') ||
+            new Date().toISOString().slice(0, 10);
+          setCycleStartDate(restoredStartDate);
         } else {
           setFixedRepeatPattern('weekdays');
           const extractedDays = Array.from(
@@ -611,12 +618,14 @@ export function NewTableWizardModal({
         generatedTable.columnMode = columnMode;
 
         generatedTable.cells = targetTable.cells.map((rowCells, r) => {
-          const sampleCell = rowCells[0];
+          const sampleCell = rowCells.find(cell => Boolean(cell.text || cell.title)) || rowCells[0];
           return Array.from({ length: numCols }, (_, c) => {
             const dayIndex = fixedRepeatPattern === 'weekdays' ? fixedTargetDays[c] : c;
             const existingCell = fixedRepeatPattern === 'weekdays'
               ? rowCells.find(cell => cell.dayIndex === dayIndex)
-              : rowCells[c];
+              : fixedRepeatPattern === 'everyday'
+                ? sampleCell
+                : rowCells[c];
 
             if (existingCell) {
               return {
@@ -648,8 +657,58 @@ export function NewTableWizardModal({
         generatedTable.placementMode = 'auto';
         generatedTable.classificationOverride = 'daily_task';
         generatedTable.dailyRepeatCount = enableDailyTargetCount ? Math.max(1, dailyTargetCount) : 'auto';
-        if (dailyRepeatPattern === 'weekdays') {
+
+        if (dailyRepeatPattern === 'everyday') {
+          // Plan33: 毎日同じ（1列・Day 1サイクル）へのリサイズとセル引き継ぎ
+          generatedTable.columnMode = 'cycle';
+          generatedTable.numCols = 1;
+          generatedTable.colHeaders = ['Day 1'];
+          generatedTable.cycleStartDay = 0;
+          generatedTable.cycleStartDate = undefined;
+
+          generatedTable.cells = targetTable.cells.map((rowCells, r) => {
+            const meaningfulCell = rowCells.find(cell => Boolean(cell.text || cell.title)) || rowCells[0];
+            return [
+              {
+                ...meaningfulCell,
+                dayIndex: 0,
+                periodIndex: r + 1,
+              },
+            ];
+          });
+        } else if (dailyRepeatPattern === 'weekdays') {
+          // 曜日ごとに変える: 選択された曜日の列数
           generatedTable.columnMode = 'weekday';
+          generatedTable.numCols = dailyTargetDays.length;
+          generatedTable.colHeaders = dailyTargetDays.map(d => `${WEEKDAYS.find(w => w.dayIndex === d)?.label || d}曜`);
+          generatedTable.cycleStartDate = undefined;
+
+          generatedTable.cells = targetTable.cells.map((rowCells, r) => {
+            const sampleCell = rowCells.find(cell => Boolean(cell.text || cell.title)) || rowCells[0];
+            return Array.from({ length: dailyTargetDays.length }, (_, c) => {
+              const dayIndex = dailyTargetDays[c];
+              const existingCell = rowCells.find(cell => cell.dayIndex === dayIndex);
+              if (existingCell) {
+                return {
+                  ...existingCell,
+                  dayIndex,
+                  periodIndex: r + 1,
+                };
+              }
+              return {
+                dayIndex,
+                periodIndex: r + 1,
+                text: null,
+                title: '',
+                roomOrNote: '',
+                rawLines: [],
+                fullText: '',
+                startMinutes: sampleCell?.startMinutes ?? 0,
+                endMinutes: sampleCell?.endMinutes ?? 0,
+                customDurationMinutes: sampleCell?.customDurationMinutes ?? defaultDuration,
+              };
+            });
+          });
         } else if (dailyRepeatPattern === 'cycle') {
           generatedTable.columnMode = 'cycle';
           generatedTable.numCols = dailyCycleLength;
@@ -661,6 +720,7 @@ export function NewTableWizardModal({
 
           // Plan33: 既存行を保持しつつ、列数を dailyCycleLength に適応
           generatedTable.cells = targetTable.cells.map((rowCells, r) => {
+            const sampleCell = rowCells.find(cell => Boolean(cell.text || cell.title)) || rowCells[0];
             return Array.from({ length: dailyCycleLength }, (_, c) => {
               const existingCell = rowCells[c];
               if (existingCell) {
@@ -670,7 +730,6 @@ export function NewTableWizardModal({
                   periodIndex: r + 1,
                 };
               }
-              const sampleCell = rowCells[0];
               return {
                 dayIndex: c,
                 periodIndex: r + 1,
@@ -685,8 +744,6 @@ export function NewTableWizardModal({
               };
             });
           });
-        } else {
-          generatedTable.columnMode = 'weekday';
         }
       }
 
@@ -1192,6 +1249,16 @@ export function NewTableWizardModal({
                 </button>
               </div>
 
+              {/* 毎日同じの場合の案内バナー */}
+              {fixedRepeatPattern === 'everyday' && (
+                <div className="rounded-lg bg-indigo-50/70 p-2.5 border border-indigo-100 text-xs text-indigo-900 mt-2">
+                  <p className="font-bold">1列（Day 1）の固定枠を作成</p>
+                  <p className="text-[10px] text-indigo-700 mt-0.5">
+                    月曜から日曜まで全曜日に共通して毎日配置される予定表（1列）になります。
+                  </p>
+                </div>
+              )}
+
               {/* 曜日指定の場合の曜日チップ */}
               {fixedRepeatPattern === 'weekdays' && (
                 <div className="space-y-1.5 pt-2">
@@ -1376,6 +1443,16 @@ export function NewTableWizardModal({
                   <span className="text-[10px] text-slate-500 mt-0.5">日数を決めて作成</span>
                 </button>
               </div>
+
+              {/* 毎日同じの場合の案内バナー */}
+              {dailyRepeatPattern === 'everyday' && (
+                <div className="rounded-lg bg-indigo-50/70 p-2.5 border border-indigo-100 text-xs text-indigo-900 mt-2">
+                  <p className="font-bold">1列（Day 1）の日課リストを作成</p>
+                  <p className="text-[10px] text-indigo-700 mt-0.5">
+                    毎日共通で取り組む習慣・タスクをまとめた表（1列）になります。
+                  </p>
+                </div>
+              )}
 
               {/* 曜日指定の場合の曜日チップ */}
               {dailyRepeatPattern === 'weekdays' && (
@@ -1923,7 +2000,13 @@ export function NewTableWizardModal({
               <Check className="h-4 w-4 shrink-0" />
               <span className="truncate">
                 {effectiveIsEdit
-                  ? 'この表の設定を更新'
+                  ? `この表の設定を更新（${
+                      (tableType === 'fixed' ? fixedRepeatPattern : dailyRepeatPattern) === 'everyday'
+                        ? '1列・毎日同じ'
+                        : (tableType === 'fixed' ? fixedRepeatPattern : dailyRepeatPattern) === 'cycle'
+                          ? `${tableType === 'fixed' ? fixedCycleLength : dailyCycleLength}列・何日分かを繰り返す`
+                          : `${tableType === 'fixed' ? fixedTargetDays.length : dailyTargetDays.length}列・曜日別`
+                    }）`
                   : includeSampleTasks
                     ? `「${tableName || 'この表'}」を作成（${tableTaskCount}${tableType === 'fixed' ? 'コマ' : '個'}・代表予定入り）`
                     : `「${tableName || 'この表'}」を作成（${tableTaskCount}${tableType === 'fixed' ? 'コマ' : '個'}・仮タスク入り）`}
