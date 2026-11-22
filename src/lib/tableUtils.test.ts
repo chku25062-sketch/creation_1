@@ -1372,5 +1372,82 @@ describe('tableUtils', () => {
         }
       });
     });
+
+    describe('Plan36: 簡単設定で作成・更新された表の全マス自動項目補完（空欄ゼロ保証）', () => {
+      it('曜日指定日課表で選択した曜日の全マスに項目が自動で埋まり、空欄セルが発生しないこと', () => {
+        // 月曜(0), 水曜(2), 金曜(4) の3列・3行の日課表
+        const targetDays = [0, 2, 4];
+        const count = 3;
+        const numCols = targetDays.length;
+        const colHeaders = ['月曜', '水曜', '金曜'];
+        const rowHeaders = ['1', '2', '3'];
+
+        const table: ImportedTableData = {
+          id: 'test-daily-auto-fill',
+          name: '月水金日課',
+          createdAt: '2026-11-23T00:00:00Z',
+          updatedAt: '2026-11-23T00:00:00Z',
+          placementMode: 'auto',
+          columnMode: 'weekday',
+          cycleStartDay: 0,
+          dailyRepeatCount: 'auto',
+          weeklyRepeatCount: 'auto',
+          weeklyTaskExpiryWeeks: 1,
+          isApplied: true,
+          numRows: count,
+          numCols,
+          colHeaders,
+          rowHeaders,
+          axisConfig: {
+            startTime: null,
+            endTime: null,
+            periodMinutes: 20,
+            intervalMinutes: 0,
+            hasLunch: false,
+            lunchAfterPeriod: 1,
+            lunchMinutes: 50,
+            weeklyTaskExpiryWeeks: 1,
+          },
+          cells: Array.from({ length: count }, (_, r) =>
+            Array.from({ length: numCols }, (_, c) => {
+              const fallback = `日課 ${r + 1}`;
+              return {
+                dayIndex: targetDays[c],
+                periodIndex: r + 1,
+                text: fallback,
+                title: fallback,
+                fullText: fallback,
+                rawLines: [fallback],
+                roomOrNote: '',
+                startMinutes: 0,
+                endMinutes: 0,
+                customDurationMinutes: 20,
+              };
+            })
+          ),
+        };
+
+        // 全セルが有効なタイトルを持ち、空欄マスがゼロであること
+        expect(table.numRows).toBe(3);
+        expect(table.numCols).toBe(3);
+        expect(table.cells.length).toBe(3);
+        expect(table.cells[0].length).toBe(3);
+
+        const flatCells = table.cells.flat();
+        expect(flatCells.length).toBe(9);
+        for (const cell of flatCells) {
+          expect(cell.title).toBeTruthy();
+          expect(cell.text).toBeTruthy();
+          expect(cell.title).toMatch(/^日課 \d+$/);
+        }
+
+        // スケジュール生成時にも全タスクが正常生成されること
+        const { tasks } = generateScheduleItemsForTable(table);
+        expect(tasks.length).toBe(3); // 日課1, 2, 3
+        for (const task of tasks) {
+          expect(task.targetDays).toEqual([0, 2, 4]);
+        }
+      });
+    });
   });
 });

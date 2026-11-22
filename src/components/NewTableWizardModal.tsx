@@ -7,7 +7,7 @@ import {
   Plus,
   Settings,
 } from 'lucide-react';
-import { ImportedTableData } from '@/types';
+import { ImportedTableData, GridCell } from '@/types';
 import {
   createDailyRoutineTable,
   createWeeklyTaskTable,
@@ -561,11 +561,16 @@ export function NewTableWizardModal({
 
     let generatedTable: ImportedTableData;
 
-    // 編集モードかつ上書き保存の場合: 既存セルのタスクを保持したまま表ルールのみ更新
+    // 編集モードかつ上書き保存の場合: 既存セルのタスクを保持したまま表ルール・枠数を更新
     if (effectiveIsEdit && !asNewTable && targetTable) {
+      const newRowCount = Math.max(1, tableTaskCount || targetTable.numRows);
+      const rowHeaders = Array.from({ length: newRowCount }, (_, r) => String(r + 1));
+
       generatedTable = {
         ...targetTable,
         name: finalTableName,
+        numRows: newRowCount,
+        rowHeaders,
         axisConfig: {
           ...targetTable.axisConfig,
           periodMinutes: defaultDuration,
@@ -617,31 +622,39 @@ export function NewTableWizardModal({
         generatedTable.colHeaders = colHeaders;
         generatedTable.columnMode = columnMode;
 
-        generatedTable.cells = targetTable.cells.map((rowCells, r) => {
-          const sampleCell = rowCells.find(cell => Boolean(cell.text || cell.title)) || rowCells[0];
+        generatedTable.cells = Array.from({ length: newRowCount }, (_, r) => {
+          const rowCells = targetTable.cells[r] || [];
+          const sampleCell = rowCells.find(cell => Boolean(cell.text || cell.title));
+
           return Array.from({ length: numCols }, (_, c) => {
             const dayIndex = fixedRepeatPattern === 'weekdays' ? fixedTargetDays[c] : c;
             const existingCell = fixedRepeatPattern === 'weekdays'
               ? rowCells.find(cell => cell.dayIndex === dayIndex)
               : fixedRepeatPattern === 'everyday'
-                ? sampleCell
+                ? (sampleCell || rowCells[0])
                 : rowCells[c];
 
-            if (existingCell) {
+            if (existingCell && Boolean(existingCell.text || existingCell.title)) {
               return {
                 ...existingCell,
                 dayIndex,
                 periodIndex: r + 1,
               };
             }
+
+            const fallbackFixedTitle = fixedRepeatPattern === 'cycle'
+              ? `Day ${c + 1} 勤務枠 ${r + 1}`
+              : `${r + 1}コマ目 (予定を入力)`;
+            const titleToUse = sampleCell?.title || sampleCell?.text || fallbackFixedTitle;
+
             return {
               dayIndex,
               periodIndex: r + 1,
-              text: sampleCell?.text ?? null,
-              title: sampleCell?.title ?? '',
+              text: titleToUse,
+              title: titleToUse,
               roomOrNote: sampleCell?.roomOrNote ?? '',
-              rawLines: sampleCell?.rawLines ?? [],
-              fullText: sampleCell?.fullText ?? '',
+              rawLines: titleToUse ? [titleToUse] : [],
+              fullText: titleToUse,
               startMinutes: sampleCell?.startMinutes ?? 0,
               endMinutes: sampleCell?.endMinutes ?? 0,
               customDurationMinutes: sampleCell?.customDurationMinutes ?? defaultDuration,
@@ -653,26 +666,69 @@ export function NewTableWizardModal({
       } else if (tableType === 'weekly') {
         generatedTable.placementMode = 'auto';
         generatedTable.classificationOverride = 'weekly_task';
+        const numCols = targetTable.numCols || 7;
+
+        generatedTable.cells = Array.from({ length: newRowCount }, (_, r) => {
+          const rowCells = targetTable.cells[r] || [];
+          const sampleCell = rowCells.find(cell => Boolean(cell.text || cell.title));
+          const fallbackWeeklyTitle = `今週の目標 ${r + 1}`;
+          const titleToUse = sampleCell?.title || sampleCell?.text || fallbackWeeklyTitle;
+
+          return Array.from({ length: numCols }, (_, c) => {
+            const existingCell = rowCells[c];
+            if (existingCell && Boolean(existingCell.text || existingCell.title)) {
+              return {
+                ...existingCell,
+                dayIndex: c,
+                periodIndex: r + 1,
+              };
+            }
+            return {
+              dayIndex: c,
+              periodIndex: r + 1,
+              text: titleToUse,
+              title: titleToUse,
+              roomOrNote: '',
+              rawLines: [titleToUse],
+              fullText: titleToUse,
+              startMinutes: 0,
+              endMinutes: 0,
+              customDurationMinutes: defaultDuration,
+            };
+          });
+        });
       } else {
         generatedTable.placementMode = 'auto';
         generatedTable.classificationOverride = 'daily_task';
         generatedTable.dailyRepeatCount = enableDailyTargetCount ? Math.max(1, dailyTargetCount) : 'auto';
 
         if (dailyRepeatPattern === 'everyday') {
-          // Plan33: 毎日同じ（1列・Day 1サイクル）へのリサイズとセル引き継ぎ
+          // 毎日同じ（1列・Day 1サイクル）へのリサイズとセル引き継ぎ
           generatedTable.columnMode = 'cycle';
           generatedTable.numCols = 1;
           generatedTable.colHeaders = ['Day 1'];
           generatedTable.cycleStartDay = 0;
           generatedTable.cycleStartDate = undefined;
 
-          generatedTable.cells = targetTable.cells.map((rowCells, r) => {
-            const meaningfulCell = rowCells.find(cell => Boolean(cell.text || cell.title)) || rowCells[0];
+          generatedTable.cells = Array.from({ length: newRowCount }, (_, r) => {
+            const rowCells = targetTable.cells[r] || [];
+            const meaningfulCell = rowCells.find(cell => Boolean(cell.text || cell.title));
+            const fallbackTitle = `日課 ${r + 1}`;
+            const titleToUse = meaningfulCell?.title || meaningfulCell?.text || fallbackTitle;
+
             return [
               {
-                ...meaningfulCell,
+                ...(meaningfulCell || {}),
                 dayIndex: 0,
                 periodIndex: r + 1,
+                text: titleToUse,
+                title: titleToUse,
+                rawLines: [titleToUse],
+                fullText: titleToUse,
+                roomOrNote: meaningfulCell?.roomOrNote || '',
+                startMinutes: 0,
+                endMinutes: 0,
+                customDurationMinutes: meaningfulCell?.customDurationMinutes ?? defaultDuration,
               },
             ];
           });
@@ -683,28 +739,32 @@ export function NewTableWizardModal({
           generatedTable.colHeaders = dailyTargetDays.map(d => `${WEEKDAYS.find(w => w.dayIndex === d)?.label || d}曜`);
           generatedTable.cycleStartDate = undefined;
 
-          generatedTable.cells = targetTable.cells.map((rowCells, r) => {
-            const sampleCell = rowCells.find(cell => Boolean(cell.text || cell.title)) || rowCells[0];
+          generatedTable.cells = Array.from({ length: newRowCount }, (_, r) => {
+            const rowCells = targetTable.cells[r] || [];
+            const sampleCell = rowCells.find(cell => Boolean(cell.text || cell.title));
+            const fallbackTitle = `日課 ${r + 1}`;
+
             return Array.from({ length: dailyTargetDays.length }, (_, c) => {
               const dayIndex = dailyTargetDays[c];
               const existingCell = rowCells.find(cell => cell.dayIndex === dayIndex);
-              if (existingCell) {
+              if (existingCell && Boolean(existingCell.text || existingCell.title)) {
                 return {
                   ...existingCell,
                   dayIndex,
                   periodIndex: r + 1,
                 };
               }
+              const titleToUse = sampleCell?.title || sampleCell?.text || fallbackTitle;
               return {
                 dayIndex,
                 periodIndex: r + 1,
-                text: null,
-                title: '',
-                roomOrNote: '',
-                rawLines: [],
-                fullText: '',
-                startMinutes: sampleCell?.startMinutes ?? 0,
-                endMinutes: sampleCell?.endMinutes ?? 0,
+                text: titleToUse,
+                title: titleToUse,
+                roomOrNote: sampleCell?.roomOrNote ?? '',
+                rawLines: [titleToUse],
+                fullText: titleToUse,
+                startMinutes: 0,
+                endMinutes: 0,
                 customDurationMinutes: sampleCell?.customDurationMinutes ?? defaultDuration,
               };
             });
@@ -718,34 +778,60 @@ export function NewTableWizardModal({
             ? ((new Date(cycleStartDate + 'T00:00:00').getDay() + 6) % 7)
             : dailyCycleStartDay;
 
-          // Plan33: 既存行を保持しつつ、列数を dailyCycleLength に適応
-          generatedTable.cells = targetTable.cells.map((rowCells, r) => {
-            const sampleCell = rowCells.find(cell => Boolean(cell.text || cell.title)) || rowCells[0];
+          generatedTable.cells = Array.from({ length: newRowCount }, (_, r) => {
+            const rowCells = targetTable.cells[r] || [];
+            const sampleCell = rowCells.find(cell => Boolean(cell.text || cell.title));
+
             return Array.from({ length: dailyCycleLength }, (_, c) => {
               const existingCell = rowCells[c];
-              if (existingCell) {
+              if (existingCell && Boolean(existingCell.text || existingCell.title)) {
                 return {
                   ...existingCell,
                   dayIndex: c,
                   periodIndex: r + 1,
                 };
               }
+              const fallbackTitle = `Day ${c + 1} タスク ${r + 1}`;
+              const titleToUse = (c === 0 && sampleCell ? (sampleCell.title || sampleCell.text) : null) || fallbackTitle;
               return {
                 dayIndex: c,
                 periodIndex: r + 1,
-                text: null,
-                title: '',
+                text: titleToUse,
+                title: titleToUse,
                 roomOrNote: '',
-                rawLines: [],
-                fullText: '',
-                startMinutes: sampleCell?.startMinutes ?? 0,
-                endMinutes: sampleCell?.endMinutes ?? 0,
+                rawLines: [titleToUse],
+                fullText: titleToUse,
+                startMinutes: 0,
+                endMinutes: 0,
                 customDurationMinutes: sampleCell?.customDurationMinutes ?? defaultDuration,
               };
             });
           });
         }
       }
+
+      // 全セルの空欄防止＆自動補完ガード
+      generatedTable.cells = generatedTable.cells.map((row, r) =>
+        row.map((cell, c) => {
+          if (cell.text && cell.title && cell.title.trim() !== '') {
+            return cell;
+          }
+          const fallback =
+            tableType === 'fixed'
+              ? (fixedRepeatPattern === 'cycle' ? `Day ${c + 1} 勤務枠 ${r + 1}` : `${r + 1}コマ目 (予定を入力)`)
+              : tableType === 'weekly'
+                ? `今週の目標 ${r + 1}`
+                : (dailyRepeatPattern === 'cycle' ? `Day ${c + 1} タスク ${r + 1}` : `日課 ${r + 1}`);
+          return {
+            ...cell,
+            text: fallback,
+            title: fallback,
+            rawLines: [fallback],
+            fullText: fallback,
+            roomOrNote: '',
+          };
+        })
+      );
 
       onApplyTable(generatedTable, true);
       onClose();
@@ -946,27 +1032,62 @@ export function NewTableWizardModal({
         });
         generatedTable.cycleStartDate = cycleStartDate;
       } else if (dailyRepeatPattern === 'weekdays') {
-        const items: TemplateTaskItemInput[] = [];
-        for (let i = 0; i < count; i++) {
-          const s = includeSampleTasks ? suggestions[i] : null;
-          items.push({
-            title: s?.label || `日課 ${i + 1}`,
-            durationMinutes: s?.defaultDuration || defaultDuration,
-            targetDays: dailyTargetDays,
-          });
-        }
+        const numCols = dailyTargetDays.length;
+        const colHeaders = dailyTargetDays.map(d => `${WEEKDAYS.find(w => w.dayIndex === d)?.label || d}曜`);
+        const rowHeaders = Array.from({ length: count }, (_, r) => String(r + 1));
+        const now = new Date().toISOString();
 
-        generatedTable = createDailyRoutineTable({
-          name: finalTableName,
-          daysCount: 7,
-          isRepeat: false,
-          multiTasks: {
-            items,
-            targetDays: dailyTargetDays,
-          },
-          dailyRepeatCount: targetDailyRepeat,
-          timeRange: { startTime: slotStartTime, endTime: slotEndTime },
+        const cells: GridCell[][] = Array.from({ length: count }, (_, r) => {
+          const s = includeSampleTasks ? suggestions[r] : null;
+          const fallbackTitle = `日課 ${r + 1}`;
+          const cellTitle = s?.label || fallbackTitle;
+          const dur = s?.defaultDuration || defaultDuration;
+
+          return Array.from({ length: numCols }, (_, c) => {
+            const dayIndex = dailyTargetDays[c];
+            return {
+              dayIndex,
+              periodIndex: r + 1,
+              text: cellTitle,
+              title: cellTitle,
+              roomOrNote: '',
+              rawLines: [cellTitle],
+              fullText: cellTitle,
+              startMinutes: 0,
+              endMinutes: 0,
+              customDurationMinutes: dur,
+            };
+          });
         });
+
+        generatedTable = {
+          id: `table-daily-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          name: finalTableName,
+          createdAt: now,
+          updatedAt: now,
+          placementMode: 'auto',
+          columnMode: 'weekday',
+          cycleStartDay: 0,
+          dailyRepeatCount: targetDailyRepeat,
+          weeklyRepeatCount: 'auto',
+          weeklyTaskExpiryWeeks: 1,
+          isApplied: true,
+          numRows: count,
+          numCols,
+          colHeaders,
+          rowHeaders,
+          axisConfig: {
+            startTime: slotStartTime,
+            endTime: slotEndTime,
+            periodMinutes: defaultDuration,
+            intervalMinutes: 0,
+            hasLunch: false,
+            lunchAfterPeriod: 1,
+            lunchMinutes: 50,
+            weeklyTaskExpiryWeeks: 1,
+          },
+          cells,
+        };
       } else {
         // 毎日同じ
         const items: TemplateTaskItemInput[] = [];
@@ -989,6 +1110,33 @@ export function NewTableWizardModal({
       }
       generatedTable.axisConfig.periodMinutes = defaultDuration;
     }
+
+    // 新規作成テーブルの全セル空欄防止＆自動補完ガード:
+    // 万が一空欄マスが残っていた場合、適切な仮タスクで自動補完
+    generatedTable.cells = generatedTable.cells.map((row, r) =>
+      row.map((cell, c) => {
+        if (cell.text && cell.title && cell.title.trim() !== '') {
+          return cell;
+        }
+        const fallback =
+          tableType === 'fixed'
+            ? (fixedRepeatPattern === 'cycle' ? `Day ${c + 1} 勤務枠 ${r + 1}` : `${r + 1}コマ目 (予定を入力)`)
+            : tableType === 'weekly'
+              ? `今週の目標 ${r + 1}`
+              : (dailyRepeatPattern === 'cycle' ? `Day ${c + 1} タスク ${r + 1}` : `日課 ${r + 1}`);
+        return {
+          ...cell,
+          text: fallback,
+          title: fallback,
+          rawLines: [fallback],
+          fullText: fallback,
+          roomOrNote: cell.roomOrNote || '',
+          startMinutes: cell.startMinutes ?? 0,
+          endMinutes: cell.endMinutes ?? 0,
+          customDurationMinutes: cell.customDurationMinutes ?? defaultDuration,
+        };
+      })
+    );
 
     onApplyTable(generatedTable, false);
     onClose();
