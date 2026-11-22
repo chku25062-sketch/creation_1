@@ -1069,6 +1069,137 @@ describe('tableUtils', () => {
         const slot2 = slots.find((s) => s.title === '2限')!;
         expect(slot2.breakMinutes).toBe(50);
       });
+
+      it('Plan33: 毎日同じ固定枠（1日分・Day 1のみ）が全曜日（月〜日）に正しく割り当てられること', () => {
+        const everydayFixedTable: ImportedTableData = {
+          id: 'test-everyday-fixed',
+          name: '基本生活リズム',
+          createdAt: '2026-11-22T00:00:00Z',
+          updatedAt: '2026-11-22T00:00:00Z',
+          placementMode: 'fixed',
+          columnMode: 'cycle',
+          numRows: 1,
+          numCols: 1,
+          colHeaders: ['Day 1'],
+          rowHeaders: ['1'],
+          axisConfig: {
+            startTime: '23:00',
+            endTime: '07:00',
+            periodMinutes: 480,
+            intervalMinutes: 0,
+            hasLunch: false,
+            lunchAfterPeriod: 1,
+            lunchMinutes: 50,
+          },
+          cells: [
+            [
+              {
+                periodIndex: 1,
+                dayIndex: 0,
+                text: '睡眠',
+                title: '睡眠',
+                roomOrNote: '',
+                fullText: '睡眠',
+                rawLines: ['睡眠'],
+                startMinutes: 1380, // 23:00
+                endMinutes: 1860, // 翌07:00
+              },
+            ],
+          ],
+        };
+
+        const { slots } = generateScheduleItemsForTable(everydayFixedTable);
+        expect(slots).toHaveLength(1);
+        expect(slots[0].title).toBe('睡眠');
+        expect(slots[0].daysOfWeek).toEqual([0, 1, 2, 3, 4, 5, 6]); // 全曜日に配置！
+      });
+
+      it('Plan33: サイクル固定枠（シフト勤務）が cycleStartDay に基づいて曜日配列に抽出されること', () => {
+        // 4日サイクルのシフト（Day 1: 日勤、Day 2: 夜勤、Day 3: 明け、Day 4: 休み）
+        // 月曜(0)をDay 1とした場合、Day 1(日勤)は 月(0), 金(4)
+        const shiftFixedTable: ImportedTableData = {
+          id: 'test-shift-fixed',
+          name: '交代勤務シフト',
+          createdAt: '2026-11-23T00:00:00Z',
+          updatedAt: '2026-11-23T00:00:00Z',
+          placementMode: 'fixed',
+          columnMode: 'cycle',
+          cycleStartDay: 0,
+          cycleStartDate: '2026-11-23',
+          numRows: 1,
+          numCols: 4,
+          colHeaders: ['Day 1', 'Day 2', 'Day 3', 'Day 4'],
+          rowHeaders: ['1'],
+          axisConfig: {
+            startTime: '08:30',
+            endTime: '17:00',
+            periodMinutes: 510,
+            intervalMinutes: 0,
+            hasLunch: false,
+            lunchAfterPeriod: 1,
+            lunchMinutes: 50,
+          },
+          cells: [
+            [
+              {
+                periodIndex: 1,
+                dayIndex: 0,
+                text: '日勤',
+                title: '日勤',
+                roomOrNote: '',
+                fullText: '日勤',
+                rawLines: ['日勤'],
+                startMinutes: 510,
+                endMinutes: 1020,
+              },
+              {
+                periodIndex: 1,
+                dayIndex: 1,
+                text: '夜勤',
+                title: '夜勤',
+                roomOrNote: '',
+                fullText: '夜勤',
+                rawLines: ['夜勤'],
+                startMinutes: 990,
+                endMinutes: 1530,
+              },
+              {
+                periodIndex: 1,
+                dayIndex: 2,
+                text: null,
+                title: '',
+                roomOrNote: '',
+                fullText: '',
+                rawLines: [],
+                startMinutes: 0,
+                endMinutes: 0,
+              },
+              {
+                periodIndex: 1,
+                dayIndex: 3,
+                text: null,
+                title: '',
+                roomOrNote: '',
+                fullText: '',
+                rawLines: [],
+                startMinutes: 0,
+                endMinutes: 0,
+              },
+            ],
+          ],
+        };
+
+        const { slots } = generateScheduleItemsForTable(shiftFixedTable);
+        expect(slots).toHaveLength(2); // 日勤と夜勤
+
+        const dayShift = slots.find((s) => s.title === '日勤')!;
+        expect(dayShift).toBeDefined();
+        expect(dayShift.daysOfWeek).toEqual([0, 4]);
+
+        const nightShift = slots.find((s) => s.title === '夜勤')!;
+        expect(nightShift).toBeDefined();
+        expect(nightShift.daysOfWeek).toEqual([1, 5]);
+      });
     });
   });
 });

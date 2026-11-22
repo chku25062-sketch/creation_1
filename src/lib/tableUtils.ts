@@ -564,9 +564,14 @@ export function generateScheduleItemsForTable(
           if (isWeekday && effectiveWeekday !== undefined) {
             days = [effectiveWeekday];
           } else if (isCycle) {
-            days = [0, 1, 2, 3, 4, 5, 6].filter(
-              (d) => ((d - cycleStartDay + 7) % 7) % cycleCount === cycleIdx % cycleCount,
-            );
+            if (cycleCount === 1) {
+              // 1日分のみのサイクル（毎日同じ固定枠）は全曜日に配置
+              days = [0, 1, 2, 3, 4, 5, 6];
+            } else {
+              days = [0, 1, 2, 3, 4, 5, 6].filter(
+                (d) => ((d - cycleStartDay + 7) % 7) % cycleCount === cycleIdx % cycleCount,
+              );
+            }
           } else {
             days = [0, 1, 2, 3, 4, 5, 6];
           }
