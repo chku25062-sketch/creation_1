@@ -39,6 +39,7 @@ import {
 import { TableTemplateWizardModal } from '@/components/TableTemplateWizardModal';
 import { NewTableWizardModal } from '@/components/NewTableWizardModal';
 import { CellEditModal, CopiedCellPayload } from '@/components/tables/CellEditModal';
+import { PeriodTimeEditModal } from '@/components/tables/PeriodTimeEditModal';
 import { TableMobileSwitcherSheet } from '@/components/tables/TableMobileSwitcherSheet';
 import { TABLE_PALETTE_OPTIONS, getTableColorSchemeByIndex } from '@/components/Timeline24h';
 import {
@@ -396,6 +397,9 @@ export function ImportedTablesManager({
 
   // セル編集ステート（詳細は CellEditModal 内に局所化）
   const [editingCell, setEditingCell] = useState<{ r: number; c: number } | null>(null);
+
+  // 時限（行）時間変更モーダルステート
+  const [editingPeriodRowIdx, setEditingPeriodRowIdx] = useState<number | null>(null);
 
   // コマのコピー・ペースト用ステート（Plan23: テーブル全体で共有）
   const [copiedCellData, setCopiedCellData] = useState<CopiedCellPayload | null>(null);
@@ -3133,82 +3137,119 @@ export function ImportedTablesManager({
 
                       return (
                         <tr key={`row-${rIdx}`} className="group/row">
-                          {/* 行ヘッダー (番号 & 時間帯微調整 & 行削除ボタン) */}
+                          {/* 行ヘッダー (番号 & 時間帯微調整 & 行削除ボタン & タップで時間変更画面へ) */}
                           <td
+                            onClick={() => setEditingPeriodRowIdx(rIdx)}
+                            title={
+                              viewMode === 'mobile'
+                                ? `第 ${rIdx + 1} 時限の時間を変更（タップ）`
+                                : `第 ${rIdx + 1} 時限の時間を変更（クリック）`
+                            }
                             className={`sticky left-0 z-10 border-b border-r-2 border-slate-300 ${
                               viewMode === 'mobile'
-                                ? 'w-11 min-w-[44px] max-w-[44px] p-1'
-                                : 'p-1.5 sm:p-2'
+                                ? 'w-11 min-w-[44px] max-w-[44px] p-1 cursor-pointer select-none active:bg-blue-100'
+                                : 'p-1.5 sm:p-2 cursor-pointer'
                             } text-center transition ${
                               isCustomRowTime
-                                ? 'bg-amber-50/90 group-hover/row:bg-amber-100/80'
-                                : 'bg-slate-50 group-hover/row:bg-slate-100/80'
+                                ? 'bg-amber-50/90 group-hover/row:bg-amber-100/80 hover:bg-amber-100/90'
+                                : 'bg-slate-50 group-hover/row:bg-slate-100/80 hover:bg-slate-100/90'
                             }`}
                           >
-                            <div className="flex items-center justify-between gap-0.5">
-                              <span className={`font-bold text-slate-900 ${
-                                viewMode === 'mobile' ? 'text-xs' : 'text-xs sm:text-sm'
-                              }`}>
-                                {rIdx + 1}
-                              </span>
-                              <div className="flex items-center gap-0.5">
-                                {isCustomRowTime && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleResetCustomRowTime(periodIndex)}
-                                    title="この行の時間微調整をリセット"
-                                    className="rounded bg-amber-100 px-0.5 py-0.2 text-[8px] font-bold text-amber-800 hover:bg-amber-200 transition"
+                            {viewMode === 'mobile' ? (
+                              <div className="flex flex-col items-center justify-center gap-0.5 py-0.5">
+                                <div className="flex items-center justify-center gap-0.5">
+                                  <span className="font-bold text-slate-900 text-xs">
+                                    {rIdx + 1}
+                                  </span>
+                                  {isCustomRowTime && (
+                                    <span
+                                      title="個別微調整中"
+                                      className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"
+                                    />
+                                  )}
+                                </div>
+                                {activeTable.axisConfig.startTime && pt?.startTime ? (
+                                  <div
+                                    className={`text-[8px] font-mono leading-tight ${
+                                      isCustomRowTime ? 'text-amber-800 font-bold' : 'text-slate-500'
+                                    }`}
                                   >
-                                    {viewMode === 'mobile' ? '戻' : '戻す'}
-                                  </button>
-                                )}
-                                {viewMode === 'desktop' && activeTable.numRows > 1 && (
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      updateActiveTable((t) => removeRowAtIndex(t, rIdx))
-                                    }
-                                    title={`行 ${rIdx + 1} を削除`}
-                                    className="h-4 w-4 rounded opacity-60 hover:opacity-100 group-hover/row:opacity-100 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition cursor-pointer"
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </button>
+                                    {pt.startTime}
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-center text-slate-400 mt-0.5">
+                                    <Clock className="h-2.5 w-2.5" />
+                                  </div>
                                 )}
                               </div>
-                            </div>
-                            {activeTable.axisConfig.startTime && pt?.startTime && pt?.endTime && (
-                              <div className="mt-0.5 flex flex-col gap-0.5">
-                                <input
-                                  type="time"
-                                  value={pt.startTime}
-                                  onChange={(e) =>
-                                    handleCustomRowTimeChange(periodIndex, 'start', e.target.value)
-                                  }
-                                  title={`${rIdx + 1}行目の開始時刻を微調整`}
-                                  className={`w-full rounded border px-0.5 py-0.2 font-mono text-center focus:outline-hidden focus:ring-1 focus:ring-blue-500 ${
-                                    viewMode === 'mobile' ? 'text-[8px]' : 'text-[10px]'
-                                  } ${
-                                    isCustomRowTime
-                                      ? 'border-amber-300 bg-white font-bold text-amber-900'
-                                      : 'border-slate-200/80 bg-white/80 text-slate-600 hover:border-slate-300'
-                                  }`}
-                                />
-                                <input
-                                  type="time"
-                                  value={pt.endTime}
-                                  onChange={(e) =>
-                                    handleCustomRowTimeChange(periodIndex, 'end', e.target.value)
-                                  }
-                                  title={`${rIdx + 1}行目の終了時刻を微調整`}
-                                  className={`w-full rounded border px-0.5 py-0.2 font-mono text-center focus:outline-hidden focus:ring-1 focus:ring-blue-500 ${
-                                    viewMode === 'mobile' ? 'text-[8px]' : 'text-[10px]'
-                                  } ${
-                                    isCustomRowTime
-                                      ? 'border-amber-300 bg-white font-bold text-amber-900'
-                                      : 'border-slate-200/80 bg-white/80 text-slate-600 hover:border-slate-300'
-                                  }`}
-                                />
-                              </div>
+                            ) : (
+                              <>
+                                <div className="flex items-center justify-between gap-0.5">
+                                  <span className="font-bold text-slate-900 text-xs sm:text-sm">
+                                    {rIdx + 1}
+                                  </span>
+                                  <div
+                                    className="flex items-center gap-0.5"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {isCustomRowTime && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleResetCustomRowTime(periodIndex)}
+                                        title="この行の時間微調整をリセット"
+                                        className="rounded bg-amber-100 px-0.5 py-0.2 text-[8px] font-bold text-amber-800 hover:bg-amber-200 transition"
+                                      >
+                                        戻す
+                                      </button>
+                                    )}
+                                    {activeTable.numRows > 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          updateActiveTable((t) => removeRowAtIndex(t, rIdx))
+                                        }
+                                        title={`行 ${rIdx + 1} を削除`}
+                                        className="h-4 w-4 rounded opacity-60 hover:opacity-100 group-hover/row:opacity-100 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition cursor-pointer"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                                {activeTable.axisConfig.startTime && pt?.startTime && pt?.endTime && (
+                                  <div
+                                    className="mt-0.5 flex flex-col gap-0.5"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <input
+                                      type="time"
+                                      value={pt.startTime}
+                                      onChange={(e) =>
+                                        handleCustomRowTimeChange(periodIndex, 'start', e.target.value)
+                                      }
+                                      title={`${rIdx + 1}行目の開始時刻を微調整`}
+                                      className={`w-full rounded border px-0.5 py-0.2 font-mono text-center focus:outline-hidden focus:ring-1 focus:ring-blue-500 text-[10px] ${
+                                        isCustomRowTime
+                                          ? 'border-amber-300 bg-white font-bold text-amber-900'
+                                          : 'border-slate-200/80 bg-white/80 text-slate-600 hover:border-slate-300'
+                                      }`}
+                                    />
+                                    <input
+                                      type="time"
+                                      value={pt.endTime}
+                                      onChange={(e) =>
+                                        handleCustomRowTimeChange(periodIndex, 'end', e.target.value)
+                                      }
+                                      title={`${rIdx + 1}行目の終了時刻を微調整`}
+                                      className={`w-full rounded border px-0.5 py-0.2 font-mono text-center focus:outline-hidden focus:ring-1 focus:ring-blue-500 text-[10px] ${
+                                        isCustomRowTime
+                                          ? 'border-amber-300 bg-white font-bold text-amber-900'
+                                          : 'border-slate-200/80 bg-white/80 text-slate-600 hover:border-slate-300'
+                                      }`}
+                                    />
+                                  </div>
+                                )}
+                              </>
                             )}
                           </td>
 
@@ -3420,6 +3461,26 @@ export function ImportedTablesManager({
             handleClearCell(editingCell.r, editingCell.c);
             setEditingCell(null);
           }}
+        />
+      )}
+
+      {/* Period Time Edit Modal / Sheet（モバイル版で時限マス(1,2,3..)タップ時に時間変更画面へ遷移） */}
+      {editingPeriodRowIdx !== null && activeTable && (
+        <PeriodTimeEditModal
+          rowIndex={editingPeriodRowIdx}
+          totalRows={activeTable.numRows}
+          activeTable={activeTable}
+          periodTimes={periodTimes}
+          viewMode={(viewMode as string) === 'mobile' ? 'mobile' : 'desktop'}
+          onClose={() => setEditingPeriodRowIdx(null)}
+          onSelectRowIndex={(nextIdx) => {
+            if (nextIdx >= 0 && nextIdx < activeTable.numRows) {
+              setEditingPeriodRowIdx(nextIdx);
+            }
+          }}
+          onUpdateCustomRowTime={handleCustomRowTimeChange}
+          onResetCustomRowTime={handleResetCustomRowTime}
+          onUpdateTableAxisConfig={handleAxisConfigChange}
         />
       )}
 
