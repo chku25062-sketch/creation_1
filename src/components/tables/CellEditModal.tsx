@@ -293,7 +293,9 @@ export function CellEditModal({
                   <div>
                     <div className="text-xs font-bold text-slate-800">所要時間</div>
                     <div className="text-[10px] text-slate-500">
-                      {`表の設定（${cellDefaultPeriod}分）から初期入力`}
+                      {cellCustomDuration === cellDefaultPeriod
+                        ? `表の設定（${cellDefaultPeriod}分）を適用中`
+                        : `個別設定中（表の規定: ${cellDefaultPeriod}分）`}
                     </div>
                   </div>
                 </div>
@@ -335,7 +337,9 @@ export function CellEditModal({
                   <div>
                     <div className="text-xs font-bold text-slate-800">開始時刻</div>
                     <div className="text-[10px] text-slate-500">
-                      {cellHasCustomTime ? '表の設定から初期入力（変更可能）' : '指定なし（自動配置）'}
+                      {cellHasCustomTime
+                        ? `個別設定中（表の規定: ${defaultStartTime}）`
+                        : `表の設定・自動配置に従う（${defaultStartTime}）`}
                     </div>
                   </div>
                 </div>
@@ -654,7 +658,9 @@ export function CellEditModal({
             <div>
               <div className="text-xs font-bold text-slate-800">所要時間</div>
               <div className="text-[10px] text-slate-500">
-                {`表の設定（${cellDefaultPeriod}分）から初期入力`}
+                {cellCustomDuration === cellDefaultPeriod
+                  ? `表の設定（${cellDefaultPeriod}分）を適用中`
+                  : `個別設定中（表の規定: ${cellDefaultPeriod}分）`}
               </div>
             </div>
           </div>
@@ -690,7 +696,9 @@ export function CellEditModal({
               <div>
                 <div className="text-xs font-bold text-slate-800">開始時刻</div>
                 <div className="text-[10px] text-slate-500">
-                  {cellHasCustomTime ? '表の設定から初期入力（変更可能）' : '指定なし（自動配置）'}
+                  {cellHasCustomTime
+                    ? `個別設定中（表の規定: ${defaultStartTime}）`
+                    : `表の設定・自動配置に従う（${defaultStartTime}）`}
                 </div>
               </div>
             </div>

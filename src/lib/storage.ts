@@ -627,7 +627,7 @@ export const TABLE_ROUTINE: ImportedTableData = {
     weeklyTaskExpiryWeeks: 1,
   },
   cells: [
-    // 1行目: 筋トレ・運動系 (20分)
+    // 1行目: 筋トレ・運動系 (表の設定20分に連動)
     [
       {
         dayIndex: 0,
@@ -639,7 +639,6 @@ export const TABLE_ROUTINE: ImportedTableData = {
         fullText: '日課A (筋トレ・運動)',
         startMinutes: 0,
         endMinutes: 0,
-        customDurationMinutes: 20,
       },
       {
         dayIndex: 1,
@@ -651,10 +650,9 @@ export const TABLE_ROUTINE: ImportedTableData = {
         fullText: '日課D (ストレッチ・休養)',
         startMinutes: 0,
         endMinutes: 0,
-        customDurationMinutes: 20,
       },
     ],
-    // 2行目: 学習・教養系 (20分)
+    // 2行目: 学習・教養系 (表の設定20分に連動)
     [
       {
         dayIndex: 0,
@@ -666,7 +664,6 @@ export const TABLE_ROUTINE: ImportedTableData = {
         fullText: '日課B (英語・学習)',
         startMinutes: 0,
         endMinutes: 0,
-        customDurationMinutes: 20,
       },
       {
         dayIndex: 1,
@@ -678,7 +675,6 @@ export const TABLE_ROUTINE: ImportedTableData = {
         fullText: '日課E (読書・教養)',
         startMinutes: 0,
         endMinutes: 0,
-        customDurationMinutes: 20,
       },
     ],
     // 3行目: 生活改善・整理系 (15分)
@@ -744,7 +740,7 @@ export const TABLE_HOBBY: ImportedTableData = {
     weeklyTaskExpiryWeeks: 1,
   },
   cells: [
-    // 1行目: 自由時間・趣味 (60分)
+    // 1行目: 自由時間・趣味 (表の設定60分に連動)
     [
       {
         dayIndex: 0,
@@ -756,7 +752,6 @@ export const TABLE_HOBBY: ImportedTableData = {
         fullText: '自由時間・趣味',
         startMinutes: 0,
         endMinutes: 0,
-        customDurationMinutes: 60,
       },
     ],
   ],

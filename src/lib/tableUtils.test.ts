@@ -1021,9 +1021,24 @@ describe('tableUtils', () => {
           },
         };
         expect(getCellDefaultDuration(gymTable, 0, 0)).toBe(45);
+
+        // セルに個別 customDurationMinutes (例: 60分) が設定されていても、
+        // getCellDefaultDuration は純粋に表の規定値（20分）を返し、リセットで表の設定に戻れること
+        const tableWithCellOverride: ImportedTableData = {
+          ...workoutTable,
+          cells: [
+            [
+              {
+                ...workoutTable.cells[0][0],
+                customDurationMinutes: 60,
+              },
+            ],
+          ],
+        };
+        expect(getCellDefaultDuration(tableWithCellOverride, 0, 0)).toBe(20);
       });
 
-      it('getCellDefaultStartTime は表の開始時刻または行開始時刻を正しく参照すること', () => {
+      it('getCellDefaultStartTime は表の開始時刻または行開始時刻を正しく参照し、セルの個別値ではなく規定値を返すこと', () => {
         const tableWithTime: ImportedTableData = {
           ...createBaseTable('08:30'),
           axisConfig: {
@@ -1048,6 +1063,22 @@ describe('tableUtils', () => {
         const { startTime, hasExplicitTime } = getCellDefaultStartTime(tableWithTime, 0, 0, periodTimes);
         expect(startTime).toBe('08:30');
         expect(hasExplicitTime).toBe(true);
+
+        // セルに個別 customStartTime ('10:00') があっても、規定値の '08:30' が返ること
+        const tableWithCellStartTime: ImportedTableData = {
+          ...tableWithTime,
+          cells: [
+            [
+              {
+                ...createBaseTable('08:30').cells[0][0],
+                customStartTime: '10:00',
+                hasCustomTime: true,
+              },
+            ],
+          ],
+        };
+        const resetRes = getCellDefaultStartTime(tableWithCellStartTime, 0, 0, periodTimes);
+        expect(resetRes.startTime).toBe('08:30');
       });
 
       it('昼休み設定（hasLunch: true, lunchAfterPeriod: 2, lunchMinutes: 50）がある場合、昼休み直前コマの休憩時間が50分になること', () => {

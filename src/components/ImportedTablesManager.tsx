@@ -65,6 +65,7 @@ import {
   generateScheduleItemsForTable,
   parseColHeader,
   sortRowsByTime,
+  getCellDefaultDuration,
   getCellDefaultStartTime,
 } from '@/lib/tableUtils';
 import { TaskManager } from '@/components/TaskManager';
@@ -847,6 +848,11 @@ export function ImportedTablesManager({
     const roomOrNote = lines.slice(1).join('\n');
 
     updateActiveTable((prev) => {
+      const defaultDuration = getCellDefaultDuration(prev, r, c, periodTimes);
+      const isCustomDuration =
+        updatedData.customDurationMinutes > 0 &&
+        updatedData.customDurationMinutes !== defaultDuration;
+
       const nextCells = prev.cells.map((row, rIdx) =>
         row.map((cell, cIdx) => {
           if (rIdx === r && cIdx === c) {
@@ -858,8 +864,9 @@ export function ImportedTablesManager({
               fullText: trimmed,
               rawLines: lines,
               breakMinutes: updatedData.breakMinutes > 0 ? updatedData.breakMinutes : undefined,
-              customDurationMinutes:
-                updatedData.customDurationMinutes > 0 ? updatedData.customDurationMinutes : undefined,
+              customDurationMinutes: isCustomDuration
+                ? updatedData.customDurationMinutes
+                : undefined,
               customStartTime:
                 updatedData.hasCustomTime && updatedData.customStartTime
                   ? updatedData.customStartTime
