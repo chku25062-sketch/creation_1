@@ -812,23 +812,43 @@ describe('tableUtils', () => {
       expect(sleep.endMinutes).toBe(8 * 60); // 08:00
     });
 
-    it('日課表から生成されるタスクが 日課A・日課B・日課C として空き時間への自動配分タスクになること', () => {
+    it('日課表（2日周期）から生成されるタスクが 2日ローテーション（Day 1: A,B,C / Day 2: D,E,F）の自動配分タスクになること', () => {
       const routineTable = INITIAL_IMPORTED_TABLES.find((t) => t.name === '日課')!;
+      expect(routineTable.columnMode).toBe('cycle');
+      expect(routineTable.numCols).toBe(2);
+      expect(routineTable.colHeaders).toEqual(['Day 1', 'Day 2']);
+
       const { tasks } = generateScheduleItemsForTable(routineTable);
-      expect(tasks.length).toBe(3);
+      expect(tasks.length).toBe(6);
 
-      const taskA = tasks.find((t) => t.title === '日課A (筋トレ・運動)')!;
-      expect(taskA.durationMinutes).toBe(20);
+      // Day 1 タスク群
+      const day1Tasks = tasks.filter((t) => t.cycleIndex === 0);
+      expect(day1Tasks.length).toBe(3);
+      for (const t of day1Tasks) {
+        expect(t.cycleCount).toBe(2);
+        expect(t.period).toBe('day');
+      }
+      expect(day1Tasks.some((t) => t.title === '日課A (筋トレ・運動)')).toBe(true);
+      expect(day1Tasks.some((t) => t.title === '日課B (英語・学習)')).toBe(true);
+      expect(day1Tasks.some((t) => t.title === '日課C (片付け・整理)')).toBe(true);
 
-      const taskB = tasks.find((t) => t.title === '日課B (英語・学習)')!;
-      expect(taskB.durationMinutes).toBe(20);
-
-      const taskC = tasks.find((t) => t.title === '日課C (読書・ストレッチ)')!;
-      expect(taskC.durationMinutes).toBe(15);
+      // Day 2 タスク群
+      const day2Tasks = tasks.filter((t) => t.cycleIndex === 1);
+      expect(day2Tasks.length).toBe(3);
+      for (const t of day2Tasks) {
+        expect(t.cycleCount).toBe(2);
+        expect(t.period).toBe('day');
+      }
+      expect(day2Tasks.some((t) => t.title === '日課D (ストレッチ・休養)')).toBe(true);
+      expect(day2Tasks.some((t) => t.title === '日課E (読書・教養)')).toBe(true);
+      expect(day2Tasks.some((t) => t.title === '日課F (日記・振り返り)')).toBe(true);
     });
 
-    it('趣味表から生成されるタスクが 1日1回・60分の自動配分タスクになること', () => {
+    it('趣味表（1日周期）から生成されるタスクが 1日1回・60分の自動配分タスクになること', () => {
       const hobbyTable = INITIAL_IMPORTED_TABLES.find((t) => t.name === '趣味')!;
+      expect(hobbyTable.columnMode).toBe('cycle');
+      expect(hobbyTable.numCols).toBe(1);
+      expect(hobbyTable.colHeaders).toEqual(['Day 1']);
       expect(hobbyTable.dailyRepeatCount).toBe(1);
 
       const { tasks } = generateScheduleItemsForTable(hobbyTable);
@@ -838,6 +858,8 @@ describe('tableUtils', () => {
       expect(hobbyTask.title).toBe('自由時間・趣味');
       expect(hobbyTask.durationMinutes).toBe(60);
       expect(hobbyTask.dailyCount).toBe(1);
+      expect(hobbyTask.cycleIndex).toBe(0);
+      expect(hobbyTask.cycleCount).toBe(1);
     });
 
     it('授業表の付随タスク生成がオンになっており、各講義の終了後に付随タスクが生成されること', () => {

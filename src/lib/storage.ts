@@ -597,7 +597,7 @@ export const TABLE_LIFESTYLE: ImportedTableData = {
 
 
 // ========================================================
-// 3. 日課（筋トレ・英語・習慣タスクの柔軟自動配分）
+// 3. 日課（2日周期ローテーション・習慣タスクの柔軟自動配分）
 // ========================================================
 export const TABLE_ROUTINE: ImportedTableData = {
   id: 'default-table-routine',
@@ -606,15 +606,15 @@ export const TABLE_ROUTINE: ImportedTableData = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   placementMode: 'auto',
-  columnMode: 'weekday',
+  columnMode: 'cycle', // 2日周期ローテーション
   cycleStartDay: 0,
   dailyRepeatCount: 'auto',
   weeklyRepeatCount: 'auto',
   weeklyTaskExpiryWeeks: 1,
   isApplied: true,
   numRows: 3,
-  numCols: 7,
-  colHeaders: ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'],
+  numCols: 2,
+  colHeaders: ['Day 1', 'Day 2'],
   rowHeaders: ['日課A', '日課B', '日課C'],
   axisConfig: {
     startTime: null,
@@ -627,52 +627,94 @@ export const TABLE_ROUTINE: ImportedTableData = {
     weeklyTaskExpiryWeeks: 1,
   },
   cells: [
-    // 1行目: 日課A (筋トレ・運動 / 20分)
-    Array.from({ length: 7 }, (_, dayIndex) => ({
-      dayIndex,
-      periodIndex: 1,
-      text: '日課A (筋トレ・運動)',
-      title: '日課A (筋トレ・運動)',
-      roomOrNote: '',
-      rawLines: ['日課A (筋トレ・運動)'],
-      fullText: '日課A (筋トレ・運動)',
-      startMinutes: 0,
-      endMinutes: 0,
-      customDurationMinutes: 20,
-    })),
-    // 2行目: 日課B (英語・学習 / 20分)
-    Array.from({ length: 7 }, (_, dayIndex) => ({
-      dayIndex,
-      periodIndex: 2,
-      text: '日課B (英語・学習)',
-      title: '日課B (英語・学習)',
-      roomOrNote: '',
-      rawLines: ['日課B (英語・学習)'],
-      fullText: '日課B (英語・学習)',
-      startMinutes: 0,
-      endMinutes: 0,
-      customDurationMinutes: 20,
-    })),
-    // 3行目: 日課C (読書・ストレッチ / 15分)
-    Array.from({ length: 7 }, (_, dayIndex) => ({
-      dayIndex,
-      periodIndex: 3,
-      text: '日課C (読書・ストレッチ)',
-      title: '日課C (読書・ストレッチ)',
-      roomOrNote: '',
-      rawLines: ['日課C (読書・ストレッチ)'],
-      fullText: '日課C (読書・ストレッチ)',
-      startMinutes: 0,
-      endMinutes: 0,
-      customDurationMinutes: 15,
-    })),
+    // 1行目: 筋トレ・運動系 (20分)
+    [
+      {
+        dayIndex: 0,
+        periodIndex: 1,
+        text: '日課A (筋トレ・運動)',
+        title: '日課A (筋トレ・運動)',
+        roomOrNote: '',
+        rawLines: ['日課A (筋トレ・運動)'],
+        fullText: '日課A (筋トレ・運動)',
+        startMinutes: 0,
+        endMinutes: 0,
+        customDurationMinutes: 20,
+      },
+      {
+        dayIndex: 1,
+        periodIndex: 1,
+        text: '日課D (ストレッチ・休養)',
+        title: '日課D (ストレッチ・休養)',
+        roomOrNote: '',
+        rawLines: ['日課D (ストレッチ・休養)'],
+        fullText: '日課D (ストレッチ・休養)',
+        startMinutes: 0,
+        endMinutes: 0,
+        customDurationMinutes: 20,
+      },
+    ],
+    // 2行目: 学習・教養系 (20分)
+    [
+      {
+        dayIndex: 0,
+        periodIndex: 2,
+        text: '日課B (英語・学習)',
+        title: '日課B (英語・学習)',
+        roomOrNote: '',
+        rawLines: ['日課B (英語・学習)'],
+        fullText: '日課B (英語・学習)',
+        startMinutes: 0,
+        endMinutes: 0,
+        customDurationMinutes: 20,
+      },
+      {
+        dayIndex: 1,
+        periodIndex: 2,
+        text: '日課E (読書・教養)',
+        title: '日課E (読書・教養)',
+        roomOrNote: '',
+        rawLines: ['日課E (読書・教養)'],
+        fullText: '日課E (読書・教養)',
+        startMinutes: 0,
+        endMinutes: 0,
+        customDurationMinutes: 20,
+      },
+    ],
+    // 3行目: 生活改善・整理系 (15分)
+    [
+      {
+        dayIndex: 0,
+        periodIndex: 3,
+        text: '日課C (片付け・整理)',
+        title: '日課C (片付け・整理)',
+        roomOrNote: '',
+        rawLines: ['日課C (片付け・整理)'],
+        fullText: '日課C (片付け・整理)',
+        startMinutes: 0,
+        endMinutes: 0,
+        customDurationMinutes: 15,
+      },
+      {
+        dayIndex: 1,
+        periodIndex: 3,
+        text: '日課F (日記・振り返り)',
+        title: '日課F (日記・振り返り)',
+        roomOrNote: '',
+        rawLines: ['日課F (日記・振り返り)'],
+        fullText: '日課F (日記・振り返り)',
+        startMinutes: 0,
+        endMinutes: 0,
+        customDurationMinutes: 15,
+      },
+    ],
   ],
 };
 
 
 
 // ========================================================
-// 4. 趣味（1日1回の自由時間・自動配分）
+// 4. 趣味（1日周期・1日1回の自由時間・自動配分）
 // ========================================================
 export const TABLE_HOBBY: ImportedTableData = {
   id: 'default-table-hobby',
@@ -681,15 +723,15 @@ export const TABLE_HOBBY: ImportedTableData = {
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   placementMode: 'auto',
-  columnMode: 'weekday',
+  columnMode: 'cycle', // 1日周期
   cycleStartDay: 0,
   dailyRepeatCount: 1, // ユーザー指定: 1日1回の繰り返し
   weeklyRepeatCount: 'auto',
   weeklyTaskExpiryWeeks: 1,
   isApplied: true,
   numRows: 1,
-  numCols: 7,
-  colHeaders: ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜'],
+  numCols: 1,
+  colHeaders: ['Day 1'],
   rowHeaders: ['趣味'],
   axisConfig: {
     startTime: null,
@@ -703,18 +745,20 @@ export const TABLE_HOBBY: ImportedTableData = {
   },
   cells: [
     // 1行目: 自由時間・趣味 (60分)
-    Array.from({ length: 7 }, (_, dayIndex) => ({
-      dayIndex,
-      periodIndex: 1,
-      text: '自由時間・趣味',
-      title: '自由時間・趣味',
-      roomOrNote: '',
-      rawLines: ['自由時間・趣味'],
-      fullText: '自由時間・趣味',
-      startMinutes: 0,
-      endMinutes: 0,
-      customDurationMinutes: 60,
-    })),
+    [
+      {
+        dayIndex: 0,
+        periodIndex: 1,
+        text: '自由時間・趣味',
+        title: '自由時間・趣味',
+        roomOrNote: '',
+        rawLines: ['自由時間・趣味'],
+        fullText: '自由時間・趣味',
+        startMinutes: 0,
+        endMinutes: 0,
+        customDurationMinutes: 60,
+      },
+    ],
   ],
 };
 
