@@ -607,8 +607,36 @@ export function NewTableWizardModal({
         } else if (dailyRepeatPattern === 'cycle') {
           generatedTable.columnMode = 'cycle';
           generatedTable.numCols = dailyCycleLength;
+          generatedTable.colHeaders = Array.from({ length: dailyCycleLength }, (_, i) => `Day ${i + 1}`);
           generatedTable.cycleStartDay = dailyCycleStartDay;
           generatedTable.cycleStartDate = cycleStartDate;
+
+          // Plan33: 既存行を保持しつつ、列数を dailyCycleLength に適応
+          generatedTable.cells = targetTable.cells.map((rowCells, r) => {
+            return Array.from({ length: dailyCycleLength }, (_, c) => {
+              const existingCell = rowCells[c];
+              if (existingCell) {
+                return {
+                  ...existingCell,
+                  dayIndex: c,
+                  periodIndex: r + 1,
+                };
+              }
+              const sampleCell = rowCells[0];
+              return {
+                dayIndex: c,
+                periodIndex: r + 1,
+                text: null,
+                title: '',
+                roomOrNote: '',
+                rawLines: [],
+                fullText: '',
+                startMinutes: sampleCell?.startMinutes ?? 0,
+                endMinutes: sampleCell?.endMinutes ?? 0,
+                customDurationMinutes: sampleCell?.customDurationMinutes ?? defaultDuration,
+              };
+            });
+          });
         } else {
           generatedTable.columnMode = 'weekday';
         }
@@ -754,13 +782,14 @@ export function NewTableWizardModal({
       const targetDailyRepeat = enableDailyTargetCount ? Math.max(1, dailyTargetCount) : 1;
 
       if (dailyRepeatPattern === 'cycle') {
-        const cycleItems: (DailyMenuItem | null)[] = Array.from(
-          { length: dailyCycleLength },
-          (_, c) => {
-            const s = suggestions[c];
+        // Plan33: M行×N列のサイクル表を生成
+        const gridItems: (DailyMenuItem | null)[][] = Array.from({ length: count }, (_, r) => {
+          return Array.from({ length: dailyCycleLength }, (_, c) => {
+            const idx = r * dailyCycleLength + c;
+            const s = suggestions[idx] || (includeSampleTasks ? { label: `Day ${c + 1} タスク ${r + 1}`, defaultDuration } : null);
             return s ? { title: s.label, durationMinutes: s.defaultDuration || defaultDuration } : null;
-          },
-        );
+          });
+        });
 
         generatedTable = createDailyRoutineTable({
           name: finalTableName,
@@ -768,7 +797,8 @@ export function NewTableWizardModal({
           cycleRotation: {
             cycleLength: dailyCycleLength,
             cycleStartDay: dailyCycleStartDay,
-            items: cycleItems,
+            gridItems,
+            rowCount: count,
             defaultDurationMinutes: defaultDuration,
           },
           dailyRepeatCount: targetDailyRepeat,
@@ -1278,10 +1308,80 @@ export function NewTableWizardModal({
             </div>
           )}
 
-          {/* 5. 何時から予定を配置しますか？（開始時刻の個別設定 ＆ 「指定しない」） */}
+          {/* 4. 週次タスクの目標回数（週次タスクのみ表示） */}
+          {tableType === 'weekly' && (
+            <div className="space-y-2 pt-3 border-t border-slate-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="block text-xs font-bold text-slate-900">
+                    4. 週に何回取り組みますか？
+                  </label>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    1週間の目標ノルマです（直接自由に入力できます）
+                  </p>
+                </div>
+                <NumberStepper
+                  value={weeklyTargetCount}
+                  onChange={val => setWeeklyTargetCount(val)}
+                  min={1}
+                  max={7}
+                  step={1}
+                  unit="回/週"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* 5. 1日あたり何個のタスクを作成しますか？（全タイプ共通！Plan33で完全解禁） */}
+          <div className="space-y-2 pt-3 border-t border-slate-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="block text-xs font-bold text-slate-900">
+                  {tableType === 'fixed'
+                    ? '5. 1日あたり何コマ受講・配置しますか？'
+                    : '5. 1日あたり何個のタスクを登録しますか？'}
+                </label>
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  スケジュール表の初期枠数です（直接自由に入力できます）
+                </p>
+              </div>
+              <NumberStepper
+                value={tableTaskCount}
+                onChange={val => setTableTaskCount(val)}
+                min={1}
+                max={tableType === 'fixed' ? 12 : 20}
+                step={1}
+                unit={tableType === 'fixed' ? 'コマ' : '個'}
+              />
+            </div>
+          </div>
+
+          {/* 6. 1回あたりの作業時間はどのくらいですか？（全タイプ共通） */}
+          <div className="space-y-2 pt-3 border-t border-slate-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="block text-xs font-bold text-slate-900">
+                  {tableType === 'fixed' ? '6. 1コマの長さはどのくらいですか？' : '6. 1回あたりの作業時間はどのくらいですか？'}
+                </label>
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  タスクを追加したときの標準の長さです（直接自由に入力できます）
+                </p>
+              </div>
+              <NumberStepper
+                value={defaultDuration}
+                onChange={val => setDefaultDuration(val)}
+                min={5}
+                max={480}
+                step={5}
+                unit="分"
+              />
+            </div>
+          </div>
+
+          {/* 7. 何時から予定を配置しますか？（開始時刻の個別設定 ＆ 「指定しない」） */}
           <div className="space-y-2 pt-3 border-t border-slate-200">
             <label className="block text-xs font-bold text-slate-900">
-              5. 何時から予定を配置しますか？
+              7. 何時から予定を配置しますか？
             </label>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -1323,10 +1423,10 @@ export function NewTableWizardModal({
             )}
           </div>
 
-          {/* 6. 何時以降には予定を配置しませんか？（終了リミットの個別設定 ＆ 「指定しない」） */}
+          {/* 8. 何時以降には予定を配置しませんか？（終了リミットの個別設定 ＆ 「指定しない」） */}
           <div className="space-y-2 pt-3 border-t border-slate-200">
             <label className="block text-xs font-bold text-slate-900">
-              6. 何時以降には予定を配置しませんか？
+              8. 何時以降には予定を配置しませんか？
             </label>
             <div className="grid grid-cols-2 gap-2">
               <button
@@ -1374,52 +1474,6 @@ export function NewTableWizardModal({
               </p>
             )}
           </div>
-
-          {/* 7. 1回あたりの作業時間はどのくらいですか？（全タイプ共通） */}
-          <div className="space-y-2 pt-3 border-t border-slate-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="block text-xs font-bold text-slate-900">
-                  {tableType === 'fixed' ? '7. 1コマの長さはどのくらいですか？' : '7. 1回あたりの作業時間はどのくらいですか？'}
-                </label>
-                <p className="text-[10px] text-slate-500 mt-0.5">
-                  タスクを追加したときの標準の長さです（直接自由に入力できます）
-                </p>
-              </div>
-              <NumberStepper
-                value={defaultDuration}
-                onChange={val => setDefaultDuration(val)}
-                min={5}
-                max={480}
-                step={5}
-                unit="分"
-              />
-            </div>
-          </div>
-
-          {/* 8. 1日あたり何個のタスクを登録しますか？（全タイプ共通） */}
-          {!(tableType === 'daily' && dailyRepeatPattern === 'cycle') && (
-            <div className="space-y-2 pt-3 border-t border-slate-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <label className="block text-xs font-bold text-slate-900">
-                    {tableType === 'fixed' ? '8. 1日あたり何コマ受講・配置しますか？' : '8. 1日あたり何個のタスクを登録しますか？'}
-                  </label>
-                  <p className="text-[10px] text-slate-500 mt-0.5">
-                    スケジュール表の初期枠数です（直接自由に入力できます）
-                  </p>
-                </div>
-                <NumberStepper
-                  value={tableTaskCount}
-                  onChange={val => setTableTaskCount(val)}
-                  min={1}
-                  max={tableType === 'fixed' ? 12 : 20}
-                  step={1}
-                  unit={tableType === 'fixed' ? 'コマ' : '個'}
-                />
-              </div>
-            </div>
-          )}
 
           {/* 9. 1日あたりの目標回数は設定しますか？（日課・ルーティンのみ表示） */}
           {tableType === 'daily' && (
@@ -1470,13 +1524,13 @@ export function NewTableWizardModal({
             </div>
           )}
 
-          {/* 10. 次の予定までの休み時間（固定枠のみ表示） */}
+          {/* 9. 次の予定までの休み時間（固定枠のみ表示） */}
           {tableType === 'fixed' && (
             <div className="space-y-2 pt-3 border-t border-slate-200">
               <div className="flex items-center justify-between">
                 <div>
                   <label className="block text-xs font-bold text-slate-900">
-                    10. 次の予定までの休み時間は必要ですか？
+                    9. 次の予定までの休み時間は必要ですか？
                   </label>
                   <p className="text-[10px] text-slate-500 mt-0.5">
                     各コマの間に自動挿入される休憩・移動時間です（直接入力可能）
@@ -1494,11 +1548,11 @@ export function NewTableWizardModal({
             </div>
           )}
 
-          {/* 11. 昼休み（お昼休憩）は設けますか？（固定枠のみ表示） */}
+          {/* 10. 昼休み（お昼休憩）は設けますか？（固定枠のみ表示） */}
           {tableType === 'fixed' && (
             <div className="space-y-2 pt-3 border-t border-slate-200">
               <label className="block text-xs font-bold text-slate-900">
-                11. 昼休み（お昼休憩）は設けますか？
+                10. 昼休み（お昼休憩）は設けますか？
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <button
@@ -1559,7 +1613,7 @@ export function NewTableWizardModal({
             </div>
           )}
 
-          {/* 12. 課題・予習復習が出ますか？（固定枠のみ表示、タスク名入力撤廃で所要時間のみ） */}
+          {/* 11. 課題・予習復習が出ますか？（固定枠のみ表示、タスク名入力撤廃で所要時間のみ） */}
           {tableType === 'fixed' && (
             <div className="space-y-2 pt-3 border-t border-slate-200">
               <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -1570,7 +1624,7 @@ export function NewTableWizardModal({
                   className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                 />
                 <span className="text-xs font-bold text-slate-900">
-                  12. この予定に課題や予習・復習が出ますか？
+                  11. この予定に課題や予習・復習が出ますか？
                 </span>
               </label>
               {enableAttachedTask && (

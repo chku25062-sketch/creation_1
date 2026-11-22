@@ -831,5 +831,69 @@ describe('Table Templates Generator (Plan22 仮実装検証)', () => {
       expect(weeklyTable.numRows).toBe(3);
       expect(weeklyTable.cells).toHaveLength(3);
     });
+
+    it('Plan33: サイクル日課（cycle_rotation）で複数行（M行×N列）のテーブルが正常に生成されること', () => {
+      // 3日サイクル × 各日2タスク（2行×3列の分割筋トレ表）
+      const gridItems = [
+        // 行1
+        [
+          { title: 'ベンチプレス', durationMinutes: 30 },
+          { title: 'スクワット', durationMinutes: 40 },
+          { title: 'デッドリフト', durationMinutes: 45 },
+        ],
+        // 行2
+        [
+          { title: 'ダンベルフライ', durationMinutes: 20 },
+          { title: 'レッグプレス', durationMinutes: 25 },
+          { title: '懸垂', durationMinutes: 20 },
+        ],
+      ];
+
+      const cycleTable = createDailyRoutineTable({
+        name: '3分割筋トレルーティン',
+        mode: 'cycle_rotation',
+        cycleRotation: {
+          cycleLength: 3,
+          gridItems,
+          rowCount: 2,
+          defaultDurationMinutes: 30,
+        },
+        timeRange: { startTime: '18:00', endTime: '22:00' },
+      });
+
+      expect(cycleTable.numRows).toBe(2);
+      expect(cycleTable.numCols).toBe(3);
+      expect(cycleTable.colHeaders).toEqual(['Day 1', 'Day 2', 'Day 3']);
+      expect(cycleTable.rowHeaders).toEqual(['1', '2']);
+      expect(cycleTable.columnMode).toBe('cycle');
+
+      // 各セルの内容を検証
+      expect(cycleTable.cells[0][0].title).toBe('ベンチプレス');
+      expect(cycleTable.cells[0][0].dayIndex).toBe(0);
+      expect(cycleTable.cells[0][0].periodIndex).toBe(1);
+
+      expect(cycleTable.cells[0][1].title).toBe('スクワット');
+      expect(cycleTable.cells[0][1].dayIndex).toBe(1);
+
+      expect(cycleTable.cells[1][0].title).toBe('ダンベルフライ');
+      expect(cycleTable.cells[1][0].periodIndex).toBe(2);
+
+      expect(cycleTable.cells[1][2].title).toBe('懸垂');
+      expect(cycleTable.cells[1][2].dayIndex).toBe(2);
+
+      // スケジュールアイテムへの抽出を検証（合計6タスク）
+      const { tasks } = generateScheduleItemsForTable(cycleTable);
+      expect(tasks).toHaveLength(6);
+
+      const bench = tasks.find((t) => t.title === 'ベンチプレス');
+      expect(bench?.cycleDays).toEqual([0]);
+      expect(bench?.cycleCount).toBe(3);
+
+      const squat = tasks.find((t) => t.title === 'スクワット');
+      expect(squat?.cycleDays).toEqual([1]);
+
+      const pullup = tasks.find((t) => t.title === '懸垂');
+      expect(pullup?.cycleDays).toEqual([2]);
+    });
   });
 });

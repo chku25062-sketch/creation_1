@@ -54,7 +54,9 @@ export interface DailyRoutineTemplateInput {
   // N日サイクルローテーションの場合（Day 1..N を巡回する）
   cycleRotation?: {
     cycleLength: number; // 周期日数（例: 3, 4）
-    items: (DailyMenuItem | null)[]; // 各Dayのメニュー（Day 1 〜 Day N）
+    items?: (DailyMenuItem | null)[]; // 各Dayのメニュー（1行の場合またはフラット）
+    gridItems?: (DailyMenuItem | null)[][]; // 行×列の2次元メニュー（複数行の場合）
+    rowCount?: number; // 行数（タスク数、デフォルト1）
     cycleStartDay?: number; // 周期の開始曜日（0:月〜6:日、デフォルト0）
     defaultDurationMinutes?: number;
   };
@@ -144,18 +146,33 @@ export function createDailyRoutineTable(input: DailyRoutineTemplateInput): Impor
     const cycleLength = Math.max(1, input.cycleRotation?.cycleLength || 1);
     const defaultDur = input.cycleRotation?.defaultDurationMinutes || 30;
     const items = input.cycleRotation?.items || [];
+    const gridItems = input.cycleRotation?.gridItems;
     const cycleStartDay = input.cycleRotation?.cycleStartDay ?? 0;
+    const numRows = Math.max(1, gridItems ? gridItems.length : (input.cycleRotation?.rowCount || 1));
 
     const colHeaders = Array.from({ length: cycleLength }, (_, i) => `Day ${i + 1}`);
-    const cells: GridCell[][] = [
-      Array.from({ length: cycleLength }, (_, c) => {
-        const item = items[c];
+    const rowHeaders = Array.from({ length: numRows }, (_, r) => String(r + 1));
+
+    const cells: GridCell[][] = Array.from({ length: numRows }, (_, r) => {
+      return Array.from({ length: cycleLength }, (_, c) => {
+        let item: DailyMenuItem | null | undefined = null;
+        if (gridItems && gridItems[r]) {
+          item = gridItems[r][c];
+        } else if (items.length > 0) {
+          if (items.length > cycleLength) {
+            // フラットに渡されている場合
+            item = items[r * cycleLength + c];
+          } else if (r === 0) {
+            item = items[c];
+          }
+        }
+
         const hasTask = Boolean(item && item.title && item.title.trim() !== '');
         const duration = item?.durationMinutes && item.durationMinutes > 0 ? item.durationMinutes : defaultDur;
 
         return {
           dayIndex: c,
-          periodIndex: 1,
+          periodIndex: r + 1,
           text: hasTask ? item!.title : null,
           title: hasTask ? item!.title : '',
           roomOrNote: '',
@@ -164,8 +181,8 @@ export function createDailyRoutineTable(input: DailyRoutineTemplateInput): Impor
           startMinutes: hasTask ? startMin : 0,
           endMinutes: hasTask ? startMin + duration : 0,
         };
-      }),
-    ];
+      });
+    });
 
     return {
       id,
@@ -179,10 +196,10 @@ export function createDailyRoutineTable(input: DailyRoutineTemplateInput): Impor
       weeklyRepeatCount: 'auto',
       weeklyTaskExpiryWeeks: 1,
       isApplied: true,
-      numRows: 1,
+      numRows,
       numCols: cycleLength,
       colHeaders,
-      rowHeaders: ['1'],
+      rowHeaders,
       axisConfig: {
         startTime: startTimeStr,
         endTime: endTimeStr,
