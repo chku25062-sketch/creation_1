@@ -335,10 +335,14 @@ export function NewTableWizardModal({
   // 固定枠のコマ間休憩時間（分。デフォルト 10分）
   const [fixedIntervalMinutes, setFixedIntervalMinutes] = useState<number>(10);
 
-  // 固定枠の付随タスク（連動タスク）設定
+  // 昼休みの設定（固定枠のみ）
+  const [hasLunch, setHasLunch] = useState<boolean>(false);
+  const [lunchAfterPeriod, setLunchAfterPeriod] = useState<number>(2);
+  const [lunchMinutes, setLunchMinutes] = useState<number>(50);
+
+  // 固定枠の付随タスク（連動タスク）設定（タスク名設定は撤廃し所要時間のみ）
   const [enableAttachedTask, setEnableAttachedTask] = useState<boolean>(false);
   const [attachedTaskDuration, setAttachedTaskDuration] = useState<number>(30);
-  const [attachedTaskTitleTemplate, setAttachedTaskTitleTemplate] = useState<string>('{title} のタスク');
 
   // 週次タスクの1週間あたりの目標回数
   const [weeklyTargetCount, setWeeklyTargetCount] = useState<number>(2);
@@ -401,9 +405,12 @@ export function NewTableWizardModal({
       setDefaultDuration(initialDur);
 
       setFixedIntervalMinutes(targetTable.axisConfig.intervalMinutes ?? 10);
+      setHasLunch(Boolean(targetTable.axisConfig.hasLunch));
+      setLunchAfterPeriod(targetTable.axisConfig.lunchAfterPeriod ?? 2);
+      setLunchMinutes(targetTable.axisConfig.lunchMinutes ?? 50);
+
       setEnableAttachedTask(Boolean(targetTable.attachedTaskConfig?.enabled));
       setAttachedTaskDuration(targetTable.attachedTaskConfig?.durationMinutes || 30);
-      setAttachedTaskTitleTemplate(targetTable.attachedTaskConfig?.titleTemplate || '{title} のタスク');
       const firstWeeklyCell = targetTable.cells?.flat().find(c => (c.targetWeeklyCount ?? 0) > 0);
       setWeeklyTargetCount(firstWeeklyCell?.targetWeeklyCount || 2);
       setTableTaskCount(targetTable.numRows || 4);
@@ -425,9 +432,11 @@ export function NewTableWizardModal({
       setEnableDailyTargetCount(false);
       setDailyTargetCount(1);
       setFixedIntervalMinutes(10);
+      setHasLunch(false);
+      setLunchAfterPeriod(2);
+      setLunchMinutes(50);
       setEnableAttachedTask(false);
       setAttachedTaskDuration(30);
-      setAttachedTaskTitleTemplate('{title} のタスク');
       setWeeklyTargetCount(2);
       setIncludeSampleTasks(true);
     }
@@ -456,6 +465,9 @@ export function NewTableWizardModal({
     const themeDuration = theme.defaultDuration || theme.suggestions[0]?.defaultDuration || 20;
     setDefaultDuration(themeDuration);
     setFixedIntervalMinutes(theme.defaultIntervalMinutes ?? 10);
+    setHasLunch(false);
+    setLunchAfterPeriod(2);
+    setLunchMinutes(50);
     setEnableAttachedTask(Boolean(theme.defaultEnableAttachedTask));
     setAttachedTaskDuration(theme.defaultAttachedTaskDuration || 30);
     setWeeklyTargetCount(theme.defaultWeeklyTargetCount || 2);
@@ -480,6 +492,9 @@ export function NewTableWizardModal({
           ...targetTable.axisConfig,
           periodMinutes: defaultDuration,
           intervalMinutes: tableType === 'fixed' ? fixedIntervalMinutes : targetTable.axisConfig.intervalMinutes,
+          hasLunch: tableType === 'fixed' ? hasLunch : targetTable.axisConfig.hasLunch,
+          lunchAfterPeriod: tableType === 'fixed' ? lunchAfterPeriod : targetTable.axisConfig.lunchAfterPeriod,
+          lunchMinutes: tableType === 'fixed' ? lunchMinutes : targetTable.axisConfig.lunchMinutes,
           startTime: slotStartTime,
           endTime: slotEndTime,
         },
@@ -492,7 +507,7 @@ export function NewTableWizardModal({
           ? {
               enabled: true,
               durationMinutes: attachedTaskDuration,
-              titleTemplate: attachedTaskTitleTemplate || '{title} のタスク',
+              titleTemplate: '{title} の課題・復習',
             }
           : undefined;
       } else if (tableType === 'weekly') {
@@ -544,7 +559,10 @@ export function NewTableWizardModal({
           targetDays,
         });
 
-        curStartMin = (endMin + fixedIntervalMinutes) % (24 * 60);
+        // 昼休みの判定
+        const isLunchBreak = hasLunch && (i + 1) === lunchAfterPeriod;
+        const interval = isLunchBreak ? lunchMinutes : fixedIntervalMinutes;
+        curStartMin = (endMin + interval) % (24 * 60);
       }
 
       // 最終コマ終了時刻の算出
@@ -568,6 +586,10 @@ export function NewTableWizardModal({
       });
       generatedTable.axisConfig.periodMinutes = defaultDuration;
       generatedTable.axisConfig.intervalMinutes = fixedIntervalMinutes;
+      generatedTable.axisConfig.hasLunch = hasLunch;
+      generatedTable.axisConfig.lunchAfterPeriod = lunchAfterPeriod;
+      generatedTable.axisConfig.lunchMinutes = lunchMinutes;
+
       if (!enableEndTime) {
         // ユーザーが終了時刻を「指定しない」場合は axisConfig.endTime を null に
         generatedTable.axisConfig.endTime = null;
@@ -576,7 +598,7 @@ export function NewTableWizardModal({
         generatedTable.attachedTaskConfig = {
           enabled: true,
           durationMinutes: attachedTaskDuration,
-          titleTemplate: attachedTaskTitleTemplate || '{title} のタスク',
+          titleTemplate: '{title} の課題・復習',
         };
       }
     } else if (tableType === 'weekly') {
@@ -673,14 +695,24 @@ export function NewTableWizardModal({
     onClose();
   };
 
-  // 固定枠の場合の目安終了時刻の計算（参考ガイド表示用）
+  // 固定枠の場合の目安終了時刻の計算（参考ガイド表示用、昼休み加算対応）
   const estimatedFixedEndTimeStr = useMemo(() => {
     if (tableType !== 'fixed') return '';
     const sMin = timeStringToMinutes(fixedStartTime || '09:00');
-    const total = (defaultDuration + fixedIntervalMinutes) * tableTaskCount - fixedIntervalMinutes;
+    let total = 0;
+    for (let i = 0; i < tableTaskCount; i++) {
+      total += defaultDuration;
+      if (i < tableTaskCount - 1) {
+        if (hasLunch && (i + 1) === lunchAfterPeriod) {
+          total += lunchMinutes;
+        } else {
+          total += fixedIntervalMinutes;
+        }
+      }
+    }
     const eMin = Math.min(24 * 60, sMin + Math.max(0, total));
     return minutesToTimeString(eMin);
-  }, [tableType, fixedStartTime, defaultDuration, fixedIntervalMinutes, tableTaskCount]);
+  }, [tableType, fixedStartTime, defaultDuration, fixedIntervalMinutes, tableTaskCount, hasLunch, lunchAfterPeriod, lunchMinutes]);
 
   if (!isOpen) return null;
 
@@ -727,6 +759,9 @@ export function NewTableWizardModal({
                   setFixedStartTime('09:00');
                   setEnableEndTime(false);
                   setFixedEndTime('18:00');
+                  setHasLunch(false);
+                  setLunchAfterPeriod(2);
+                  setLunchMinutes(50);
                 }}
                 className="flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-2 sm:px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition active:scale-95 cursor-pointer shadow-2xs"
                 title="現在の表の内容をクリアし、白紙から新しい予定表を作成します"
@@ -969,7 +1004,7 @@ export function NewTableWizardModal({
                 </div>
               )}
 
-              {/* 何日分かを個別に設定する場合（日数直接入力 ＆ 目安チップ） */}
+              {/* 何日分かを個別に設定する場合（日数直接入力） */}
               {dailyRepeatPattern === 'cycle' && (
                 <div className="space-y-2 pt-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
                   <div className="flex items-center justify-between">
@@ -987,23 +1022,6 @@ export function NewTableWizardModal({
                       step={1}
                       unit="日分"
                     />
-                  </div>
-                  <div className="flex items-center gap-1.5 pt-1">
-                    <span className="text-[10px] text-slate-400 font-bold shrink-0">目安:</span>
-                    {[2, 3, 4, 5, 7].map(d => (
-                      <button
-                        key={d}
-                        type="button"
-                        onClick={() => setDailyCycleLength(d)}
-                        className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
-                          dailyCycleLength === d
-                            ? 'bg-indigo-600 text-white shadow-2xs'
-                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        {d}日分
-                      </button>
-                    ))}
                   </div>
                 </div>
               )}
@@ -1043,33 +1061,14 @@ export function NewTableWizardModal({
             </div>
 
             {enableStartTime && (
-              <div className="space-y-2 pt-1 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700">配置の開始時刻:</span>
-                  <input
-                    type="time"
-                    value={fixedStartTime}
-                    onChange={e => setFixedStartTime(e.target.value)}
-                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-900 shadow-2xs"
-                  />
-                </div>
-                <div className="flex items-center gap-1.5 pt-0.5">
-                  <span className="text-[10px] text-slate-400 font-bold shrink-0">目安:</span>
-                  {['07:00', '09:00', '13:00', '18:00'].map(t => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setFixedStartTime(t)}
-                      className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
-                        fixedStartTime === t
-                          ? 'bg-indigo-600 text-white shadow-2xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
+              <div className="pt-1 p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700">配置の開始時刻:</span>
+                <input
+                  type="time"
+                  value={fixedStartTime}
+                  onChange={e => setFixedStartTime(e.target.value)}
+                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-900 shadow-2xs"
+                />
               </div>
             )}
           </div>
@@ -1107,33 +1106,14 @@ export function NewTableWizardModal({
             </div>
 
             {enableEndTime && (
-              <div className="space-y-2 pt-1 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700">配置の終了リミット:</span>
-                  <input
-                    type="time"
-                    value={fixedEndTime}
-                    onChange={e => setFixedEndTime(e.target.value)}
-                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-900 shadow-2xs"
-                  />
-                </div>
-                <div className="flex items-center gap-1.5 pt-0.5">
-                  <span className="text-[10px] text-slate-400 font-bold shrink-0">目安:</span>
-                  {['12:00', '17:00', '18:00', '21:00', '23:00'].map(t => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setFixedEndTime(t)}
-                      className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
-                        fixedEndTime === t
-                          ? 'bg-indigo-600 text-white shadow-2xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
+              <div className="pt-1 p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700">配置の終了リミット:</span>
+                <input
+                  type="time"
+                  value={fixedEndTime}
+                  onChange={e => setFixedEndTime(e.target.value)}
+                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-900 shadow-2xs"
+                />
               </div>
             )}
 
@@ -1165,24 +1145,6 @@ export function NewTableWizardModal({
                 unit="分"
               />
             </div>
-            {/* サジェストチップ */}
-            <div className="flex items-center gap-1.5 pt-0.5">
-              <span className="text-[10px] text-slate-400 font-bold shrink-0">目安:</span>
-              {[15, 30, 45, 60, 90].map(dur => (
-                <button
-                  key={dur}
-                  type="button"
-                  onClick={() => setDefaultDuration(dur)}
-                  className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
-                    defaultDuration === dur
-                      ? 'bg-indigo-600 text-white shadow-2xs'
-                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  {dur}分
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* 8. 1日あたり何個のタスクを登録しますか？（全タイプ共通） */}
@@ -1205,24 +1167,6 @@ export function NewTableWizardModal({
                   step={1}
                   unit={tableType === 'fixed' ? 'コマ' : '個'}
                 />
-              </div>
-              {/* サジェストチップ */}
-              <div className="flex items-center gap-1.5 pt-0.5">
-                <span className="text-[10px] text-slate-400 font-bold shrink-0">目安:</span>
-                {[2, 3, 4, 5, 6].map(cnt => (
-                  <button
-                    key={cnt}
-                    type="button"
-                    onClick={() => setTableTaskCount(cnt)}
-                    className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
-                      tableTaskCount === cnt
-                        ? 'bg-indigo-600 text-white shadow-2xs'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    {cnt}{tableType === 'fixed' ? 'コマ' : '個'}
-                  </button>
-                ))}
               </div>
             </div>
           )}
@@ -1261,35 +1205,16 @@ export function NewTableWizardModal({
               </div>
 
               {enableDailyTargetCount && (
-                <div className="space-y-2 pt-1 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-700">1日あたりの目標回数:</span>
-                    <NumberStepper
-                      value={dailyTargetCount}
-                      onChange={setDailyTargetCount}
-                      min={1}
-                      max={10}
-                      step={1}
-                      unit="回/日"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1.5 pt-0.5">
-                    <span className="text-[10px] text-slate-400 font-bold shrink-0">目安:</span>
-                    {[1, 2, 3].map(cnt => (
-                      <button
-                        key={cnt}
-                        type="button"
-                        onClick={() => setDailyTargetCount(cnt)}
-                        className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
-                          dailyTargetCount === cnt
-                            ? 'bg-indigo-600 text-white shadow-2xs'
-                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        {cnt}回
-                      </button>
-                    ))}
-                  </div>
+                <div className="pt-1 p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700">1日あたりの目標回数:</span>
+                  <NumberStepper
+                    value={dailyTargetCount}
+                    onChange={setDailyTargetCount}
+                    min={1}
+                    max={10}
+                    step={1}
+                    unit="回/日"
+                  />
                 </div>
               )}
             </div>
@@ -1316,27 +1241,75 @@ export function NewTableWizardModal({
                   unit="分"
                 />
               </div>
-              <div className="flex items-center gap-1.5 pt-0.5">
-                <span className="text-[10px] text-slate-400 font-bold shrink-0">目安:</span>
-                {[0, 5, 10, 15, 20].map(m => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setFixedIntervalMinutes(m)}
-                    className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
-                      fixedIntervalMinutes === m
-                        ? 'bg-emerald-600 text-white shadow-2xs'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    {m === 0 ? 'なし (0分)' : `${m}分`}
-                  </button>
-                ))}
-              </div>
             </div>
           )}
 
-          {/* 11. 課題・予習復習が出ますか？（固定枠のみ表示） */}
+          {/* 11. 昼休み（お昼休憩）は設けますか？（固定枠のみ表示） */}
+          {tableType === 'fixed' && (
+            <div className="space-y-2 pt-3 border-t border-slate-200">
+              <label className="block text-xs font-bold text-slate-900">
+                11. 昼休み（お昼休憩）は設けますか？
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setHasLunch(false)}
+                  className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center ${
+                    !hasLunch
+                      ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-bold shadow-xs ring-2 ring-indigo-500/20'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="text-xs font-bold">設けない（なし）</span>
+                  <span className="text-[10px] text-slate-500 mt-0.5">通常の休み時間のみ</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHasLunch(true)}
+                  className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center ${
+                    hasLunch
+                      ? 'border-indigo-600 bg-indigo-50 text-indigo-900 font-bold shadow-xs ring-2 ring-indigo-500/20'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="text-xs font-bold">昼休みを設ける</span>
+                  <span className="text-[10px] text-slate-500 mt-0.5">指定コマ後に長い休憩を挟む</span>
+                </button>
+              </div>
+
+              {hasLunch && (
+                <div className="space-y-3 pt-1 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-slate-700">昼休みを挟むタイミング:</span>
+                      <p className="text-[10px] text-slate-400">何コマ目の終了後に昼休みにするか</p>
+                    </div>
+                    <NumberStepper
+                      value={lunchAfterPeriod}
+                      onChange={setLunchAfterPeriod}
+                      min={1}
+                      max={Math.max(1, tableTaskCount - 1)}
+                      step={1}
+                      unit="コマ目の後"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700">昼休みの長さ:</span>
+                    <NumberStepper
+                      value={lunchMinutes}
+                      onChange={setLunchMinutes}
+                      min={10}
+                      max={180}
+                      step={5}
+                      unit="分"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 12. 課題・予習復習が出ますか？（固定枠のみ表示、タスク名入力撤廃で所要時間のみ） */}
           {tableType === 'fixed' && (
             <div className="space-y-2 pt-3 border-t border-slate-200">
               <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -1347,66 +1320,34 @@ export function NewTableWizardModal({
                   className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                 />
                 <span className="text-xs font-bold text-slate-900">
-                  11. この予定に課題や予習・復習が出ますか？
+                  12. この予定に課題や予習・復習が出ますか？
                 </span>
               </label>
               {enableAttachedTask && (
-                <div className="rounded-xl bg-slate-50 p-3 border border-slate-200 space-y-3 mt-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-800">
-                      課題・復習の所要時間（直接入力）:
-                    </span>
-                    <NumberStepper
-                      value={attachedTaskDuration}
-                      onChange={val => setAttachedTaskDuration(val)}
-                      min={5}
-                      max={240}
-                      step={5}
-                      unit="分"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-slate-400 font-bold shrink-0">目安:</span>
-                    {[15, 30, 45, 60].map(dur => (
-                      <button
-                        key={dur}
-                        type="button"
-                        onClick={() => setAttachedTaskDuration(dur)}
-                        className={`rounded-md px-2.5 py-1 text-[10px] font-bold transition cursor-pointer ${
-                          attachedTaskDuration === dur
-                            ? 'bg-indigo-600 text-white shadow-2xs'
-                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        {dur}分
-                      </button>
-                    ))}
-                  </div>
-                  <div className="space-y-1 pt-1 border-t border-slate-200">
-                    <span className="text-[11px] font-bold text-slate-700">タスク名テンプレート:</span>
-                    <input
-                      type="text"
-                      value={attachedTaskTitleTemplate}
-                      onChange={e => setAttachedTaskTitleTemplate(e.target.value)}
-                      placeholder="{title} の課題・復習"
-                      className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 outline-none focus:border-indigo-500"
-                    />
-                    <p className="text-[10px] text-slate-500">
-                      ※ 「{`{title}`}」部分が各予定の名前に自動で置き換わります（例: 数学 の課題・復習）
-                    </p>
-                  </div>
+                <div className="rounded-xl bg-slate-50 p-3 border border-slate-200 flex items-center justify-between mt-1.5">
+                  <span className="text-xs font-bold text-slate-800">
+                    課題・復習の所要時間:
+                  </span>
+                  <NumberStepper
+                    value={attachedTaskDuration}
+                    onChange={val => setAttachedTaskDuration(val)}
+                    min={5}
+                    max={240}
+                    step={5}
+                    unit="分"
+                  />
                 </div>
               )}
             </div>
           )}
 
-          {/* 12. 週に何回取り組みますか？（週次タスクのみ表示） */}
+          {/* 13. 週に何回取り組みますか？（週次タスクのみ表示） */}
           {tableType === 'weekly' && (
             <div className="space-y-2 pt-3 border-t border-slate-200">
               <div className="flex items-center justify-between">
                 <div>
                   <label className="block text-xs font-bold text-slate-900">
-                    12. 週に何回取り組みますか？
+                    13. 週に何回取り組みますか？
                   </label>
                   <p className="text-[10px] text-slate-500 mt-0.5">
                     1週間の目標ノルマです（直接自由に入力できます）
@@ -1421,27 +1362,10 @@ export function NewTableWizardModal({
                   unit="回/週"
                 />
               </div>
-              <div className="flex items-center gap-1.5 pt-0.5">
-                <span className="text-[10px] text-slate-400 font-bold shrink-0">目安:</span>
-                {[1, 2, 3, 4, 5, 7].map(cnt => (
-                  <button
-                    key={cnt}
-                    type="button"
-                    onClick={() => setWeeklyTargetCount(cnt)}
-                    className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition cursor-pointer ${
-                      weeklyTargetCount === cnt
-                        ? 'bg-blue-600 text-white shadow-2xs'
-                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    {cnt === 7 ? '毎日 (週7回)' : `週${cnt}回`}
-                  </button>
-                ))}
-              </div>
             </div>
           )}
 
-          {/* 13. 代表予定の自動配置（新規作成時のみ表示） */}
+          {/* 14. 代表予定の自動配置（新規作成時のみ表示） */}
           {!effectiveIsEdit && (
             <div className="pt-3 border-t border-slate-200">
               <label className="flex items-start gap-2.5 p-3 rounded-xl bg-indigo-50/70 border border-indigo-100 cursor-pointer select-none">
