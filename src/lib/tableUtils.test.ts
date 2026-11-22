@@ -17,7 +17,7 @@ import {
   getCellDefaultDuration,
   getCellDefaultStartTime,
 } from './tableUtils';
-import { ImportedTableData } from '@/types';
+import { ImportedTableData, GridCell } from '@/types';
 import { INITIAL_IMPORTED_TABLES, INITIAL_TASKS, INITIAL_FIXED_SLOTS } from './storage';
 
 const createBaseTable = (startTime: string | null = '09:00'): ImportedTableData => ({
@@ -739,12 +739,11 @@ describe('tableUtils', () => {
         ],
       ];
 
-      const res = generateScheduleItemsForTable(table);
+      // 2026-11-02週（月=11/02）を基準にして、開始日2026-11-04（水）の固定枠を生成
+      // 水曜(11/04: 差分0日 -> 0%3=0) と 土曜(11/07: 差分3日 -> 3%3=0) に該当
+      const res = generateScheduleItemsForTable(table, '2026-11-02');
       expect(res.slots.length).toBe(1);
-      // Day 1 (cycleIdx=0, cycleCount=3), cycleStartDay=2 (水)
-      // ((d - 2 + 7) % 7) % 3 === 0 となる曜日 d:
-      // d=0(月): (5)%3=2, d=1(火): (6)%3=0, d=2(水): (0)%3=0, d=5(土): (3)%3=0 -> [1, 2, 5]
-      expect(res.slots[0].daysOfWeek).toEqual([1, 2, 5]);
+      expect(res.slots[0].daysOfWeek).toEqual([2, 5]);
     });
 
     it('タスク生成時に cycleStartDay および cycleStartDate が TaskItem に引き継がれること', () => {
@@ -1447,6 +1446,63 @@ describe('tableUtils', () => {
         for (const task of tasks) {
           expect(task.targetDays).toEqual([0, 2, 4]);
         }
+      });
+    });
+
+    describe('Plan34: 固定枠における cycleStartDate 実日付ベースの曜日マッピング', () => {
+      it('開始日 (cycleStartDate: 2026-11-24 火曜) から起算したサイクル固定枠が正確な曜日に配置されること', () => {
+        // 2026-11-23週 (月=11/23, 火=11/24, 水=11/25, 木=11/26, 金=11/27, 土=11/28, 日=11/29)
+        // 3日サイクルの固定枠表
+        // Day 1 (c=0) の開始日: 2026-11-24 (火曜)
+        // -> 火曜(11/24): Day 0, 水曜(11/25): Day 1, 木曜(11/26): Day 2, 金曜(11/27): Day 0
+        const shiftTable: ImportedTableData = {
+          id: 'test-shift-cycle',
+          name: 'シフト勤務',
+          createdAt: '2026-11-23T00:00:00.000Z',
+          updatedAt: '2026-11-23T00:00:00.000Z',
+          placementMode: 'fixed',
+          columnMode: 'cycle',
+          cycleStartDay: 1, // 火曜
+          cycleStartDate: '2026-11-24',
+          dailyRepeatCount: 'auto',
+          weeklyRepeatCount: 'auto',
+          weeklyTaskExpiryWeeks: 1,
+          isApplied: true,
+          numRows: 1,
+          numCols: 3,
+          colHeaders: ['Day 1', 'Day 2', 'Day 3'],
+          rowHeaders: ['1'],
+          axisConfig: {
+            startTime: '09:00',
+            endTime: '12:00',
+            periodMinutes: 180,
+            intervalMinutes: 10,
+            hasLunch: false,
+            lunchAfterPeriod: 2,
+            lunchMinutes: 50,
+            weeklyTaskExpiryWeeks: 1,
+          },
+          cells: [
+            [
+              { title: '日勤A', text: '日勤A' },
+              { title: '日勤B', text: '日勤B' },
+              { title: '休み', text: '休み' },
+            ],
+          ] as unknown as GridCell[][],
+        };
+
+        // 2026-11-23週の月曜日（2026-11-23）を基準に生成
+        const { slots } = generateScheduleItemsForTable(shiftTable, '2026-11-23');
+
+        // Day 1 (日勤A): 2026-11-24 (火=1) と 2026-11-27 (金=4) に該当
+        const slotA = slots.find((s) => s.title === '日勤A');
+        expect(slotA).toBeDefined();
+        expect(slotA?.daysOfWeek).toEqual([1, 4]); // 火曜(1)と金曜(4)
+
+        // Day 2 (日勤B): 2026-11-25 (水=2) と 2026-11-28 (土=5) に該当
+        const slotB = slots.find((s) => s.title === '日勤B');
+        expect(slotB).toBeDefined();
+        expect(slotB?.daysOfWeek).toEqual([2, 5]); // 水曜(2)と土曜(5)
       });
     });
   });

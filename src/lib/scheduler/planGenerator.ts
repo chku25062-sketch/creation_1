@@ -3,7 +3,7 @@ import { TaskPlacementPlan, SchedulingRealtimeContext } from './types';
 import { getTargetPlacementDays, isWeeklyTaskItem } from './constants';
 import { SlotManager } from './slotManager';
 import { classifyWeeklyTask } from './taskClassifier';
-import { getCycleIndexForDate, getDateStrForDayIndex } from '@/lib/timeUtils';
+import { getCycleIndexForDate, getDateStrForDayIndex, getLocalDateString } from '@/lib/timeUtils';
 
 export interface PlanGenerationResult {
   schedulableTasks: TaskItem[];
@@ -147,7 +147,7 @@ export function generatePlacementPlans(
     const isDayMatchingCycle = (d: number): boolean => {
       const cycleLength = task.cycleCount && task.cycleCount > 0 ? task.cycleCount : 3;
       if (task.cycleStartDate) {
-        const baseDateStr = realtimeContext.currentDateStr || new Date().toISOString().slice(0, 10);
+        const baseDateStr = realtimeContext.currentDateStr || getLocalDateString();
         const targetDateStr = getDateStrForDayIndex(baseDateStr, todayIdx, d);
         const cycleIdxForDay = getCycleIndexForDate(targetDateStr, task.cycleStartDate, cycleLength);
         if (task.cycleDays && task.cycleDays.length > 0) {

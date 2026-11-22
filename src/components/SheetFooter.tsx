@@ -39,6 +39,7 @@ export interface DebugTimeConfig {
   enabled: boolean;
   dayIndex: number;
   minutes: number;
+  dateStr?: string;
 }
 
 interface SheetFooterProps {

@@ -33,7 +33,14 @@ import {
   FixedCategory,
   ImportedTableData,
 } from '@/types';
-import { formatDuration, minutesToTimeString, timeStringToMinutes } from '@/lib/timeUtils';
+import {
+  formatDuration,
+  minutesToTimeString,
+  timeStringToMinutes,
+  getMondayKey,
+  getDateStrForDayIndex,
+  getCycleIndexForDate,
+} from '@/lib/timeUtils';
 
 export interface TaskManagerProps {
   tasks: TaskItem[];
@@ -624,10 +631,16 @@ export function TaskManager({
     return result;
   }, [slots, slotCategoryFilter, slotDayFilter, slotSortKey]);
 
-  // 選択された曜日にタスクが該当・実行されるかの判定（周期の頭 cycleStartDay を考慮）
+  // 選択された曜日にタスクが該当・実行されるかの判定（周期の頭 cycleStartDay / cycleStartDate を考慮）
   const isTaskActiveOnDay = (t: TaskItem, day: number) => {
     if (t.cycleDays && t.cycleDays.length > 0) {
       const cCount = t.cycleCount || 3;
+      if (t.cycleStartDate) {
+        const mondayStr = getMondayKey(new Date());
+        const targetDateStr = getDateStrForDayIndex(mondayStr, 0, day);
+        const cycleIdxForDay = getCycleIndexForDate(targetDateStr, t.cycleStartDate, cCount);
+        return t.cycleDays.includes(cycleIdxForDay);
+      }
       const cycleStart =
         typeof t.cycleStartDay === 'number' && !isNaN(t.cycleStartDay)
           ? ((t.cycleStartDay % 7) + 7) % 7
@@ -733,11 +746,18 @@ export function TaskManager({
       result = result.filter((t) => {
         if (t.cycleDays && t.cycleDays.length > 0) {
           const cCount = t.cycleCount || 3;
-          const cycleStart =
-            typeof t.cycleStartDay === 'number' && !isNaN(t.cycleStartDay)
-              ? ((t.cycleStartDay % 7) + 7) % 7
-              : 0;
-          if (t.cycleDays.includes(((targetDay - cycleStart + 7) % 7) % cCount)) return true;
+          if (t.cycleStartDate) {
+            const mondayStr = getMondayKey(new Date());
+            const targetDateStr = getDateStrForDayIndex(mondayStr, 0, targetDay);
+            const cycleIdxForDay = getCycleIndexForDate(targetDateStr, t.cycleStartDate, cCount);
+            if (t.cycleDays.includes(cycleIdxForDay)) return true;
+          } else {
+            const cycleStart =
+              typeof t.cycleStartDay === 'number' && !isNaN(t.cycleStartDay)
+                ? ((t.cycleStartDay % 7) + 7) % 7
+                : 0;
+            if (t.cycleDays.includes(((targetDay - cycleStart + 7) % 7) % cCount)) return true;
+          }
         }
         if (t.targetDays && t.targetDays.length > 0) {
           return t.targetDays.includes(targetDay);

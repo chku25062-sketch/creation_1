@@ -22,6 +22,18 @@ export function formatDuration(minutes: number): string {
 }
 
 /**
+ * 指定された日付（省略時は現在）のローカルカレンダー日付文字列 (YYYY-MM-DD) を取得
+ * UTC (toISOString) による日本時間深夜帯の日付ズレを防止
+ */
+export function getLocalDateString(date: Date = new Date()): string {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * 指定された日付（省略時は現在）が属する週の月曜日の日付文字列 (YYYY-MM-DD) を取得
  * 週の切り替わりにおける完了状態の世代分離キーとして使用
  */

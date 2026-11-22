@@ -6,6 +6,7 @@ import {
   calculatePeriodTimes,
   getCycleIndexForDate,
   getDateStrForDayIndex,
+  getLocalDateString,
 } from './timeUtils';
 
 describe('timeUtils', () => {
@@ -79,7 +80,6 @@ describe('timeUtils', () => {
       expect(periods[1].endTime).toBe('12:30');
     });
   });
-});
 
   describe('getCycleIndexForDate', () => {
     it('calculates continuous cycle index without resetting across weeks', () => {
@@ -123,3 +123,11 @@ describe('timeUtils', () => {
       expect(getDateStrForDayIndex(baseDate, baseTodayIndex, 6)).toBe('2026-11-22'); // 日曜
     });
   });
+
+  describe('getLocalDateString', () => {
+    it('returns YYYY-MM-DD in local time', () => {
+      const d = new Date(2026, 10, 23, 0, 30); // 2026-11-23 00:30
+      expect(getLocalDateString(d)).toBe('2026-11-23');
+    });
+  });
+});

@@ -32,7 +32,7 @@ import {
   INITIAL_IMPORTED_TABLES,
 } from '@/lib/storage';
 import { generateScheduleItemsForTable } from '@/lib/tableUtils';
-import { getMondayKey } from '@/lib/timeUtils';
+import { getMondayKey, getLocalDateString } from '@/lib/timeUtils';
 import { supabase } from '@/lib/supabase';
 import { CellJumpTargetInfo } from '@/components/Timeline24h';
 
@@ -83,11 +83,12 @@ export default function Home() {
   const [placementStrategy, setPlacementStrategy] = useState<TaskPlacementStrategy>('balanced');
 
   // 実日時（システムクロック）とデバッグ用日時オーバーライド設定
-  const [realTime, setRealTime] = useState<{ dayIndex: number; minutes: number }>(() => {
+  const [realTime, setRealTime] = useState<{ dayIndex: number; minutes: number; dateStr: string }>(() => {
     const now = new Date();
     return {
       dayIndex: (now.getDay() + 6) % 7,
       minutes: now.getHours() * 60 + now.getMinutes(),
+      dateStr: getLocalDateString(now),
     };
   });
 
@@ -106,6 +107,7 @@ export default function Home() {
       setRealTime({
         dayIndex: (now.getDay() + 6) % 7,
         minutes: now.getHours() * 60 + now.getMinutes(),
+        dateStr: getLocalDateString(now),
       });
     };
     updateRealTime();
@@ -348,7 +350,7 @@ export default function Home() {
 
       if (isApplied) {
         const { slots: generatedSlots, tasks: generatedTasks } =
-          generateScheduleItemsForTable(table);
+          generateScheduleItemsForTable(table, currentWeekKey);
 
         // 固定枠の同期 (開始時刻がある表の場合)
         if (generatedSlots.length > 0) {
@@ -590,7 +592,7 @@ export default function Home() {
             tasks.some((t) => t.sourceTableId === existing.id);
 
       if (isApplied) {
-        const { slots: newSlots, tasks: newTasks } = generateScheduleItemsForTable(updatedTable);
+        const { slots: newSlots, tasks: newTasks } = generateScheduleItemsForTable(updatedTable, currentWeekKey);
 
         const prevSlotEnabledMap = new Map<string, boolean | undefined>();
         fixedSlots.forEach((s) => {
@@ -673,7 +675,7 @@ export default function Home() {
     let allNewSlots: FixedSlot[] = [];
     let allNewTasks: TaskItem[] = [];
     newTables.forEach((t) => {
-      const { slots, tasks: tTasks } = generateScheduleItemsForTable(t);
+      const { slots, tasks: tTasks } = generateScheduleItemsForTable(t, currentWeekKey);
       allNewSlots = [...allNewSlots, ...slots];
       allNewTasks = [...allNewTasks, ...tTasks];
     });
@@ -739,9 +741,15 @@ export default function Home() {
         categorySummaries: [],
       };
     }
+    const effectiveDateStr =
+      isDevelopment && debugTime.enabled && debugTime.dateStr
+        ? debugTime.dateStr
+        : realTime.dateStr;
+
     return generateTheoreticalSchedule(effectiveFixedSlots, effectiveTasks, {
       todayIndex: effectiveTodayIndex,
       currentMinutes: effectiveCurrentMinutes,
+      currentDateStr: effectiveDateStr,
       completedBlockIds,
       uncompletedBlockIds,
       placementStrategy,
@@ -752,6 +760,10 @@ export default function Home() {
     isInitialized,
     effectiveTodayIndex,
     effectiveCurrentMinutes,
+    realTime.dateStr,
+    debugTime.enabled,
+    debugTime.dateStr,
+    isDevelopment,
     completedBlockIds,
     uncompletedBlockIds,
     placementStrategy,

@@ -76,40 +76,6 @@ flowchart TD
 
 ### 動作例（主要画面と操作結果の具体例）
 
-利用者がアプリを起動してから、予定の取り込み・編集を行い、理論値スケジュールが自律生成されて実行に至るまでの具体的な動作フローを以下のチャートに示します。
-
-```mermaid
-flowchart TD
-    START(["アプリを開く（初回または再訪）"]) --> INIT["LocalStorage からデータ自動ロード<br>（4大初期表: 授業・生活・日課・趣味）"]
-    INIT --> DASHBOARD["【画面1】メインダッシュボード<br>・24時間タイムライン表示<br>・理論値スコア & ドーナツチャート"]
-
-    %% 日常の実行フロー
-    DASHBOARD -->|"日々の確認・実行"| TRACK["現在時刻ピン & 進行中タスクの確認<br>完了チェックボックスで実績記録"]
-
-    %% 編集・カスタマイズフロー
-    DASHBOARD -->|"予定や時間割を調整したい"| EDIT_TAB["【画面2】テーブル管理エディタ<br>（ImportedTablesManager.tsx）"]
-
-    subgraph Actions["3つの入力・カスタマイズ方法"]
-        EDIT_TAB -->|"方法1: マスを直接タップ"| DIRECT_EDIT{"何をタップしたか？"}
-        DIRECT_EDIT -->|"時限マス (1, 2, 3...)"| TIME_MODAL["【モーダルA】時間変更画面<br>(PeriodTimeEditModal.tsx)<br>開始・終了時刻を1分単位で調整"]
-        DIRECT_EDIT -->|"セル (講義名や日課)"| CELL_MODAL["【モーダルB】セル編集画面<br>(CellEditModal.tsx)<br>全選択フォーカスで即座に文字書き換え"]
-
-        EDIT_TAB -->|"方法2: 構成を一括変更"| WIZARD["【モーダルC】かんたん設定ウィザード<br>(NewTableWizardModal.tsx)<br>・毎日同じ (1列)<br>・曜日ごとに決める (特定曜日)<br>・何日分かを繰り返す (サイクル)"]
-
-        EDIT_TAB -->|"方法3: 画像から取り込む"| OCR_FLOW["【モーダルD】画像文字起こし取込<br>(FileImportModal.tsx)<br>1. 画像ドロップ → 罫線自動検出<br>2. 境界線調整 (GridAdjuster.tsx)<br>3. Tesseract.js (Wasm) セル個別文字認識"]
-    end
-
-    TIME_MODAL --> UPDATE_TABLE["テーブルデータの更新完了"]
-    CELL_MODAL --> UPDATE_TABLE
-    WIZARD --> UPDATE_TABLE
-    OCR_FLOW --> UPDATE_TABLE
-
-    %% スケジューリング反映
-    UPDATE_TABLE --> APPLY["「計画表に反映」を実行"]
-    APPLY --> SCHEDULER["理論値スケジューラエンジン (scheduler.ts)<br>1. 睡眠・講義・勤務の固定枠を展開<br>2. 24時間から純粋な空き枠 (FreeSlot) を逆算<br>3. 日課・目標タスクを優先度×所要時間で最適配置"]
-    SCHEDULER --> DASHBOARD
-```
-
 | 実装画面 / モーダル | 操作手順と画面の具体的な挙動 |
 |---|---|
 | **メインダッシュボード**<br>([page.tsx](file:///c:/Users/kousu/OneDrive/Desktop/creation_1/src/app/page.tsx)) | 画面上部に「理論値スコア 100%」プログレス、中央に「24時間ビジュアルタイムライン」（睡眠0:00〜8:00、朝食8:00〜8:30、講義9:00〜10:30、日課A・Bが空き時間に自動充填）、右側に時間配分ドーナツチャートが表示されます。 |

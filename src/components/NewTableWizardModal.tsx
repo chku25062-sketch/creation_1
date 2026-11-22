@@ -417,7 +417,7 @@ export function NewTableWizardModal({
           const restoredStartDate =
             targetTable.cycleStartDate ||
             (targetTable.createdAt ? targetTable.createdAt.slice(0, 10) : '') ||
-            new Date().toISOString().slice(0, 10);
+            getTodayStr();
           setCycleStartDate(restoredStartDate);
         } else {
           setDailyRepeatPattern('weekdays');
@@ -452,7 +452,7 @@ export function NewTableWizardModal({
           const restoredStartDate =
             targetTable.cycleStartDate ||
             (targetTable.createdAt ? targetTable.createdAt.slice(0, 10) : '') ||
-            new Date().toISOString().slice(0, 10);
+            getTodayStr();
           setCycleStartDate(restoredStartDate);
         } else {
           setFixedRepeatPattern('weekdays');
@@ -483,7 +483,7 @@ export function NewTableWizardModal({
       setTableTaskCount(targetTable.numRows || 4);
     } else {
       // 新規作成モード
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = getTodayStr();
       setSelectedThemeId('daily_routine');
       setTableName('毎日の習慣');
       setTableType('daily');
@@ -1202,7 +1202,7 @@ export function NewTableWizardModal({
                   setDailyTargetDays([0, 1, 2, 3, 4]);
                   setDailyCycleLength(3);
                   setDailyCycleStartDay(0);
-                  const todayStr = new Date().toISOString().slice(0, 10);
+                  const todayStr = getTodayStr();
                   setCycleStartDate(todayStr);
                   setFixedRepeatPattern('weekdays');
                   setFixedTargetDays([0, 1, 2, 3, 4]);

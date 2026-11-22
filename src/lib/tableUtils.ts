@@ -6,7 +6,15 @@ import {
   FixedSlot,
   TaskItem,
 } from '@/types';
-import { calculatePeriodTimes, timeStringToMinutes, minutesToTimeString, PeriodTimeSlot } from './timeUtils';
+import {
+  calculatePeriodTimes,
+  timeStringToMinutes,
+  minutesToTimeString,
+  PeriodTimeSlot,
+  getMondayKey,
+  getDateStrForDayIndex,
+  getCycleIndexForDate,
+} from './timeUtils';
 
 const WEEKDAY_NAMES = [
   '月曜',
@@ -450,6 +458,7 @@ export interface TableScheduleGenerationResult {
  */
 export function generateScheduleItemsForTable(
   table: ImportedTableData,
+  baseMondayDateStr?: string,
 ): TableScheduleGenerationResult {
   const classification = getTableClassification(table);
   const columnMode = getTableColumnMode(table);
@@ -567,6 +576,18 @@ export function generateScheduleItemsForTable(
             if (cycleCount === 1) {
               // 1日分のみのサイクル（毎日同じ固定枠）は全曜日に配置
               days = [0, 1, 2, 3, 4, 5, 6];
+            } else if (table.cycleStartDate) {
+              // 実日付ベースのサイクルインデックス判定（週跨ぎオフセット考慮）
+              const mondayStr = baseMondayDateStr || getMondayKey(new Date());
+              days = [0, 1, 2, 3, 4, 5, 6].filter((d) => {
+                const targetDateStr = getDateStrForDayIndex(mondayStr, 0, d);
+                const dayCycleIdx = getCycleIndexForDate(
+                  targetDateStr,
+                  table.cycleStartDate!,
+                  cycleCount,
+                );
+                return dayCycleIdx === cycleIdx % cycleCount;
+              });
             } else {
               days = [0, 1, 2, 3, 4, 5, 6].filter(
                 (d) => ((d - cycleStartDay + 7) % 7) % cycleCount === cycleIdx % cycleCount,

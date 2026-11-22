@@ -171,7 +171,7 @@ export function ImportedTablesManager({
   // 表の変更または新規表をタイムライン＆スケジュールに反映する共通関数
   const handleApplyTableToSchedule = (appliedTable: ImportedTableData, isQuickUpdate = false) => {
     const { slots: newSlots, tasks: newTasks, slotIds, taskIds } =
-      generateScheduleItemsForTable(appliedTable);
+      generateScheduleItemsForTable(appliedTable, weekDateOptions[0]?.dateStr);
     let finalTable = appliedTable;
     if (newSlots.length > 0 || newTasks.length > 0) {
       const nextSlots = fixedSlots
@@ -418,7 +418,10 @@ export function ImportedTablesManager({
 
     // もし計画表に反映中のテーブルであれば、固定枠 & タスクも自動再同期（既存のON/OFF状態 enabled を保持）
     if (isTableApplied(nextTable)) {
-      const { slots: newSlots, tasks: newTasks } = generateScheduleItemsForTable(nextTable);
+      const { slots: newSlots, tasks: newTasks } = generateScheduleItemsForTable(
+        nextTable,
+        weekDateOptions[0]?.dateStr,
+      );
 
       const prevSlotEnabledMap = new Map<string, boolean | undefined>();
       fixedSlots.forEach((s) => {
@@ -564,7 +567,7 @@ export function ImportedTablesManager({
         tasks: newTasks,
         slotIds,
         taskIds,
-      } = generateScheduleItemsForTable(table);
+      } = generateScheduleItemsForTable(table, weekDateOptions[0]?.dateStr);
 
       if (newSlots.length === 0 && newTasks.length === 0) {
         alert('有効なコマがありません。セルに内容を入力するか、列の曜日定義をご確認ください。');
@@ -3041,8 +3044,21 @@ export function ImportedTablesManager({
                             : parsed.dayIndex !== undefined
                               ? parsed.dayIndex
                               : cIdx;
-                        const mappedWeekOpt =
-                          weekDateOptions[((activeTable.cycleStartDay ?? 0) + cycleIdx) % 7];
+                        const mappedWeekOpt = activeTable.cycleStartDate
+                          ? (() => {
+                              const [y, m, d] = activeTable.cycleStartDate.split('-').map(Number);
+                              const colDate = new Date(Date.UTC(y, m - 1, d) + cycleIdx * 86400000);
+                              const cMonth = colDate.getUTCMonth() + 1;
+                              const cDay = colDate.getUTCDate();
+                              const cDayOfWeek = (colDate.getUTCDay() + 6) % 7;
+                              const dayNames = ['月', '火', '水', '木', '金', '土', '日'];
+                              return {
+                                label: `${cMonth}/${cDay} (${dayNames[cDayOfWeek]})`,
+                                shortDate: `${cMonth}/${cDay}`,
+                                dayName: dayNames[cDayOfWeek],
+                              };
+                            })()
+                          : weekDateOptions[((activeTable.cycleStartDay ?? 0) + cycleIdx) % 7];
                         const displayHeaderValue =
                           parsed.type === 'weekday' ? `Day ${cIdx + 1}` : colName;
                         const headerOptions = CYCLE_HEADER_OPTIONS;
