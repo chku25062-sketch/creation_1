@@ -730,7 +730,10 @@ export function NewTableWizardModal({
         const sStartMin = timeStringToMinutes(sTime);
         const endMin = (sStartMin + dur) % (24 * 60);
         const eTime = s?.fixedEndTime || minutesToTimeString(endMin);
-        const title = s?.label || (includeSampleTasks ? `${i + 1}コマ` : '');
+        const defaultFixedTitle = fixedRepeatPattern === 'cycle'
+          ? `勤務枠 ${i + 1}`
+          : `${i + 1}コマ目 (予定を入力)`;
+        const title = s?.label || defaultFixedTitle;
 
         items.push({
           title,
@@ -766,7 +769,8 @@ export function NewTableWizardModal({
         return Array.from({ length: numCols }, (_, c) => {
           const dayIndex = fixedRepeatPattern === 'weekdays' ? fixedTargetDays[c] : c;
           const s = (includeSampleTasks && fixedRepeatPattern === 'cycle') ? suggestions[r * numCols + c] : null;
-          const cellTitle = s?.label || item.title;
+          const fallbackCycleTitle = `Day ${c + 1} 勤務枠 ${r + 1}`;
+          const cellTitle = s?.label || (fixedRepeatPattern === 'cycle' ? fallbackCycleTitle : item.title);
 
           return {
             dayIndex,
@@ -836,7 +840,7 @@ export function NewTableWizardModal({
       for (let i = 0; i < count; i++) {
         const s = includeSampleTasks ? suggestions[i] : null;
         items.push({
-          title: s?.label || (includeSampleTasks ? `タスク ${i + 1}` : ''),
+          title: s?.label || `今週の目標 ${i + 1}`,
           durationMinutes: s?.defaultDuration || defaultDuration,
           weeklyCount: s?.weeklyCount || weeklyTargetCount,
         });
@@ -859,8 +863,12 @@ export function NewTableWizardModal({
         const gridItems: (DailyMenuItem | null)[][] = Array.from({ length: count }, (_, r) => {
           return Array.from({ length: dailyCycleLength }, (_, c) => {
             const idx = r * dailyCycleLength + c;
-            const s = suggestions[idx] || (includeSampleTasks ? { label: `Day ${c + 1} タスク ${r + 1}`, defaultDuration } : null);
-            return s ? { title: s.label, durationMinutes: s.defaultDuration || defaultDuration } : null;
+            const s = includeSampleTasks ? suggestions[idx] : null;
+            const fallbackTitle = `Day ${c + 1} タスク ${r + 1}`;
+            return {
+              title: s?.label || fallbackTitle,
+              durationMinutes: s?.defaultDuration || defaultDuration,
+            };
           });
         });
 
@@ -885,7 +893,7 @@ export function NewTableWizardModal({
         for (let i = 0; i < count; i++) {
           const s = includeSampleTasks ? suggestions[i] : null;
           items.push({
-            title: s?.label || (includeSampleTasks ? `習慣 ${i + 1}` : ''),
+            title: s?.label || `日課 ${i + 1}`,
             durationMinutes: s?.defaultDuration || defaultDuration,
             targetDays: dailyTargetDays,
           });
@@ -908,7 +916,7 @@ export function NewTableWizardModal({
         for (let i = 0; i < count; i++) {
           const s = includeSampleTasks ? suggestions[i] : null;
           items.push({
-            title: s?.label || (includeSampleTasks ? `習慣 ${i + 1}` : ''),
+            title: s?.label || `日課 ${i + 1}`,
             durationMinutes: s?.defaultDuration || defaultDuration,
           });
         }
@@ -1877,8 +1885,8 @@ export function NewTableWizardModal({
                   </span>
                   <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
                     {includeSampleTasks
-                      ? '作成後、メイン画面のセルで直接文字を書き換えたりコマを調整できます'
-                      : '枠組み（時間帯・コマ時間・枠数）だけが設定された空の表を作成します'}
+                      ? '作成後、メイン画面のセルで直接文字を書き換えて自分好みに調整できます'
+                      : '書き換え用の仮タスク（日課 1、1コマ目など）が入った枠組みを作成します'}
                   </p>
                 </div>
               </label>
@@ -1918,7 +1926,7 @@ export function NewTableWizardModal({
                   ? 'この表の設定を更新'
                   : includeSampleTasks
                     ? `「${tableName || 'この表'}」を作成（${tableTaskCount}${tableType === 'fixed' ? 'コマ' : '個'}・代表予定入り）`
-                    : `「${tableName || 'この表'}」を作成（${tableTaskCount}${tableType === 'fixed' ? 'コマ' : '個'}の空表）`}
+                    : `「${tableName || 'この表'}」を作成（${tableTaskCount}${tableType === 'fixed' ? 'コマ' : '個'}・仮タスク入り）`}
               </span>
             </button>
           </div>

@@ -1201,5 +1201,28 @@ describe('tableUtils', () => {
         expect(nightShift.daysOfWeek).toEqual([1, 5]);
       });
     });
+
+    describe('Plan34: 初回オンボーディングのための仮タスク代入と書き換え誘導', () => {
+      it('TABLE_CLASSES の初期タスクが「1限 (講義・業務A)」等の書き換え誘導形式になっており、付随タスクが正常生成されること', () => {
+        const classesTable = INITIAL_IMPORTED_TABLES.find((t) => t.name === '授業')!;
+        expect(classesTable).toBeDefined();
+
+        const flatCells = classesTable.cells.flat().filter((c) => c.text && c.title);
+        expect(flatCells.length).toBeGreaterThan(0);
+
+        // 全てのセルタイトルが「N限 (講義・業務X)」形式であること
+        for (const cell of flatCells) {
+          expect(cell.title).toMatch(/^\d+限 \(講義・業務[A-Z]\)$/);
+        }
+
+        // 付随タスクの生成確認
+        const { tasks } = generateScheduleItemsForTable(classesTable);
+        const attached = tasks.filter((t) => t.isAttachedTask);
+        expect(attached.length).toBe(flatCells.length);
+        for (const t of attached) {
+          expect(t.title).toMatch(/^\d+限 \(講義・業務[A-Z]\) のタスク$/);
+        }
+      });
+    });
   });
 });

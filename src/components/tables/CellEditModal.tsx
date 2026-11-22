@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Clock,
   Coffee,
@@ -121,6 +121,18 @@ export function CellEditModal({
     initialCell.attachedTask?.splitCount ?? activeTable.attachedTaskConfig?.splitCount ?? 2,
   );
   const [copyFeedback, setCopyFeedback] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // マウント時にテキストを全選択・フォーカス（仮タスクのワンタップ上書き対応）
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.select();
+      }
+    }, 50);
+    return () => clearTimeout(timer);
+  }, []);
 
   // コピー
   const handleCopy = () => {
@@ -261,6 +273,7 @@ export function CellEditModal({
                 講義名・日課名（1行目）
               </label>
               <textarea
+                ref={textareaRef}
                 rows={2}
                 value={cellEditText}
                 onChange={(e) => setCellEditText(e.target.value)}
@@ -626,6 +639,7 @@ export function CellEditModal({
 
         {/* コマ内容入力 */}
         <textarea
+          ref={textareaRef}
           rows={3}
           value={cellEditText}
           onChange={(e) => setCellEditText(e.target.value)}
