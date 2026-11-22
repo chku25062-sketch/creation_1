@@ -1179,7 +1179,7 @@ export function NewTableWizardModal({
                       : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                   }`}
                 >
-                  <span className="text-xs font-bold">何日分かをサイクル</span>
+                  <span className="text-xs font-bold">何日分かを繰り返す</span>
                   <span className="text-[10px] text-slate-500 mt-0.5">交代制・シフト勤務</span>
                 </button>
               </div>
@@ -1364,7 +1364,7 @@ export function NewTableWizardModal({
                       : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                   }`}
                 >
-                  <span className="text-xs font-bold">何日分かを個別に設定</span>
+                  <span className="text-xs font-bold">何日分かを繰り返す</span>
                   <span className="text-[10px] text-slate-500 mt-0.5">日数を決めて作成</span>
                 </button>
               </div>
