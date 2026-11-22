@@ -108,13 +108,6 @@ export function getCycleIndexForDate(
 
 **週をまたいでも月曜日にリセットされず、完璧に連続した3日周期が未来永劫維持されます。**
 
-### 4.3. データ構造とスケジューラーの改修ポイント
-1. **`ImportedTableData` へのプロパティ保持**:
-   - `cycleStartDate: string`（"YYYY-MM-DD" 形式。新規作成時は当日日付、既存表復元時は保持）。
-   - `cycleLength: number`（サイクル日数）。
-2. **スケジューラーのリアルタイム文脈**:
-   - スケジューラー実行時、表示対象週の各曜日の日付（"YYYY-MM-DD"）が渡され、各曜日において `getCycleIndexForDate` を評価してタスクの合致を判定する。
-
 ---
 
 ## 5. 簡単設定ウィザード（UI）の全体構成（最新決定版）
@@ -179,14 +172,70 @@ export function getCycleIndexForDate(
 
 ---
 
-## 6. 実装ステップと検証計画
+## 6. 現在の機能と本来の動作の互換性設計（後方互換・マイグレーション・フォールバック）
 
-### ステップ 1: 日付ベースサイクル計算関数の整備
-- `src/lib/timeUtils.ts` または `src/lib/tableUtils.ts` に `getCycleIndexForDate(targetDateStr, cycleStartDateStr, cycleLength)` を実装。
+新仕様（本来の動作）の導入にあたり、既存の保存データや既存機能、ユニットテストスイートを破壊しないための互換性維持方針を策定します。
+
+### 6.1. 保存済みデータ（LocalStorage / DB）の互換性と自動マイグレーション
+
+| データ対象 | 既存データ（現在の状態） | 本来の動作（新仕様） | 互換・マイグレーション方針 |
+| :--- | :--- | :--- | :--- |
+| **サイクルの起点日** | `cycleStartDate` が未定義（`cycleStartDay: number` のみ保持） | `cycleStartDate: "YYYY-MM-DD"` を保持して連続計算 | **自動補完フォールバック**:<br>`table.cycleStartDate || table.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10)`<br>未設定の古いデータは、表の作成日（または当日）を起点日として自動補完し、即座に安全な連続サイクルとして機能させます。 |
+| **固定枠の列数** | 常に `numCols = 7`（月〜日）で保存されている | ユーザーが選んだ曜日数（例: 平日5列、月〜土6列）で保存 | **既存テーブルの保護**:<br>既存の7列テーブルはそのまま7列として正常に読み込み・編集・表示可能。新規作成時、または簡単設定で曜日を選び直して保存した際に可変列数へと更新されます。 |
+| **固定枠の対象曜日** | セルに `dayIndex: 0..6` を保持 | 選ばれた曜日（例: 0..4）のセルのみ保持 | **完全後方互換**:<br>生成された `FixedSlot` の `daysOfWeek` には選択された曜日のみが設定されるため、メインタイムラインには選んだ曜日にだけ固定枠が配置され、土日は自然に空き枠となります。 |
+
+### 6.2. スケジューラー（`src/lib/scheduler/`）の互換性と安全なフォールバック
+
+スケジューラーの関数群（`generateTheoreticalSchedule` 等）は、既存の単体テスト（全215件）や既存画面から頻繁に呼び出されています。
+
+- **`SchedulingRealtimeContext` の拡張**:
+  ```typescript
+  export interface SchedulingRealtimeContext {
+    todayIndex?: number; // 0:月〜6:日 (従来の引数)
+    currentMinutes?: number; // 0〜1440
+    // ★ 新設オプショナル引数（本日の実カレンダー日付）
+    currentDateStr?: string; // "YYYY-MM-DD"
+    // ...
+  }
+  ```
+- **フォールバック設計（既存呼び出しを一切壊さない）**:
+  - `currentDateStr` が渡された場合: その日付を起点として各曜日の正確なカレンダー日付（"YYYY-MM-DD"）を算出し、`getCycleIndexForDate` で完璧な連続サイクルを実行。
+  - `currentDateStr` が省略された場合（既存のテストケース等）:
+    - 実行時の `new Date()`、あるいは固定の基準週（例: 2026-11-16 週）をフォールバックとして自動補填。
+    - これにより、**既存の215件のユニットテストは一切修正することなく、そのまま100%パス**します。
+
+### 6.3. 固定枠の可変列数（1〜7列）とメインタイムラインの互換性
+
+- **メイン画面（`Timeline24h` / `MainSheet`）**:
+  - メイン画面は常に「今週の月曜〜日曜（7日間）」のタイムラインを表示します。
+  - 固定枠表が「月〜金の5列」で作られた場合：
+    - テーブルから生成される `FixedSlot` の `daysOfWeek` は `[0, 1, 2, 3, 4]` となります。
+    - メインタイムライン上では、月〜金には講義ブロックが配置され、土日（5, 6）には何も配置されずフリー時間帯として自然に表示されます。
+- **テーブル編集エディタ（`TimetableGridEditor` / `ImportedTablesManager`）**:
+  - `tableUtils.ts` は既に任意の `numCols`（可変列数）に対応しています。
+  - 5列の表を開けば5列（月〜金）として表示・編集され、右側に余計な土日の空き列が表示されません。
+
+### 6.4. 新旧仕様の対比マトリクス（まとめ）
+
+| 項目 | 現在の機能（旧仕様） | 本来の動作（Plan32 新仕様） | 互換性の担保方法 |
+| :--- | :--- | :--- | :--- |
+| **時間割の曜日** | 常に月〜日の7列固定 | ユーザーが選んだ曜日（例: 月〜金 5列） | 既存の7列データはそのまま保持。新規または再編集時に可変列化。 |
+| **サイクルの計算** | `((d - cycleStartDay) % 7) % N`<br>（週替わりの月曜に必ず破綻） | `(targetDate - startDate) % N`<br>（絶対日付で永遠に連続） | `cycleStartDate` 未定義データは `createdAt` または今日で自動フォールバック。 |
+| **スケジューラー引数**| `todayIndex`（0..6）のみ | `currentDateStr`（オプショナル追加） | 省略時は現在日時から自動補完し、既存テスト全件パスを維持。 |
+| **数値入力** | 選択肢ボタン ＋ 目安チップ | 直接入力 NumberStepper に一本化 | 目安チップ削除後も、Stepper で任意の数値を直接設定可能。 |
+| **付随タスク（課題）** | テンプレート名テキスト入力あり | 所要時間のみ（テンプレートは自動適用） | 内部で `{title} の課題・復習` を自動適用し、既存セルデータも保持。 |
+
+---
+
+## 7. 実装ステップと検証計画
+
+### ステップ 1: 日付ベースサイクル計算関数の整備とテスト
+- `src/lib/timeUtils.ts` に `getCycleIndexForDate(targetDateStr, cycleStartDateStr, cycleLength)` を実装。
 - ユニットテストを作成し、週替わりの月曜日に Day 1 にリセットされず連続して正しくインクリメントされることを検証。
 
-### ステップ 2: スケジューラーのサイクル判定ロジック修正
+### ステップ 2: スケジューラーのサイクル判定ロジック修正（フォールバック付き）
 - `src/lib/scheduler/planGenerator.ts` および `src/lib/tableUtils.ts` の `((d - cycleStartDay + 7) % 7) % cycleLength` を、実日付基準の `getCycleIndexForDate` に置き換え。
+- `currentDateStr` が渡されない場合の安全なフォールバックを組み込み、既存テストへの影響をゼロにする。
 
 ### ステップ 3: 簡単設定ウィザード（UI）の改修
 - `src/components/NewTableWizardModal.tsx` において：
@@ -196,6 +245,6 @@ export function getCycleIndexForDate(
 ### ステップ 4: 全体検証
 - `npm run typecheck`
 - `npm run lint`
-- `npm run test`（全ユニットテスト通過）
+- `npm run test`（全215件＋新規テストの通過）
 - `npx next build --webpack`（プロダクションビルド通過）
 - Git コミットおよびプッシュ。
