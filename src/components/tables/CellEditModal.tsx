@@ -100,10 +100,12 @@ export function CellEditModal({
     initialCell.customDurationMinutes || cellDefaultPeriod,
   );
   const [cellCustomStartTime, setCellCustomStartTime] = useState<string>(
-    initialCell.customStartTime || defaultStartTime,
+    initialCell.customStartTime || (hasExplicitTime ? defaultStartTime : '09:00'),
   );
   const [cellHasCustomTime, setCellHasCustomTime] = useState<boolean>(
-    initialCell.hasCustomTime !== undefined ? initialCell.hasCustomTime : hasExplicitTime,
+    initialCell.hasCustomTime !== undefined
+      ? initialCell.hasCustomTime
+      : Boolean(initialCell.customStartTime),
   );
   const [cellUrl, setCellUrl] = useState<string>(initialCell.url || '');
   const [cellAttachedEnabled, setCellAttachedEnabled] = useState<boolean>(
@@ -337,9 +339,13 @@ export function CellEditModal({
                   <div>
                     <div className="text-xs font-bold text-slate-800">開始時刻</div>
                     <div className="text-[10px] text-slate-500">
-                      {cellHasCustomTime
-                        ? `個別設定中（表の規定: ${defaultStartTime}）`
-                        : `表の設定・自動配置に従う（${defaultStartTime}）`}
+                      {hasExplicitTime
+                        ? cellHasCustomTime
+                          ? `個別設定中（表の規定: ${defaultStartTime}）`
+                          : `表の設定（${defaultStartTime}）に従う`
+                        : cellHasCustomTime
+                          ? '個別開始時刻を設定中'
+                          : '指定なし（空き枠自動配置）'}
                     </div>
                   </div>
                 </div>
@@ -696,9 +702,13 @@ export function CellEditModal({
               <div>
                 <div className="text-xs font-bold text-slate-800">開始時刻</div>
                 <div className="text-[10px] text-slate-500">
-                  {cellHasCustomTime
-                    ? `個別設定中（表の規定: ${defaultStartTime}）`
-                    : `表の設定・自動配置に従う（${defaultStartTime}）`}
+                  {hasExplicitTime
+                    ? cellHasCustomTime
+                      ? `個別設定中（表の規定: ${defaultStartTime}）`
+                      : `表の設定（${defaultStartTime}）に従う`
+                    : cellHasCustomTime
+                      ? '個別開始時刻を設定中'
+                      : '指定なし（空き枠自動配置）'}
                 </div>
               </div>
             </div>

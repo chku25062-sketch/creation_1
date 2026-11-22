@@ -853,9 +853,45 @@ export function ImportedTablesManager({
         updatedData.customDurationMinutes > 0 &&
         updatedData.customDurationMinutes !== defaultDuration;
 
+      const { startTime: defaultStartTime, hasExplicitTime } = getCellDefaultStartTime(
+        prev,
+        r,
+        c,
+        periodTimes,
+      );
+
+      // 個別開始時刻の判定: 表の規定時刻と同一であれば個別指定を解除して表設定に連動
+      const isCustomStartTime =
+        updatedData.hasCustomTime &&
+        Boolean(updatedData.customStartTime) &&
+        (!hasExplicitTime || updatedData.customStartTime !== defaultStartTime);
+
+      const customStartTimeVal = isCustomStartTime ? updatedData.customStartTime : undefined;
+      const timeSlot = periodTimes[r];
+
       const nextCells = prev.cells.map((row, rIdx) =>
         row.map((cell, cIdx) => {
           if (rIdx === r && cIdx === c) {
+            let cellStartMinutes = cell.startMinutes;
+            let cellEndMinutes = cell.endMinutes;
+
+            if (customStartTimeVal) {
+              const startMin = timeStringToMinutes(customStartTimeVal);
+              const dur =
+                updatedData.customDurationMinutes > 0
+                  ? updatedData.customDurationMinutes
+                  : defaultDuration;
+              cellStartMinutes = startMin;
+              cellEndMinutes = startMin + dur;
+            } else if (!hasExplicitTime) {
+              // 自動配置の表で指定なしの場合、過去の残骸数値をゼロクリア
+              cellStartMinutes = 0;
+              cellEndMinutes = 0;
+            } else if (timeSlot) {
+              cellStartMinutes = timeSlot.startMinutes;
+              cellEndMinutes = timeSlot.endMinutes;
+            }
+
             return {
               ...cell,
               text: trimmed ? trimmed : null,
@@ -863,15 +899,14 @@ export function ImportedTablesManager({
               roomOrNote,
               fullText: trimmed,
               rawLines: lines,
+              startMinutes: cellStartMinutes,
+              endMinutes: cellEndMinutes,
               breakMinutes: updatedData.breakMinutes > 0 ? updatedData.breakMinutes : undefined,
               customDurationMinutes: isCustomDuration
                 ? updatedData.customDurationMinutes
                 : undefined,
-              customStartTime:
-                updatedData.hasCustomTime && updatedData.customStartTime
-                  ? updatedData.customStartTime
-                  : undefined,
-              hasCustomTime: updatedData.hasCustomTime,
+              customStartTime: customStartTimeVal,
+              hasCustomTime: isCustomStartTime,
               url: updatedData.url.trim() ? updatedData.url.trim() : undefined,
               attachedTask: updatedData.attachedTask
                 ? {

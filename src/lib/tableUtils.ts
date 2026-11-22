@@ -1038,27 +1038,20 @@ export function getCellDefaultDuration(
   c?: number,
   periodTimes?: PeriodTimeSlot[],
 ): number {
-  // 行の計算済みスロットがある場合、その差分（> 0 のときのみ）
+  // 1. 行の計算済みスロットがある場合、その差分（> 0 のときのみ）
   if (periodTimes && periodTimes[r]) {
     const diff = periodTimes[r].endMinutes - periodTimes[r].startMinutes;
     if (diff > 0) return diff;
   }
 
-  // customRowTimes がある場合
+  // 2. customRowTimes がある場合
   const customRow = table.axisConfig.customRowTimes?.[r + 1];
   if (customRow && customRow.startMinutes !== undefined && customRow.endMinutes !== undefined) {
     const diff = customRow.endMinutes - customRow.startMinutes;
     if (diff > 0) return diff;
   }
 
-  // セル固有の開始・終了分（グリッド上の時間）がある場合
-  const cell = c !== undefined && table.cells[r] ? table.cells[r][c] : undefined;
-  if (cell && cell.startMinutes !== undefined && cell.endMinutes !== undefined) {
-    const diff = cell.endMinutes - cell.startMinutes;
-    if (diff > 0) return diff;
-  }
-
-  // 表全体のコマ分数
+  // 3. 表全体のコマ分数（axisConfig.periodMinutes: 表の規定値をセルの一時的な値より優先）
   if (
     table.axisConfig.periodMinutes !== null &&
     table.axisConfig.periodMinutes !== undefined &&
@@ -1067,7 +1060,14 @@ export function getCellDefaultDuration(
     return table.axisConfig.periodMinutes;
   }
 
-  // 表の分類に応じたフォールバック
+  // 4. セル固有の開始・終了分（グリッド上の時間）がある場合
+  const cell = c !== undefined && table.cells[r] ? table.cells[r][c] : undefined;
+  if (cell && cell.startMinutes !== undefined && cell.endMinutes !== undefined) {
+    const diff = cell.endMinutes - cell.startMinutes;
+    if (diff > 0) return diff;
+  }
+
+  // 5. 表の分類に応じたフォールバック
   const classification = getTableClassification(table);
   if (classification === 'daily_task') return 30;
   if (classification === 'weekly_task') return 60;
@@ -1077,12 +1077,7 @@ export function getCellDefaultDuration(
 /**
  * 表データ・行・セルから、そのコマに適用されるデフォルトの開始時刻（"HH:mm"）を取得する
  * 純粋に表の設定（または行設定）から計算される規定開始時刻を取得する。
- * 優先順位:
- * 1. 行の計算済みスロットの startTime（有効な場合）
- * 2. customRowTimes の startMinutes
- * 3. セル固有の startMinutes
- * 4. 表全体の axisConfig.startTime（有効な場合）
- * 5. "09:00"
+ * 表自体に開始時刻が未設定の場合（日課や趣味など自動配置の表）は hasExplicitTime: false を返す。
  */
 export function getCellDefaultStartTime(
   table: ImportedTableData,
@@ -1090,24 +1085,18 @@ export function getCellDefaultStartTime(
   c?: number,
   periodTimes?: PeriodTimeSlot[],
 ): { startTime: string; hasExplicitTime: boolean } {
-  // 行の計算済みスロットの startTime が空でなければ使用
+  // 1. 行の計算済みスロットの startTime が空でなければ使用
   if (periodTimes && periodTimes[r] && periodTimes[r].startTime && periodTimes[r].startTime.trim()) {
     return { startTime: periodTimes[r].startTime, hasExplicitTime: true };
   }
 
-  // customRowTimes
+  // 2. customRowTimes
   const customRow = table.axisConfig.customRowTimes?.[r + 1];
   if (customRow && customRow.startMinutes !== undefined) {
     return { startTime: minutesToTimeString(customRow.startMinutes), hasExplicitTime: true };
   }
 
-  // セル固有
-  const cell = c !== undefined && table.cells[r] ? table.cells[r][c] : undefined;
-  if (cell && cell.startMinutes !== undefined && cell.startMinutes > 0) {
-    return { startTime: minutesToTimeString(cell.startMinutes), hasExplicitTime: true };
-  }
-
-  // 表全体の開始時刻
+  // 3. 表全体の開始時刻
   const axisStart = table.axisConfig.startTime;
   if (
     axisStart &&
@@ -1119,5 +1108,16 @@ export function getCellDefaultStartTime(
     return { startTime: axisStart, hasExplicitTime: true };
   }
 
-  return { startTime: '09:00', hasExplicitTime: false };
+  // 4. 固定枠の表である場合に限り、セル固有の startMinutes を参照
+  const classification = getTableClassification(table);
+  if (classification === 'fixed_slot') {
+    const cell = c !== undefined && table.cells[r] ? table.cells[r][c] : undefined;
+    if (cell && cell.startMinutes !== undefined && cell.startMinutes > 0) {
+      return { startTime: minutesToTimeString(cell.startMinutes), hasExplicitTime: true };
+    }
+    return { startTime: '09:00', hasExplicitTime: true };
+  }
+
+  // 5. 自動配置の表（日課・趣味・習慣など、開始時刻未設定の表）
+  return { startTime: '', hasExplicitTime: false };
 }

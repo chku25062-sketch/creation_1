@@ -1036,6 +1036,22 @@ describe('tableUtils', () => {
           ],
         };
         expect(getCellDefaultDuration(tableWithCellOverride, 0, 0)).toBe(20);
+
+        // 日課表のセルに古い startMinutes: 540, endMinutes: 630 が残っていても、
+        // 表全体の periodMinutes (20分) が最優先され、誤って90分を返さないこと
+        const tableWithLegacyTimes: ImportedTableData = {
+          ...workoutTable,
+          cells: [
+            [
+              {
+                ...workoutTable.cells[0][0],
+                startMinutes: 540,
+                endMinutes: 630,
+              },
+            ],
+          ],
+        };
+        expect(getCellDefaultDuration(tableWithLegacyTimes, 0, 0)).toBe(20);
       });
 
       it('getCellDefaultStartTime は表の開始時刻または行開始時刻を正しく参照し、セルの個別値ではなく規定値を返すこと', () => {
@@ -1079,6 +1095,32 @@ describe('tableUtils', () => {
         };
         const resetRes = getCellDefaultStartTime(tableWithCellStartTime, 0, 0, periodTimes);
         expect(resetRes.startTime).toBe('08:30');
+
+        // 日課・趣味など開始時刻のない表（startTime: null）では、セルに startMinutes: 540 があっても
+        // hasExplicitTime: false かつ空文字が返り、09:00 にフォールバックしないこと
+        const tableWithoutTime: ImportedTableData = {
+          ...createBaseTable(null),
+          axisConfig: {
+            startTime: null,
+            periodMinutes: 20,
+            intervalMinutes: 0,
+            hasLunch: false,
+            lunchAfterPeriod: 1,
+            lunchMinutes: 50,
+          },
+          cells: [
+            [
+              {
+                ...createBaseTable(null).cells[0][0],
+                startMinutes: 540,
+                endMinutes: 630,
+              },
+            ],
+          ],
+        };
+        const noTimeRes = getCellDefaultStartTime(tableWithoutTime, 0, 0);
+        expect(noTimeRes.hasExplicitTime).toBe(false);
+        expect(noTimeRes.startTime).toBe('');
       });
 
       it('昼休み設定（hasLunch: true, lunchAfterPeriod: 2, lunchMinutes: 50）がある場合、昼休み直前コマの休憩時間が50分になること', () => {
